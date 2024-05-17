@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct MovingBoxApp: App {
+    @StateObject var inventoryItems = InventoryData()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(inventoryItems)
         }
     }
 }

@@ -23,7 +23,7 @@ class InventoryItem: Identifiable, ObservableObject {
     @Published var make: String
     @Published var location: String
     @Published var category: String
-    @Published var price: Float
+    @Published var price: String
     @Published var insured: Bool
     @Published var assetId: String
     @Published var notes: String
@@ -34,7 +34,7 @@ class InventoryItem: Identifiable, ObservableObject {
             return Int(quantityString) != nil
         }
     
-    init(id: String = UUID().uuidString, title: String = "", quantityString: String = "1", quantityInt: Int = 1, description: String = "", serial: String = "", model: String = "", make: String = "", location: String = "None", category: String = "None", price: Float = 0.0, insured: Bool = false, assetId: String = "", notes: String = "", showInvalidQuantityAlert: Bool = false) {
+    init(id: String = UUID().uuidString, title: String = "", quantityString: String = "1", quantityInt: Int = 1, description: String = "", serial: String = "", model: String = "", make: String = "", location: String = "None", category: String = "None", price: String = "", insured: Bool = false, assetId: String = "", notes: String = "", showInvalidQuantityAlert: Bool = false) {
         self.id = id
         self.title = title
         self.quantityString = quantityString

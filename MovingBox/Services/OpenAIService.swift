@@ -25,20 +25,28 @@ class OpenAIService {
         self.imageBase64 = imageBase64
     }
     
+    let itemModel = InventoryItem()
+    
     private func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
             throw OpenAIError.invalidURL
         }
         
+        let categories = itemModel.categories
+        let locations = itemModel.locations
+        
         let imagePrompt = """
         Act as a helpful AI backend for a home inventory application which will help users automatically identify and categorize their possessions based on the contents of an image. Identify the item which is the primary subject of this photo, along with your best guess at the following 5 attributes related to the item:
         - Title: a short description of the subject, to help the user identify the item from a list
+        - Quantity: If there are multiple instances of the subject in the image, count up the number of instances and return a number (for example, if an image shows 4 dinner places of the same variety, return "4"). Return an empty string if it's difficult to determine, or if there are several different types of objects in the image
         - Description: a slightly longer description of the subject, limited to 160 characters
         - Make: the brand or manufacturer associated with the subject (return a blank string if it's difficult to determine)
-        - Model: the model name or number associated with the subject (return a blank string if it's difficult to determine) (household items, kitchen items, tools, etc).
-        - Category: the general category of household item that could be assigned to the subject (household items, kitchen items, tools, musical instruments, clothing, jewelry, miscellaneous, etc).
+        - Model: the model name or number associated with the subject (return a blank string if it's difficult to determine)
+        - Category: the general category of household item that could be assigned to the subject. Choose from one of the following options, or return "None" if none of the options fit: \(categories)
+        - Location: the most likely room or location in the house in which the subject could be found. Choose from one of the following options, or return "None" if none of the options fit: \(locations)
+        - Price: the estimated original price (in US dollars, for example $10.99) of the subject based on any online shop listings you can find, such as on Amazon.com (return a blank string if it's difficult to determine)
         Return only JSON output following this schema:
-        {"title": "Title of the item", "description": "A short description of the item", "make": "brandOrManufacturerName", "model": "modelNameOrNumber", "category": "categoryName"}
+        {"title": "Title of the item", "quantity": "1", "description": "A short description of the item", "make": "brandOrManufacturerName", "model": "modelNameOrNumber", "category": "categoryName", "location": "locationName, "price": "$1.00"}
         """
         
         var jsonData = Data()
@@ -152,8 +160,11 @@ struct GPTMessageResponse: Decodable {
 
 struct ImageDetails: Decodable {
     let title: String
+    let quantity: String
     let description: String
     let make: String
     let model: String
     let category: String
+    let location: String
+    let price: String
 }

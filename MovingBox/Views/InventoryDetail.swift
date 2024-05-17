@@ -1,29 +1,21 @@
 //
-//  ContentView.swift
+//  InventoryDetail.swift
 //  MovingBox
 //
-//  Created by Camden Webster on 5/14/24.
+//  Created by Camden Webster on 5/16/24.
 //
 
+import Foundation
 import SwiftUI
 
-struct ContentView: View {
-
-    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", description: "", make: "", model: "", category: "None")
-
+struct InventoryDetail: View {
+    @EnvironmentObject var inventoryData: InventoryData
+//    @ObservedObject var inventoryItemToDisplay: InventoryItem
+    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "")
     @FocusState private var inputIsFocused: Bool
-    @StateObject private var inventoryItemToDisplay = InventoryItem()
-//    @State private var title: String = ""
-//    @State private var quantity: String = "1"
-//    @State private var description: String = ""
-//    @State private var serial: String = ""
-//    @State private var manufacturer: String = ""
-//    @State private var model: String = ""
-//    @State private var notes: String = ""
-//    @State private var location: String = "None"
-//    @State private var category: String = "Electronics"
-//    @State private var assetId: String = ""
-//    @State private var insured: Bool = false
+    @ObservedObject var inventoryItemToDisplay: InventoryItem    /* = InventoryItem()*/
+    @State private var showingClearAllAlert = false
+    @State private var isLoadingOpenAiResults: Bool = false
 
     var imageName: String = "adapter"
     
@@ -52,10 +44,20 @@ struct ContentView: View {
                     TextEditor(text: $inventoryItemToDisplay.description)
                         .lineLimit(5)
                 }
-                Section("Details") {
+                Section("Manufacturer and Model") {
                     TextField("Manufacturer", text: $inventoryItemToDisplay.make)
                     TextField("Model", text: $inventoryItemToDisplay.model)
+                }
+                Section("Serial Number") {
                     TextField("Serial Number", text: $inventoryItemToDisplay.serial)
+                }
+                Section("Purchase Price") {
+                    TextField("Price", text: $inventoryItemToDisplay.price)
+                    Toggle(isOn: $inventoryItemToDisplay.insured, label: {
+                        Text("Insured")
+                    })
+                }
+                Section {
                     Picker("Category:", selection: $inventoryItemToDisplay.category) {
                         ForEach(inventoryItemToDisplay.categories, id: \.self) {
                             Text($0)
@@ -70,7 +72,6 @@ struct ContentView: View {
                 Section("Notes") {
                     TextEditor(text: $inventoryItemToDisplay.notes)
                         .lineLimit(5)
-                        
                 }
                 Section {
                     Image(imageName)
@@ -79,25 +80,40 @@ struct ContentView: View {
                     Button("Select Image", action: selectImage)
                 }
                 Section {
-                    Button("Clear All Fields", action: clearFields)
+                    Button("Clear All Fields") {
+                        showingClearAllAlert = true
+                    }
                 }
-    //
+                .alert("Are you sure?", isPresented: $showingClearAllAlert) {
+                    Button("Clear All Fields", role: .destructive) { clearFields() }
+                    Button("Cancel", role: .cancel) { }
+                }
             }
-            .navigationTitle("Edit Item")
+            .navigationTitle(inventoryItemToDisplay.title)
+//            .navigationTitle("Edit Item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                Button(action: {
-                    Task {
-                        await print(callOpenAI())
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isLoadingOpenAiResults {
+                        ProgressView()
                     }
-                }) {
-                    Image(systemName: "sparkles")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        Task {
+                            await print(callOpenAI())
+                        }
+                    }) {
+                        Image(systemName: "sparkles")
+                    }
+                    .disabled(isLoadingOpenAiResults ? true : false)
                 }
             }
         }
     }
     
     func callOpenAI() async -> ImageDetails {
+        isLoadingOpenAiResults = true
         print("Analyze Image button tapped")
         
         let imageEncoder = ImageEncoder(image: UIImage(imageLiteralResourceName: "adapter"))
@@ -107,11 +123,13 @@ struct ContentView: View {
         do {
             imageDetailsFromOpenAI = try await openAi.getImageDetails()
             inventoryItemToDisplay.title = imageDetailsFromOpenAI.title
+            inventoryItemToDisplay.quantityString = imageDetailsFromOpenAI.quantity
             inventoryItemToDisplay.category = imageDetailsFromOpenAI.category.capitalized
             inventoryItemToDisplay.description = imageDetailsFromOpenAI.description
             inventoryItemToDisplay.make = imageDetailsFromOpenAI.make
             inventoryItemToDisplay.model = imageDetailsFromOpenAI.model
-
+            inventoryItemToDisplay.location = imageDetailsFromOpenAI.location
+            inventoryItemToDisplay.price = imageDetailsFromOpenAI.price
 
         } catch OpenAIError.invalidURL {
             print("Invalid URL")
@@ -122,7 +140,7 @@ struct ContentView: View {
         } catch {
             print("Unexpected Error")
         }
-        
+        isLoadingOpenAiResults = false
         return imageDetailsFromOpenAI
     }
     
@@ -133,13 +151,16 @@ struct ContentView: View {
     func clearFields() {
         print("Clear fields button tapped")
         inventoryItemToDisplay.title = ""
-        inventoryItemToDisplay.category = ""
+        inventoryItemToDisplay.category = "None"
         inventoryItemToDisplay.description = ""
         inventoryItemToDisplay.make = ""
         inventoryItemToDisplay.model = ""
+        inventoryItemToDisplay.location = "None"
+        inventoryItemToDisplay.price = ""
     }
 }
 
 #Preview {
-    ContentView()
+    InventoryDetail(inventoryItemToDisplay: InventoryItem())
+        .environmentObject(InventoryData())
 }

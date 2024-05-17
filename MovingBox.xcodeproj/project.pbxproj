@@ -14,10 +14,12 @@
 		1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */; };
 		1942DC902BF3D73000734AF4 /* InventoryList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8D2BF3D73000734AF4 /* InventoryList.swift */; };
 		1942DC912BF3D73000734AF4 /* InventoryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8E2BF3D73000734AF4 /* InventoryItem.swift */; };
-		1942DC922BF3D73000734AF4 /* InventoryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8F2BF3D73000734AF4 /* InventoryRow.swift */; };
+		1942DC922BF3D73000734AF4 /* CustomInventoryRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8F2BF3D73000734AF4 /* CustomInventoryRows.swift */; };
 		1942DC942BF3D9C000734AF4 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC932BF3D9BF00734AF4 /* Secrets.swift */; };
 		1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */; };
 		1942DC982BF6A23D00734AF4 /* ItemTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC972BF6A23D00734AF4 /* ItemTextField.swift */; };
+		1989589E2BF6FC3700C52CAE /* InventoryDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1989589D2BF6FC3700C52CAE /* InventoryDetail.swift */; };
+		198958A02BF6FCD400C52CAE /* InventoryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1989589F2BF6FCD400C52CAE /* InventoryData.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,10 +31,12 @@
 		1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		1942DC8D2BF3D73000734AF4 /* InventoryList.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InventoryList.swift; sourceTree = "<group>"; };
 		1942DC8E2BF3D73000734AF4 /* InventoryItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InventoryItem.swift; sourceTree = "<group>"; };
-		1942DC8F2BF3D73000734AF4 /* InventoryRow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InventoryRow.swift; sourceTree = "<group>"; };
+		1942DC8F2BF3D73000734AF4 /* CustomInventoryRows.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomInventoryRows.swift; sourceTree = "<group>"; };
 		1942DC932BF3D9BF00734AF4 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
 		1942DC972BF6A23D00734AF4 /* ItemTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemTextField.swift; sourceTree = "<group>"; };
+		1989589D2BF6FC3700C52CAE /* InventoryDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryDetail.swift; sourceTree = "<group>"; };
+		1989589F2BF6FCD400C52CAE /* InventoryData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryData.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,17 +69,13 @@
 		1942DC7C2BF391CB00734AF4 /* MovingBox */ = {
 			isa = PBXGroup;
 			children = (
-				1942DC8E2BF3D73000734AF4 /* InventoryItem.swift */,
-				1942DC8D2BF3D73000734AF4 /* InventoryList.swift */,
-				1942DC8F2BF3D73000734AF4 /* InventoryRow.swift */,
-				1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */,
+				198958A32BF6FDC400C52CAE /* Services */,
+				198958A22BF6FDAA00C52CAE /* Models */,
+				198958A12BF6FD9100C52CAE /* Views */,
 				1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */,
-				1942DC7F2BF391CB00734AF4 /* ContentView.swift */,
 				1942DC932BF3D9BF00734AF4 /* Secrets.swift */,
 				1942DC812BF391CF00734AF4 /* Assets.xcassets */,
 				1942DC832BF391CF00734AF4 /* Preview Content */,
-				1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */,
-				1942DC972BF6A23D00734AF4 /* ItemTextField.swift */,
 			);
 			path = MovingBox;
 			sourceTree = "<group>";
@@ -86,6 +86,36 @@
 				1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		198958A12BF6FD9100C52CAE /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				1942DC8D2BF3D73000734AF4 /* InventoryList.swift */,
+				1942DC8F2BF3D73000734AF4 /* CustomInventoryRows.swift */,
+				1942DC7F2BF391CB00734AF4 /* ContentView.swift */,
+				1942DC972BF6A23D00734AF4 /* ItemTextField.swift */,
+				1989589D2BF6FC3700C52CAE /* InventoryDetail.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		198958A22BF6FDAA00C52CAE /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				1942DC8E2BF3D73000734AF4 /* InventoryItem.swift */,
+				1989589F2BF6FCD400C52CAE /* InventoryData.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		198958A32BF6FDC400C52CAE /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */,
+				1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -166,7 +196,9 @@
 				1942DC802BF391CB00734AF4 /* ContentView.swift in Sources */,
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
 				1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */,
-				1942DC922BF3D73000734AF4 /* InventoryRow.swift in Sources */,
+				1942DC922BF3D73000734AF4 /* CustomInventoryRows.swift in Sources */,
+				1989589E2BF6FC3700C52CAE /* InventoryDetail.swift in Sources */,
+				198958A02BF6FCD400C52CAE /* InventoryData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
