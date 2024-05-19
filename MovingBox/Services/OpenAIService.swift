@@ -19,21 +19,24 @@ enum OpenAIError: Error {
 }
 
 class OpenAIService {
+    
+    
+    
     var imageBase64: String
     
     init(imageBase64: String) {
         self.imageBase64 = imageBase64
     }
     
-    let itemModel = InventoryItem()
+    let itemModel = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
     
     private func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
             throw OpenAIError.invalidURL
         }
         
-        let categories = itemModel.categories
-        let locations = itemModel.locations
+        let categories = TestData().labels
+        let locations = TestData().locations
         
         let imagePrompt = """
         Act as a helpful AI backend for a home inventory application which will help users automatically identify and categorize their possessions based on the contents of an image. Identify the item which is the primary subject of this photo, along with your best guess at the following 5 attributes related to the item:

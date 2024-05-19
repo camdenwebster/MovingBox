@@ -27,6 +27,6 @@ struct InventoryQuantityRow: View {
 
 
 #Preview {
-    let inventoryItem = InventoryItem(id: "2d9aa668-fe7b-438a-bc79-09bf88f55308", title: "Coffee Maker", location: "Kitchen")
+    let inventoryItem = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
     return InventoryStringRow(inventoryItem: inventoryItem)
 }
