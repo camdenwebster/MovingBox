@@ -129,7 +129,8 @@ struct EditInventoryItemView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: {
                     Task {
-                        await callOpenAI()
+                        let imageDetails = await callOpenAI()
+                        updateUIWithImageDetails(imageDetails)
                     }
                 }) {
                     Image(systemName: "sparkles")
@@ -152,15 +153,6 @@ struct EditInventoryItemView: View {
 
         do {
             imageDetailsFromOpenAI = try await openAi.getImageDetails()
-            inventoryItemToDisplay.title = imageDetailsFromOpenAI.title
-            inventoryItemToDisplay.quantityString = imageDetailsFromOpenAI.quantity
-            inventoryItemToDisplay.label = labels.first { $0.name == imageDetailsFromOpenAI.category }
-            inventoryItemToDisplay.desc = imageDetailsFromOpenAI.description
-            inventoryItemToDisplay.make = imageDetailsFromOpenAI.make
-            inventoryItemToDisplay.model = imageDetailsFromOpenAI.model
-            inventoryItemToDisplay.location = locations.first { $0.name == imageDetailsFromOpenAI.location }
-            inventoryItemToDisplay.price = imageDetailsFromOpenAI.price
-            
             isLoadingOpenAiResults = false
 
         } catch OpenAIError.invalidURL {
@@ -173,7 +165,17 @@ struct EditInventoryItemView: View {
             print("Unexpected Error")
         }
         return imageDetailsFromOpenAI
-
+    }
+    
+    func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
+        inventoryItemToDisplay.title = imageDetails.title
+        inventoryItemToDisplay.quantityString = imageDetails.quantity
+        inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
+        inventoryItemToDisplay.desc = imageDetails.description
+        inventoryItemToDisplay.make = imageDetails.make
+        inventoryItemToDisplay.model = imageDetails.model
+        inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
+        inventoryItemToDisplay.price = imageDetails.price
     }
     
     func selectImage() {
