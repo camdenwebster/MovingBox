@@ -14,12 +14,14 @@ struct InventoryListView: View {
     
     var body: some View {
         List {
-            ForEach(inventoryItemsForSelectedLocation) { inventoryItem in
-                NavigationLink(value: inventoryItem) {
-                    Text(inventoryItem.title)
+            Section {
+                ForEach(inventoryItemsForSelectedLocation) { inventoryItem in
+                    NavigationLink(value: inventoryItem) {
+                        Text(inventoryItem.title)
+                    }
                 }
+                .onDelete(perform: deleteItems)
             }
-            .onDelete(perform: deleteItems)
         }
     }
     

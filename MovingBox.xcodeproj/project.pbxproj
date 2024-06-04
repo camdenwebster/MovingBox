@@ -18,6 +18,7 @@
 		1942DC942BF3D9C000734AF4 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC932BF3D9BF00734AF4 /* Secrets.swift */; };
 		1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */; };
 		1942DC982BF6A23D00734AF4 /* ItemTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC972BF6A23D00734AF4 /* ItemTextField.swift */; };
+		194FE44C2C0F484400DE6FFA /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194FE44B2C0F484400DE6FFA /* SettingsView.swift */; };
 		1989589E2BF6FC3700C52CAE /* EditInventoryItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1989589D2BF6FC3700C52CAE /* EditInventoryItemView.swift */; };
 		198958A52BF8ED6100C52CAE /* InventoryLocationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958A42BF8ED6100C52CAE /* InventoryLocationModel.swift */; };
 		198958A72BF8F69A00C52CAE /* InventoryLabelModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958A62BF8F69A00C52CAE /* InventoryLabelModel.swift */; };
@@ -40,6 +41,7 @@
 		1942DC932BF3D9BF00734AF4 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
 		1942DC972BF6A23D00734AF4 /* ItemTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemTextField.swift; sourceTree = "<group>"; };
+		194FE44B2C0F484400DE6FFA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		1989589D2BF6FC3700C52CAE /* EditInventoryItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditInventoryItemView.swift; sourceTree = "<group>"; };
 		198958A42BF8ED6100C52CAE /* InventoryLocationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryLocationModel.swift; sourceTree = "<group>"; };
 		198958A62BF8F69A00C52CAE /* InventoryLabelModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryLabelModel.swift; sourceTree = "<group>"; };
@@ -113,6 +115,7 @@
 				198958A82BF8F76700C52CAE /* EditLocationView.swift */,
 				198958AC2BF8FAC700C52CAE /* TestData.swift */,
 				198958AA2BF8F77000C52CAE /* EditLabelView.swift */,
+				194FE44B2C0F484400DE6FFA /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -212,6 +215,7 @@
 				1942DC942BF3D9C000734AF4 /* Secrets.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
+				194FE44C2C0F484400DE6FFA /* SettingsView.swift in Sources */,
 				1942DC982BF6A23D00734AF4 /* ItemTextField.swift in Sources */,
 				198958A52BF8ED6100C52CAE /* InventoryLocationModel.swift in Sources */,
 				1942DC902BF3D73000734AF4 /* InventoryListView.swift in Sources */,
