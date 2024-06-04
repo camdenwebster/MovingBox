@@ -16,23 +16,34 @@ struct ContentView: View {
     @State private var searchText = ""
         
     var body: some View {
-        NavigationStack(path: $path) {
-            InventoryListView(searchString: searchText, sortOrder: sortOrder)
-                .navigationTitle("Home Inventory")
-                .navigationDestination(for: InventoryItem.self) { inventoryItem in EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path)
-                }
-                .toolbar {
-                    Menu("Sort", systemImage: "arrow.up.arrow.down") {
-                        Picker("Sort", selection: $sortOrder) {
-                            Text("Title (A-Z)")
-                                .tag([SortDescriptor(\InventoryItem.title)])
-                            Text("Title (Z-A)")
-                                .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
-                        }
+        TabView {
+            NavigationStack(path: $path) {
+                InventoryListView(searchString: searchText, sortOrder: sortOrder)
+                    .navigationTitle("Home Inventory")
+                    .navigationDestination(for: InventoryItem.self) { inventoryItem in EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path)
                     }
-                    Button("Add Item", systemImage: "plus", action: createNewItem)
+                    .toolbar {
+                        Menu("Sort", systemImage: "arrow.up.arrow.down") {
+                            Picker("Sort", selection: $sortOrder) {
+                                Text("Title (A-Z)")
+                                    .tag([SortDescriptor(\InventoryItem.title)])
+                                Text("Title (Z-A)")
+                                    .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
+                            }
+                        }
+                        Button("Add Item", systemImage: "plus", action: createNewItem)
+                    }
+                    .searchable(text: $searchText)
+            }
+            .tabItem {
+                Image(systemName: "list.bullet")
+                Text("All Items")
+            }
+            SettingsView()
+                .tabItem {
+                    Image(systemName: "gearshape")
+                    Text("Settings")
                 }
-                .searchable(text: $searchText)
         }
     }
         
