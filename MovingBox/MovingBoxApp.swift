@@ -20,6 +20,7 @@ struct MovingBoxApp: App {
                         Image(systemName: "gauge.with.dots.needle.bottom.50percent")
                         Text("Dashboard")
                     }
+                
                 NavigationStack(path: $router.path) {
                     LocationsListView()
                         .navigationDestination(for: Router.Destination.self) { destination in

@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import PhotosUI
 
 struct EditLocationView: View {
     @EnvironmentObject var router: Router
@@ -14,9 +15,20 @@ struct EditLocationView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
+    @State private var selectedPhoto: PhotosPickerItem?
     
     var body: some View {
         Form {
+            Section {
+                if let imageData = location.photo, let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                }
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Label("Select Image", systemImage: "photo")
+                }
+            }
             Section("Location Name") {
                 TextField("Attic, Basement, Kitchen, Office, etc.", text: $location.name)
             }
@@ -40,7 +52,15 @@ struct EditLocationView: View {
         }
         .navigationTitle("Edit Location")
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: selectedPhoto, loadPhoto)
     }
+    
+    func loadPhoto() {
+        Task { @MainActor in
+            location.photo = try await selectedPhoto?.loadTransferable(type: Data.self)
+        }
+    }
+    
 }
 
 #Preview {

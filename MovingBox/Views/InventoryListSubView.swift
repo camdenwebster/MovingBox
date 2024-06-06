@@ -10,18 +10,18 @@ import SwiftUI
 
 struct InventoryListSubView: View {
     @Environment(\.modelContext) var modelContext
+    @EnvironmentObject var router: Router
     @Query var inventoryItemsForSelectedLocation: [InventoryItem]
     
 //    let location: InventoryLocation
 
     
     var body: some View {
-
         List {
             Section {
                 ForEach(inventoryItemsForSelectedLocation) { inventoryItem in
                     NavigationLink(value: inventoryItem) {
-                        Text(inventoryItem.title)
+                        InventoryItemRow(item: inventoryItem)
                     }
                 }
                 .onDelete(perform: deleteItems)
