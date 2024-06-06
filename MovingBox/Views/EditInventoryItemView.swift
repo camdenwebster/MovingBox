@@ -10,8 +10,8 @@ import SwiftData
 import SwiftUI
 
 struct EditInventoryItemView: View {
-
     @Environment(\.modelContext) var modelContext
+    @EnvironmentObject var router: Router
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -113,12 +113,6 @@ struct EditInventoryItemView: View {
         }
         .navigationTitle(inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: InventoryLocation.self) { location in
-            EditLocationView(location: location)
-        }
-        .navigationDestination(for: InventoryLabel.self) { label in
-            EditLabelView(label: label)
-        }
         .onChange(of: selectedPhoto, loadPhoto)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -197,13 +191,15 @@ struct EditInventoryItemView: View {
     func addLocation() {
         let location = InventoryLocation(id: UUID().uuidString, name: "", desc: "")
         modelContext.insert(location)
-        navigationPath.append(location)
+        inventoryItemToDisplay.location = location
+        router.navigate(to: .editLocationView(location: location))
     }
     
     func addLabel() {
         let label = InventoryLabel(id: UUID().uuidString, name: "", desc: "")
         modelContext.insert(label)
-        navigationPath.append(label)
+        inventoryItemToDisplay.label = label
+        router.navigate(to: .editLabelView(label: label))
     }
     
     func loadPhoto() {

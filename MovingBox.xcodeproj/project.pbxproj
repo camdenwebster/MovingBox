@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
-		1942DC802BF391CB00734AF4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7F2BF391CB00734AF4 /* ContentView.swift */; };
 		1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC812BF391CF00734AF4 /* Assets.xcassets */; };
 		1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */; };
 		1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */; };
@@ -29,12 +28,12 @@
 		19D343082C114DEE00F8B2C7 /* InventoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343072C114DEE00F8B2C7 /* InventoryListView.swift */; };
 		19D3430A2C114E7200F8B2C7 /* LocationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343092C114E7200F8B2C7 /* LocationsListView.swift */; };
 		19D3430C2C1159C400F8B2C7 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430B2C1159C300F8B2C7 /* DashboardView.swift */; };
+		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
-		1942DC7F2BF391CB00734AF4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
@@ -57,6 +56,7 @@
 		19D343072C114DEE00F8B2C7 /* InventoryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryListView.swift; sourceTree = "<group>"; };
 		19D343092C114E7200F8B2C7 /* LocationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationsListView.swift; sourceTree = "<group>"; };
 		19D3430B2C1159C300F8B2C7 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,16 +113,14 @@
 		198958A12BF6FD9100C52CAE /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				19D343072C114DEE00F8B2C7 /* InventoryListView.swift */,
 				1942DC8D2BF3D73000734AF4 /* InventoryListSubView.swift */,
 				1942DC8F2BF3D73000734AF4 /* CustomInventoryRows.swift */,
-				1942DC7F2BF391CB00734AF4 /* ContentView.swift */,
 				1942DC972BF6A23D00734AF4 /* ItemTextField.swift */,
 				1989589D2BF6FC3700C52CAE /* EditInventoryItemView.swift */,
 				198958A82BF8F76700C52CAE /* EditLocationView.swift */,
-				198958AC2BF8FAC700C52CAE /* TestData.swift */,
 				198958AA2BF8F77000C52CAE /* EditLabelView.swift */,
 				194FE44B2C0F484400DE6FFA /* SettingsView.swift */,
-				19D343072C114DEE00F8B2C7 /* InventoryListView.swift */,
 				19D343092C114E7200F8B2C7 /* LocationsListView.swift */,
 				19D3430B2C1159C300F8B2C7 /* DashboardView.swift */,
 			);
@@ -145,6 +143,8 @@
 				1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */,
 				1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */,
 				198958AE2BF99F5600C52CAE /* Previewer.swift */,
+				19D3430D2C12146800F8B2C7 /* Router.swift */,
+				198958AC2BF8FAC700C52CAE /* TestData.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -229,7 +229,7 @@
 				19D343082C114DEE00F8B2C7 /* InventoryListView.swift in Sources */,
 				198958A52BF8ED6100C52CAE /* InventoryLocationModel.swift in Sources */,
 				1942DC902BF3D73000734AF4 /* InventoryListSubView.swift in Sources */,
-				1942DC802BF391CB00734AF4 /* ContentView.swift in Sources */,
+				19D3430E2C12146800F8B2C7 /* Router.swift in Sources */,
 				198958AB2BF8F77000C52CAE /* EditLabelView.swift in Sources */,
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
 				198958A72BF8F69A00C52CAE /* InventoryLabelModel.swift in Sources */,

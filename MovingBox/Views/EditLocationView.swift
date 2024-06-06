@@ -9,6 +9,7 @@ import SwiftData
 import SwiftUI
 
 struct EditLocationView: View {
+    @EnvironmentObject var router: Router
     @Bindable var location: InventoryLocation
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)

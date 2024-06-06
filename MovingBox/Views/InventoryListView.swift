@@ -13,6 +13,7 @@ enum Options: Hashable {
 
 struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
+    @EnvironmentObject var router: Router
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
@@ -42,7 +43,7 @@ struct InventoryListView: View {
     func createNewItem() {
         let newInventoryItem = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: location, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
         modelContext.insert(newInventoryItem)
-        path.append(newInventoryItem)
+        router.navigate(to: .editInventoryItemView(item: newInventoryItem))
         print("New item created with id \(newInventoryItem.id)")
     }
     
