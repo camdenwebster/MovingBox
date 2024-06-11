@@ -14,6 +14,7 @@ class InventoryLocation {
     var name: String = ""
     var desc: String = ""
 //    var parentLocation: InventoryLocation?
+    @Attribute(.externalStorage) var photo: Data?
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
     init(id: String, name: String, desc: String) {

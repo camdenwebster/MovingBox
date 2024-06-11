@@ -10,6 +10,7 @@ import SwiftData
 
 struct LocationsListView: View {
     @Environment(\.modelContext) var modelContext
+    @EnvironmentObject var router: Router
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @Query(sort: [
@@ -17,17 +18,38 @@ struct LocationsListView: View {
     ]) var locations: [InventoryLocation]
     
     var body: some View {
-        NavigationStack(path: $path) {
-            List(locations) { location in
-                NavigationLink(location.name, value: location)
+        List {
+            ForEach(locations) { location in
+                NavigationLink(value: location) {
+                    LocationItemRow(location: location)
+                }
             }
-            .navigationDestination(for: InventoryLocation.self) { location in
-                InventoryListView(location: location)
-            }
-            .navigationTitle("Locations")
-            .navigationBarTitleDisplayMode(.large)//            InventoryListView()
+            .onDelete(perform: deleteLocation)
+        }
+        .navigationDestination(for: InventoryLocation.self) { location in
+            InventoryListView(location: location)
+        }
+        .navigationTitle("Locations")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            Button("Add Item", systemImage: "plus", action: addLocation)
         }
     }
+    
+    func addLocation() {
+        let location = InventoryLocation(id: UUID().uuidString, name: "", desc: "")
+        modelContext.insert(location)
+        router.navigate(to: .editLocationView(location: location))
+    }
+    
+    func deleteLocation(at offsets: IndexSet) {
+        for index in offsets {
+            let locationToDelete = locations[index]
+            modelContext.delete(locationToDelete)
+            print("Deleting location id: \(locationToDelete.id), title: \(locationToDelete.name)")
+        }
+    }
+    
 }
 
 //#Preview {
