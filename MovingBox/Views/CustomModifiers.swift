@@ -15,8 +15,22 @@ struct DetailLabel: ViewModifier {
     }
 }
 
+struct ImageListView: ViewModifier {
+    func body(content: Content) -> some View {
+        content                
+            .scaledToFit()
+            .frame(width: 50, height: 50)
+            .cornerRadius(12)
+            .clipped()
+    }
+}
+
 extension View {
     func detailLabelStyle() -> some View {
         modifier(DetailLabel())
+    }
+    
+    func imageListViewStyle() -> some View {
+        modifier(ImageListView())
     }
 }

@@ -27,14 +27,15 @@ struct EditInventoryItemView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults: Bool = false
+    @State private var formType: ModelFormType?
 
     var imageName: String = "adapter"
     
     var body: some View {
         Form {
             Section {
-                if let imageData = inventoryItemToDisplay.photo, let uiImage = UIImage(data: imageData) {
-                    Image(uiImage: uiImage)
+                if let image = inventoryItemToDisplay.photo {
+                    Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
                 }
@@ -47,11 +48,11 @@ struct EditInventoryItemView: View {
                     .focused($inputIsFocused)
             }
             Section("Quantity") {
-                Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
+                Stepper("\(inventoryItemToDisplay.quantity)", value: $inventoryItemToDisplay.quantity, in: 1...1000, step: 1)
             }
             Section("Description") {
                 TextEditor(text: $inventoryItemToDisplay.desc)
-                    .lineLimit(5)
+                    .frame(minHeight: 40, maxHeight: 80)
             }
             Section("Manufacturer and Model") {
                 TextField("Manufacturer", text: $inventoryItemToDisplay.make)
@@ -99,7 +100,7 @@ struct EditInventoryItemView: View {
             }
             Section("Notes") {
                 TextEditor(text: $inventoryItemToDisplay.notes)
-                    .lineLimit(5)
+                    .frame(minHeight: 40, maxHeight: 80)
             }
             Section {
                 Button("Clear All Fields") {
@@ -113,7 +114,7 @@ struct EditInventoryItemView: View {
         }
         .navigationTitle(inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto, loadPhoto)
+//        .onChange(of: selectedPhoto, loadPhoto)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if isLoadingOpenAiResults {
@@ -163,7 +164,7 @@ struct EditInventoryItemView: View {
     
     func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
         inventoryItemToDisplay.title = imageDetails.title
-        inventoryItemToDisplay.quantityString = imageDetails.quantity
+        inventoryItemToDisplay.quantity = Int(imageDetails.quantity) ?? 1
         inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
         inventoryItemToDisplay.desc = imageDetails.description
         inventoryItemToDisplay.make = imageDetails.make
@@ -202,11 +203,14 @@ struct EditInventoryItemView: View {
         router.navigate(to: .editLabelView(label: label))
     }
     
-    func loadPhoto() {
-        Task { @MainActor in
-            inventoryItemToDisplay.photo = try await selectedPhoto?.loadTransferable(type: Data.self)
-        }
-    }
+//    func loadPhoto() {
+//        Task { @MainActor in
+//            let data = try await selectedPhoto?.loadTransferable(type: Data.self)
+//            if let uiImage = UIImage(data: data) {
+//                inventoryItemToDisplay.photo = Image(uiImage: uiImage)
+//            }
+//        }
+//    }
 }
 
 

@@ -21,7 +21,7 @@ struct Previewer {
         
         location = InventoryLocation(id: UUID().uuidString, name: "Office", desc: "Camden's office")
         label = InventoryLabel(id: UUID().uuidString, name: "Electronics", desc: "Electronic items")
-        inventoryItem = InventoryItem(id: UUID().uuidString, title: "Sennheiser Power Adapter", quantityString: "1", quantityInt: 1, desc: "", serial: "Sennheiser", model: "", make: "", location: location, label: label, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+        inventoryItem = InventoryItem(id: UUID().uuidString, location: nil, label: nil)
 
         
         container.mainContext.insert(inventoryItem)

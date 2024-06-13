@@ -28,7 +28,7 @@ class OpenAIService {
         self.imageBase64 = imageBase64
     }
     
-    let itemModel = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+    let itemModel = InventoryItem(id: UUID().uuidString, location: nil, label: nil)
     
     private func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {

@@ -25,6 +25,7 @@
 		198958AB2BF8F77000C52CAE /* EditLabelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AA2BF8F77000C52CAE /* EditLabelView.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
+		19BFC4BC2C193B4700B94250 /* ModelFormType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19BFC4BB2C193B4700B94250 /* ModelFormType.swift */; };
 		19D343082C114DEE00F8B2C7 /* InventoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343072C114DEE00F8B2C7 /* InventoryListView.swift */; };
 		19D3430A2C114E7200F8B2C7 /* LocationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343092C114E7200F8B2C7 /* LocationsListView.swift */; };
 		19D3430C2C1159C400F8B2C7 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430B2C1159C300F8B2C7 /* DashboardView.swift */; };
@@ -32,6 +33,10 @@
 		19D343102C12249D00F8B2C7 /* InventoryItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430F2C12249D00F8B2C7 /* InventoryItemRow.swift */; };
 		19D343122C12467D00F8B2C7 /* LocationItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343112C12467D00F8B2C7 /* LocationItemRow.swift */; };
 		19D343142C12472B00F8B2C7 /* CustomModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343132C12472B00F8B2C7 /* CustomModifiers.swift */; };
+		19D343162C14001500F8B2C7 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343152C14001500F8B2C7 /* Constants.swift */; };
+		19D343182C15F4CF00F8B2C7 /* ImageUpdateEditViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343172C15F4CF00F8B2C7 /* ImageUpdateEditViewModel.swift */; };
+		19DBBBD12C18F93200AFFD04 /* ImageUpdateEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19DBBBD02C18F93200AFFD04 /* ImageUpdateEditView.swift */; };
+		19DBBBD32C18FADF00AFFD04 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19DBBBD22C18FADF00AFFD04 /* ImagePicker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +61,7 @@
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
 		198958B12BF9AEF900C52CAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		19BFC4BB2C193B4700B94250 /* ModelFormType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelFormType.swift; sourceTree = "<group>"; };
 		19D343072C114DEE00F8B2C7 /* InventoryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryListView.swift; sourceTree = "<group>"; };
 		19D343092C114E7200F8B2C7 /* LocationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationsListView.swift; sourceTree = "<group>"; };
 		19D3430B2C1159C300F8B2C7 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -63,6 +69,10 @@
 		19D3430F2C12249D00F8B2C7 /* InventoryItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryItemRow.swift; sourceTree = "<group>"; };
 		19D343112C12467D00F8B2C7 /* LocationItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationItemRow.swift; sourceTree = "<group>"; };
 		19D343132C12472B00F8B2C7 /* CustomModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomModifiers.swift; sourceTree = "<group>"; };
+		19D343152C14001500F8B2C7 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		19D343172C15F4CF00F8B2C7 /* ImageUpdateEditViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUpdateEditViewModel.swift; sourceTree = "<group>"; };
+		19DBBBD02C18F93200AFFD04 /* ImageUpdateEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUpdateEditView.swift; sourceTree = "<group>"; };
+		19DBBBD22C18FADF00AFFD04 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +142,7 @@
 				19D3430F2C12249D00F8B2C7 /* InventoryItemRow.swift */,
 				19D343112C12467D00F8B2C7 /* LocationItemRow.swift */,
 				19D343132C12472B00F8B2C7 /* CustomModifiers.swift */,
+				19DBBBD02C18F93200AFFD04 /* ImageUpdateEditView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -142,6 +153,8 @@
 				1942DC8E2BF3D73000734AF4 /* InventoryItemModel.swift */,
 				198958A42BF8ED6100C52CAE /* InventoryLocationModel.swift */,
 				198958A62BF8F69A00C52CAE /* InventoryLabelModel.swift */,
+				19D343172C15F4CF00F8B2C7 /* ImageUpdateEditViewModel.swift */,
+				19BFC4BB2C193B4700B94250 /* ModelFormType.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -154,6 +167,8 @@
 				198958AE2BF99F5600C52CAE /* Previewer.swift */,
 				19D3430D2C12146800F8B2C7 /* Router.swift */,
 				198958AC2BF8FAC700C52CAE /* TestData.swift */,
+				19D343152C14001500F8B2C7 /* Constants.swift */,
+				19DBBBD22C18FADF00AFFD04 /* ImagePicker.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -231,12 +246,16 @@
 				1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */,
 				1942DC912BF3D73000734AF4 /* InventoryItemModel.swift in Sources */,
 				1942DC942BF3D9C000734AF4 /* Secrets.swift in Sources */,
+				19DBBBD32C18FADF00AFFD04 /* ImagePicker.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
+				19D343182C15F4CF00F8B2C7 /* ImageUpdateEditViewModel.swift in Sources */,
 				194FE44C2C0F484400DE6FFA /* SettingsView.swift in Sources */,
 				1942DC982BF6A23D00734AF4 /* ItemTextField.swift in Sources */,
+				19BFC4BC2C193B4700B94250 /* ModelFormType.swift in Sources */,
 				19D343082C114DEE00F8B2C7 /* InventoryListView.swift in Sources */,
 				198958A52BF8ED6100C52CAE /* InventoryLocationModel.swift in Sources */,
+				19DBBBD12C18F93200AFFD04 /* ImageUpdateEditView.swift in Sources */,
 				1942DC902BF3D73000734AF4 /* InventoryListSubView.swift in Sources */,
 				19D3430E2C12146800F8B2C7 /* Router.swift in Sources */,
 				198958AB2BF8F77000C52CAE /* EditLabelView.swift in Sources */,
@@ -251,6 +270,7 @@
 				19D343142C12472B00F8B2C7 /* CustomModifiers.swift in Sources */,
 				198958A92BF8F76700C52CAE /* EditLocationView.swift in Sources */,
 				19D343102C12249D00F8B2C7 /* InventoryItemRow.swift in Sources */,
+				19D343162C14001500F8B2C7 /* Constants.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

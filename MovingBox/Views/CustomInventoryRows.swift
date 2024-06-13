@@ -19,14 +19,13 @@ struct InventoryQuantityRow: View {
     @State var inventoryItem: InventoryItem
     var body: some View {
         HStack {
-            TextField("", text: $inventoryItem.quantityString)
-            Stepper("\(inventoryItem.quantityInt)", value: $inventoryItem.quantityInt, in: 1...1000, step: 1)
+            Stepper("\(inventoryItem.quantity)", value: $inventoryItem.quantity, in: 1...1000, step: 1)
         }
     }
 }
 
 
 #Preview {
-    let inventoryItem = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+    let inventoryItem = InventoryItem(id: UUID().uuidString, location: nil, label: nil)
     return InventoryStringRow(inventoryItem: inventoryItem)
 }

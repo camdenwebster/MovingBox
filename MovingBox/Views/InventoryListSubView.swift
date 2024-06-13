@@ -51,9 +51,3 @@ struct InventoryListSubView: View {
 }
 
 
-
-
-//#Preview {
-//    let location = InventoryLocation(id: UUID().uuidString, name: "Attic", desc: "")
-//    InventoryListSubView(location: location)
-//}

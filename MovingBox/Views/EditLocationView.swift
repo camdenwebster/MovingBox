@@ -20,8 +20,8 @@ struct EditLocationView: View {
     var body: some View {
         Form {
             Section {
-                if let imageData = location.photo, let uiImage = UIImage(data: imageData) {
-                    Image(uiImage: uiImage)
+                if let image = location.photo {
+                    Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
                 }
@@ -52,13 +52,14 @@ struct EditLocationView: View {
         }
         .navigationTitle("Edit Location")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto, loadPhoto)
+//        .onChange(of: selectedPhoto, loadPhoto)
     }
     
     func loadPhoto() {
-        Task { @MainActor in
-            location.photo = try await selectedPhoto?.loadTransferable(type: Data.self)
-        }
+//        Task { @MainActor in
+//            location.photo = try await selectedPhoto?.loadTransferable(type: Data.self)
+//        }
+        print("Load photo button tapped")
     }
     
 }

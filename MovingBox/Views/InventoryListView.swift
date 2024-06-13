@@ -41,7 +41,7 @@ struct InventoryListView: View {
     }
     
     func createNewItem() {
-        let newInventoryItem = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: location, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+        let newInventoryItem = InventoryItem(id: UUID().uuidString, location: nil, label: nil)
         modelContext.insert(newInventoryItem)
         router.navigate(to: .editInventoryItemView(item: newInventoryItem))
         print("New item created with id \(newInventoryItem.id)")
@@ -52,7 +52,13 @@ struct InventoryListView: View {
     }
 }
 
-//#Preview {
-//    let location = InventoryLocation(id: UUID().uuidString, name: "Attic", desc: "")
-//    InventoryListView(location: location)
-//}
+#Preview {
+    do {
+        let previewer = try Previewer()
+        return InventoryListView(location: previewer.location)
+            .modelContainer(previewer.container)
+
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}

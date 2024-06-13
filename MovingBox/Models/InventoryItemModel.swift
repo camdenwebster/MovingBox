@@ -11,34 +11,33 @@ import SwiftUI
 
 @Model
 class InventoryItem: Identifiable, ObservableObject {
-    var id: String = ""
-    var title: String = ""
-    var quantityString: String = "1"
-    var quantityInt: Int = 1
-    var desc: String = ""
-    var serial: String = ""
-    var model: String = ""
-    var make: String = ""
+    var id: String
+    var title: String
+    var quantity: Int
+    var desc: String
+    var serial: String
+    var model: String
+    var make: String
     var location: InventoryLocation?
     var label: InventoryLabel?
-    var price: String = ""
-    var insured: Bool = false
-    var assetId: String = ""
-    var notes: String = ""
-    @Attribute(.externalStorage) var photo: Data?
-    
-    var showInvalidQuantityAlert: Bool = false
-    
-    var isInteger: Bool {
-            return Int(quantityString) != nil
+    var price: String
+    var insured: Bool
+    var assetId: String
+    var notes: String
+    @Attribute(.externalStorage) var data: Data?
+    var photo: UIImage? {
+        if let data {
+            return UIImage(data: data)
+        } else {
+            return nil
         }
-    
-    init(id: String, title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: String, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
+    }
+        
+    init (id: String = "", title: String = "", quantity: Int = 1, desc: String = "", serial: String = "", model: String = "", make: String = "", location: InventoryLocation?, label: InventoryLabel?, price: String = "", insured: Bool = false, assetId: String = "", notes: String = "") {
 
         self.id = id
         self.title = title
-        self.quantityString = quantityString
-        self.quantityInt = quantityInt
+        self.quantity = quantity
         self.desc = desc
         self.serial = serial
         self.model = model
@@ -49,15 +48,5 @@ class InventoryItem: Identifiable, ObservableObject {
         self.insured = insured
         self.assetId = assetId
         self.notes = notes
-        self.showInvalidQuantityAlert = showInvalidQuantityAlert
     }
-    
-    func validateQuantityInput() {
-        if !isInteger {
-            showInvalidQuantityAlert = true
-        } else {
-            self.quantityInt = Int(quantityString) ?? 1
-        }
-    }
-    
 }

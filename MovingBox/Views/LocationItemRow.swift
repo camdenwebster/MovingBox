@@ -11,26 +11,27 @@ struct LocationItemRow: View {
     var location: InventoryLocation
     var body: some View {
         HStack {
-            if let imageData = location.photo, let uiImage = UIImage(data: imageData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .scaledToFit()
-                    .frame(width: 50, height: 50)
-            } else {
-                Image(systemName: "photo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 50, height: 50)
+            Image(uiImage: location.photo == nil ? Constants.placeholderImage : location.photo!)
+                .resizable()
+                .imageListViewStyle()
+            VStack(alignment: .leading) {
+                Text(location.name)
+                    .font(.title3)
+                Text(location.desc)
+                    .detailLabelStyle()
             }
-            Text(location.name)
-                .font(.title3)
-            Text(location.desc)
-                .detailLabelStyle()
         }
     }
 }
 
-//#Preview {
-//    LocationItemRow()
-//}
+
+#Preview {
+    do {
+        let previewer = try Previewer()
+        
+        return LocationItemRow(location: previewer.location)
+            .modelContainer(previewer.container)
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}
