@@ -11,7 +11,7 @@ struct LocationItemRow: View {
     var location: InventoryLocation
     var body: some View {
         HStack {
-            if let imageData = location.photo, let uiImage = UIImage(data: imageData) {
+            if let uiImage = location.photo {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()

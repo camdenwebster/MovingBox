@@ -9,15 +9,11 @@ import Foundation
 import SwiftUI
 
 struct ImageEncoder {
-    var image: Data
+    var image: UIImage
 
     
     func encodeImageToBase64() -> String? {
-        guard let uiImage = UIImage(data: image) else {
-            return nil
-        }
-        
-        guard let imageData = uiImage.pngData() else {
+        guard let imageData = image.pngData() else {
             return nil
         }
         

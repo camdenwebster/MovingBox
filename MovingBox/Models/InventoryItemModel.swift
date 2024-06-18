@@ -25,7 +25,14 @@ class InventoryItem: Identifiable, ObservableObject {
     var insured: Bool = false
     var assetId: String = ""
     var notes: String = ""
-    @Attribute(.externalStorage) var photo: Data?
+    @Attribute(.externalStorage) var data: Data?
+    var photo: UIImage? {
+        if let data {
+            return UIImage(data: data)
+        } else {
+            return nil
+        }
+    }
     
     var showInvalidQuantityAlert: Bool = false
     

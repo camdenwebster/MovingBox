@@ -20,7 +20,7 @@ struct EditLocationView: View {
     var body: some View {
         Form {
             Section {
-                if let imageData = location.photo, let uiImage = UIImage(data: imageData) {
+                if let uiImage = location.photo {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
@@ -57,7 +57,7 @@ struct EditLocationView: View {
     
     func loadPhoto() {
         Task { @MainActor in
-            location.photo = try await selectedPhoto?.loadTransferable(type: Data.self)
+            location.data = try await selectedPhoto?.loadTransferable(type: Data.self)
         }
     }
     
