@@ -11,7 +11,7 @@ struct InventoryItemRow: View {
     var item: InventoryItem
     var body: some View {
         HStack {
-            if let imageData = item.photo, let uiImage = UIImage(data: imageData) {
+            if let uiImage = item.photo {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()

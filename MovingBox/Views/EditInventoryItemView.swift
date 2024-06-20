@@ -33,7 +33,7 @@ struct EditInventoryItemView: View {
     var body: some View {
         Form {
             Section {
-                if let imageData = inventoryItemToDisplay.photo, let uiImage = UIImage(data: imageData) {
+                if let uiImage = inventoryItemToDisplay.photo {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
@@ -204,7 +204,7 @@ struct EditInventoryItemView: View {
     
     func loadPhoto() {
         Task { @MainActor in
-            inventoryItemToDisplay.photo = try await selectedPhoto?.loadTransferable(type: Data.self)
+            inventoryItemToDisplay.data = try await selectedPhoto?.loadTransferable(type: Data.self)
         }
     }
 }
