@@ -52,12 +52,12 @@ struct LocationsListView: View {
     
 }
 
-//#Preview {
-//    do {
-//        let previewer = try Previewer()
-//        return LocationsListView()
-//            .modelContainer(previewer.container)
-//    } catch {
-//        return Text("Failed to create preview: \(error.localizedDescription)")
-//    }
-//}
+#Preview {
+    do {
+        let previewer = try Previewer()
+        return LocationsListView()
+            .modelContainer(previewer.container)
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}

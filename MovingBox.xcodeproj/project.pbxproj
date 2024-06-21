@@ -119,19 +119,19 @@
 		198958A12BF6FD9100C52CAE /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				19D343072C114DEE00F8B2C7 /* InventoryListView.swift */,
-				1942DC8D2BF3D73000734AF4 /* InventoryListSubView.swift */,
-				19D343092C114E7200F8B2C7 /* LocationsListView.swift */,
 				1942DC8F2BF3D73000734AF4 /* CustomInventoryRows.swift */,
-				1942DC972BF6A23D00734AF4 /* ItemTextField.swift */,
+				19D343132C12472B00F8B2C7 /* CustomModifiers.swift */,
+				19D3430B2C1159C300F8B2C7 /* DashboardView.swift */,
 				1989589D2BF6FC3700C52CAE /* EditInventoryItemView.swift */,
 				198958A82BF8F76700C52CAE /* EditLocationView.swift */,
 				198958AA2BF8F77000C52CAE /* EditLabelView.swift */,
-				194FE44B2C0F484400DE6FFA /* SettingsView.swift */,
-				19D3430B2C1159C300F8B2C7 /* DashboardView.swift */,
 				19D3430F2C12249D00F8B2C7 /* InventoryItemRow.swift */,
+				19D343072C114DEE00F8B2C7 /* InventoryListView.swift */,
+				1942DC8D2BF3D73000734AF4 /* InventoryListSubView.swift */,
+				1942DC972BF6A23D00734AF4 /* ItemTextField.swift */,
 				19D343112C12467D00F8B2C7 /* LocationItemRow.swift */,
-				19D343132C12472B00F8B2C7 /* CustomModifiers.swift */,
+				19D343092C114E7200F8B2C7 /* LocationsListView.swift */,
+				194FE44B2C0F484400DE6FFA /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";

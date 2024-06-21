@@ -12,6 +12,10 @@ import SwiftUI
 struct MovingBoxApp: App {
     @ObservedObject var router = Router()
     
+    init() {
+        ValueTransformer.setValueTransformer(UIColorValueTransformer(), forName: NSValueTransformerName("UIColorValueTransformer"))
+    }
+    
     var body: some Scene {
         WindowGroup {
             TabView {
