@@ -32,6 +32,7 @@ struct LocationsListView: View {
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            EditButton()
             Button("Add Item", systemImage: "plus", action: addLocation)
         }
     }
@@ -49,7 +50,6 @@ struct LocationsListView: View {
             print("Deleting location id: \(locationToDelete.id), title: \(locationToDelete.name)")
         }
     }
-    
 }
 
 #Preview {
