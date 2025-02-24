@@ -47,12 +47,14 @@ class OpenAIService {
     
     
     var imageBase64: String
+    var settings: SettingsManager
     
-    init(imageBase64: String) {
+    init(imageBase64: String, settings: SettingsManager) {
         self.imageBase64 = imageBase64
+        self.settings = settings
     }
     
-    let itemModel = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+    let itemModel = InventoryItem(title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
     
     private func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
@@ -120,7 +122,11 @@ class OpenAIService {
         urlRequest.httpMethod = httpMethod.rawValue
         
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.addValue("Bearer \(Secrets.apiKey)", forHTTPHeaderField: "Authorization")
+        
+        if settings.apiKey.isEmpty {
+            throw OpenAIError.invalidResponse 
+        }
+        urlRequest.addValue("Bearer \(settings.apiKey)", forHTTPHeaderField: "Authorization")
         
         let textMessage = MessageContent(type: "text", text: imagePrompt, image_url: nil)
         let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(imageBase64)"))

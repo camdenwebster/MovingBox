@@ -13,9 +13,6 @@ struct InventoryListSubView: View {
     @EnvironmentObject var router: Router
     @Query var inventoryItemsForSelectedLocation: [InventoryItem]
     
-//    let location: InventoryLocation
-
-    
     var body: some View {
         List {
             Section {
@@ -29,15 +26,15 @@ struct InventoryListSubView: View {
         }
     }
     
-    init(locationId: String = "", searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = []) {
-        _inventoryItemsForSelectedLocation = Query(filter: #Predicate { inventoryItemsForSelectedLocation in
-            (inventoryItemsForSelectedLocation.location?.id == locationId) &&
-                        (searchString.isEmpty || inventoryItemsForSelectedLocation.title.localizedStandardContains(searchString) ||
-                         inventoryItemsForSelectedLocation.desc.localizedStandardContains(searchString) ||
-                         inventoryItemsForSelectedLocation.notes.localizedStandardContains(searchString) ||
-                         inventoryItemsForSelectedLocation.make.localizedStandardContains(searchString) ||
-                         inventoryItemsForSelectedLocation.model.localizedStandardContains(searchString) ||
-                         inventoryItemsForSelectedLocation.serial.localizedStandardContains(searchString))
+    init(location: InventoryLocation, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = []) {
+        _inventoryItemsForSelectedLocation = Query(filter: #Predicate { inventoryItem in
+            (inventoryItem.location == location) &&
+            (searchString.isEmpty || inventoryItem.title.localizedStandardContains(searchString) ||
+             inventoryItem.desc.localizedStandardContains(searchString) ||
+             inventoryItem.notes.localizedStandardContains(searchString) ||
+             inventoryItem.make.localizedStandardContains(searchString) ||
+             inventoryItem.model.localizedStandardContains(searchString) ||
+             inventoryItem.serial.localizedStandardContains(searchString))
         }, sort: sortOrder)
     }
     
@@ -45,7 +42,7 @@ struct InventoryListSubView: View {
         for index in offsets {
             let itemToDelete = inventoryItemsForSelectedLocation[index]
             modelContext.delete(itemToDelete)
-            print("Deleting item id: \(itemToDelete.id), title: \(itemToDelete.title)")
+            print("Deleting item: \(itemToDelete.title)")
         }
     }
 }
@@ -54,6 +51,16 @@ struct InventoryListSubView: View {
 
 
 //#Preview {
-//    let location = InventoryLocation(id: UUID().uuidString, name: "Attic", desc: "")
-//    InventoryListSubView(location: location)
+//    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+//    let container = try! ModelContainer(for: InventoryItem.self, configurations: config)
+//
+//    let location = InventoryLocation(name: "Living Room")
+//    try! container.mainContext.insert(location)
+//
+//    let item = InventoryItem(title: "Test Item", quantityString: "1", quantityInt: 1, desc: "Test Description", serial: "", model: "", make: "", location: location, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+//    try! container.mainContext.insert(item)
+//
+//    return InventoryListSubView(location: location)
+//        .modelContainer(container)
+//        .environmentObject(Router())
 //}

@@ -11,14 +11,12 @@ import UIKit
 
 @Model
 class InventoryLabel {
-    var id: String = ""
     var name: String = ""
     var desc: String = ""
     @Attribute(.transformable(by: UIColorValueTransformer.self)) var color: UIColor?
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
-    init(id: String, name: String, desc: String, color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil) {
-        self.id = id
+    init(name: String, desc: String, color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil) {
         self.name = name
         self.desc = desc
         self.color = color

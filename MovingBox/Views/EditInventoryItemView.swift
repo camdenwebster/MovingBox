@@ -28,6 +28,8 @@ struct EditInventoryItemView: View {
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults: Bool = false
 
+    @StateObject private var settings = SettingsManager()
+
     var imageName: String = "adapter"
     
     var body: some View {
@@ -141,7 +143,7 @@ struct EditInventoryItemView: View {
         }
         let imageEncoder = ImageEncoder(image: photo)
         let imageBase64 = imageEncoder.encodeImageToBase64() ?? ""
-        let openAi = OpenAIService(imageBase64: imageBase64)
+        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings)
         
         print("Analyze Image button tapped")
 
@@ -189,14 +191,14 @@ struct EditInventoryItemView: View {
     }
     
     func addLocation() {
-        let location = InventoryLocation(id: UUID().uuidString, name: "", desc: "")
+        let location = InventoryLocation(name: "", desc: "")
         modelContext.insert(location)
         inventoryItemToDisplay.location = location
         router.navigate(to: .editLocationView(location: location))
     }
     
     func addLabel() {
-        let label = InventoryLabel(id: UUID().uuidString, name: "", desc: "")
+        let label = InventoryLabel(name: "", desc: "")
         modelContext.insert(label)
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
@@ -220,4 +222,3 @@ struct EditInventoryItemView: View {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
 }
-

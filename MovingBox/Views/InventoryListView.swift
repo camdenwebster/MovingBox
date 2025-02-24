@@ -20,7 +20,7 @@ struct InventoryListView: View {
     let location: InventoryLocation
     
     var body: some View {
-        InventoryListSubView(locationId: location.id, searchString: searchText, sortOrder: sortOrder)
+        InventoryListSubView(location: location, searchString: searchText, sortOrder: sortOrder)
             .navigationTitle(location.name)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: InventoryItem.self) { inventoryItem in EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path)
@@ -41,10 +41,10 @@ struct InventoryListView: View {
     }
     
     func createNewItem() {
-        let newInventoryItem = InventoryItem(id: UUID().uuidString, title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: location, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+        let newInventoryItem = InventoryItem(title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: location, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
         modelContext.insert(newInventoryItem)
         router.navigate(to: .editInventoryItemView(item: newInventoryItem))
-        print("New item created with id \(newInventoryItem.id)")
+        print("Created new item: \(newInventoryItem.title)")
     }
     
     func editItems() {
@@ -53,6 +53,6 @@ struct InventoryListView: View {
 }
 
 //#Preview {
-//    let location = InventoryLocation(id: UUID().uuidString, name: "Attic", desc: "")
+//    let location = InventoryLocation(name: "Attic", desc: "")
 //    InventoryListView(location: location)
 //}

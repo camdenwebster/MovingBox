@@ -10,8 +10,7 @@ import SwiftData
 import SwiftUI
 
 @Model
-class InventoryItem: Identifiable, ObservableObject {
-    var id: String = ""
+class InventoryItem: ObservableObject {
     var title: String = ""
     var quantityString: String = "1"
     var quantityInt: Int = 1
@@ -40,9 +39,8 @@ class InventoryItem: Identifiable, ObservableObject {
             return Int(quantityString) != nil
         }
     
-    init(id: String, title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: String, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
+    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: String, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
 
-        self.id = id
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt

@@ -24,7 +24,7 @@ struct LocationsListView: View {
                     LocationItemRow(location: location)
                 }
             }
-            .onDelete(perform: deleteLocation)
+            .onDelete(perform: deleteLocations)
         }
         .navigationDestination(for: InventoryLocation.self) { location in
             InventoryListView(location: location)
@@ -38,16 +38,16 @@ struct LocationsListView: View {
     }
     
     func addLocation() {
-        let location = InventoryLocation(id: UUID().uuidString, name: "", desc: "")
+        let location = InventoryLocation(name: "", desc: "")
         modelContext.insert(location)
         router.navigate(to: .editLocationView(location: location))
     }
     
-    func deleteLocation(at offsets: IndexSet) {
+    func deleteLocations(at offsets: IndexSet) {
         for index in offsets {
             let locationToDelete = locations[index]
             modelContext.delete(locationToDelete)
-            print("Deleting location id: \(locationToDelete.id), title: \(locationToDelete.name)")
+            print("Deleting location: \(locationToDelete.name)")
         }
     }
 }

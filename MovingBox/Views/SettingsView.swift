@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/4/24.
 //
 
+import SwiftData
 import SwiftUI
 
 struct SettingsView: View {
@@ -53,18 +54,15 @@ struct AISettingsView: View {
                 } else {
                     HStack {
                         Text("Model")
-                        
                         Spacer()
                         Text(settings.aiModel)
-                            .frame(alignment: .trailing)
                             .foregroundStyle(.secondary)
                     }
-
                 }
             }
             
             Section(header: Text("API Configuration")) {
-                HStack {
+                HStack(spacing: 0) {
                     Text("OpenAI API Key")
                     Spacer()
                     if isEditing {
@@ -72,14 +70,17 @@ struct AISettingsView: View {
                             .multilineTextAlignment(.trailing)
                             .textContentType(.password)
                             .autocapitalization(.none)
-                            .frame(maxWidth: 200)
+                            .frame(maxWidth: 200, alignment: .trailing)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                             .focused($isApiKeyFieldFocused)
-                    } else {                            
+                    } else {
                         Text(settings.apiKey)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: 200, alignment: .trailing)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
-
                 }
             }
         }
@@ -103,9 +104,24 @@ struct AISettingsView: View {
 }
 
 struct LocationSettingsView: View {
+    @Environment(\.modelContext) var modelContext
+    @EnvironmentObject var router: Router
+    @Query(sort: [
+        SortDescriptor(\InventoryLocation.name)
+    ]) var locations: [InventoryLocation]
+    
     var body: some View {
-        Text("Location Settings")
-            .navigationTitle("Location Settings")
+        List {
+            ForEach(locations) { location in
+                NavigationLink {
+                    EditLocationView(location: location)
+                } label: {
+                    Text(location.name)
+                }
+            }
+        }
+        .navigationTitle("Location Settings")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -124,5 +140,27 @@ struct AboutView: View {
 }
 
 #Preview {
-    SettingsView()
+    do {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: InventoryLocation.self, configurations: config)
+        
+        // Create sample data
+        let location1 = InventoryLocation(name: "Living Room")
+        let location2 = InventoryLocation(name: "Kitchen")
+        let location3 = InventoryLocation(name: "Master Bedroom")
+        
+        // Insert sample data
+        try container.mainContext.insert(location1)
+        try container.mainContext.insert(location2)
+        try container.mainContext.insert(location3)
+        
+        // Return the view with necessary modifiers
+        return SettingsView()
+            .modelContainer(container)
+            .environmentObject(Router())
+    } catch {
+        // Return a fallback view in case of errors
+        return Text("Failed to set up preview")
+            .foregroundColor(.red)
+    }
 }
