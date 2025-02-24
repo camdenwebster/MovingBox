@@ -32,6 +32,7 @@ struct LocationsListView: View {
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            EditButton()
             Button("Add Item", systemImage: "plus", action: addLocation)
         }
     }
@@ -49,15 +50,14 @@ struct LocationsListView: View {
             print("Deleting location id: \(locationToDelete.id), title: \(locationToDelete.name)")
         }
     }
-    
 }
 
-//#Preview {
-//    do {
-//        let previewer = try Previewer()
-//        return LocationsListView()
-//            .modelContainer(previewer.container)
-//    } catch {
-//        return Text("Failed to create preview: \(error.localizedDescription)")
-//    }
-//}
+#Preview {
+    do {
+        let previewer = try Previewer()
+        return LocationsListView()
+            .modelContainer(previewer.container)
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}

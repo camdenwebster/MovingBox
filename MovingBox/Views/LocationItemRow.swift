@@ -23,14 +23,25 @@ struct LocationItemRow: View {
                     .scaledToFit()
                     .frame(width: 50, height: 50)
             }
-            Text(location.name)
-                .font(.title3)
-            Text(location.desc)
+            VStack(alignment: .leading) {
+                Text(location.name)
+                    .font(.title3)
+                Text(location.desc)
+                    .detailLabelStyle()
+            }
+            Spacer()
+            Text("Items: \(location.inventoryItems?.count ?? 0)")
                 .detailLabelStyle()
         }
     }
 }
 
-//#Preview {
-//    LocationItemRow()
-//}
+#Preview {
+    do {
+        let previewer = try Previewer()
+        return LocationItemRow(location: previewer.location)
+            .modelContainer(previewer.container)
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}

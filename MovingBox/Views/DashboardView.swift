@@ -6,8 +6,14 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct DashboardView: View {
+    @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
+    @Query(sort: [
+        SortDescriptor(\InventoryLocation.name)
+    ]) var locations: [InventoryLocation]
+    
     var body: some View {
         NavigationStack {
             List {
@@ -30,6 +36,11 @@ struct DashboardView: View {
                         Text("$0.00")
                     }
                 }
+                Section("Items per Location") {
+                    ForEach(locations) { location in
+                        LocationItemRow(location: location)
+                    }
+                }
             }
             .navigationTitle("Home Inventory")
         }
@@ -37,5 +48,11 @@ struct DashboardView: View {
 }
 
 #Preview {
-    DashboardView()
+    do {
+        let previewer = try Previewer()
+        return DashboardView()
+            .modelContainer(previewer.container)
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
 }

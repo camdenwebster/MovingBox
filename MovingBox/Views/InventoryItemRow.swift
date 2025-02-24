@@ -36,13 +36,18 @@ struct InventoryItemRow: View {
                 } else {
                     EmptyView()
                 }
-                if let label = item.label {
-                    Text("Label: \(label.name)")
-                        .detailLabelStyle()
-                } else {
-                    EmptyView()
-                }
-                
+            }
+            Spacer()
+            if let label = item.label {
+                Text(label.name)
+                    .foregroundStyle(.white)
+                    .font(.caption)
+                    .padding(5)
+                    .background(in: Capsule())
+                    .backgroundStyle(Color(label.color ?? .blue))
+
+            } else {
+                EmptyView()
             }
         }
     }
@@ -50,7 +55,12 @@ struct InventoryItemRow: View {
 
 
 
-//#Preview {
-//    item = InventoryItem(id: UUID, title: <#T##String#>, quantityString: <#T##String#>, quantityInt: <#T##Int#>, desc: <#T##String#>, serial: <#T##String#>, model: <#T##String#>, make: <#T##String#>, location: <#T##InventoryLocation?#>, label: <#T##InventoryLabel?#>, price: <#T##String#>, insured: <#T##Bool#>, assetId: <#T##String#>, notes: <#T##String#>, showInvalidQuantityAlert: <#T##Bool#>)
-//    InventoryItemRow(item: item)
-//}
+#Preview {
+    do {
+        let previewer = try Previewer()
+        return InventoryItemRow(item: previewer.inventoryItem)
+            .modelContainer(previewer.container)
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}
