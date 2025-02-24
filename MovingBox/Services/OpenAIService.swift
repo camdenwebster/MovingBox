@@ -18,6 +18,30 @@ enum OpenAIError: Error {
     case invalidData
 }
 
+struct FunctionParameter: Codable {
+    let type: String
+    let description: String?
+    let enum_values: [String]?
+    
+    enum CodingKeys: String, CodingKey {
+        case type
+        case description
+        case enum_values = "enum"
+    }
+}
+
+struct FunctionDefinition: Codable {
+    let name: String
+    let description: String
+    let parameters: Parameters
+    
+    struct Parameters: Codable {
+        let type: String
+        let properties: [String: FunctionParameter]
+        let required: [String]
+    }
+}
+
 class OpenAIService {
     
     
@@ -38,46 +62,86 @@ class OpenAIService {
         let categories = TestData().labels
         let locations = TestData().locations
         
-        let imagePrompt = """
-        Act as a helpful AI backend for a home inventory application which will help users automatically identify and categorize their possessions based on the contents of an image. Identify the item which is the primary subject of this photo, along with your best guess at the following 5 attributes related to the item:
-        - Title: a short description of the subject, to help the user identify the item from a list
-        - Quantity: If there are multiple instances of the subject in the image, count up the number of instances and return a number (for example, if an image shows 4 dinner places of the same variety, return "4"). Return an empty string if it's difficult to determine, or if there are several different types of objects in the image
-        - Description: a slightly longer description of the subject, limited to 160 characters
-        - Make: the brand or manufacturer associated with the subject (return a blank string if it's difficult to determine)
-        - Model: the model name or number associated with the subject (return a blank string if it's difficult to determine)
-        - Category: the general category of household item that could be assigned to the subject. Choose from one of the following options, or return "None" if none of the options fit: \(categories)
-        - Location: the most likely room or location in the house in which the subject could be found. Choose from one of the following options, or return "None" if none of the options fit: \(locations)
-        - Price: the estimated original price (in US dollars, for example $10.99) of the subject based on any online shop listings you can find, such as on Amazon.com (return a blank string if it's difficult to determine)
-        Return only JSON output following this schema:
-        {"title": "Title of the item", "quantity": "1", "description": "A short description of the item", "make": "brandOrManufacturerName", "model": "modelNameOrNumber", "category": "categoryName", "location": "locationName, "price": "$1.00"}
-        """
+        let imagePrompt = "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes."
         
-        var jsonData = Data()
+        let function = FunctionDefinition(
+            name: "process_inventory_item",
+            description: "Process and structure information about an inventory item",
+            parameters: FunctionDefinition.Parameters(
+                type: "object",
+                properties: [
+                    "title": FunctionParameter(
+                        type: "string",
+                        description: "A short description of the subject, to help the user identify the item from a list",
+                        enum_values: nil
+                    ),
+                    "quantity": FunctionParameter(
+                        type: "string",
+                        description: "The number of instances of this item, or empty string if unclear",
+                        enum_values: nil
+                    ),
+                    "description": FunctionParameter(
+                        type: "string",
+                        description: "A slightly longer description of the subject, limited to 160 characters",
+                        enum_values: nil
+                    ),
+                    "make": FunctionParameter(
+                        type: "string",
+                        description: "The brand or manufacturer associated with the subject",
+                        enum_values: nil
+                    ),
+                    "model": FunctionParameter(
+                        type: "string",
+                        description: "The model name or number associated with the subject",
+                        enum_values: nil
+                    ),
+                    "category": FunctionParameter(
+                        type: "string",
+                        description: "The general category of household item",
+                        enum_values: categories
+                    ),
+                    "location": FunctionParameter(
+                        type: "string",
+                        description: "The most likely room or location in the house",
+                        enum_values: locations
+                    ),
+                    "price": FunctionParameter(
+                        type: "string",
+                        description: "The estimated original price in US dollars (e.g., $10.99)",
+                        enum_values: nil
+                    )
+                ],
+                required: ["title", "quantity", "description", "make", "model", "category", "location", "price"]
+            )
+        )
+        
         var urlRequest = URLRequest(url: url)
         
-        // Method
         urlRequest.httpMethod = httpMethod.rawValue
         
-        // Header
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.addValue("Bearer \(Secrets.apiKey)", forHTTPHeaderField: "Authorization")
         
-        // Body
         let textMessage = MessageContent(type: "text", text: imagePrompt, image_url: nil)
         let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(imageBase64)"))
         let message = Message(role: "user", content: [textMessage, imageMessage])
-        let payload = GPTPayload(model: "gpt-4o", messages: [message], max_tokens: 300)
+        let payload = GPTPayload(
+            model: "gpt-4o",
+            messages: [message],
+            max_tokens: 300,
+            functions: [function],
+            function_call: ["name": "process_inventory_item"]
+        )
         
         let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
+        encoder.outputFormatting = .prettyPrinted
         
         do {
-            jsonData = try encoder.encode(payload)
+            let jsonData = try encoder.encode(payload)
+            urlRequest.httpBody = jsonData
         } catch {
-            print("Error encoding inventory item: \(error)")
+            print("Error encoding payload: \(error)")
         }
-        
-        urlRequest.httpBody = jsonData
         
         return urlRequest
     }
@@ -85,46 +149,26 @@ class OpenAIService {
     func getImageDetails() async throws -> ImageDetails {
         let urlRequest = try generateURLRequest(httpMethod: .post)
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
             throw OpenAIError.invalidResponse
         }
         
         do {
-//            let decoder = JSONDecoder()
-//            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            print(String(data: data, encoding: .utf8)!)
             let gptResponse = try JSONDecoder().decode(GPTResponse.self, from: data)
-            let responseString = removeCharacters(from: { gptResponse.choices[0].message.content }())
-            guard let responseData = responseString.data(using: .utf8) else {
+            let functionCallArgs = gptResponse.choices[0].message.function_call?.arguments ?? ""
+            
+            guard let responseData = functionCallArgs.data(using: .utf8) else {
                 throw OpenAIError.invalidData
             }
-            let imageDetails = try JSONDecoder().decode(ImageDetails.self, from: responseData)
-            return imageDetails
+            
+            return try JSONDecoder().decode(ImageDetails.self, from: responseData)
         } catch {
             throw OpenAIError.invalidData
         }
     }
 }
 
-func removeCharacters(from input: String) -> String {
-    var modifiedString = input
-    
-    // Remove "```json" from the start if it exists
-    let startPattern = "```json"
-    if modifiedString.hasPrefix(startPattern) {
-        modifiedString.removeFirst(startPattern.count)
-    }
-    
-    // Remove "```" from the end if it exists
-    let endPattern = "```"
-    if modifiedString.hasSuffix(endPattern) {
-        modifiedString.removeLast(endPattern.count)
-    }
-    
-    return modifiedString
-}
-
-// JSON Call Body
 struct Message: Encodable {
     let role: String
     let content: [MessageContent]
@@ -145,10 +189,10 @@ struct GPTPayload: Encodable {
     let model: String
     let messages: [Message]
     let max_tokens: Int
+    let functions: [FunctionDefinition]
+    let function_call: [String: String]
 }
 
-
-// JSON Response Body
 struct GPTResponse: Decodable {
     let choices: [GPTCompletionResponse]
 }
@@ -158,7 +202,12 @@ struct GPTCompletionResponse: Decodable {
 }
 
 struct GPTMessageResponse: Decodable {
-    let content: String
+    let function_call: FunctionCall?
+}
+
+struct FunctionCall: Decodable {
+    let name: String
+    let arguments: String
 }
 
 struct ImageDetails: Decodable {
