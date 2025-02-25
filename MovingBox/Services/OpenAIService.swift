@@ -109,7 +109,7 @@ class OpenAIService {
                     ),
                     "price": FunctionParameter(
                         type: "string",
-                        description: "The estimated original price in US dollars (e.g., $10.99)",
+                        description: "The estimated original price in US dollars (e.g., $10.99). Provide a single value, not a range.",
                         enum_values: nil
                     )
                 ],
@@ -129,12 +129,12 @@ class OpenAIService {
         urlRequest.addValue("Bearer \(settings.apiKey)", forHTTPHeaderField: "Authorization")
         
         let textMessage = MessageContent(type: "text", text: imagePrompt, image_url: nil)
-        let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(imageBase64)"))
+        let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(imageBase64)", detail: "\(settings.isHighDetail ? "high" : "low")"))
         let message = Message(role: "user", content: [textMessage, imageMessage])
         let payload = GPTPayload(
-            model: "gpt-4o",
+            model: settings.aiModel,
             messages: [message],
-            max_tokens: 300,
+            max_tokens: settings.maxTokens,
             functions: [function],
             function_call: ["name": "process_inventory_item"]
         )
@@ -188,7 +188,7 @@ struct MessageContent: Encodable {
 
 struct ImageURL: Encodable {
     let url: String
-    let detail: String = "low"
+    let detail: String
 }
 
 struct GPTPayload: Encodable {

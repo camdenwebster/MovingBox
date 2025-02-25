@@ -52,7 +52,7 @@ struct InventoryListView: View {
     }
 }
 
-//#Preview {
-//    let location = InventoryLocation(name: "Attic", desc: "")
-//    InventoryListView(location: location)
-//}
+#Preview {
+    let location = InventoryLocation(name: "Attic", desc: "")
+    InventoryListView(location: location)
+}

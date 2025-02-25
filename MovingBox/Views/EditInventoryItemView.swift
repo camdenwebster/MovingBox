@@ -32,6 +32,8 @@ struct EditInventoryItemView: View {
 
     var imageName: String = "adapter"
     
+    @State private var showingApiKeyAlert = false
+    
     var body: some View {
         Form {
             Section {
@@ -124,15 +126,27 @@ struct EditInventoryItemView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: {
-                    Task {
-                        let imageDetails = await callOpenAI()
-                        updateUIWithImageDetails(imageDetails)
+                    if settings.apiKey.isEmpty {
+                        showingApiKeyAlert = true
+                    } else {
+                        Task {
+                            let imageDetails = await callOpenAI()
+                            updateUIWithImageDetails(imageDetails)
+                        }
                     }
                 }) {
                     Image(systemName: "sparkles")
                 }
                 .disabled(isLoadingOpenAiResults ? true : false)
             }
+        }
+        .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
+            Button("Go to Settings") {
+                router.navigate(to: .settingsView)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Please configure your OpenAI API key in the settings to use this feature.")
         }
     }
     

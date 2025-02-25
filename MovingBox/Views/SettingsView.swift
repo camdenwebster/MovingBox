@@ -82,6 +82,18 @@ struct AISettingsView: View {
                             .truncationMode(.middle)
                     }
                 }
+                
+                // Added high detail toggle
+                if isEditing {
+                    Toggle("Use high detail image analysis", isOn: $settings.isHighDetail)
+                } else {
+                    HStack {
+                        Text("Use high detail image analysis")
+                        Spacer()
+                        Text(settings.isHighDetail ? "On" : "Off")
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
             .navigationTitle("AI Settings")
@@ -144,15 +156,15 @@ struct AboutView: View {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: InventoryLocation.self, configurations: config)
         
-        // Create sample data
+        // Create sample data with default empty descriptions
         let location1 = InventoryLocation(name: "Living Room")
         let location2 = InventoryLocation(name: "Kitchen")
         let location3 = InventoryLocation(name: "Master Bedroom")
         
         // Insert sample data
-        try container.mainContext.insert(location1)
-        try container.mainContext.insert(location2)
-        try container.mainContext.insert(location3)
+        container.mainContext.insert(location1)
+        container.mainContext.insert(location2)
+        container.mainContext.insert(location3)
         
         // Return the view with necessary modifiers
         return SettingsView()

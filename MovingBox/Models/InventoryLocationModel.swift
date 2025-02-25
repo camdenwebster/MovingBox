@@ -12,7 +12,7 @@ import SwiftUI
 @Model
 class InventoryLocation {
     var name: String = ""
-    var desc: String
+    var desc: String = ""
 //    var parentLocation: InventoryLocation?
     @Attribute(.externalStorage) var data: Data?
     var photo: UIImage? {

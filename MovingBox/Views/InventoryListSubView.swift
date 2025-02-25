@@ -11,7 +11,12 @@ import SwiftUI
 struct InventoryListSubView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
-    @Query var inventoryItemsForSelectedLocation: [InventoryItem]
+    
+    // Make the Query property more explicit
+    @Query private var inventoryItemsForSelectedLocation: [InventoryItem]
+    
+    let location: InventoryLocation
+    let searchString: String
     
     var body: some View {
         List {
@@ -26,16 +31,34 @@ struct InventoryListSubView: View {
         }
     }
     
-    init(location: InventoryLocation, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = []) {
-        _inventoryItemsForSelectedLocation = Query(filter: #Predicate { inventoryItem in
-            (inventoryItem.location == location) &&
-            (searchString.isEmpty || inventoryItem.title.localizedStandardContains(searchString) ||
-             inventoryItem.desc.localizedStandardContains(searchString) ||
-             inventoryItem.notes.localizedStandardContains(searchString) ||
-             inventoryItem.make.localizedStandardContains(searchString) ||
-             inventoryItem.model.localizedStandardContains(searchString) ||
-             inventoryItem.serial.localizedStandardContains(searchString))
-        }, sort: sortOrder)
+    init(location: InventoryLocation, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [SortDescriptor(\InventoryItem.title)]) {
+        self.location = location
+        self.searchString = searchString
+        
+        let locationId = location.persistentModelID
+        
+        let predicate: Predicate<InventoryItem>
+        
+        if searchString.isEmpty {
+            predicate = #Predicate<InventoryItem> { item in
+                item.location?.persistentModelID == locationId
+            }
+        } else {
+            predicate = #Predicate<InventoryItem> { item in
+                (item.location?.persistentModelID == locationId) &&
+                (item.title.localizedStandardContains(searchString) ||
+                 item.desc.localizedStandardContains(searchString) ||
+                 item.notes.localizedStandardContains(searchString) ||
+                 item.make.localizedStandardContains(searchString) ||
+                 item.model.localizedStandardContains(searchString) ||
+                 item.serial.localizedStandardContains(searchString))
+            }
+        }
+        
+        _inventoryItemsForSelectedLocation = Query(
+            filter: predicate,
+            sort: sortOrder
+        )
     }
     
     func deleteItems(at offsets: IndexSet) {
@@ -47,20 +70,15 @@ struct InventoryListSubView: View {
     }
 }
 
-
-
-
-//#Preview {
-//    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-//    let container = try! ModelContainer(for: InventoryItem.self, configurations: config)
-//
-//    let location = InventoryLocation(name: "Living Room")
-//    try! container.mainContext.insert(location)
-//
-//    let item = InventoryItem(title: "Test Item", quantityString: "1", quantityInt: 1, desc: "Test Description", serial: "", model: "", make: "", location: location, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
-//    try! container.mainContext.insert(item)
-//
-//    return InventoryListSubView(location: location)
-//        .modelContainer(container)
-//        .environmentObject(Router())
-//}
+#Preview {
+    do {
+        let previewer = try Previewer()
+        
+        return InventoryListSubView(location: previewer.location)
+            .modelContainer(previewer.container)
+            .environmentObject(Router())
+    } catch {
+        return Text("Failed to create preview")
+            .foregroundColor(.red)
+    }
+}
