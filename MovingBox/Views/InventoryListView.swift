@@ -5,7 +5,9 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import SwiftData
 import SwiftUI
+import AVFoundation
 
 enum Options: Hashable {
     case destination(String)
@@ -18,6 +20,14 @@ struct InventoryListView: View {
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
     let location: InventoryLocation
+    
+    @State private var showingCamera = false
+    @State private var showingPermissionDenied = false
+    @StateObject private var settings = SettingsManager()
+    
+    @Query(sort: [
+        SortDescriptor(\InventoryLabel.name)
+    ]) private var labels: [InventoryLabel]
     
     var body: some View {
         InventoryListSubView(location: location, searchString: searchText, sortOrder: sortOrder)
@@ -34,17 +44,113 @@ struct InventoryListView: View {
                             .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
                     }
                 }
-                Button("Add Item", systemImage: "plus", action: createNewItem)
+                Button("Add Item", systemImage: "plus") {
+                    checkCameraPermissionsAndPresent()
+                }
             }
             .searchable(text: $searchText)
-
+            .sheet(isPresented: $showingCamera) {
+                CameraView { image in
+                    if let imageData = image.jpegData(compressionQuality: 0.8) {
+                        createNewItemWithPhoto(imageData: imageData)
+                    }
+                }
+            }
+            .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
+                Button("Go to Settings", action: openSettings)
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Please grant camera access in Settings to use this feature.")
+            }
     }
     
-    func createNewItem() {
-        let newInventoryItem = InventoryItem(title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: location, label: nil, price: "", insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
+    private func checkCameraPermissionsAndPresent() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showingCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showingCamera = true
+                    } else {
+                        showingPermissionDenied = true
+                    }
+                }
+            }
+        default:
+            showingPermissionDenied = true
+        }
+    }
+    
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+    }
+    
+    private func createNewItemWithPhoto(imageData: Data) {
+        let newInventoryItem = InventoryItem(
+            title: "",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: location,
+            label: nil,
+            price: "",
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false
+        )
+        
+        // Set the photo data
+        newInventoryItem.data = imageData
+        
         modelContext.insert(newInventoryItem)
+        
+        // Start OpenAI analysis if API key is available
+        if !settings.apiKey.isEmpty {
+            Task {
+                let imageDetails = await callOpenAI(for: newInventoryItem)
+                await MainActor.run {
+                    updateUIWithImageDetails(imageDetails, for: newInventoryItem)
+                }
+            }
+        }
+        
         router.navigate(to: .editInventoryItemView(item: newInventoryItem))
         print("Created new item: \(newInventoryItem.title)")
+    }
+    
+    private func callOpenAI(for item: InventoryItem) async -> ImageDetails {
+        guard let photo = item.photo else {
+            return ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "", location: "", price: "")
+        }
+        
+        let imageEncoder = ImageEncoder(image: photo)
+        let imageBase64 = imageEncoder.encodeImageToBase64() ?? ""
+        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings)
+        
+        do {
+            return try await openAi.getImageDetails()
+        } catch {
+            print("Error getting image details: \(error)")
+            return ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "", location: "", price: "")
+        }
+    }
+    
+    private func updateUIWithImageDetails(_ imageDetails: ImageDetails, for item: InventoryItem) {
+        item.title = imageDetails.title
+        item.quantityString = imageDetails.quantity
+        item.label = labels.first { $0.name == imageDetails.category }
+        item.desc = imageDetails.description
+        item.make = imageDetails.make
+        item.model = imageDetails.model
+        item.price = imageDetails.price
     }
     
     func editItems() {
@@ -52,7 +158,14 @@ struct InventoryListView: View {
     }
 }
 
-#Preview {
-    let location = InventoryLocation(name: "Attic", desc: "")
-    InventoryListView(location: location)
-}
+//#Preview {
+//    do {
+//        let previewer = try Previewer()
+//        
+//        InventoryListView(location: previewer.location)
+//            .modelContainer(previewer.container)
+//            .environmentObject(Router())
+//    } catch {
+//        Text("Preview Error: \(error.localizedDescription)")
+//    }
+//}

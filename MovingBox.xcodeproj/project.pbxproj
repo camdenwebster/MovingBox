@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		190DFBA02D6FBA270062D079 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190DFB9F2D6FBA270062D079 /* CameraView.swift */; };
+		190DFBA22D6FBA2D0062D079 /* PhotoReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190DFBA12D6FBA2D0062D079 /* PhotoReviewView.swift */; };
 		191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191FEA602D6D04E5006FF067 /* SettingsManager.swift */; };
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
 		1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC812BF391CF00734AF4 /* Assets.xcassets */; };
@@ -35,6 +37,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		190DFB9F2D6FBA270062D079 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
+		190DFBA12D6FBA2D0062D079 /* PhotoReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoReviewView.swift; sourceTree = "<group>"; };
 		191FEA602D6D04E5006FF067 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
@@ -126,6 +130,8 @@
 				198958AA2BF8F77000C52CAE /* EditLabelView.swift */,
 				19D3430F2C12249D00F8B2C7 /* InventoryItemRow.swift */,
 				19D343072C114DEE00F8B2C7 /* InventoryListView.swift */,
+				190DFB9F2D6FBA270062D079 /* CameraView.swift */,
+				190DFBA12D6FBA2D0062D079 /* PhotoReviewView.swift */,
 				1942DC8D2BF3D73000734AF4 /* InventoryListSubView.swift */,
 				1942DC972BF6A23D00734AF4 /* ItemTextField.swift */,
 				19D343112C12467D00F8B2C7 /* LocationItemRow.swift */,
@@ -243,10 +249,12 @@
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
 				198958A72BF8F69A00C52CAE /* InventoryLabelModel.swift in Sources */,
 				19D3430A2C114E7200F8B2C7 /* LocationsListView.swift in Sources */,
+				190DFBA02D6FBA270062D079 /* CameraView.swift in Sources */,
 				1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */,
 				1942DC922BF3D73000734AF4 /* CustomInventoryRows.swift in Sources */,
 				19D3430C2C1159C400F8B2C7 /* DashboardView.swift in Sources */,
 				1989589E2BF6FC3700C52CAE /* EditInventoryItemView.swift in Sources */,
+				190DFBA22D6FBA2D0062D079 /* PhotoReviewView.swift in Sources */,
 				191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */,
 				19D343142C12472B00F8B2C7 /* CustomModifiers.swift in Sources */,
 				198958A92BF8F76700C52CAE /* EditLocationView.swift in Sources */,
@@ -389,6 +397,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -420,6 +429,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

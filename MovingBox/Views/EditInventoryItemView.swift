@@ -34,6 +34,8 @@ struct EditInventoryItemView: View {
     
     @State private var showingApiKeyAlert = false
     
+    @State private var showingCamera = false 
+
     var body: some View {
         Form {
             Section {
@@ -42,8 +44,16 @@ struct EditInventoryItemView: View {
                         .resizable()
                         .scaledToFit()
                 }
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("Select Image", systemImage: "photo")
+                HStack {
+                    Button(action: { showingCamera = true }) {
+                        Label("Take Photo", systemImage: "camera")
+                    }
+                    
+                    Divider()
+                    
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Label("Select Image", systemImage: "photo")
+                    }
                 }
             }
             Section("Title") {
@@ -148,6 +158,20 @@ struct EditInventoryItemView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Please configure your OpenAI API key in the settings to use this feature.")
+        }
+        .sheet(isPresented: $showingCamera) {
+            CameraView { image in
+                if let imageData = image.jpegData(compressionQuality: 0.8) {
+                    inventoryItemToDisplay.data = imageData
+                    // Optionally trigger OpenAI analysis here
+                    if settings.apiKey.isEmpty == false {
+                        Task {
+                            let imageDetails = await callOpenAI()
+                            updateUIWithImageDetails(imageDetails)
+                        }
+                    }
+                }
+            }
         }
     }
     
