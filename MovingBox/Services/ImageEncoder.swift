@@ -34,10 +34,14 @@ struct ImageEncoder {
     }
     
     func encodeImageToBase64() -> String? {
-        // First resize the image to fit within 2048x2048
-        let maxSize = CGSize(width: 2048, height: 2048)
-        let resizedImage = resizeImage(image: image, targetSize: maxSize)
+        // Set the target size based on isHighDetail setting
+        let isHighDetail = UserDefaults.standard.bool(forKey: "isHighDetail")
+        let targetSize = isHighDetail ?
+            CGSize(width: 2048, height: 2048) :
+            CGSize(width: 512, height: 512)
         
+        let resizedImage = resizeImage(image: image, targetSize: targetSize)
+        print("Resized image to \(resizedImage.size.width)x \(resizedImage.size.height)")
         guard let imageData = resizedImage.pngData() else {
             return nil
         }

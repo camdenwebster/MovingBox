@@ -16,7 +16,7 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section("General") {
-                Label("Apperance", systemImage: "paintbrush.fill")
+                Label("Apperance", systemImage: "paintbrush")
                 
                 NavigationLink(value: "notifications") {
                     Label("Notification Settings", systemImage: "bell")
@@ -116,9 +116,13 @@ struct AISettingsView: View {
                 }
             }
             
-            Section(header: Text("API Configuration")) {
+            Section(
+                footer: Text("High detail image analysis uses 2048x2048 resolution and may take up to 4 times longer and use 4 times more credits than standard detail analysis (512x512 resolution).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            ) {
                 HStack(spacing: 0) {
-                    Text("OpenAI API Key")
+                    Text("API Key")
                     Spacer()
                     if isEditing {
                         TextField("", text: $settings.apiKey)
