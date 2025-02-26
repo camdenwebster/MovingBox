@@ -12,8 +12,6 @@ struct EditLabelView: View {
     @Bindable var label: InventoryLabel
     @State private var color = Color.red
     
-
-    
     var body: some View {
         Form {
             Section("Label Name") {

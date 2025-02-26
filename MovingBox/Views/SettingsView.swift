@@ -11,48 +11,74 @@ import SwiftUI
 // MARK: - Main Settings Body
 struct SettingsView: View {
     @StateObject private var settings = SettingsManager()
-    @State private var path = NavigationPath()
+    @EnvironmentObject var router: Router
 
     var body: some View {
-        NavigationView {
-            Form {
-                Section("General") {
-                    Label("Apperance", systemImage: "paintbrush.fill")
-                    NavigationLink(destination: NotificationSettingsView()) {
-                        Label("Notification Settings", systemImage: "bell")
-                    }
-                    
-                    NavigationLink(destination: AISettingsView(settings: settings)) {
-                        Label("AI Settings", systemImage: "brain")
-                    }
+        List {
+            Section("General") {
+                Label("Apperance", systemImage: "paintbrush.fill")
+                
+                NavigationLink(value: "notifications") {
+                    Label("Notification Settings", systemImage: "bell")
                 }
                 
-                Section("Home Settings") {
-                    NavigationLink(destination: LocationSettingsView()) {
-                        Label("Location Settings", systemImage: "location")
-                    }
-                    NavigationLink(destination: LabelSettingsView()) {
-                        Label("Label Settings", systemImage: "tag")
-                    }
-                }
-                Section("Community & Support") {
-                    Label("Knowledge Base", systemImage: "questionmark.circle")
-                    Label("Support", systemImage: "envelope")
-                }
-                
-                Section("About") {
-                    HStack {
-                        Label("Version", systemImage: "info.circle")
-                        Spacer()
-                        Text("1.0.0")
-                            .foregroundColor(.secondary)
-                    }
-                    Label("Roadmap", systemImage: "map")
-                    Label("Privacy Policy", systemImage: "lock")
-                    Label("Terms of Service", systemImage: "doc.text")
+                NavigationLink(value: "ai") {
+                    Label("AI Settings", systemImage: "brain")
                 }
             }
-            .navigationTitle("Settings")
+            
+            Section("Home Settings") {
+                NavigationLink(value: "locations") {
+                    Label("Location Settings", systemImage: "location")
+                }
+                NavigationLink(value: "labels") {
+                    Label("Label Settings", systemImage: "tag")
+                }
+            }
+            
+            Section("Community & Support") {
+                Label("Knowledge Base", systemImage: "questionmark.circle")
+                Label("Support", systemImage: "envelope")
+            }
+            
+            Section("About") {
+                HStack {
+                    Label("Version", systemImage: "info.circle")
+                    Spacer()
+                    Text("1.0.0")
+                        .foregroundColor(.secondary)
+                }
+                Label("Roadmap", systemImage: "map")
+                Label("Privacy Policy", systemImage: "lock")
+                Label("Terms of Service", systemImage: "doc.text")
+            }
+        }
+        .navigationTitle("Settings")
+        .navigationDestination(for: String.self) { destination in
+            switch destination {
+            case "notifications":
+                NotificationSettingsView()
+            case "ai":
+                AISettingsView(settings: settings)
+            case "locations":
+                LocationSettingsView()
+            case "labels":
+                LabelSettingsView()
+            default:
+                EmptyView()
+            }
+        }
+        .navigationDestination(for: Router.Destination.self) { destination in
+            switch destination {
+            case .editLocationView(let location):
+                EditLocationView(location: location)
+            case .editLabelView(let label):
+                EditLabelView(label: label)
+            case .editInventoryItemView(let item):
+                EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: $router.path)
+            default:
+                EmptyView()
+            }
         }
     }
 }
@@ -148,7 +174,6 @@ struct AISettingsView: View {
 struct LocationSettingsView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
-    @State private var showingNewLocationSheet = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -176,7 +201,7 @@ struct LocationSettingsView: View {
                     modelContext.insert(location)
                     router.navigate(to: .editLocationView(location: location))
                 } label: {
-                    Label("Add Item", systemImage: "plus")
+                    Label("Add Location", systemImage: "plus")
                 }
             }
 
@@ -193,10 +218,48 @@ struct LocationSettingsView: View {
 }
 
 struct LabelSettingsView: View {
+    @Environment(\.modelContext) var modelContext
+    @EnvironmentObject var router: Router
+    @Query(sort: [
+        SortDescriptor(\InventoryLabel.name)
+    ]) var labels: [InventoryLabel]
+    
     var body: some View {
-        Text("Label Settings")
-            .navigationTitle("Label Settings")
-            .navigationBarTitleDisplayMode(.inline)
+        List {
+            ForEach(labels) { label in
+                NavigationLink {
+                    EditLabelView(label: label)
+                } label: {
+                    Text(label.name)
+                }
+            }
+            .onDelete(perform: deleteLabel)
+        }
+        .navigationTitle("Label Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                EditButton()
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    let label = InventoryLabel()
+                    modelContext.insert(label)
+                    router.navigate(to: .editLabelView(label: label))
+                } label: {
+                    Label("Add Label", systemImage: "plus")
+                }
+            }
+
+        }
+    }
+    
+    func deleteLabel(at offsets: IndexSet) {
+        for index in offsets {
+            let labelToDelete = labels[index]
+            modelContext.delete(labelToDelete)
+            print("Deleting label: \(labelToDelete.name)")
+        }
     }
 }
 

@@ -213,7 +213,7 @@ struct EditInventoryItemView: View {
     }
     
     func addLabel() {
-        let label = InventoryLabel(name: "", desc: "")
+        let label = InventoryLabel()
         modelContext.insert(label)
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))

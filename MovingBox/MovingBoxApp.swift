@@ -10,7 +10,8 @@ import SwiftUI
 
 @main
 struct MovingBoxApp: App {
-    @ObservedObject var router = Router()
+    @StateObject var allItemsRouter = Router()
+    @StateObject var settingsRouter = Router()
     
     init() {
         ValueTransformer.setValueTransformer(UIColorValueTransformer(), forName: NSValueTransformerName("UIColorValueTransformer"))
@@ -25,7 +26,7 @@ struct MovingBoxApp: App {
                         Text("Dashboard")
                     }
                 
-                NavigationStack(path: $router.path) {
+                NavigationStack(path: $allItemsRouter.path) {
                     LocationsListView()
                         .navigationDestination(for: Router.Destination.self) { destination in
                             switch destination {
@@ -42,16 +43,17 @@ struct MovingBoxApp: App {
                             case .editLabelView(let label):
                                 EditLabelView(label: label)
                             case .editInventoryItemView(let item):
-                                EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: $router.path)
+                                EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: $allItemsRouter.path)
                             }
                         }
                 }
-                .environmentObject(router)
+                .environmentObject(allItemsRouter)
                 .tabItem {
                     Image(systemName: "list.bullet")
                     Text("All Items")
                 }
-                NavigationStack(path: $router.path){
+                
+                NavigationStack(path: $settingsRouter.path){
                     SettingsView()
                         .navigationDestination(for: Router.Destination.self) { destination in
                             switch destination {
@@ -68,11 +70,11 @@ struct MovingBoxApp: App {
                             case .editLabelView(let label):
                                 EditLabelView(label: label)
                             case .editInventoryItemView(let item):
-                                EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: $router.path)
+                                EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: $settingsRouter.path)
                             }
                         }
                 }
-                .environmentObject(router)
+                .environmentObject(settingsRouter)
                 .tabItem {
                     Image(systemName: "gearshape")
                     Text("Settings")

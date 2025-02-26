@@ -16,7 +16,7 @@ class InventoryLabel {
     @Attribute(.transformable(by: UIColorValueTransformer.self)) var color: UIColor?
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
-    init(name: String, desc: String, color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil) {
+    init(name: String = "", desc: String = "", color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil) {
         self.name = name
         self.desc = desc
         self.color = color
