@@ -125,6 +125,7 @@ struct EditInventoryItemView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
+                // TODO: Add toolbar menu with option to use high detail image analysis if settings.isHighDetail is true
                 Button(action: {
                     if settings.apiKey.isEmpty {
                         showingApiKeyAlert = true

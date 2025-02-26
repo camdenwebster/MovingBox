@@ -8,26 +8,48 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - Main Settings Body
 struct SettingsView: View {
     @StateObject private var settings = SettingsManager()
-    
+    @State private var path = NavigationPath()
+
     var body: some View {
         NavigationView {
-            List {
-                NavigationLink(destination: AISettingsView(settings: settings)) {
-                    Label("AI Settings", systemImage: "brain")
+            Form {
+                Section("General") {
+                    Label("Apperance", systemImage: "paintbrush.fill")
+                    NavigationLink(destination: NotificationSettingsView()) {
+                        Label("Notification Settings", systemImage: "bell")
+                    }
+                    
+                    NavigationLink(destination: AISettingsView(settings: settings)) {
+                        Label("AI Settings", systemImage: "brain")
+                    }
                 }
                 
-                NavigationLink(destination: LocationSettingsView()) {
-                    Label("Location Settings", systemImage: "location")
+                Section("Home Settings") {
+                    NavigationLink(destination: LocationSettingsView()) {
+                        Label("Location Settings", systemImage: "location")
+                    }
+                    NavigationLink(destination: LabelSettingsView()) {
+                        Label("Label Settings", systemImage: "tag")
+                    }
+                }
+                Section("Community & Support") {
+                    Label("Knowledge Base", systemImage: "questionmark.circle")
+                    Label("Support", systemImage: "envelope")
                 }
                 
-                NavigationLink(destination: LabelSettingsView()) {
-                    Label("Label Settings", systemImage: "tag")
-                }
-                
-                NavigationLink(destination: AboutView()) {
-                    Label("About", systemImage: "info.circle")
+                Section("About") {
+                    HStack {
+                        Label("Version", systemImage: "info.circle")
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundColor(.secondary)
+                    }
+                    Label("Roadmap", systemImage: "map")
+                    Label("Privacy Policy", systemImage: "lock")
+                    Label("Terms of Service", systemImage: "doc.text")
                 }
             }
             .navigationTitle("Settings")
@@ -35,7 +57,14 @@ struct SettingsView: View {
     }
 }
 
-// Placeholder Views
+// MARK: - Settings Menu SubViews
+
+struct NotificationSettingsView: View {
+    var body: some View {
+        Text("Notifications Settings Here")
+    }
+}
+
 struct AISettingsView: View {
     @State private var isEditing = false
     @ObservedObject var settings: SettingsManager
@@ -83,7 +112,6 @@ struct AISettingsView: View {
                     }
                 }
                 
-                // Added high detail toggle
                 if isEditing {
                     Toggle("Use high detail image analysis", isOn: $settings.isHighDetail)
                 } else {
@@ -115,9 +143,12 @@ struct AISettingsView: View {
     }
 }
 
+
+
 struct LocationSettingsView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @State private var showingNewLocationSheet = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -131,9 +162,33 @@ struct LocationSettingsView: View {
                     Text(location.name)
                 }
             }
+            .onDelete(perform: deleteLocations)
         }
         .navigationTitle("Location Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                EditButton()
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    let location = InventoryLocation()
+                    modelContext.insert(location)
+                    router.navigate(to: .editLocationView(location: location))
+                } label: {
+                    Label("Add Item", systemImage: "plus")
+                }
+            }
+
+        }
+    }
+    
+    func deleteLocations(at offsets: IndexSet) {
+        for index in offsets {
+            let locationToDelete = locations[index]
+            modelContext.delete(locationToDelete)
+            print("Deleting location: \(locationToDelete.name)")
+        }
     }
 }
 
@@ -141,6 +196,7 @@ struct LabelSettingsView: View {
     var body: some View {
         Text("Label Settings")
             .navigationTitle("Label Settings")
+            .navigationBarTitleDisplayMode(.inline)
     }
 }
 

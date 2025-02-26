@@ -25,7 +25,7 @@ class InventoryLocation {
     
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
-    init(name: String, desc: String = "") {
+    init(name: String = "", desc: String = "") {
         self.name = name
         self.desc = desc
     }
