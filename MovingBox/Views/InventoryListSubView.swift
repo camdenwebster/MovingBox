@@ -12,16 +12,15 @@ struct InventoryListSubView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     
-    // Make the Query property more explicit
-    @Query private var inventoryItemsForSelectedLocation: [InventoryItem]
+    @Query private var inventoryItems: [InventoryItem]
     
-    let location: InventoryLocation
+    let location: InventoryLocation?
     let searchString: String
     
     var body: some View {
         List {
             Section {
-                ForEach(inventoryItemsForSelectedLocation) { inventoryItem in
+                ForEach(inventoryItems) { inventoryItem in
                     NavigationLink(value: inventoryItem) {
                         InventoryItemRow(item: inventoryItem)
                     }
@@ -31,39 +30,54 @@ struct InventoryListSubView: View {
         }
     }
     
-    init(location: InventoryLocation, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [SortDescriptor(\InventoryItem.title)]) {
+    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [SortDescriptor(\InventoryItem.title)]) {
         self.location = location
         self.searchString = searchString
         
-        let locationId = location.persistentModelID
-        
         let predicate: Predicate<InventoryItem>
         
-        if searchString.isEmpty {
-            predicate = #Predicate<InventoryItem> { item in
-                item.location?.persistentModelID == locationId
+        if let location = location {
+            let locationId = location.persistentModelID
+            if searchString.isEmpty {
+                predicate = #Predicate<InventoryItem> { item in
+                    item.location?.persistentModelID == locationId
+                }
+            } else {
+                predicate = #Predicate<InventoryItem> { item in
+                    (item.location?.persistentModelID == locationId) &&
+                    (item.title.localizedStandardContains(searchString) ||
+                     item.desc.localizedStandardContains(searchString) ||
+                     item.notes.localizedStandardContains(searchString) ||
+                     item.make.localizedStandardContains(searchString) ||
+                     item.model.localizedStandardContains(searchString) ||
+                     item.serial.localizedStandardContains(searchString))
+                }
             }
         } else {
-            predicate = #Predicate<InventoryItem> { item in
-                (item.location?.persistentModelID == locationId) &&
-                (item.title.localizedStandardContains(searchString) ||
-                 item.desc.localizedStandardContains(searchString) ||
-                 item.notes.localizedStandardContains(searchString) ||
-                 item.make.localizedStandardContains(searchString) ||
-                 item.model.localizedStandardContains(searchString) ||
-                 item.serial.localizedStandardContains(searchString))
+            if searchString.isEmpty {
+                predicate = #Predicate<InventoryItem> { _ in true }
+            } else {
+                predicate = #Predicate<InventoryItem> { item in
+                    item.title.localizedStandardContains(searchString) ||
+                    item.desc.localizedStandardContains(searchString) ||
+                    item.notes.localizedStandardContains(searchString) ||
+                    item.make.localizedStandardContains(searchString) ||
+                    item.model.localizedStandardContains(searchString) ||
+                    item.serial.localizedStandardContains(searchString)
+                }
             }
         }
         
-        _inventoryItemsForSelectedLocation = Query(
+        _inventoryItems = Query(
             filter: predicate,
             sort: sortOrder
         )
     }
     
+    // Delete function needs to be updated to use inventoryItems
     func deleteItems(at offsets: IndexSet) {
         for index in offsets {
-            let itemToDelete = inventoryItemsForSelectedLocation[index]
+            let itemToDelete = inventoryItems[index]
             modelContext.delete(itemToDelete)
             print("Deleting item: \(itemToDelete.title)")
         }

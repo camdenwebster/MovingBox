@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 
 enum HTTPMethod: String {
     case post = "POST"
@@ -48,10 +49,12 @@ class OpenAIService {
     
     var imageBase64: String
     var settings: SettingsManager
+    var modelContext: ModelContext
     
-    init(imageBase64: String, settings: SettingsManager) {
+    init(imageBase64: String, settings: SettingsManager, modelContext: ModelContext) {
         self.imageBase64 = imageBase64
         self.settings = settings
+        self.modelContext = modelContext
     }
     
     let itemModel = InventoryItem(title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: Decimal.zero, insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
@@ -61,8 +64,9 @@ class OpenAIService {
             throw OpenAIError.invalidURL
         }
         
-        let categories = TestData().labels
-        let locations = TestData().locations
+        // Get categories and locations from SwiftData
+        let categories = DefaultDataManager.getAllLabels(from: modelContext)
+        let locations = DefaultDataManager.getAllLocations(from: modelContext)
         
         let imagePrompt = "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes."
         
@@ -124,7 +128,7 @@ class OpenAIService {
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
         if settings.apiKey.isEmpty {
-            throw OpenAIError.invalidResponse 
+            throw OpenAIError.invalidResponse
         }
         urlRequest.addValue("Bearer \(settings.apiKey)", forHTTPHeaderField: "Authorization")
         

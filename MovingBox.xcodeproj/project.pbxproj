@@ -28,6 +28,7 @@
 		198958AB2BF8F77000C52CAE /* EditLabelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AA2BF8F77000C52CAE /* EditLabelView.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
+		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
 		19D343082C114DEE00F8B2C7 /* InventoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343072C114DEE00F8B2C7 /* InventoryListView.swift */; };
 		19D3430A2C114E7200F8B2C7 /* LocationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D343092C114E7200F8B2C7 /* LocationsListView.swift */; };
 		19D3430C2C1159C400F8B2C7 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430B2C1159C300F8B2C7 /* DashboardView.swift */; };
@@ -62,6 +63,7 @@
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
 		198958B12BF9AEF900C52CAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D343072C114DEE00F8B2C7 /* InventoryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryListView.swift; sourceTree = "<group>"; };
 		19D343092C114E7200F8B2C7 /* LocationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationsListView.swift; sourceTree = "<group>"; };
 		19D3430B2C1159C300F8B2C7 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -162,6 +164,7 @@
 				198958AE2BF99F5600C52CAE /* Previewer.swift */,
 				19D3430D2C12146800F8B2C7 /* Router.swift */,
 				198958AC2BF8FAC700C52CAE /* TestData.swift */,
+				19D133902D72B422002448A9 /* DefaultDataManager.swift */,
 				191FEA602D6D04E5006FF067 /* SettingsManager.swift */,
 			);
 			path = Services;
@@ -258,6 +261,7 @@
 				19D3430C2C1159C400F8B2C7 /* DashboardView.swift in Sources */,
 				190DFBA42D6FC2170062D079 /* CurrencyFormatter.swift in Sources */,
 				1989589E2BF6FC3700C52CAE /* EditInventoryItemView.swift in Sources */,
+				19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */,
 				190DFBA22D6FBA2D0062D079 /* PhotoReviewView.swift in Sources */,
 				191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */,
 				19D343142C12472B00F8B2C7 /* CustomModifiers.swift in Sources */,

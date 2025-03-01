@@ -9,27 +9,22 @@ import Foundation
 import SwiftData
 import UIKit
 
-@Model
-class InventoryLabel {
-    var name: String = ""
-    var desc: String = ""
-    @Attribute(.transformable(by: UIColorValueTransformer.self)) var color: UIColor?
-    var inventoryItems: [InventoryItem]? = [InventoryItem]()
-    
-    init(name: String = "", desc: String = "", color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil) {
-        self.name = name
-        self.desc = desc
-        self.color = color
-        self.inventoryItems = inventoryItems
-    }
-
-}
-
-@objc(UIColorValueTransformer) // The solution is adding this line
+@objc(UIColorValueTransformer)
 final class UIColorValueTransformer: ValueTransformer {
+    
+    static func register() {
+        ValueTransformer.setValueTransformer(
+            UIColorValueTransformer(),
+            forName: NSValueTransformerName("UIColorValueTransformer")
+        )
+    }
     
     override class func transformedValueClass() -> AnyClass {
         return UIColor.self
+    }
+    
+    override class func allowsReverseTransformation() -> Bool {
+        return true
     }
     
     // return data
@@ -56,3 +51,18 @@ final class UIColorValueTransformer: ValueTransformer {
     }
 }
 
+@Model
+class InventoryLabel {
+    var name: String = ""
+    var desc: String = ""
+    @Attribute(.transformable(by: UIColorValueTransformer.self)) var color: UIColor?
+    var inventoryItems: [InventoryItem]? = [InventoryItem]()
+    
+    init(name: String = "", desc: String = "", color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil) {
+        self.name = name
+        self.desc = desc
+        self.color = color
+        self.inventoryItems = inventoryItems
+    }
+
+}

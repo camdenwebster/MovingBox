@@ -276,7 +276,7 @@ struct EditInventoryItemView: View {
         }
         let imageEncoder = ImageEncoder(image: photo)
         let imageBase64 = imageEncoder.encodeImageToBase64() ?? ""
-        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings)
+        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
         
         print("Analyze Image button tapped")
 

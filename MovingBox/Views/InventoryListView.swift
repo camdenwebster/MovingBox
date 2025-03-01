@@ -19,7 +19,7 @@ struct InventoryListView: View {
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
-    let location: InventoryLocation
+    let location: InventoryLocation?
     @State private var showingApiKeyAlert = false
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
@@ -31,7 +31,7 @@ struct InventoryListView: View {
     
     var body: some View {
         InventoryListSubView(location: location, searchString: searchText, sortOrder: sortOrder)
-            .navigationTitle(location.name)
+            .navigationTitle(location?.name ?? "All Items")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: InventoryItem.self) { inventoryItem in EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path)
             }
@@ -148,7 +148,7 @@ struct InventoryListView: View {
         
         let imageEncoder = ImageEncoder(image: photo)
         let imageBase64 = imageEncoder.encodeImageToBase64() ?? ""
-        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings)
+        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
         
         do {
             return try await openAi.getImageDetails()

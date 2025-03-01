@@ -7,17 +7,32 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 @main
 struct MovingBoxApp: App {
+    @StateObject var locationsRouter = Router()
     @StateObject var allItemsRouter = Router()
     @StateObject var settingsRouter = Router()
     @StateObject private var settings = SettingsManager()
     
-    init() {
-        ValueTransformer.setValueTransformer(UIColorValueTransformer(), forName: NSValueTransformerName("UIColorValueTransformer"))
+    static func registerTransformers() {
+        UIColorValueTransformer.register()
     }
     
+    let container: ModelContainer = {
+        Self.registerTransformers()
+        
+        let schema = Schema([InventoryItem.self, InventoryLabel.self])
+        let modelConfiguration = ModelConfiguration(schema: schema)
+        
+        do {
+            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
+        }
+    }()
+
     @ViewBuilder
     private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
         switch destination {
@@ -49,8 +64,20 @@ struct MovingBoxApp: App {
                         Text("Dashboard")
                     }
                 
-                NavigationStack(path: $allItemsRouter.path) {
+                NavigationStack(path: $locationsRouter.path) {
                     LocationsListView()
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: $locationsRouter.path)
+                        }
+                }
+                .environmentObject(locationsRouter)
+                .tabItem {
+                    Image(systemName: "map")
+                    Text("Locations")
+                }
+                
+                NavigationStack(path: $allItemsRouter.path) {
+                    InventoryListView(location: nil)
                         .navigationDestination(for: Router.Destination.self) { destination in
                             destinationView(for: destination, navigationPath: $allItemsRouter.path)
                         }
@@ -60,6 +87,8 @@ struct MovingBoxApp: App {
                     Image(systemName: "list.bullet")
                     Text("All Items")
                 }
+                
+                
                 
                 NavigationStack(path: $settingsRouter.path){
                     SettingsView()
@@ -73,7 +102,11 @@ struct MovingBoxApp: App {
                     Text("Settings")
                 }
             }
+            // Move onAppear here
+            .onAppear {
+                DefaultDataManager.populateInitialData(modelContext: container.mainContext)
+            }
         }
-        .modelContainer(for: InventoryItem.self)
+        .modelContainer(container)
     }
 }
