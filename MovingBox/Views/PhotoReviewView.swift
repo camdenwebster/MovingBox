@@ -40,8 +40,12 @@ struct PhotoReviewView: View {
                                 showingApiKeyAlert = true
                             } else {
                                 isAnalyzing = true
+                                // Pass the image and analysis flag, but handle dismissal here
                                 onAccept(image, !settings.apiKey.isEmpty) {
+                                    // This closure will only be called after analysis is complete
                                     DispatchQueue.main.async {
+                                        isAnalyzing = false
+                                        print("Analysis complete, dismissing PhotoReviewView")
                                         dismiss()
                                     }
                                 }

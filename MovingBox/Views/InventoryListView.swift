@@ -54,17 +54,21 @@ struct InventoryListView: View {
                     if let imageData = image.jpegData(compressionQuality: 0.8) {
                         let newInventoryItem = createNewItemWithPhoto(imageData: imageData)
                         
+                        print("Starting AI image analysis after CameraView in InventoryListView")
                         if needsAnalysis {
                             Task {
                                 let imageDetails = await callOpenAI(for: newInventoryItem)
                                 await MainActor.run {
+                                    print("Completed AI image analysis after CameraView")
                                     updateUIWithImageDetails(imageDetails, for: newInventoryItem)
-                                    completion()
+                                    print("Finished updating image with details in InventoryListView, calling completion handler")
+                                    completion()  
+                                    print("Navigating to a new destination")
                                     router.navigate(to: .editInventoryItemView(item: newInventoryItem))
                                 }
                             }
                         } else {
-                            completion()
+                            completion()  
                             router.navigate(to: .editInventoryItemView(item: newInventoryItem))
                         }
                     }

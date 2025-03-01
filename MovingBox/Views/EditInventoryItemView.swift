@@ -252,9 +252,12 @@ struct EditInventoryItemView: View {
                     
                     if needsAnalysis && !settings.apiKey.isEmpty {
                         Task {
+                            print("Starting AI image analysis after CameraView in EditInventoryView")
                             let imageDetails = await callOpenAI()
+                            print("Finishing AI image analysis after CameraView in EditInventoryView")
                             await MainActor.run {
                                 updateUIWithImageDetails(imageDetails)
+                                print("Finished updating image with details in EditInventoryView, calling completion handler")
                                 completion()
                             }
                         }

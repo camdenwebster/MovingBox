@@ -15,8 +15,7 @@ struct CameraView: View {
             if showingPhotoReview, let image = capturedImage {
                 PhotoReviewView(image: image) { acceptedImage, needsAnalysis, completion in
                     onPhotoCapture?(acceptedImage, needsAnalysis, completion)
-                    completion()
-                    dismiss()
+                    print("Calling completion handler for camera view and dismissing sheet in CameraView")
                 }
             } else {
                 ZStack {
