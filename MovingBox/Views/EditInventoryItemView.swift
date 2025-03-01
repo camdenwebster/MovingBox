@@ -19,7 +19,8 @@ struct EditInventoryItemView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
-    
+    @FocusState private var isPriceFieldFocused: Bool
+    @State private var priceString = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "")
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
@@ -34,7 +35,35 @@ struct EditInventoryItemView: View {
     
     @State private var showingApiKeyAlert = false
     
-    @State private var showingCamera = false 
+    @State private var showingCamera = false
+    
+    private var currencySymbol: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = .current
+        return formatter.currencySymbol
+    }
+    
+    private func formattedPriceString(_ input: String) -> String {
+        // Filter out non-numeric characters
+        let numericString = input.filter { $0.isNumber }
+        
+        if numericString.isEmpty {
+            return ""
+        }
+        
+        // Convert to a Decimal amount (divide by 100 to place decimal point)
+        let amountValue = Decimal(string: numericString) ?? 0
+        let amount = amountValue / 100
+        
+        // Format with 2 decimal places
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        
+        return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? ""
+    }
 
     var body: some View {
         Form {
@@ -44,16 +73,10 @@ struct EditInventoryItemView: View {
                         .resizable()
                         .scaledToFit()
                 }
-                HStack {
-                    Button(action: { showingCamera = true }) {
-                        Label("Take Photo", systemImage: "camera")
-                    }
+
                     
-                    Divider()
-                    
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label("Select Image", systemImage: "photo")
-                    }
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Label("Select Image", systemImage: "photo")
                 }
             }
             Section("Title") {
@@ -75,7 +98,66 @@ struct EditInventoryItemView: View {
                 TextField("Serial Number", text: $inventoryItemToDisplay.serial)
             }
             Section("Purchase Price") {
-                TextField("Price", text: $inventoryItemToDisplay.price)
+                // Price field
+                HStack {
+                    Text("Price")
+                    Spacer()
+                    HStack(spacing: 0) {
+                        Text(currencySymbol)
+                            .foregroundStyle(.secondary)
+                        TextField("", text: $priceString)
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.numberPad)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .focused($isPriceFieldFocused)
+                            .frame(minWidth: 60, maxWidth: 75, alignment: .trailing)
+                            .onChange(of: priceString) { oldValue, newValue in
+                                // Filter and allow only numbers
+                                let filteredValue = newValue.filter { $0.isNumber }
+                                
+                                // If the user changed the string and it doesn't match our filtered value
+                                if newValue != filteredValue {
+                                    priceString = filteredValue
+                                }
+                                
+                                // Format for display with decimal point
+                                let formattedValue = formattedPriceString(filteredValue)
+                                
+                                // Only update the UI if we have a valid format and it's different
+                                if !formattedValue.isEmpty && formattedValue != priceString {
+                                    priceString = formattedValue
+                                }
+                                
+                                // Update the actual Decimal value for storage
+                                if !filteredValue.isEmpty {
+                                    let numericString = filteredValue
+                                    if let decimalValue = Decimal(string: numericString) {
+                                        inventoryItemToDisplay.price = decimalValue / 100
+                                    }
+                                } else {
+                                    inventoryItemToDisplay.price = 0
+                                }
+                            }
+                            .overlay(
+                                Group {
+                                    if priceString.isEmpty && !isPriceFieldFocused {
+                                        Text("0.00")
+                                            .foregroundColor(.gray)
+                                            .allowsHitTesting(false)
+                                            .frame(maxWidth: .infinity, alignment: .trailing)
+                                    }
+                                }
+                            )
+                    }
+                    .frame(maxWidth: 120, alignment: .trailing)
+                }
+                .onAppear {
+                    // Convert to integer by multiplying by 100 and rounding properly
+                    let scaledValue = inventoryItemToDisplay.price * Decimal(100)
+                    let intValue = Int(NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
+                    priceString = formattedPriceString(String(intValue))
+                }
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
@@ -153,22 +235,31 @@ struct EditInventoryItemView: View {
         }
         .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
             Button("Go to Settings") {
-                router.navigate(to: .settingsView)
+                router.navigate(to: .aISettingsView)
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Please configure your OpenAI API key in the settings to use this feature.")
         }
         .sheet(isPresented: $showingCamera) {
-            CameraView { image in
-                if let imageData = image.jpegData(compressionQuality: 0.8) {
+            CameraView { image, needsAnalysis, completion in
+                let imageEncoder = ImageEncoder(image: image)
+                if let optimizedImage = imageEncoder.optimizeImage(),
+                   let imageData = optimizedImage.jpegData(compressionQuality: 0.5) {
                     inventoryItemToDisplay.data = imageData
-                    // Optionally trigger OpenAI analysis here
-                    if settings.apiKey.isEmpty == false {
+                    modelContext.insert(inventoryItemToDisplay)
+                    try? modelContext.save()
+                    
+                    if needsAnalysis && !settings.apiKey.isEmpty {
                         Task {
                             let imageDetails = await callOpenAI()
-                            updateUIWithImageDetails(imageDetails)
+                            await MainActor.run {
+                                updateUIWithImageDetails(imageDetails)
+                                completion()
+                            }
                         }
+                    } else {
+                        completion()
                     }
                 }
             }
@@ -203,6 +294,10 @@ struct EditInventoryItemView: View {
     }
     
     func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
+        // Begin a write transaction
+        modelContext.insert(inventoryItemToDisplay)
+        
+        // Update properties
         inventoryItemToDisplay.title = imageDetails.title
         inventoryItemToDisplay.quantityString = imageDetails.quantity
         inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
@@ -210,7 +305,13 @@ struct EditInventoryItemView: View {
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
         inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
-        inventoryItemToDisplay.price = imageDetails.price
+        
+        // Convert price string to Decimal
+        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+        inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+        
+        // Explicitly save changes
+        try? modelContext.save()
     }
     
     func selectImage() {
@@ -225,7 +326,7 @@ struct EditInventoryItemView: View {
         inventoryItemToDisplay.make = ""
         inventoryItemToDisplay.model = ""
         inventoryItemToDisplay.location = nil
-        inventoryItemToDisplay.price = ""
+        inventoryItemToDisplay.price = 0
         inventoryItemToDisplay.notes = ""
     }
     
@@ -245,7 +346,16 @@ struct EditInventoryItemView: View {
     
     func loadPhoto() {
         Task { @MainActor in
-            inventoryItemToDisplay.data = try await selectedPhoto?.loadTransferable(type: Data.self)
+            if let data = try await selectedPhoto?.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                let imageEncoder = ImageEncoder(image: image)
+                if let optimizedImage = imageEncoder.optimizeImage(),
+                   let optimizedData = optimizedImage.jpegData(compressionQuality: 0.5) {
+                    inventoryItemToDisplay.data = optimizedData
+                    modelContext.insert(inventoryItemToDisplay)
+                    try? modelContext.save()
+                }
+            }
         }
     }
 }

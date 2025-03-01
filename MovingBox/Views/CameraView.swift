@@ -8,71 +8,74 @@ struct CameraView: View {
     @State private var capturedImage: UIImage?
     @State private var showingPermissionDenied = false
     
-    var onPhotoCapture: ((UIImage) -> Void)?
+    var onPhotoCapture: ((UIImage, Bool, @escaping () -> Void) -> Void)?
     
     var body: some View {
-        ZStack {
-            // Camera preview
-            if let preview = camera.previewLayer, camera.isSessionReady {
-                CameraPreviewView(previewLayer: preview)
-                    .ignoresSafeArea()
-            } else {
-                // Show loading state
-                ProgressView()
-                    .scaleEffect(2)
-                    .tint(.white)
-            }
-            
-            // Camera controls
-            VStack {
-                Spacer()
-                
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.white)
-                    }
-                    .padding()
-                    
-                    Spacer()
-                    
-                    // Capture button
-                    Button(action: {
-                        camera.captureImage { image in
-                            capturedImage = image
-                            showingPhotoReview = true
-                        }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(.white)
-                                .frame(width: 65, height: 65)
-                            Circle()
-                                .stroke(.white, lineWidth: 2)
-                                .frame(width: 75, height: 75)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Toggle camera button
-                    Button(action: { camera.switchCamera() }) {
-                        Image(systemName: "camera.rotate.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.white)
-                    }
-                    .padding()
-                }
-                .padding(.bottom)
-            }
-        }
-        .sheet(isPresented: $showingPhotoReview) {
-            if let image = capturedImage {
-                PhotoReviewView(image: image) { acceptedImage in
-                    onPhotoCapture?(acceptedImage)
+        Group {
+            if showingPhotoReview, let image = capturedImage {
+                PhotoReviewView(image: image) { acceptedImage, needsAnalysis, completion in
+                    onPhotoCapture?(acceptedImage, needsAnalysis, completion)
+                    completion()
                     dismiss()
                 }
+            } else {
+                ZStack {
+                    // Camera preview
+                    if let preview = camera.previewLayer, camera.isSessionReady {
+                        CameraPreviewView(previewLayer: preview)
+                            .ignoresSafeArea()
+                    } else {
+                        // Show loading state
+                        ProgressView()
+                            .scaleEffect(2)
+                            .tint(.white)
+                    }
+                    
+                    // Camera controls
+                    VStack {
+                        Spacer()
+                        
+                        HStack {
+                            Button(action: { dismiss() }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.white)
+                            }
+                            .padding()
+                            
+                            Spacer()
+                            
+                            // Capture button
+                            Button(action: {
+                                camera.captureImage { image in
+                                    capturedImage = image
+                                    showingPhotoReview = true
+                                }
+                            }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(.white)
+                                        .frame(width: 65, height: 65)
+                                    Circle()
+                                        .stroke(.white, lineWidth: 2)
+                                        .frame(width: 75, height: 75)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            // Toggle camera button
+                            Button(action: { camera.switchCamera() }) {
+                                Image(systemName: "camera.rotate.fill")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.white)
+                            }
+                            .padding()
+                        }
+                        .padding(.bottom)
+                    }
+                }
+                .background(Color.black)
             }
         }
         .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
@@ -88,7 +91,6 @@ struct CameraView: View {
                 }
             }
         }
-        .background(Color.black)
     }
     
     private func openSettings() {
@@ -98,21 +100,42 @@ struct CameraView: View {
     }
 }
 
-struct CameraPreviewView: UIViewRepresentable {
+class PreviewViewController: UIViewController {
     let previewLayer: AVCaptureVideoPreviewLayer
     
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        return view
+    init(previewLayer: AVCaptureVideoPreviewLayer) {
+        self.previewLayer = previewLayer
+        super.init(nibName: nil, bundle: nil)
     }
     
-    func updateUIView(_ uiView: UIView, context: Context) {
-        // Update the frame in the main thread
-        DispatchQueue.main.async {
-            previewLayer.frame = uiView.frame
-        }
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        print("[Camera] PreviewViewController viewDidLoad")
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        print("[Camera] PreviewViewController viewDidLayoutSubviews with frame: \(view.frame)")
+        previewLayer.frame = view.bounds
+    }
+}
+
+struct CameraPreviewView: UIViewControllerRepresentable {
+    let previewLayer: AVCaptureVideoPreviewLayer
+    
+    func makeUIViewController(context: Context) -> PreviewViewController {
+        print("[Camera] Creating PreviewViewController")
+        return PreviewViewController(previewLayer: previewLayer)
+    }
+    
+    func updateUIViewController(_ uiViewController: PreviewViewController, context: Context) {
+        print("[Camera] Updating PreviewViewController")
     }
 }
 
@@ -149,61 +172,82 @@ class CameraController: NSObject, ObservableObject {
     }
     
     private func setupCaptureSession() {
+        print("[Camera] Starting capture session setup")
+        captureSession = AVCaptureSession()
+        
+        // Begin configuration
+        captureSession?.beginConfiguration()
+        print("[Camera] Session configuration started")
+        
+        // Set session preset
+        captureSession?.sessionPreset = .photo
+        
+        // Setup cameras
+        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+            print("[Camera] Back camera found")
+            backCamera = device
+            currentCamera = device
+        } else {
+            print("[Camera] Error: Could not initialize back camera")
+        }
+        
+        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) {
+            print("[Camera] Front camera found")
+            frontCamera = device
+        } else {
+            print("[Camera] Warning: Could not initialize front camera")
+        }
+        
+        // Setup camera input
+        guard let captureSession = self.captureSession,
+              let currentCamera = self.currentCamera,
+              let input = try? AVCaptureDeviceInput(device: currentCamera) else {
+            print("[Camera] Error: Failed to create camera input")
+            return
+        }
+        
+        print("[Camera] Camera input created successfully")
+        
+        // Setup photo output
+        photoOutput = AVCapturePhotoOutput()
+        
+        if captureSession.canAddInput(input) && captureSession.canAddOutput(photoOutput!) {
+            captureSession.addInput(input)
+            captureSession.addOutput(photoOutput!)
+            print("[Camera] Input and output added to session")
+        } else {
+            print("[Camera] Error: Could not add input or output to session")
+        }
+        
+        // Commit configuration
+        captureSession.commitConfiguration()
+        print("[Camera] Session configuration committed")
+        
+        // Setup preview layer
+        setupPreviewLayer()
+        
+        // Start session in background
+        print("[Camera] Starting capture session")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            
-            self.captureSession = AVCaptureSession()
-            
-            // Begin configuration
-            self.captureSession?.beginConfiguration()
-            
-            // Set session preset
-            self.captureSession?.sessionPreset = .photo
-            
-            // Setup cameras
-            if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
-                self.backCamera = device
-                self.currentCamera = device
-            }
-            
-            if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) {
-                self.frontCamera = device
-            }
-            
-            // Setup camera input
-            guard let captureSession = self.captureSession,
-                  let currentCamera = self.currentCamera,
-                  let input = try? AVCaptureDeviceInput(device: currentCamera) else { return }
-            
-            // Setup photo output
-            self.photoOutput = AVCapturePhotoOutput()
-            
-            if captureSession.canAddInput(input) && captureSession.canAddOutput(self.photoOutput!) {
-                captureSession.addInput(input)
-                captureSession.addOutput(self.photoOutput!)
-            }
-            
-            // Commit configuration
-            self.captureSession?.commitConfiguration()
-            
-            // Setup preview layer
-            self.setupPreviewLayer()
-            
-            // Start session
-            self.captureSession?.startRunning()
-            
+            self?.captureSession?.startRunning()
+            print("[Camera] Capture session started running")
             DispatchQueue.main.async {
-                self.isSessionReady = true
+                self?.isSessionReady = true
+                print("[Camera] Session marked as ready")
             }
         }
     }
     
     private func setupPreviewLayer() {
-        guard let captureSession = captureSession else { return }
-        
+        guard let captureSession = captureSession else {
+            print("[Camera] Error: No capture session available for preview layer")
+            return
+        }
+        print("[Camera] Setting up preview layer")
         let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.videoGravity = .resizeAspectFill
         self.previewLayer = previewLayer
+        print("[Camera] Preview layer setup complete")
     }
     
     func switchCamera() {

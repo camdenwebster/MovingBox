@@ -20,7 +20,7 @@ struct InventoryListView: View {
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
     let location: InventoryLocation
-    
+    @State private var showingApiKeyAlert = false
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
     @StateObject private var settings = SettingsManager()
@@ -50,9 +50,23 @@ struct InventoryListView: View {
             }
             .searchable(text: $searchText)
             .sheet(isPresented: $showingCamera) {
-                CameraView { image in
+                CameraView { image, needsAnalysis, completion in
                     if let imageData = image.jpegData(compressionQuality: 0.8) {
-                        createNewItemWithPhoto(imageData: imageData)
+                        let newInventoryItem = createNewItemWithPhoto(imageData: imageData)
+                        
+                        if needsAnalysis {
+                            Task {
+                                let imageDetails = await callOpenAI(for: newInventoryItem)
+                                await MainActor.run {
+                                    updateUIWithImageDetails(imageDetails, for: newInventoryItem)
+                                    completion()
+                                    router.navigate(to: .editInventoryItemView(item: newInventoryItem))
+                                }
+                            }
+                        } else {
+                            completion()
+                            router.navigate(to: .editInventoryItemView(item: newInventoryItem))
+                        }
                     }
                 }
             }
@@ -61,6 +75,14 @@ struct InventoryListView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Please grant camera access in Settings to use this feature.")
+            }
+            .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
+                Button("Go to Settings") {
+                    router.navigate(to: .aISettingsView)
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Please configure your OpenAI API key in the settings to use this feature.")
             }
     }
     
@@ -89,7 +111,7 @@ struct InventoryListView: View {
         }
     }
     
-    private func createNewItemWithPhoto(imageData: Data) {
+    private func createNewItemWithPhoto(imageData: Data) -> InventoryItem {
         let newInventoryItem = InventoryItem(
             title: "",
             quantityString: "1",
@@ -100,7 +122,7 @@ struct InventoryListView: View {
             make: "",
             location: location,
             label: nil,
-            price: "",
+            price: Decimal.zero,
             insured: false,
             assetId: "",
             notes: "",
@@ -109,21 +131,10 @@ struct InventoryListView: View {
         
         // Set the photo data
         newInventoryItem.data = imageData
-        
         modelContext.insert(newInventoryItem)
+        try? modelContext.save()
         
-        // Start OpenAI analysis if API key is available
-        if !settings.apiKey.isEmpty {
-            Task {
-                let imageDetails = await callOpenAI(for: newInventoryItem)
-                await MainActor.run {
-                    updateUIWithImageDetails(imageDetails, for: newInventoryItem)
-                }
-            }
-        }
-        
-        router.navigate(to: .editInventoryItemView(item: newInventoryItem))
-        print("Created new item: \(newInventoryItem.title)")
+        return newInventoryItem
     }
     
     private func callOpenAI(for item: InventoryItem) async -> ImageDetails {
@@ -150,7 +161,12 @@ struct InventoryListView: View {
         item.desc = imageDetails.description
         item.make = imageDetails.make
         item.model = imageDetails.model
-        item.price = imageDetails.price
+        
+        // Convert price string to Decimal
+        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+        if let priceDecimal = Decimal(string: priceString) {
+            item.price = priceDecimal
+        }
     }
     
     func editItems() {

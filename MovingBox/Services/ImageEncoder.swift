@@ -51,3 +51,19 @@ struct ImageEncoder {
         return base64String
     }
 }
+
+extension ImageEncoder {
+    func optimizeImage(maxDimension: CGFloat = 1024, compressionQuality: CGFloat = 0.5) -> UIImage? {
+        // Calculate scaling factor
+        let scale = min(maxDimension / image.size.width, maxDimension / image.size.height, 1.0)
+        
+        // Calculate new size
+        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        defer { UIGraphicsEndImageContext() }
+        
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        return UIGraphicsGetImageFromCurrentImageContext()
+    }
+}

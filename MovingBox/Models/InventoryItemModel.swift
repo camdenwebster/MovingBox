@@ -20,7 +20,7 @@ class InventoryItem: ObservableObject {
     var make: String = ""
     var location: InventoryLocation?
     var label: InventoryLabel?
-    var price: String = ""
+    var price: Decimal = Decimal.zero
     var insured: Bool = false
     var assetId: String = ""
     var notes: String = ""
@@ -39,7 +39,7 @@ class InventoryItem: ObservableObject {
             return Int(quantityString) != nil
         }
     
-    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: String, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
+    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
 
         self.title = title
         self.quantityString = quantityString

@@ -41,7 +41,7 @@ struct Previewer {
             make: "Sennheiser",
             location: location,
             label: label,
-            price: "",
+            price: Decimal.zero,
             insured: false,
             assetId: "",
             notes: "",

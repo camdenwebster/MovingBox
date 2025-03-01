@@ -35,12 +35,13 @@ struct LocationsListView: View {
             EditButton()
             Button("Add Item", systemImage: "plus", action: addLocation)
         }
+        .onAppear {
+            print("LocationsListView: Total number of locations: \(locations.count)")
+        }
     }
     
     func addLocation() {
-        let location = InventoryLocation(name: "", desc: "")
-        modelContext.insert(location)
-        router.navigate(to: .editLocationView(location: location))
+        router.navigate(to: .editLocationView(location: nil))
     }
     
     func deleteLocations(at offsets: IndexSet) {
