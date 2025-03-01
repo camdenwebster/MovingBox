@@ -59,24 +59,15 @@ class OpenAIService {
     
     let itemModel = InventoryItem(title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: Decimal.zero, insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
     
+    @MainActor
     private func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
             throw OpenAIError.invalidURL
         }
         
         // Get categories and locations from SwiftData
-        var categories: [String] = []
-        var locations: [String] = []
-        
-        if Thread.isMainThread {
-            categories = DefaultDataManager.getAllLabels(from: modelContext)
-            locations = DefaultDataManager.getAllLocations(from: modelContext)
-        } else {
-            DispatchQueue.main.sync {
-                categories = DefaultDataManager.getAllLabels(from: modelContext)
-                locations = DefaultDataManager.getAllLocations(from: modelContext)
-            }
-        }
+        let categories = DefaultDataManager.getAllLabels(from: modelContext)
+        let locations = DefaultDataManager.getAllLocations(from: modelContext)
         
         let imagePrompt = "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes."
         
@@ -167,7 +158,10 @@ class OpenAIService {
     }
     
     func getImageDetails() async throws -> ImageDetails {
-        let urlRequest = try generateURLRequest(httpMethod: .post)
+        let urlRequest = try await MainActor.run {
+            try generateURLRequest(httpMethod: .post)
+        }
+        
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
