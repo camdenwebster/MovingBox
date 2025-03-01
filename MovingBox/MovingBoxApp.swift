@@ -52,6 +52,8 @@ struct MovingBoxApp: App {
             EditLabelView(label: label)
         case .editInventoryItemView(let item):
             EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath)
+        case .addInventoryItemView:
+            AddInventoryItemView()
         }
     }
     

@@ -65,8 +65,18 @@ class OpenAIService {
         }
         
         // Get categories and locations from SwiftData
-        let categories = DefaultDataManager.getAllLabels(from: modelContext)
-        let locations = DefaultDataManager.getAllLocations(from: modelContext)
+        var categories: [String] = []
+        var locations: [String] = []
+        
+        if Thread.isMainThread {
+            categories = DefaultDataManager.getAllLabels(from: modelContext)
+            locations = DefaultDataManager.getAllLocations(from: modelContext)
+        } else {
+            DispatchQueue.main.sync {
+                categories = DefaultDataManager.getAllLabels(from: modelContext)
+                locations = DefaultDataManager.getAllLocations(from: modelContext)
+            }
+        }
         
         let imagePrompt = "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes."
         

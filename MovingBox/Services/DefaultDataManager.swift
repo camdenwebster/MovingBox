@@ -49,6 +49,15 @@ class DefaultDataManager {
     }
     
     static func getAllLabels(from context: ModelContext) -> [String] {
+        // Ensure we're on the main thread
+        guard Thread.isMainThread else {
+            var result: [String] = ["None"]
+            DispatchQueue.main.sync {
+                result = getAllLabels(from: context)
+            }
+            return result
+        }
+        
         let descriptor = FetchDescriptor<InventoryLabel>()
         do {
             let labels = try context.fetch(descriptor)
@@ -60,6 +69,15 @@ class DefaultDataManager {
     }
     
     static func getAllLocations(from context: ModelContext) -> [String] {
+        // Ensure we're on the main thread
+        guard Thread.isMainThread else {
+            var result: [String] = ["None"]
+            DispatchQueue.main.sync {
+                result = getAllLocations(from: context)
+            }
+            return result
+        }
+        
         let descriptor = FetchDescriptor<InventoryLocation>()
         do {
             let locations = try context.fetch(descriptor)
