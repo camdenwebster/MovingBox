@@ -77,6 +77,18 @@ struct MovingBoxApp: App {
                 }
                 
                 NavigationStack(path: $allItemsRouter.path) {
+                    AddInventoryItemView()
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: $allItemsRouter.path)
+                        }
+                }
+                .environmentObject(allItemsRouter)
+                .tabItem {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add Item")
+                }
+                
+                NavigationStack(path: $allItemsRouter.path) {
                     InventoryListView(location: nil)
                         .navigationDestination(for: Router.Destination.self) { destination in
                             destinationView(for: destination, navigationPath: $allItemsRouter.path)
@@ -87,9 +99,7 @@ struct MovingBoxApp: App {
                     Image(systemName: "list.bullet")
                     Text("All Items")
                 }
-                
-                
-                
+                             
                 NavigationStack(path: $settingsRouter.path){
                     SettingsView()
                         .navigationDestination(for: Router.Destination.self) { destination in
