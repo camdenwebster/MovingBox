@@ -50,8 +50,8 @@ struct MovingBoxApp: App {
             EditLocationView(location: location)
         case .editLabelView(let label):
             EditLabelView(label: label)
-        case .editInventoryItemView(let item):
-            EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath)
+        case .editInventoryItemView(let item, let showSparklesButton):
+            EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton)
         case .addInventoryItemView:
             AddInventoryItemView()
         }

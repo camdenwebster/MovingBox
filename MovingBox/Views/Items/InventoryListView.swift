@@ -25,7 +25,7 @@ struct InventoryListView: View {
             .navigationTitle(location?.name ?? "All Items")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
-                EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path)
+                EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
             .toolbar {
                 Menu("Sort", systemImage: "arrow.up.arrow.down") {

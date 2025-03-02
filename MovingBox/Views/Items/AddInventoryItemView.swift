@@ -67,7 +67,7 @@ struct AddInventoryItemView: View {
                             } catch {
                                 print("Error analyzing image: \(error)")
                                 completion()
-                                router.navigate(to: .editInventoryItemView(item: newItem))
+                                router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true))
                             }
                         }
                     } else {

@@ -28,15 +28,12 @@ struct EditInventoryItemView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults: Bool = false
-
     @StateObject private var settings = SettingsManager()
-
-    var imageName: String = "adapter"
-    
     @State private var showingApiKeyAlert = false
-    
     @State private var showingCamera = false
     
+    var showSparklesButton = false
+
     private var currencySymbol: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -207,7 +204,7 @@ struct EditInventoryItemView: View {
                 Button("Cancel", role: .cancel) { }
             }
         }
-        .navigationTitle(inventoryItemToDisplay.title)
+        .navigationTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
         .toolbar {
@@ -218,19 +215,23 @@ struct EditInventoryItemView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 // TODO: Add toolbar menu with option to use high detail image analysis if settings.isHighDetail is true
-                Button(action: {
-                    if settings.apiKey.isEmpty {
-                        showingApiKeyAlert = true
-                    } else {
-                        Task {
-                            let imageDetails = await callOpenAI()
-                            updateUIWithImageDetails(imageDetails)
+                if showSparklesButton {
+                    Button(action: {
+                        if settings.apiKey.isEmpty {
+                            showingApiKeyAlert = true
+                        } else {
+                            Task {
+                                let imageDetails = await callOpenAI()
+                                updateUIWithImageDetails(imageDetails)
+                            }
                         }
+                    }) {
+                        Image(systemName: "sparkles")
                     }
-                }) {
-                    Image(systemName: "sparkles")
+                    .disabled(isLoadingOpenAiResults ? true : false)
+                } else {
+                    EmptyView()
                 }
-                .disabled(isLoadingOpenAiResults ? true : false)
             }
         }
         .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
