@@ -230,10 +230,11 @@ struct EditInventoryItemView: View {
                     }
                     .disabled(isLoadingOpenAiResults)
                 } else {
-                    Button("Save") {
+                    Button("Done") {
                         try? modelContext.save()
                         navigationPath.removeLast()
                     }
+                    .fontWeight(.bold)
                 }
             }
         }
