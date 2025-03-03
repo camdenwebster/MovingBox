@@ -86,7 +86,7 @@ struct MovingBoxApp: App {
                 }
                 .environmentObject(allItemsRouter)
                 .tabItem {
-                    Image(systemName: "plus.circle.fill")
+                    Image(systemName: "camera.viewfinder")
                     Text("Add Item")
                 }
                 

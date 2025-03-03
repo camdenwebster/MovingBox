@@ -17,7 +17,7 @@ struct AddInventoryItemView: View {
                 .padding()
             
             Button(action: checkCameraPermissionsAndPresent) {
-                Image(systemName: "camera.circle.fill")
+                Image(systemName: "camera.viewfinder")
                     .font(.system(size: 60))
             }
         }
