@@ -14,14 +14,17 @@ final class Router: ObservableObject {
         case locationsListView
         case settingsView
         case inventoryListView(location: InventoryLocation)
-        case editLocationView(location: InventoryLocation)
+        case editLocationView(location: InventoryLocation?)
         case editLabelView(label: InventoryLabel)
-        case editInventoryItemView(item: InventoryItem)
+        case editInventoryItemView(item: InventoryItem, showSparklesButton: Bool = false)
+        case aISettingsView
+        case addInventoryItemView
     }
     
     @Published var path = NavigationPath()
     
     func navigate(to destination: Destination) {
+        print("Navigating to a new destination")
         path.append(destination)
     }
     

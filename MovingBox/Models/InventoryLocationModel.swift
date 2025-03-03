@@ -11,7 +11,6 @@ import SwiftUI
 
 @Model
 class InventoryLocation {
-    var id: String = ""
     var name: String = ""
     var desc: String = ""
 //    var parentLocation: InventoryLocation?
@@ -26,8 +25,7 @@ class InventoryLocation {
     
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
-    init(id: String, name: String, desc: String) {
-        self.id = id
+    init(name: String = "", desc: String = "") {
         self.name = name
         self.desc = desc
     }
