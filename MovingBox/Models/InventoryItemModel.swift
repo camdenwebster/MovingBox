@@ -62,6 +62,7 @@ class InventoryItem: ObservableObject {
             showInvalidQuantityAlert = true
         } else {
             self.quantityInt = Int(quantityString) ?? 1
+            showInvalidQuantityAlert = false
         }
     }
     

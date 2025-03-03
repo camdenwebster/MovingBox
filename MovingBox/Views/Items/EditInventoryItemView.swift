@@ -208,13 +208,13 @@ struct EditInventoryItemView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if isLoadingOpenAiResults {
+            if isLoadingOpenAiResults {
+                ToolbarItem(placement: .topBarTrailing) {
                     ProgressView()
                 }
             }
+            
             ToolbarItem(placement: .topBarTrailing) {
-                // TODO: Add toolbar menu with option to use high detail image analysis if settings.isHighDetail is true
                 if showSparklesButton {
                     Button(action: {
                         if settings.apiKey.isEmpty {
@@ -228,19 +228,14 @@ struct EditInventoryItemView: View {
                     }) {
                         Image(systemName: "sparkles")
                     }
-                    .disabled(isLoadingOpenAiResults ? true : false)
+                    .disabled(isLoadingOpenAiResults)
                 } else {
-                    EmptyView()
+                    Button("Save") {
+                        try? modelContext.save()
+                        navigationPath.removeLast()
+                    }
                 }
             }
-        }
-        .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
-            Button("Go to Settings") {
-                router.navigate(to: .aISettingsView)
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Please configure your OpenAI API key in the settings to use this feature.")
         }
         .sheet(isPresented: $showingCamera) {
             CameraView { image, needsAnalysis, completion in
@@ -267,6 +262,14 @@ struct EditInventoryItemView: View {
                     }
                 }
             }
+        }
+        .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
+            Button("Go to Settings") {
+                router.navigate(to: .aISettingsView)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Please configure your OpenAI API key in the settings to use this feature.")
         }
     }
     
