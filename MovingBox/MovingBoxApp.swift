@@ -62,7 +62,7 @@ struct MovingBoxApp: App {
             TabView {
                 DashboardView()
                     .tabItem {
-                        Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                        Image(systemName: "gauge.with.dots.needle.33percent")
                         Text("Dashboard")
                     }
                 
@@ -114,7 +114,7 @@ struct MovingBoxApp: App {
                     Text("Settings")
                 }
             }
-            // Move onAppear here
+            .tint(Color.primary)
             .onAppear {
                 DefaultDataManager.populateInitialData(modelContext: container.mainContext)
             }
