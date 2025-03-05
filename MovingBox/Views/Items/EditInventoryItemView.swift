@@ -64,18 +64,57 @@ struct EditInventoryItemView: View {
 
     var body: some View {
         Form {
-            Section {
-                if let uiImage = inventoryItemToDisplay.photo {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                }
+            // Photo banner section
+                Section {
+                    ZStack(alignment: .bottomTrailing) {
+                        if let uiImage = inventoryItemToDisplay.photo {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: UIScreen.main.bounds.height / 3)
+                                .clipped()
+                                .listRowInsets(EdgeInsets())
+                        } else {
+                            VStack {
+                                Image(systemName: "photo")
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: UIScreen.main.bounds.height / 3)
+                                    .listRowInsets(EdgeInsets())
+                                Text("Add a photo to get started")
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        
 
+                    }
+                HStack(spacing: 16) {
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        HStack {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.title)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(.bordered)
                     
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("Select Image", systemImage: "photo")
+                    Button {
+                        showingCamera = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "camera")
+                                .font(.title)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(.bordered)
                 }
+                .padding(.vertical, 4)
+                .fixedSize(horizontal: false, vertical: true)
             }
+
             Section("Title") {
                 TextField("Enter item title", text: $inventoryItemToDisplay.title)
                     .focused($inputIsFocused)
@@ -244,7 +283,6 @@ struct EditInventoryItemView: View {
                 if let optimizedImage = imageEncoder.optimizeImage(),
                    let imageData = optimizedImage.jpegData(compressionQuality: 0.5) {
                     inventoryItemToDisplay.data = imageData
-                    modelContext.insert(inventoryItemToDisplay)
                     try? modelContext.save()
                     
                     if needsAnalysis && !settings.apiKey.isEmpty {
