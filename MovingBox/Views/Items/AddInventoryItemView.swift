@@ -137,6 +137,7 @@ struct AddInventoryItemView: View {
         item.desc = imageDetails.description
         item.make = imageDetails.make
         item.model = imageDetails.model
+        item.hasUsedAI = true
         
         let locationDescriptor = FetchDescriptor<InventoryLocation>()
         guard let locations = try? modelContext.fetch(locationDescriptor) else { return }

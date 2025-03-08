@@ -41,6 +41,8 @@ class InventoryItem: ObservableObject {
     
     var hasUsedAI: Bool = false
     
+    init() {}
+    
     init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
 
         self.title = title

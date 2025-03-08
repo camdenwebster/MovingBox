@@ -52,20 +52,6 @@ struct EditLocationView: View {
                 TextField("Enter a Description", text: $locationDesc)
                     .disabled(!isEditingEnabled)
             }
-//            Section("Parent") {
-//                Picker("Parent Location", selection: $location.parentLocation) {
-//                    Text("None")
-//                        .tag(Optional<InventoryLocation>.none)
-//
-//                    if locations.isEmpty == false {
-//                        Divider()
-//                        ForEach(locations) { location in
-//                            Text(location.name)
-//                                .tag(Optional(location))
-//                        }
-//                    }
-//                }
-//            }
         }
         .navigationTitle(isNewLocation ? "New Location" : "Location Details")
         .navigationBarTitleDisplayMode(.inline)

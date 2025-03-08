@@ -23,7 +23,15 @@ struct MovingBoxApp: App {
     let container: ModelContainer = {
         Self.registerTransformers()
         
-        let schema = Schema([InventoryItem.self, InventoryLabel.self])
+        // Update schema to include all models in dependency order
+        let schema = Schema([
+            InventoryLabel.self,
+            InventoryItem.self,
+            InventoryLocation.self,
+            InsurancePolicy.self,
+            Home.self
+        ])
+        
         let modelConfiguration = ModelConfiguration(schema: schema)
         
         do {

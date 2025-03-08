@@ -66,9 +66,9 @@ struct EditInventoryItemView: View {
             }
             .listSectionSpacing(16)
             
-            // Add "Analyze with AI" button here if analysis has not happened yet
+            // Add "Analyze with AI" button here if analysis has not happened yet and there is a photo
             Section {
-                if inventoryItemToDisplay.hasUsedAI == false {
+                if inventoryItemToDisplay.hasUsedAI == false && (inventoryItemToDisplay.photo != nil) {
                     HStack(spacing: 16) {
                         Button(action: {
                             if settings.apiKey.isEmpty {
