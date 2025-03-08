@@ -7,16 +7,49 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct DashboardView: View {
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
-    
+    @Query private var homes: [Home]
+    private var home: Home { homes.first ?? Home() }
+
+    @State private var selectedPhoto: PhotosPickerItem? = nil
+
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    VStack(spacing: 0) {
+                        if let uiImage = home.photo {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: UIScreen.main.bounds.height / 3)
+                                .clipped()
+                                .listRowInsets(EdgeInsets())
+                        } else {
+                            PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                                VStack {
+                                    Image(systemName: "photo")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(maxWidth: 150, maxHeight: 150)
+                                        .foregroundStyle(.secondary)
+                                    Text("Add a photo of your home")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: UIScreen.main.bounds.height / 3)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                }
                 Section("Home Statistics") {
                     HStack {
                         Text("Number of items: ")
@@ -42,7 +75,14 @@ struct DashboardView: View {
                     }
                 }
             }
-            .navigationTitle("Home Inventory")
+            .navigationTitle("Dashboard")
+        }
+        .onChange(of: selectedPhoto, loadPhoto)
+    }
+    
+    private func loadPhoto() {
+        Task { @MainActor in
+            home.data = try await selectedPhoto?.loadTransferable(type: Data.self)
         }
     }
 }

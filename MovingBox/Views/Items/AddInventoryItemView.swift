@@ -17,7 +17,7 @@ struct AddInventoryItemView: View {
                 .padding()
             
             Button(action: checkCameraPermissionsAndPresent) {
-                Image(systemName: "camera.circle.fill")
+                Image(systemName: "camera.viewfinder")
                     .font(.system(size: 60))
             }
         }
@@ -137,6 +137,7 @@ struct AddInventoryItemView: View {
         item.desc = imageDetails.description
         item.make = imageDetails.make
         item.model = imageDetails.model
+        item.hasUsedAI = true
         
         let locationDescriptor = FetchDescriptor<InventoryLocation>()
         guard let locations = try? modelContext.fetch(locationDescriptor) else { return }

@@ -13,7 +13,6 @@ import SwiftUI
 class InventoryLocation {
     var name: String = ""
     var desc: String = ""
-//    var parentLocation: InventoryLocation?
     @Attribute(.externalStorage) var data: Data?
     var photo: UIImage? {
         if let data {

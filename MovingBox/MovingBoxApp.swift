@@ -23,7 +23,15 @@ struct MovingBoxApp: App {
     let container: ModelContainer = {
         Self.registerTransformers()
         
-        let schema = Schema([InventoryItem.self, InventoryLabel.self])
+        // Update schema to include all models in dependency order
+        let schema = Schema([
+            InventoryLabel.self,
+            InventoryItem.self,
+            InventoryLocation.self,
+            InsurancePolicy.self,
+            Home.self
+        ])
+        
         let modelConfiguration = ModelConfiguration(schema: schema)
         
         do {
@@ -62,7 +70,7 @@ struct MovingBoxApp: App {
             TabView {
                 DashboardView()
                     .tabItem {
-                        Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                        Image(systemName: "gauge.with.dots.needle.33percent")
                         Text("Dashboard")
                     }
                 
@@ -86,7 +94,7 @@ struct MovingBoxApp: App {
                 }
                 .environmentObject(allItemsRouter)
                 .tabItem {
-                    Image(systemName: "plus.circle.fill")
+                    Image(systemName: "camera.viewfinder")
                     Text("Add Item")
                 }
                 
@@ -114,7 +122,7 @@ struct MovingBoxApp: App {
                     Text("Settings")
                 }
             }
-            // Move onAppear here
+            .tint(Color.primary)
             .onAppear {
                 DefaultDataManager.populateInitialData(modelContext: container.mainContext)
             }

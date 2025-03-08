@@ -39,6 +39,10 @@ class InventoryItem: ObservableObject {
             return Int(quantityString) != nil
         }
     
+    var hasUsedAI: Bool = false
+    
+    init() {}
+    
     init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
 
         self.title = title
@@ -55,6 +59,7 @@ class InventoryItem: ObservableObject {
         self.assetId = assetId
         self.notes = notes
         self.showInvalidQuantityAlert = showInvalidQuantityAlert
+        self.hasUsedAI = false
     }
     
     func validateQuantityInput() {

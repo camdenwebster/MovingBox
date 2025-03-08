@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @MainActor
-class DefaultDataManager {
+enum DefaultDataManager {
     private static let defaultLocations = ["Kitchen", "Office", "Bedroom", "Bathroom", "Hallway Closet", "Basement", "Attic"]
     private static let defaultLabels = ["Musical instruments", "Kitchen appliances", "Decor", "Cooking Utensils", "Electronics", "Household Items"]
     private static let defaultColors: [UIColor] = [
@@ -17,6 +17,20 @@ class DefaultDataManager {
     ]
 
     static func populateInitialData(modelContext: ModelContext) {
+        // Check if a Home exists, if not create one
+        let homeDescriptor = FetchDescriptor<Home>()
+        
+        do {
+            let homes = try modelContext.fetch(homeDescriptor)
+            if homes.isEmpty {
+                let defaultHome = Home()
+                modelContext.insert(defaultHome)
+                try modelContext.save()
+            }
+        } catch {
+            print("Error setting up default home: \(error)")
+        }
+        
         let locationDescriptor = FetchDescriptor<InventoryLocation>()
         let labelDescriptor = FetchDescriptor<InventoryLabel>()
         

@@ -34,51 +34,96 @@ struct EditInventoryItemView: View {
     
     var showSparklesButton = false
 
-    private var currencySymbol: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = .current
-        return formatter.currencySymbol
-    }
-    
-    private func formattedPriceString(_ input: String) -> String {
-        // Filter out non-numeric characters
-        let numericString = input.filter { $0.isNumber }
-        
-        if numericString.isEmpty {
-            return ""
-        }
-        
-        // Convert to a Decimal amount (divide by 100 to place decimal point)
-        let amountValue = Decimal(string: numericString) ?? 0
-        let amount = amountValue / 100
-        
-        // Format with 2 decimal places
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        
-        return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? ""
-    }
 
     var body: some View {
         Form {
+            // Photo banner section
             Section {
-                if let uiImage = inventoryItemToDisplay.photo {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
+                VStack(spacing: 0) {
+                    if let uiImage = inventoryItemToDisplay.photo {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .clipped()
+                            .listRowInsets(EdgeInsets())
+                    } else {
+                        VStack {
+                            Image(systemName: "photo")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: 150, maxHeight: 150)
+                                .foregroundStyle(.secondary)
+                            Text("Add a photo to get started")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .foregroundStyle(.secondary)
+                    }
                 }
-
-                    
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("Select Image", systemImage: "photo")
+                .listRowInsets(EdgeInsets())
+            }
+            .listSectionSpacing(16)
+            
+            // Add "Analyze with AI" button here if analysis has not happened yet and there is a photo
+            Section {
+                if inventoryItemToDisplay.hasUsedAI == false && (inventoryItemToDisplay.photo != nil) {
+                    HStack(spacing: 16) {
+                        Button(action: {
+                            if settings.apiKey.isEmpty {
+                                showingApiKeyAlert = true
+                            } else {
+                                Task {
+                                    let imageDetails = await callOpenAI()
+                                    updateUIWithImageDetails(imageDetails)
+                                }
+                            }
+                        }) {
+                            Label("Analyze with AI", systemImage: "sparkles")
+                                .frame(maxWidth: .infinity, minHeight: 40)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .listRowBackground(Color.clear)
+                    .background(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
             }
-            Section("Title") {
-                TextField("Enter item title", text: $inventoryItemToDisplay.title)
-                    .focused($inputIsFocused)
+            .listSectionSpacing(16)
+            
+            Section {
+                HStack(spacing: 16) {
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        HStack {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.title)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button {
+                        showingCamera = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "camera")
+                                .font(.title)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .listRowBackground(Color.clear)
+                .background(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+
+            Section("Details") {
+                FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
+                FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
+                FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
+                FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
             }
             Section("Quantity") {
                 Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
@@ -87,74 +132,8 @@ struct EditInventoryItemView: View {
                 TextEditor(text: $inventoryItemToDisplay.desc)
                     .lineLimit(5)
             }
-            Section("Manufacturer and Model") {
-                TextField("Manufacturer", text: $inventoryItemToDisplay.make)
-                TextField("Model", text: $inventoryItemToDisplay.model)
-            }
-            Section("Serial Number") {
-                TextField("Serial Number", text: $inventoryItemToDisplay.serial)
-            }
             Section("Purchase Price") {
-                // Price field
-                HStack {
-                    Text("Price")
-                    Spacer()
-                    HStack(spacing: 0) {
-                        Text(currencySymbol)
-                            .foregroundStyle(.secondary)
-                        TextField("", text: $priceString)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.numberPad)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .focused($isPriceFieldFocused)
-                            .frame(minWidth: 60, maxWidth: 75, alignment: .trailing)
-                            .onChange(of: priceString) { oldValue, newValue in
-                                // Filter and allow only numbers
-                                let filteredValue = newValue.filter { $0.isNumber }
-                                
-                                // If the user changed the string and it doesn't match our filtered value
-                                if newValue != filteredValue {
-                                    priceString = filteredValue
-                                }
-                                
-                                // Format for display with decimal point
-                                let formattedValue = formattedPriceString(filteredValue)
-                                
-                                // Only update the UI if we have a valid format and it's different
-                                if !formattedValue.isEmpty && formattedValue != priceString {
-                                    priceString = formattedValue
-                                }
-                                
-                                // Update the actual Decimal value for storage
-                                if !filteredValue.isEmpty {
-                                    let numericString = filteredValue
-                                    if let decimalValue = Decimal(string: numericString) {
-                                        inventoryItemToDisplay.price = decimalValue / 100
-                                    }
-                                } else {
-                                    inventoryItemToDisplay.price = 0
-                                }
-                            }
-                            .overlay(
-                                Group {
-                                    if priceString.isEmpty && !isPriceFieldFocused {
-                                        Text("0.00")
-                                            .foregroundColor(.gray)
-                                            .allowsHitTesting(false)
-                                            .frame(maxWidth: .infinity, alignment: .trailing)
-                                    }
-                                }
-                            )
-                    }
-                    .frame(maxWidth: 120, alignment: .trailing)
-                }
-                .onAppear {
-                    // Convert to integer by multiplying by 100 and rounding properly
-                    let scaledValue = inventoryItemToDisplay.price * Decimal(100)
-                    let intValue = Int(NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
-                    priceString = formattedPriceString(String(intValue))
-                }
+                PriceFieldRow(priceString: $priceString, priceDecimal: $inventoryItemToDisplay.price)
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
@@ -215,26 +194,30 @@ struct EditInventoryItemView: View {
             }
             
             ToolbarItem(placement: .topBarTrailing) {
-                if showSparklesButton {
-                    Button(action: {
-                        if settings.apiKey.isEmpty {
-                            showingApiKeyAlert = true
-                        } else {
-                            Task {
-                                let imageDetails = await callOpenAI()
-                                updateUIWithImageDetails(imageDetails)
+                if inventoryItemToDisplay.hasUsedAI {
+                    if showSparklesButton  {
+                        Button(action: {
+                            if settings.apiKey.isEmpty {
+                                showingApiKeyAlert = true
+                            } else {
+                                Task {
+                                    let imageDetails = await callOpenAI()
+                                    updateUIWithImageDetails(imageDetails)
+                                }
                             }
+                        }) {
+                            Image(systemName: "sparkles")
                         }
-                    }) {
-                        Image(systemName: "sparkles")
+                        .disabled(isLoadingOpenAiResults)
+                    } else {
+                        Button("Done") {
+                            try? modelContext.save()
+                            navigationPath.removeLast()
+                        }
+                        .fontWeight(.bold)
                     }
-                    .disabled(isLoadingOpenAiResults)
                 } else {
-                    Button("Done") {
-                        try? modelContext.save()
-                        navigationPath.removeLast()
-                    }
-                    .fontWeight(.bold)
+                    EmptyView()
                 }
             }
         }
@@ -244,7 +227,6 @@ struct EditInventoryItemView: View {
                 if let optimizedImage = imageEncoder.optimizeImage(),
                    let imageData = optimizedImage.jpegData(compressionQuality: 0.5) {
                     inventoryItemToDisplay.data = imageData
-                    modelContext.insert(inventoryItemToDisplay)
                     try? modelContext.save()
                     
                     if needsAnalysis && !settings.apiKey.isEmpty {
@@ -313,6 +295,7 @@ struct EditInventoryItemView: View {
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
         inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
+        inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
         
         // Convert price string to Decimal
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)

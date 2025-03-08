@@ -36,11 +36,37 @@ struct InventoryListView: View {
                             .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
                     }
                 }
-                Button(action: {
-                    router.navigate(to: .addInventoryItemView)
-                }) {
-                    Image(systemName: "plus")
-                }
+                Menu("Add Item", systemImage: "plus") {
+                      Button(action: {
+                          // Present EditInventoryItemView for manual entry
+                          let newItem = InventoryItem(
+                              title: "",
+                              quantityString: "1",
+                              quantityInt: 1,
+                              desc: "",
+                              serial: "",
+                              model: "",
+                              make: "",
+                              location: location,
+                              label: nil,
+                              price: Decimal.zero,
+                              insured: false,
+                              assetId: "",
+                              notes: "",
+                              showInvalidQuantityAlert: false
+                          )
+                          router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true))
+                      }) {
+                          Label("Add Manually", systemImage: "square.and.pencil")
+                      }
+                      
+                      Button(action: {
+                          // Navigate to camera view
+                          router.navigate(to: .addInventoryItemView)
+                      }) {
+                          Label("Add from Photo", systemImage: "camera")
+                      }
+                  }
             }
             .searchable(text: $searchText)
     }
