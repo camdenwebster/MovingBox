@@ -24,7 +24,7 @@ struct CameraView: View {
                 })
                 .transition(.asymmetric(
                     insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
+                    removal: .move(edge: .trailing).combined(with: .opacity)
                 ))
             } else {
                 ZStack {
@@ -85,7 +85,7 @@ struct CameraView: View {
                 }
                 .background(Color.black)
                 .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    insertion: .move(edge: .leading).combined(with: .opacity),
                     removal: .move(edge: .leading).combined(with: .opacity)
                 ))
             }
