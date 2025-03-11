@@ -3,6 +3,7 @@ import SwiftUI
 struct PhotoReviewView: View {
     let image: UIImage
     let onAccept: ((UIImage, Bool, @escaping () -> Void) -> Void)
+    let onRetake: () -> Void
     @Environment(\.dismiss) private var dismiss
     @StateObject private var settings = SettingsManager()
     @State private var isAnalyzing = false
@@ -15,6 +16,7 @@ struct PhotoReviewView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .padding()
+                    .transition(.scale.combined(with: .opacity))
                 
                 if isAnalyzing {
                     VStack(spacing: 10) {
@@ -24,9 +26,10 @@ struct PhotoReviewView: View {
                             .foregroundStyle(.secondary)
                     }
                     .frame(height: 100)
+                    .transition(.opacity)
                 } else {
                     HStack(spacing: 40) {
-                        Button(action: { dismiss() }) {
+                        Button(action: onRetake) {
                             VStack {
                                 Image(systemName: "arrow.counterclockwise")
                                     .font(.title)
@@ -60,8 +63,10 @@ struct PhotoReviewView: View {
                         }
                     }
                     .padding()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .animation(.easeInOut(duration: 0.3), value: isAnalyzing)
             .navigationTitle("Review Photo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
