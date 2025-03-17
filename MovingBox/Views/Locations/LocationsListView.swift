@@ -49,6 +49,7 @@ struct LocationsListView: View {
             let locationToDelete = locations[index]
             modelContext.delete(locationToDelete)
             print("Deleting location: \(locationToDelete.name)")
+            TelemetryManager.shared.trackLocationDeleted()
         }
     }
 }

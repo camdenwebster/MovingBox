@@ -265,6 +265,8 @@ struct EditInventoryItemView: View {
         let imageBase64 = imageEncoder.encodeImageToBase64() ?? ""
         let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
         
+        TelemetryManager.shared.trackCameraAnalysisUsed()
+
         print("Analyze Image button tapped")
 
         do {
@@ -322,8 +324,9 @@ struct EditInventoryItemView: View {
     }
     
     func addLocation() {
-        let location = InventoryLocation(name: "", desc: "")
+        let location = InventoryLocation()
         modelContext.insert(location)
+        TelemetryManager.shared.trackLocationCreated(name: location.name)
         inventoryItemToDisplay.location = location
         router.navigate(to: .editLocationView(location: location))
     }
@@ -331,6 +334,7 @@ struct EditInventoryItemView: View {
     func addLabel() {
         let label = InventoryLabel()
         modelContext.insert(label)
+        TelemetryManager.shared.trackLabelCreated(name: label.name)
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
     }
@@ -344,6 +348,7 @@ struct EditInventoryItemView: View {
                    let optimizedData = optimizedImage.jpegData(compressionQuality: 0.5) {
                     inventoryItemToDisplay.data = optimizedData
                     modelContext.insert(inventoryItemToDisplay)
+                    TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
                     try? modelContext.save()
                 }
             }
