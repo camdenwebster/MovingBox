@@ -25,13 +25,24 @@ struct DashboardView: View {
                 Section {
                     VStack(spacing: 0) {
                         if let uiImage = home.photo {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: UIScreen.main.bounds.height / 3)
-                                .clipped()
-                                .listRowInsets(EdgeInsets())
+                            ZStack(alignment: .bottomTrailing) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: UIScreen.main.bounds.height / 3)
+                                    .clipped()
+                                
+                                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                                    Image(systemName: "photo.circle.fill")
+                                        .symbolRenderingMode(.hierarchical)
+                                        .font(.largeTitle)
+                                        .foregroundStyle(.white)
+                                        .background(Circle().fill(.black.opacity(0.5)))
+                                        .padding()
+                                }
+                            }
+                            .listRowInsets(EdgeInsets())
                         } else {
                             PhotosPicker(selection: $selectedPhoto, matching: .images) {
                                 VStack {
