@@ -47,6 +47,7 @@ struct AddInventoryItemView: View {
                    let imageData = optimizedImage.jpegData(compressionQuality: 0.5) {
                     newItem.data = imageData
                     modelContext.insert(newItem)
+                    TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
                     try? modelContext.save()
                     
                     if needsAnalysis && !settings.apiKey.isEmpty {
@@ -61,6 +62,7 @@ struct AddInventoryItemView: View {
                                 let imageDetails = try await openAi.getImageDetails()
                                 await MainActor.run {
                                     updateUIWithImageDetails(imageDetails, for: newItem)
+                                    TelemetryManager.shared.trackCameraAnalysisUsed()
                                     completion()
                                     router.navigate(to: .editInventoryItemView(item: newItem))
                                 }

@@ -98,6 +98,7 @@ struct PhotoReviewView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel", action: { dismiss() })
+                        .foregroundStyle(.red)
                 }
             }
             .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {

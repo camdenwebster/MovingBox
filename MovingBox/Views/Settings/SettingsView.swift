@@ -203,6 +203,7 @@ struct LocationSettingsView: View {
                 Button {
                     let location = InventoryLocation()
                     modelContext.insert(location)
+                    TelemetryManager.shared.trackLocationCreated(name: location.name)
                     router.navigate(to: .editLocationView(location: location))
                 } label: {
                     Label("Add Location", systemImage: "plus")
@@ -217,6 +218,7 @@ struct LocationSettingsView: View {
             let locationToDelete = locations[index]
             modelContext.delete(locationToDelete)
             print("Deleting location: \(locationToDelete.name)")
+            TelemetryManager.shared.trackLocationDeleted()
         }
     }
 }
@@ -249,6 +251,7 @@ struct LabelSettingsView: View {
                 Button {
                     let label = InventoryLabel()
                     modelContext.insert(label)
+                    TelemetryManager.shared.trackLabelCreated(name: label.name)
                     router.navigate(to: .editLabelView(label: label))
                 } label: {
                     Label("Add Label", systemImage: "plus")
@@ -263,6 +266,7 @@ struct LabelSettingsView: View {
             let labelToDelete = labels[index]
             modelContext.delete(labelToDelete)
             print("Deleting label: \(labelToDelete.name)")
+            TelemetryManager.shared.trackLabelDeleted()
         }
     }
 }

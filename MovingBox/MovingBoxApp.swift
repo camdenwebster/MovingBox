@@ -8,6 +8,7 @@
 import SwiftData
 import SwiftUI
 import UIKit
+import TelemetryDeck
 
 @main
 struct MovingBoxApp: App {
@@ -15,6 +16,7 @@ struct MovingBoxApp: App {
     @StateObject var allItemsRouter = Router()
     @StateObject var settingsRouter = Router()
     @StateObject private var settings = SettingsManager()
+    @State private var selectedTab = 0
     
     static func registerTransformers() {
         UIColorValueTransformer.register()
@@ -41,6 +43,16 @@ struct MovingBoxApp: App {
         }
     }()
 
+    init() {
+        // Initialize TelemetryDeck
+        let config = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
+        // Add a prefix to all signal names
+        config.defaultSignalPrefix = "App."
+        // Add a prefix to all parameter names
+        config.defaultParameterPrefix = "MyApp."
+        TelemetryDeck.initialize(config: config)
+    }
+    
     @ViewBuilder
     private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
         switch destination {
@@ -67,12 +79,13 @@ struct MovingBoxApp: App {
     
     var body: some Scene {
         WindowGroup {
-            TabView {
+            TabView(selection: $selectedTab) {
                 DashboardView()
                     .tabItem {
                         Image(systemName: "gauge.with.dots.needle.33percent")
                         Text("Dashboard")
                     }
+                    .tag(0)
                 
                 NavigationStack(path: $locationsRouter.path) {
                     LocationsListView()
@@ -85,6 +98,7 @@ struct MovingBoxApp: App {
                     Image(systemName: "map")
                     Text("Locations")
                 }
+                .tag(1)
                 
                 NavigationStack(path: $allItemsRouter.path) {
                     AddInventoryItemView()
@@ -97,6 +111,7 @@ struct MovingBoxApp: App {
                     Image(systemName: "camera.viewfinder")
                     Text("Add Item")
                 }
+                .tag(2)
                 
                 NavigationStack(path: $allItemsRouter.path) {
                     InventoryListView(location: nil)
@@ -109,6 +124,7 @@ struct MovingBoxApp: App {
                     Image(systemName: "list.bullet")
                     Text("All Items")
                 }
+                .tag(3)
                              
                 NavigationStack(path: $settingsRouter.path){
                     SettingsView()
@@ -121,10 +137,27 @@ struct MovingBoxApp: App {
                     Image(systemName: "gearshape")
                     Text("Settings")
                 }
+                .tag(4)
             }
             .tint(Color.primary)
+            .onChange(of: selectedTab) { oldValue, newValue in
+                let tabName: String = {
+                switch newValue {
+                case 0: return "dashboard"
+                case 1: return "locations"
+                case 2: return "add_item"
+                case 3: return "all_items"
+                case 4: return "settings"
+                default: return "unknown"
+                }
+                }()
+                TelemetryManager.shared.trackTabSelected(tab: tabName)
+            }
             .onAppear {
                 DefaultDataManager.populateInitialData(modelContext: container.mainContext)
+                
+                // Send app launch signal
+                TelemetryDeck.signal("appLaunched")
             }
         }
         .modelContainer(container)
