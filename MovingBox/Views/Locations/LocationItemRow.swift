@@ -22,6 +22,7 @@ struct LocationItemRow: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 50, height: 50)
+                    .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading) {
                 Text(location.name)

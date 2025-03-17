@@ -13,10 +13,19 @@ struct CameraView: View {
     var body: some View {
         Group {
             if showingPhotoReview, let image = capturedImage {
-                PhotoReviewView(image: image) { acceptedImage, needsAnalysis, completion in
+                PhotoReviewView(image: image, onAccept: { acceptedImage, needsAnalysis, completion in
                     onPhotoCapture?(acceptedImage, needsAnalysis, completion)
                     print("Calling completion handler for camera view and dismissing sheet in CameraView")
-                }
+                }, onRetake: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showingPhotoReview = false
+                        capturedImage = nil
+                    }
+                })
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .trailing).combined(with: .opacity)
+                ))
             } else {
                 ZStack {
                     // Camera preview
@@ -75,8 +84,13 @@ struct CameraView: View {
                     }
                 }
                 .background(Color.black)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .leading).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)
+                ))
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: showingPhotoReview)
         .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
             Button("Go to Settings", action: openSettings)
             Button("Cancel", role: .cancel) { dismiss() }

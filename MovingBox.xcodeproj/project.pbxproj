@@ -14,6 +14,7 @@
 		1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */; };
 		1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */; };
 		1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */; };
+		196109F52D764D9100A76504 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196109F42D764D9100A76504 /* ColorExtension.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
 		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
@@ -39,6 +40,7 @@
 		1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
+		196109F42D764D9100A76504 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
 		198958AC2BF8FAC700C52CAE /* TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestData.swift; path = MovingBox/Services/TestData.swift; sourceTree = SOURCE_ROOT; };
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
@@ -116,6 +118,7 @@
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				196109F42D764D9100A76504 /* ColorExtension.swift */,
 				190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */,
 				1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */,
 				1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */,
@@ -240,6 +243,7 @@
 				1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
+				196109F52D764D9100A76504 /* ColorExtension.swift in Sources */,
 				19D3430E2C12146800F8B2C7 /* Router.swift in Sources */,
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
 				1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */,
