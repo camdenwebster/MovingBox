@@ -18,14 +18,6 @@ struct PhotoReviewView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .edgesIgnoringSafeArea(.all)
-//                
-//                VStack {
-//                    Rectangle()
-//                        .fill(.ultraThinMaterial)
-//                        .frame(height: 50)
-//                        .edgesIgnoringSafeArea(.top)
-//                    Spacer()
-//                }
                 
                 if isAnalyzing {
                     Rectangle()
@@ -106,7 +98,6 @@ struct PhotoReviewView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel", action: { dismiss() })
-//                        .foregroundStyle(.primary)
                 }
             }
             .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
