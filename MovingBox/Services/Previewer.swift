@@ -12,15 +12,15 @@ import UIKit
 @MainActor
 struct Previewer {
     let container: ModelContainer
-    let inventoryItem: InventoryItem
+    let home: Home
     let location: InventoryLocation
     let label: InventoryLabel
-    let home: Home
+    let inventoryItem: InventoryItem
     let policy: InsurancePolicy
     
     init() throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        container = try ModelContainer(
+        self.container = try ModelContainer(
             for: InventoryItem.self,
             InventoryLocation.self,
             InventoryLabel.self,
@@ -29,40 +29,58 @@ struct Previewer {
             configurations: config
         )
         
-        // MARK: - Preview location
-        location = InventoryLocation(name: "Office", desc: "Camden's office")
-        container.mainContext.insert(location)
+        // Create all models first using local variables
+        let newHome = {
+            let home = Home()
+            home.address1 = "123 Main Street"
+            
+            if let url = URL(string: "https://town-n-country-living.com/wp-content/uploads/2023/06/craftsman-exterior.jpg"),
+               let data = try? Data(contentsOf: url) {
+                home.data = data
+            }
+            return home
+        }()
         
-        // MARK: - Preview label
-        label = InventoryLabel(name: "Electronics", desc: "Electronic items", color: .red)
-        container.mainContext.insert(label)
+        let newLocation = {
+            let location = InventoryLocation()
+            location.name = "Office"
+            location.desc = "Camden's office"
+            
+            if let url = URL(string: "https://i.ytimg.com/vi/uOHOgI66C28/maxresdefault.jpg"),
+               let data = try? Data(contentsOf: url) {
+                location.data = data
+            }
+            return location
+        }()
         
-        // MARK: - Preview inventory item
-        inventoryItem = InventoryItem(
-            title: "Sennheiser Power Adapter",
-            quantityString: "1",
-            quantityInt: 1,
-            desc: "",
-            serial: "Sennheiser",
-            model: "Power adapter",
-            make: "Sennheiser",
-            location: location,
-            label: label,
-            price: Decimal.zero,
-            insured: false,
-            assetId: "",
-            notes: "",
-            showInvalidQuantityAlert: false
-        )
-        container.mainContext.insert(inventoryItem)
+        let newLabel = InventoryLabel(name: "Electronics", desc: "Electronic items", color: .red)
         
-        // MARK: - Preview home
+        let newItem = {
+            let item = InventoryItem(
+                title: "WA-87 Condenser Mic",
+                quantityString: "1",
+                quantityInt: 1,
+                desc: "",
+                serial: "WA-123",
+                model: "WA-87",
+                make: "WARM Audio",
+                location: newLocation,
+                label: newLabel,
+                price: 599.99,
+                insured: false,
+                assetId: "",
+                notes: "",
+                showInvalidQuantityAlert: false
+            )
+            
+            if let url = URL(string: "https://images.ctfassets.net/h4x5uvaoia7v/3Xm6gc7zRp0vMDCsTeLq6r/0bd70d7610c797b8b67103c643b73e6f/GALLERY_87R2_NICKEL_still7.png?w=3840&q=75"),
+               let data = try? Data(contentsOf: url) {
+                item.data = data
+            }
+            return item
+        }()
         
-        home = Home(name: "Camden's Home", address1: "123 Main St", city: "Anytown", state: "CA", zip: 12345, country: "USA")
-        container.mainContext.insert(home)
-        
-        // MARK: - Preview insurance policy
-        policy = InsurancePolicy(
+        let newPolicy = InsurancePolicy(
             providerName: "State Farm",
             policyNumber: "123456789",
             deductibleAmount: 1000,
@@ -75,6 +93,18 @@ struct Previewer {
             endDate: Calendar.current.date(byAdding: .year, value: 1, to: Date())!
         )
         
-        container.mainContext.insert(policy)
+        // Insert all models into the container
+        container.mainContext.insert(newHome)
+        container.mainContext.insert(newLocation)
+        container.mainContext.insert(newLabel)
+        container.mainContext.insert(newItem)
+        container.mainContext.insert(newPolicy)
+        
+        // Assign to properties
+        self.home = newHome
+        self.location = newLocation
+        self.label = newLabel
+        self.inventoryItem = newItem
+        self.policy = newPolicy
     }
 }

@@ -115,17 +115,24 @@ struct DashboardView: View {
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         
-                        ForEach(locations) { location in
-                            LocationItemRow(location: location)
-                                .background(RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 16) {
+                                ForEach(locations) { location in
+                                    LocationItemCard(location: location)
+                                        .frame(width: UIScreen.main.bounds.width / 2 - 16)
+                                        .background(RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color(.systemBackground))
+                                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                            }
+                            .padding(.horizontal)
                         }
                     }
                     .padding(.horizontal)
                 }
             }
-            .navigationTitle("Dashboard")
+            .navigationTitle("\(home.address1 != "" ? home.address1 : "Dashboard")")
             .background(Color(.systemGroupedBackground))
         }
         .onChange(of: selectedPhoto, loadPhoto)

@@ -23,11 +23,13 @@ struct InventoryListSubView: View {
                 ForEach(inventoryItems) { inventoryItem in
                     NavigationLink(value: inventoryItem) {
                         InventoryItemRow(item: inventoryItem)
+                            .listRowInsets(EdgeInsets()) // Remove default row padding
                     }
                 }
                 .onDelete(perform: deleteItems)
             }
         }
+//        .listStyle(.plain) // Remove default list styling
     }
     
     init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [SortDescriptor(\InventoryItem.title)]) {

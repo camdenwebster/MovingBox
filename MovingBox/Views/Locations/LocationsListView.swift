@@ -21,7 +21,7 @@ struct LocationsListView: View {
         List {
             ForEach(locations) { location in
                 NavigationLink(value: location) {
-                    LocationItemRow(location: location)
+                    LocationItemCard(location: location)
                 }
             }
             .onDelete(perform: deleteLocations)
