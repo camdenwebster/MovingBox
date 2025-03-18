@@ -41,6 +41,7 @@
 		1927DD102D89E26600BEFD9D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		1927DD112D89EB1000BEFD9D /* PRIVACY_POLICY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PRIVACY_POLICY.md; sourceTree = "<group>"; };
 		1927DD122D89EC5D00BEFD9D /* EULA.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EULA.md; sourceTree = "<group>"; };
+		1927DD132D89EE5D00BEFD9D /* icon_shadow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon_shadow.png; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -92,6 +93,7 @@
 				1942DC7C2BF391CB00734AF4 /* MovingBox */,
 				19D133CA2D75455B002448A9 /* MovingBoxTests */,
 				1942DC7B2BF391CB00734AF4 /* Products */,
+				1927DD132D89EE5D00BEFD9D /* icon_shadow.png */,
 			);
 			sourceTree = "<group>";
 		};
