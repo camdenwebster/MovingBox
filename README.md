@@ -1,6 +1,6 @@
 # MovingBox
 
-![Light Icon](https://github.com/user-attachments/assets/833ec8a6-8067-41c5-9555-908dc5d4a8ee)
+<img src="https://github.com/camdenwebster/MovingBox/blob/main/MovingBox/Assets.xcassets/AppIcon.appiconset/Light%20Icon.png?raw=true" alt="Light Icon" width="200" height="200">
 
 ## About MovingBox
 
