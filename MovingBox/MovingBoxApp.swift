@@ -34,10 +34,25 @@ struct MovingBoxApp: App {
             Home.self
         ])
         
+        #if DEBUG
+        // In debug builds, use in-memory storage
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        #else
+        // In release builds, use persistent storage
         let modelConfiguration = ModelConfiguration(schema: schema)
+        #endif
         
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            
+            #if DEBUG
+            // Load test data in debug builds
+            Task {
+                await TestData.loadTestData(context: container.mainContext)
+            }
+            #endif
+            
+            return container
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -154,7 +169,7 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
-                DefaultDataManager.populateInitialData(modelContext: container.mainContext)
+//                DefaultDataManager.populateInitialData(modelContext: container.mainContext)
                 
                 // Send app launch signal
                 TelemetryDeck.signal("appLaunched")
