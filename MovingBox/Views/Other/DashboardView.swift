@@ -73,7 +73,7 @@ struct DashboardView: View {
                             
                             HStack {
                                 Text(home.address1 != "" ? home.address1 : "Dashboard")
-                                    .font(.title2)
+                                    .font(.title)
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
                                 
