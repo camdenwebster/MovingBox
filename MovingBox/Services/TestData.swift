@@ -11,17 +11,21 @@ import UIKit
 
 @MainActor
 struct TestData {
-    // Helper function to get the test images directory
-    private static var testImagesDirectory: URL {
-        Bundle.main.bundleURL.appendingPathComponent("Resources/TestImages")
-    }
-    
+    // Helper function to load test image from asset catalog
     private static func loadTestImage(category: String, filename: String) -> Data? {
-        let imageURL = testImagesDirectory
-            .appendingPathComponent(category)
-            .appendingPathComponent(filename)
-            .appendingPathExtension("jpg")
-        return try? Data(contentsOf: imageURL)
+        // Use bundle to load image directly from asset catalog
+        guard let image = UIImage(named: filename) else {
+            print("❌ Could not load image: \(filename)")
+            return nil
+        }
+        
+        guard let data = image.jpegData(compressionQuality: 1.0) else {
+            print("❌ Could not convert image to data: \(filename)")
+            return nil
+        }
+        
+        print("✅ Successfully loaded image: \(filename)")
+        return data
     }
     
     // Sample home with local image path
@@ -136,7 +140,7 @@ struct TestData {
         
         // Lighting
         ("Chandelier", "Crystal Chandelier", "Pottery Barn", "Clarissa", Decimal(799.99), "chandelier"),
-        ("Table Lamp Set", "Ceramic Table Lamps", "West Elm", "Asymmetry", Decimal(299.99), "table-lamp"),
+        ("Table Lamp Set", "Ceramic Table Lamps", "West Elm", "Asymmetry", Decimal(299.99), "table-lamps"),
         ("Smart Bulbs", "Color Changing Set", "Philips", "Hue", Decimal(199.99), "smart-bulbs")
     ]
     

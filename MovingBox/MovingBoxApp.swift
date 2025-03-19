@@ -46,9 +46,10 @@ struct MovingBoxApp: App {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             
             #if DEBUG
-            // Load test data in debug builds
-            Task {
-                await TestData.loadTestData(context: container.mainContext)
+            if modelConfiguration.isStoredInMemoryOnly {
+                Task {
+                    await TestData.loadTestData(context: container.mainContext)
+                }
             }
             #endif
             
