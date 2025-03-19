@@ -7,16 +7,68 @@
 
 import SwiftData
 import SwiftUI
+import SafariServices
+
+enum SettingsSection: Hashable {
+    case categories
+    case stores
+    case legal
+}
+
+struct ExternalLink {
+    let title: String
+    let icon: String
+    let url: URL
+}
 
 // MARK: - Main Settings Body
 struct SettingsView: View {
     @StateObject private var settings = SettingsManager()
     @EnvironmentObject var router: Router
+    @Environment(\.modelContext) private var modelContext
+    @State private var selectedSection: SettingsSection? = .categories // Default selection
+    @State private var showingSafariView = false
+    @State private var selectedURL: URL?
+    
+    private let externalLinks: [String: ExternalLink] = [
+        "knowledgeBase": ExternalLink(
+            title: "Knowledge Base",
+            icon: "questionmark.circle",
+            url: URL(string: "https://movingbox.ai/docs")!
+            ),
+        "support": ExternalLink(
+            title: "Support",
+            icon: "envelope",
+            url: URL(string: "https://movingbox.ai/help")!
+        ),
+        "rateUs": ExternalLink(
+            title: "Rate Us",
+            icon: "star",
+            url: URL(string: "https://movingbox.ai/rate")!
+        ),
+        "roadmap": ExternalLink(
+            title: "Roadmap",
+            icon: "map",
+            url: URL(string: "https://github.com/users/camdenwebster/projects/1/views/2")!
+        ),
+        "privacyPolicy": ExternalLink(
+            title: "Privacy Policy",
+            icon: "lock",
+            url: URL(string: "https://github.com/camdenwebster/MovingBox/blob/main/PRIVACY_POLICY.md")!
+        ),
+        "termsOfService": ExternalLink(
+            title: "Terms of Service",
+            icon: "doc.text",
+            url: URL(string: "https://github.com/camdenwebster/MovingBox/blob/main/EULA.md")!
+        )
+    ]
 
     var body: some View {
         List {
             Section("General") {
-                Label("Apperance", systemImage: "paintbrush")
+                NavigationLink(value: "appearance") {
+                    Label("Apperance", systemImage: "paintbrush")
+                }
                 
                 NavigationLink(value: "notifications") {
                     Label("Notification Settings", systemImage: "bell")
@@ -37,9 +89,11 @@ struct SettingsView: View {
             }
             
             Section("Community & Support") {
-                Label("Knowledge Base", systemImage: "questionmark.circle")
-                Label("Support", systemImage: "envelope")
+                externalLinkButton(for: externalLinks["knowledgeBase"]!)
+                externalLinkButton(for: externalLinks["support"]!)
+                externalLinkButton(for: externalLinks["rateUs"]!)
             }
+            
             
             Section("About") {
                 HStack {
@@ -48,14 +102,16 @@ struct SettingsView: View {
                     Text("1.0.0")
                         .foregroundColor(.secondary)
                 }
-                Label("Roadmap", systemImage: "map")
-                Label("Privacy Policy", systemImage: "lock")
-                Label("Terms of Service", systemImage: "doc.text")
+                externalLinkButton(for: externalLinks["roadmap"]!)
+                externalLinkButton(for: externalLinks["privacyPolicy"]!)
+                externalLinkButton(for: externalLinks["termsOfService"]!)
             }
         }
         .navigationTitle("Settings")
         .navigationDestination(for: String.self) { destination in
             switch destination {
+            case "appearance":
+                AppearanceSettingsView()
             case "notifications":
                 NotificationSettingsView()
             case "ai":
@@ -80,10 +136,40 @@ struct SettingsView: View {
                 EmptyView()
             }
         }
+        .sheet(isPresented: $showingSafariView) {
+            if let url = selectedURL {
+                SafariView(url: url)
+            }
+        }
+    }
+    // Helper function to create external link buttons
+    private func externalLinkButton(for link: ExternalLink) -> some View {
+        Button {
+            // Add print statement for debugging
+            print("Button tapped for: \(link.title) with URL: \(link.url.absoluteString)")
+            selectedURL = link.url
+            showingSafariView = true
+        } label: {
+            HStack {
+                Label(link.title, systemImage: link.icon)
+                Spacer()
+                Image(systemName: "arrow.up.right.square")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
 // MARK: - Settings Menu SubViews
+
+struct AppearanceSettingsView: View {
+    var body: some View {
+        Text("Appearance Settings Here")
+    }
+}
 
 struct NotificationSettingsView: View {
     var body: some View {
@@ -257,7 +343,6 @@ struct LabelSettingsView: View {
                     Label("Add Label", systemImage: "plus")
                 }
             }
-
         }
     }
     
@@ -275,6 +360,51 @@ struct AboutView: View {
     var body: some View {
         Text("About MovingBox")
             .navigationTitle("About")
+    }
+}
+
+// MARK: - SafariView
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let configuration = SFSafariViewController.Configuration()
+        configuration.entersReaderIfAvailable = false
+        
+        let safariViewController = SFSafariViewController(url: url, configuration: configuration)
+        safariViewController.delegate = context.coordinator
+        safariViewController.preferredControlTintColor = .systemBlue
+        
+        // Print the URL to help with debugging
+        print("Opening URL: \(url.absoluteString)")
+        
+        return safariViewController
+    }
+    
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, SFSafariViewControllerDelegate {
+        let parent: SafariView
+        
+        init(_ parent: SafariView) {
+            self.parent = parent
+        }
+        
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func safariViewController(_ controller: SFSafariViewController, didCompleteInitialLoad didLoadSuccessfully: Bool) {
+            print("Safari view did complete initial load: \(didLoadSuccessfully)")
+            if !didLoadSuccessfully {
+                print("Failed to load URL: \(parent.url.absoluteString)")
+            }
+        }
     }
 }
 
