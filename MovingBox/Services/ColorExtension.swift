@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Color {
-    static let primary = Color(hex: 0x63A377)
+    static let customPrimary = Color(hex: 0x63A377)
     
     init(hex: UInt, alpha: Double = 1.0) {
         self.init(

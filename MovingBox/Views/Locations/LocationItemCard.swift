@@ -38,15 +38,17 @@ struct LocationItemCard: View {
                 Text(location.name)
                     .font(.title3)
                     .fontWeight(.semibold)
+                    .foregroundStyle(Color(.label))
                 
                 HStack {
                     Text("Items")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
                     Text("\(location.inventoryItems?.count ?? 0)")
                         .font(.title3)
                         .fontWeight(.medium)
+                        .foregroundStyle(Color(.label))
                 }
             }
             .padding(.horizontal, 12)

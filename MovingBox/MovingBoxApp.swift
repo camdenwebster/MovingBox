@@ -90,6 +90,8 @@ struct MovingBoxApp: App {
             EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton)
         case .addInventoryItemView:
             AddInventoryItemView()
+        case .locationsSettingsView:
+            LocationSettingsView()
         }
     }
     
@@ -155,7 +157,7 @@ struct MovingBoxApp: App {
                 }
                 .tag(4)
             }
-            .tint(Color.primary)
+            .tint(Color.customPrimary)
             .onChange(of: selectedTab) { oldValue, newValue in
                 let tabName: String = {
                 switch newValue {
