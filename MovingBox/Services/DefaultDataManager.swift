@@ -3,81 +3,6 @@ import SwiftData
 
 @MainActor
 enum DefaultDataManager {
-    private static let defaultLocations = ["Kitchen", "Office", "Bedroom", "Bathroom", "Hallway Closet", "Basement", "Attic"]
-    private static let defaultLabels = ["Musical instruments", "Kitchen appliances", "Decor", "Cooking Utensils", "Electronics", "Household Items"]
-    private static let defaultColors: [UIColor] = [
-        .systemBlue,
-        .systemGreen,
-        .systemRed,
-        .systemOrange,
-        .systemPurple,
-        .systemTeal,
-        .systemYellow,
-        .systemPink
-    ]
-
-    static func populateInitialData(modelContext: ModelContext) {
-        // Check if a Home exists, if not create one
-        let homeDescriptor = FetchDescriptor<Home>()
-        
-        do {
-            let homes = try modelContext.fetch(homeDescriptor)
-            if homes.isEmpty {
-                let defaultHome = Home()
-                modelContext.insert(defaultHome)
-                try modelContext.save()
-            }
-        } catch {
-            print("Error setting up default home: \(error)")
-        }
-        
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        
-        do {
-            let existingLocations = try modelContext.fetch(locationDescriptor)
-            let existingLabels = try modelContext.fetch(labelDescriptor)
-            
-            // Only populate if both are empty
-            if existingLocations.isEmpty && existingLabels.isEmpty {
-                print("First launch detected, creating default locations and labels")
-                
-                // Create default locations
-                defaultLocations.forEach { locationName in
-                    let location = InventoryLocation(name: locationName, desc: "")
-                    modelContext.insert(location)
-                }
-                
-                // Create default labels with colors
-                defaultLabels.enumerated().forEach { index, labelName in
-                    let color = defaultColors[index % defaultColors.count]
-                    let label = InventoryLabel(name: labelName, desc: "", color: color)
-                    modelContext.insert(label)
-                }
-                
-                try modelContext.save()
-                print("Default locations and labels created successfully")
-            }
-        } catch {
-            print("Error checking or creating default data: \(error)")
-        }
-    }
-    
-    static func populateTestData(modelContext: ModelContext) async {
-        // First populate the initial data
-        populateInitialData(modelContext: modelContext)
-        
-        // Then load test data
-        await TestData.loadTestData(context: modelContext)
-        
-        do {
-            try modelContext.save()
-            print("✅ Test data saved successfully")
-        } catch {
-            print("❌ Error saving test data: \(error)")
-        }
-    }
-
     static func getAllLabels(from context: ModelContext) -> [String] {
         let descriptor = FetchDescriptor<InventoryLabel>()
         do {
@@ -97,6 +22,18 @@ enum DefaultDataManager {
         } catch {
             print("Error fetching locations: \(error)")
             return ["None"]
+        }
+    }
+    
+    static func populateTestData(modelContext: ModelContext) async {
+        // Load test data directly
+        await TestData.loadTestData(context: modelContext)
+        
+        do {
+            try modelContext.save()
+            print("✅ Test data saved successfully")
+        } catch {
+            print("❌ Error saving test data: \(error)")
         }
     }
 }
