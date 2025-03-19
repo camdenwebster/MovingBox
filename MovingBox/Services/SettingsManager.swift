@@ -8,6 +8,7 @@ class SettingsManager: ObservableObject {
         static let maxTokens = "maxTokens"
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
+        static let isFirstLaunch = "isFirstLaunch"
     }
     
     // Published properties that will update the UI
@@ -41,6 +42,12 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    @Published var isFirstLaunch: Bool {
+        didSet {
+            UserDefaults.standard.set(isFirstLaunch, forKey: Keys.isFirstLaunch)
+        }
+    }
+    
     // Default values
     private let defaultAIModel = "gpt-4o-mini"
     private let defaultTemperature = 0.7
@@ -53,8 +60,11 @@ class SettingsManager: ObservableObject {
         self.aiModel = UserDefaults.standard.string(forKey: Keys.aiModel) ?? defaultAIModel
         self.temperature = UserDefaults.standard.double(forKey: Keys.temperature)
         self.maxTokens = UserDefaults.standard.integer(forKey: Keys.maxTokens)
-        self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? ""
+        self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
+        
+        // Initialize isFirstLaunch
+        self.isFirstLaunch = !UserDefaults.standard.bool(forKey: Keys.isFirstLaunch)
         
         // Set defaults if not already set
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
@@ -70,5 +80,3 @@ class SettingsManager: ObservableObject {
         isHighDetail = isHighDetailDefault
     }
 }
-
-// End of file

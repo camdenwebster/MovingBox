@@ -34,24 +34,24 @@ struct MovingBoxApp: App {
             Home.self
         ])
         
-        #if DEBUG
-        // In debug builds, use in-memory storage
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        #else
-        // In release builds, use persistent storage
-        let modelConfiguration = ModelConfiguration(schema: schema)
-        #endif
+        // Get UI testing argument
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-Testing")
+        
+        // Configure storage based on UI testing flag
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: isUITesting
+        )
         
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             
-            #if DEBUG
-            if modelConfiguration.isStoredInMemoryOnly {
+            // Load test data immediately if UI testing
+            if isUITesting {
                 Task {
-                    await TestData.loadTestData(context: container.mainContext)
+                    await DefaultDataManager.populateTestData(modelContext: container.mainContext)
                 }
             }
-            #endif
             
             return container
         } catch {
@@ -170,7 +170,13 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
-//                DefaultDataManager.populateInitialData(modelContext: container.mainContext)
+//                // Only load initial data if not UI testing
+//                if !ProcessInfo.processInfo.arguments.contains("UI-Testing") && settings.isFirstLaunch {
+//                    Task {
+//                        await DefaultDataManager.populateInitialData(modelContext: container.mainContext)
+//                        settings.isFirstLaunch = false
+//                    }
+//                }
                 
                 // Send app launch signal
                 TelemetryDeck.signal("appLaunched")

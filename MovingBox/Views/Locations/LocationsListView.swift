@@ -19,12 +19,20 @@ struct LocationsListView: View {
     
     var body: some View {
         List {
-            ForEach(locations) { location in
-                NavigationLink(value: location) {
-                    LocationItemCard(location: location)
+            if locations.isEmpty {
+                ContentUnavailableView(
+                    "No Locations",
+                    systemImage: "map",
+                    description: Text("Add locations to organize your items by room or area.")
+                )
+            } else {
+                ForEach(locations) { location in
+                    NavigationLink(value: location) {
+                        LocationItemCard(location: location)
+                    }
                 }
+                .onDelete(perform: deleteLocations)
             }
-            .onDelete(perform: deleteLocations)
         }
         .navigationDestination(for: InventoryLocation.self) { location in
             InventoryListView(location: location)

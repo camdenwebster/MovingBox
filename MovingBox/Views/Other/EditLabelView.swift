@@ -85,6 +85,7 @@ struct EditLabelView: View {
                 // Initialize editing fields with existing values
                 labelName = existingLabel.name
                 labelDesc = existingLabel.desc
+                labelColor = Color(existingLabel.color ?? .red)
             }
         }
     }

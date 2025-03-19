@@ -43,16 +43,16 @@ struct TestData {
         ("Basement", "Finished basement with storage", "basement")
     ]
     
-    // Sample labels with colors
+    // Sample labels with softer, more pleasing colors
     static let labels: [(name: String, desc: String, color: UIColor)] = [
-        ("Electronics", "Computers, phones, and gadgets", .red),
-        ("Furniture", "Chairs, tables, and storage", .brown),
-        ("Kitchen", "Appliances and cookware", .green),
-        ("Books", "Books and magazines", .blue),
-        ("Art", "Paintings and decorative items", .purple),
-        ("Tools", "Hand tools and power tools", .gray),
-        ("Sports", "Exercise and sports equipment", .orange),
-        ("Clothing", "Clothes and accessories", .cyan)
+        ("Electronics", "Computers, phones, and gadgets", UIColor(red: 0.95, green: 0.61, blue: 0.61, alpha: 1.0)),   // Soft red
+        ("Furniture", "Chairs, tables, and storage", UIColor(red: 0.82, green: 0.71, blue: 0.55, alpha: 1.0)),       // Warm beige
+        ("Kitchen", "Appliances and cookware", UIColor(red: 0.73, green: 0.87, blue: 0.68, alpha: 1.0)),           // Sage green
+        ("Books", "Books and magazines", UIColor(red: 0.67, green: 0.84, blue: 0.90, alpha: 1.0)),                 // Powder blue
+        ("Art", "Paintings and decorative items", UIColor(red: 0.85, green: 0.75, blue: 0.86, alpha: 1.0)),        // Soft lavender
+        ("Tools", "Hand tools and power tools", UIColor(red: 0.80, green: 0.80, blue: 0.83, alpha: 1.0)),         // Cool gray
+        ("Sports", "Exercise and sports equipment", UIColor(red: 0.96, green: 0.76, blue: 0.56, alpha: 1.0)),      // Peach
+        ("Clothing", "Clothes and accessories", UIColor(red: 0.69, green: 0.88, blue: 0.90, alpha: 1.0))          // Light teal
     ]
     
     // Sample inventory items with local image paths

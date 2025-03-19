@@ -63,6 +63,21 @@ enum DefaultDataManager {
         }
     }
     
+    static func populateTestData(modelContext: ModelContext) async {
+        // First populate the initial data
+        populateInitialData(modelContext: modelContext)
+        
+        // Then load test data
+        await TestData.loadTestData(context: modelContext)
+        
+        do {
+            try modelContext.save()
+            print("✅ Test data saved successfully")
+        } catch {
+            print("❌ Error saving test data: \(error)")
+        }
+    }
+
     static func getAllLabels(from context: ModelContext) -> [String] {
         let descriptor = FetchDescriptor<InventoryLabel>()
         do {
