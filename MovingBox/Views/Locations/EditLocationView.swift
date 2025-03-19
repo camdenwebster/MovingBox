@@ -96,11 +96,9 @@ struct EditLocationView: View {
     }
     
     private func loadPhoto() {
-        Task { @MainActor in
-            if isNewLocation {
-                // Handle photo for new location after it's created
-            } else {
-                location?.data = try await selectedPhoto?.loadTransferable(type: Data.self)
+        Task {
+            if let location = location {
+                await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: location)
             }
         }
     }

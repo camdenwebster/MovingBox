@@ -73,7 +73,7 @@ struct DashboardView: View {
                             
                             HStack {
                                 Text(home.address1 != "" ? home.address1 : "Dashboard")
-                                    .font(.title)
+                                    .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
                                 
@@ -150,8 +150,8 @@ struct DashboardView: View {
     }
     
     private func loadPhoto() {
-        Task { @MainActor in
-            home.data = try await selectedPhoto?.loadTransferable(type: Data.self)
+        Task {
+            await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: home)
         }
     }
 }

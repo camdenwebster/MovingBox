@@ -23,9 +23,10 @@ class Home {
     @Attribute(.externalStorage) var data: Data?
     var insurancePolicy: InsurancePolicy?
     var photo: UIImage? {
-        if let data {
-            return UIImage(data: data)
-        } else {
+        get {
+            if let data = data {
+                return UIImage(data: data)
+            }
             return nil
         }
     }
