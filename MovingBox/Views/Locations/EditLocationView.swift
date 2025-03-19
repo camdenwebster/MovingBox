@@ -47,13 +47,17 @@ struct EditLocationView: View {
             Section("Location Name") {
                 TextField("Attic, Basement, Kitchen, Office, etc.", text: $locationName)
                     .disabled(!isEditingEnabled)
+                    .foregroundColor(isEditingEnabled ? .black : .secondary)
             }
-            Section("Location Description") {
-                TextField("Enter a Description", text: $locationDesc)
-                    .disabled(!isEditingEnabled)
+            if isEditingEnabled || !locationDesc.isEmpty {
+                Section("Location Description") {
+                    TextField("Enter a Description", text: $locationDesc)
+                        .disabled(!isEditingEnabled)
+                        .foregroundColor(isEditingEnabled ? .black : .secondary)
+                }
             }
         }
-        .navigationTitle(isNewLocation ? "New Location" : "Location Details")
+        .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
         .toolbar {
@@ -74,6 +78,7 @@ struct EditLocationView: View {
                 Button("Save") {
                     let newLocation = InventoryLocation(name: locationName, desc: locationDesc)
                     modelContext.insert(newLocation)
+                    TelemetryManager.shared.trackLocationCreated(name: newLocation.name)
                     print("EditLocationView: Created new location - \(newLocation.name)")
                     print("EditLocationView: Total number of locations after save: \(locations.count)")
                     router.path.removeLast()

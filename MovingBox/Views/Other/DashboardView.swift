@@ -40,6 +40,10 @@ struct DashboardView: View {
     private var home: Home { homes.first ?? Home() }
 
     @State private var selectedPhoto: PhotosPickerItem? = nil
+    
+    private var totalReplacementCost: Decimal {
+        items.reduce(0, { $0 + $1.price })
+    }
 
     var body: some View {
         NavigationStack {
@@ -106,7 +110,7 @@ struct DashboardView: View {
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         
-                        StatCard(label: "Total replacement cost", value: "$0.00")
+                        StatCard(label: "Total replacement cost", value: CurrencyFormatter.format(totalReplacementCost))
                     }
                     .padding(.horizontal)
                     

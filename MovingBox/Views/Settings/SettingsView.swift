@@ -63,6 +63,12 @@ struct SettingsView: View {
         )
     ]
 
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
+        return "\(version) (\(build))"
+    }
+
     var body: some View {
         List {
             Section("General") {
@@ -99,7 +105,7 @@ struct SettingsView: View {
                 HStack {
                     Label("Version", systemImage: "info.circle")
                     Spacer()
-                    Text("1.0.0")
+                    Text(appVersion)
                         .foregroundColor(.secondary)
                 }
                 externalLinkButton(for: externalLinks["roadmap"]!)
@@ -287,10 +293,7 @@ struct LocationSettingsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    let location = InventoryLocation()
-                    modelContext.insert(location)
-                    TelemetryManager.shared.trackLocationCreated(name: location.name)
-                    router.navigate(to: .editLocationView(location: location))
+                    router.navigate(to: .editLocationView(location: nil))
                 } label: {
                     Label("Add Location", systemImage: "plus")
                 }
@@ -335,10 +338,7 @@ struct LabelSettingsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    let label = InventoryLabel()
-                    modelContext.insert(label)
-                    TelemetryManager.shared.trackLabelCreated(name: label.name)
-                    router.navigate(to: .editLabelView(label: label))
+                    router.navigate(to: .editLabelView(label: nil))
                 } label: {
                     Label("Add Label", systemImage: "plus")
                 }
