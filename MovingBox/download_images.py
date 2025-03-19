@@ -1,7 +1,7 @@
 import os
 import requests
 import json
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 def ensure_dir(directory):
     if not os.path.exists(directory):
@@ -36,14 +36,27 @@ def create_image_set(name, image_data):
     with open(os.path.join(image_set_dir, 'Contents.json'), 'w') as f:
         json.dump(contents, f, indent=2)
 
+def get_sized_url(url, size=1920):
+    """Convert a Pexels URL to use a smaller size"""
+    if "pexels.com" in url:
+        # Add size query parameter to request a smaller image
+        if "?" in url:
+            return f"{url}&w={size}&h={size}&fit=crop"
+        else:
+            return f"{url}?w={size}&h={size}&fit=crop"
+    return url
+
 def download_image(url, name):
-    print(f"Downloading {name} from {url}...")
-    response = requests.get(url)
+    # Get a smaller version of the image
+    sized_url = get_sized_url(url)
+    print(f"Downloading {name} from {sized_url}...")
+    
+    response = requests.get(sized_url)
     if response.status_code == 200:
         create_image_set(name, response.content)
         print(f"✅ Created image set for: {name}")
     else:
-        print(f"❌ Failed to download: {url}")
+        print(f"❌ Failed to download: {sized_url}")
 
 # Download home images
 homes = [

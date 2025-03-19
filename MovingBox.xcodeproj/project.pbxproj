@@ -13,7 +13,7 @@
 		1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */; };
 		1927DDF32D8B1F4C00BEFD9D /* placeholder.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */; };
 		1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF92D8B1FEF00BEFD9D /* download_images.py */; };
-		1927DE6C2D8B227200BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6B2D8B227200BEFD9D /* TestAssets.xcassets */; };
+		1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */; };
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
 		1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC812BF391CF00734AF4 /* Assets.xcassets */; };
 		1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */; };
@@ -47,7 +47,7 @@
 		1927DD132D89EE5D00BEFD9D /* icon_shadow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon_shadow.png; sourceTree = "<group>"; };
 		1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = placeholder.txt; sourceTree = "<group>"; };
 		1927DDF92D8B1FEF00BEFD9D /* download_images.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = download_images.py; sourceTree = "<group>"; };
-		1927DE6B2D8B227200BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
+		1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -115,7 +115,7 @@
 		1942DC7C2BF391CB00734AF4 /* MovingBox */ = {
 			isa = PBXGroup;
 			children = (
-				1927DE6B2D8B227200BEFD9D /* TestAssets.xcassets */,
+				1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */,
 				1927DDF92D8B1FEF00BEFD9D /* download_images.py */,
 				198958B02BF9AEA200C52CAE /* MovingBox.entitlements */,
 				198958A32BF6FDC400C52CAE /* Services */,
@@ -250,8 +250,8 @@
 			files = (
 				1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */,
 				1927DDF32D8B1F4C00BEFD9D /* placeholder.txt in Resources */,
-				1927DE6C2D8B227200BEFD9D /* TestAssets.xcassets in Resources */,
 				1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */,
+				1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */,
 				1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
