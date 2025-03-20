@@ -164,10 +164,18 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
-                // Load test data only if UI testing and first launch
-                if ProcessInfo.processInfo.arguments.contains("UI-Testing") && !settings.hasLaunched {
+                if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
+                    // Load all test data for UI testing
+                    if !settings.hasLaunched {
+                        Task {
+                            await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+                            settings.hasLaunched = true
+                        }
+                    }
+                } else if !settings.hasLaunched {
+                    // Only load default labels for production first launch
                     Task {
-                        await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+                        await DefaultDataManager.populateDefaultLabels(modelContext: container.mainContext)
                         settings.hasLaunched = true
                     }
                 }

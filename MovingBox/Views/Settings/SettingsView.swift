@@ -72,13 +72,14 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section("General") {
-                NavigationLink(value: "appearance") {
-                    Label("Apperance", systemImage: "paintbrush")
-                }
-                
-                NavigationLink(value: "notifications") {
-                    Label("Notification Settings", systemImage: "bell")
-                }
+                // TODO: Implement Appearance & Notification Settings
+//                NavigationLink(value: "appearance") {
+//                    Label("Apperance", systemImage: "paintbrush")
+//                }
+//                
+//                NavigationLink(value: "notifications") {
+//                    Label("Notification Settings", systemImage: "bell")
+//                }
                 
                 NavigationLink(value: "ai") {
                     Label("AI Settings", systemImage: "brain")
@@ -276,14 +277,22 @@ struct LocationSettingsView: View {
     
     var body: some View {
         List {
-            ForEach(locations) { location in
-                NavigationLink {
-                    EditLocationView(location: location)
-                } label: {
-                    Text(location.name)
+            if locations.isEmpty {
+                ContentUnavailableView(
+                    "No Locations",
+                    systemImage: "map",
+                    description: Text("Add locations to organize your items by room or area.")
+                )
+            } else {
+                ForEach(locations) { location in
+                    NavigationLink {
+                        EditLocationView(location: location)
+                    } label: {
+                        Text(location.name)
+                    }
                 }
+                .onDelete(perform: deleteLocations)
             }
-            .onDelete(perform: deleteLocations)
         }
         .navigationTitle("Location Settings")
         .navigationBarTitleDisplayMode(.inline)

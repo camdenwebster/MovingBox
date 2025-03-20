@@ -144,9 +144,17 @@ struct TestData {
         ("Smart Bulbs", "Color Changing Set", "Philips", "Hue", Decimal(199.99), "smart-bulbs", "Home Office", "Electronics")
     ]
     
-    // Helper method to load default data into SwiftData
+    // Helper method to load default data (labels only) into SwiftData
     static func loadDefaultData(context: ModelContext) async {
-        
+        // Create only the labels
+        for labelData in labels {
+            let label = InventoryLabel(
+                name: labelData.name,
+                desc: labelData.desc,
+                color: labelData.color
+            )
+            context.insert(label)
+        }
     }
     
     // Helper method to load test data into SwiftData

@@ -25,6 +25,18 @@ enum DefaultDataManager {
         }
     }
     
+    static func populateDefaultLabels(modelContext: ModelContext) async {
+        // Load only the default labels from TestData
+        await TestData.loadDefaultData(context: modelContext)
+        
+        do {
+            try modelContext.save()
+            print("✅ Default labels saved successfully")
+        } catch {
+            print("❌ Error saving default labels: \(error)")
+        }
+    }
+    
     static func populateTestData(modelContext: ModelContext) async {
         // Load test data directly
         await TestData.loadTestData(context: modelContext)
@@ -39,4 +51,5 @@ enum DefaultDataManager {
     
     static func populateDefaultData(modelContext: ModelContext) async {
         
+    }
 }
