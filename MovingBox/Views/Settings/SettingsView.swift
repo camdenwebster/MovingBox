@@ -29,6 +29,8 @@ struct SettingsView: View {
     @State private var selectedSection: SettingsSection? = .categories // Default selection
     @State private var showingSafariView = false
     @State private var selectedURL: URL?
+    @Query private var homes: [Home]
+    private var home: Home { homes.first ?? Home() }
     
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -92,6 +94,9 @@ struct SettingsView: View {
             }
             
             Section("Home Settings") {
+                NavigationLink(value: "home") {
+                    Label("Home Details", systemImage: "house")
+                }
                 NavigationLink(value: "locations") {
                     Label("Location Settings", systemImage: "location")
                 }
@@ -133,6 +138,8 @@ struct SettingsView: View {
                 LocationSettingsView()
             case "labels":
                 LabelSettingsView()
+            case "home":
+                EditHomeView(home: home)
             default:
                 EmptyView()
             }

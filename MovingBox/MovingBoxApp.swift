@@ -171,9 +171,9 @@ struct MovingBoxApp: App {
                         settings.hasLaunched = true
                     }
                 } else if !settings.hasLaunched {
-                    // Only load default labels for production first launch
+                    // Load default labels and create default home for production first launch
                     Task {
-                        await DefaultDataManager.populateDefaultLabels(modelContext: container.mainContext)
+                        await DefaultDataManager.populateDefaultData(modelContext: container.mainContext)
                         settings.hasLaunched = true
                     }
                 }
