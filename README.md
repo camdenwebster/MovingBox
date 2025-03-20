@@ -60,6 +60,19 @@ This project demonstrates several advanced iOS development skills:
 - **In-App Purchase Integration**: Implementing subscription and one-time purchase models
 - **Accessibility Focus**: Ensuring the app is usable by everyone
 
+## Test Images
+
+This directory contains images used for test data in debug builds.
+These images are sourced from Pexels.com and are free to use.
+
+Directory structure:
+- homes/
+- locations/
+- items/
+
+Each image is named according to its category and a unique identifier.
+
+
 ## Roadmap
 
 [See Roadmap here](https://github.com/users/camdenwebster/projects/1/views/2)

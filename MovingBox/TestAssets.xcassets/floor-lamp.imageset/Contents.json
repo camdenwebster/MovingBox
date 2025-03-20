@@ -1,0 +1,13 @@
+{
+  "images": [
+    {
+      "filename": "floor-lamp.jpg",
+      "idiom": "universal",
+      "scale": "1x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

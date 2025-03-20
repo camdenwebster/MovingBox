@@ -339,19 +339,11 @@ struct EditInventoryItemView: View {
         router.navigate(to: .editLabelView(label: label))
     }
     
-    func loadPhoto() {
-        Task { @MainActor in
-            if let data = try await selectedPhoto?.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
-                let imageEncoder = ImageEncoder(image: image)
-                if let optimizedImage = imageEncoder.optimizeImage(),
-                   let optimizedData = optimizedImage.jpegData(compressionQuality: 0.5) {
-                    inventoryItemToDisplay.data = optimizedData
-                    modelContext.insert(inventoryItemToDisplay)
-                    TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
-                    try? modelContext.save()
-                }
-            }
+    private func loadPhoto() {
+        Task {
+            await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: inventoryItemToDisplay)
+            try? modelContext.save()
+            TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
         }
     }
 }

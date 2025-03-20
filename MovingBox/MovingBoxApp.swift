@@ -34,10 +34,18 @@ struct MovingBoxApp: App {
             Home.self
         ])
         
-        let modelConfiguration = ModelConfiguration(schema: schema)
+        // Get UI testing argument
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-Testing")
+        
+        // Configure storage based on UI testing flag
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: isUITesting
+        )
         
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return container
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -74,6 +82,8 @@ struct MovingBoxApp: App {
             EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton)
         case .addInventoryItemView:
             AddInventoryItemView()
+        case .locationsSettingsView:
+            LocationSettingsView()
         }
     }
     
@@ -139,7 +149,7 @@ struct MovingBoxApp: App {
                 }
                 .tag(4)
             }
-            .tint(Color.primary)
+            .tint(Color.customPrimary)
             .onChange(of: selectedTab) { oldValue, newValue in
                 let tabName: String = {
                 switch newValue {
@@ -154,7 +164,19 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
-                DefaultDataManager.populateInitialData(modelContext: container.mainContext)
+                if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
+                    // Load all test data for UI testing
+                    Task {
+                        await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+                        settings.hasLaunched = true
+                    }
+                } else if !settings.hasLaunched {
+                    // Only load default labels for production first launch
+                    Task {
+                        await DefaultDataManager.populateDefaultLabels(modelContext: container.mainContext)
+                        settings.hasLaunched = true
+                    }
+                }
                 
                 // Send app launch signal
                 TelemetryDeck.signal("appLaunched")

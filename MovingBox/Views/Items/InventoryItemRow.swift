@@ -14,8 +14,10 @@ struct InventoryItemRow: View {
             if let uiImage = item.photo {
                 Image(uiImage: uiImage)
                     .resizable()
-                    .scaledToFit()
-                    .frame(width: 50, height: 50)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: 80, maxHeight: 60)
+                    .clipped()
+                    .cornerRadius(8)
             } else {
                 Image(systemName: "photo")
                     .resizable()

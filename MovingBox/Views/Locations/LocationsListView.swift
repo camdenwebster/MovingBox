@@ -17,14 +17,34 @@ struct LocationsListView: View {
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
     
+    // Add grid layout configuration
+    private let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+    
     var body: some View {
-        List {
-            ForEach(locations) { location in
-                NavigationLink(value: location) {
-                    LocationItemRow(location: location)
+        ScrollView {
+            if locations.isEmpty {
+                ContentUnavailableView(
+                    "No Locations",
+                    systemImage: "map",
+                    description: Text("Add locations to organize your items by room or area.")
+                )
+            } else {
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(locations) { location in
+                        NavigationLink(value: location) {
+                            LocationItemCard(location: location)
+                                .background(RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
                 }
+                .padding()
             }
-            .onDelete(perform: deleteLocations)
         }
         .navigationDestination(for: InventoryLocation.self) { location in
             InventoryListView(location: location)
@@ -32,9 +52,12 @@ struct LocationsListView: View {
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            EditButton()
+            Button("Edit") {
+                router.navigate(to: .locationsSettingsView)
+            }
             Button("Add Item", systemImage: "plus", action: addLocation)
         }
+        .background(Color(.systemGroupedBackground))
         .onAppear {
             print("LocationsListView: Total number of locations: \(locations.count)")
         }
@@ -44,14 +67,6 @@ struct LocationsListView: View {
         router.navigate(to: .editLocationView(location: nil))
     }
     
-    func deleteLocations(at offsets: IndexSet) {
-        for index in offsets {
-            let locationToDelete = locations[index]
-            modelContext.delete(locationToDelete)
-            print("Deleting location: \(locationToDelete.name)")
-            TelemetryManager.shared.trackLocationDeleted()
-        }
-    }
 }
 
 #Preview {

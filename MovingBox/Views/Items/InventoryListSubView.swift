@@ -19,13 +19,22 @@ struct InventoryListSubView: View {
     
     var body: some View {
         List {
-            Section {
-                ForEach(inventoryItems) { inventoryItem in
-                    NavigationLink(value: inventoryItem) {
-                        InventoryItemRow(item: inventoryItem)
+            if inventoryItems.isEmpty {
+                ContentUnavailableView(
+                    "No Items",
+                    systemImage: "list.bullet",
+                    description: Text("Start by adding items to your inventory.")
+                ) }
+            else {
+                Section {
+                    ForEach(inventoryItems) { inventoryItem in
+                        NavigationLink(value: inventoryItem) {
+                            InventoryItemRow(item: inventoryItem)
+                                .listRowInsets(EdgeInsets()) // Remove default row padding
+                        }
                     }
+                    .onDelete(perform: deleteItems)
                 }
-                .onDelete(perform: deleteItems)
             }
         }
     }

@@ -15,9 +15,10 @@ class InventoryLocation {
     var desc: String = ""
     @Attribute(.externalStorage) var data: Data?
     var photo: UIImage? {
-        if let data {
-            return UIImage(data: data)
-        } else {
+        get {
+            if let data = data {
+                return UIImage(data: data)
+            }
             return nil
         }
     }
