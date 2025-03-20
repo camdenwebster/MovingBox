@@ -49,7 +49,30 @@ enum DefaultDataManager {
         }
     }
     
-    static func populateDefaultData(modelContext: ModelContext) async {
+    static func createDefaultHome(modelContext: ModelContext) async -> Bool {
+        let descriptor = FetchDescriptor<Home>()
         
+        do {
+            let homes = try modelContext.fetch(descriptor)
+            if homes.isEmpty {
+                let home = Home()
+                home.address1 = ""
+                modelContext.insert(home)
+                try modelContext.save()
+                print("✅ Default home created successfully")
+                return true
+            }
+            return false
+        } catch {
+            print("❌ Error creating default home: \(error)")
+            return false
+        }
+    }
+    
+    static func populateDefaultData(modelContext: ModelContext) async {
+        // Create default home if needed
+        let _ = await createDefaultHome(modelContext: modelContext)
+        // Create default labels if needed
+        let _ = await populateDefaultLabels(modelContext: modelContext)
     }
 }
