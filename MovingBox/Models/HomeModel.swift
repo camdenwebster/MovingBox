@@ -16,7 +16,7 @@ class Home {
     var address2: String = ""
     var city: String = ""
     var state: String = ""
-    var zip: Int = 0
+    var zip: String = ""  
     var country: String = ""
     var purchaseDate: Date = Date()
     var purchasePrice: Decimal = 0.00
@@ -38,7 +38,7 @@ class Home {
     ///   - address2: Secondary address line (optional)
     ///   - city: City name
     ///   - state: State/Province name
-    ///   - zip: ZIP/Postal code
+    ///   - zip: ZIP/Postal code (as String to support international formats)
     ///   - country: Country name
     ///   - purchaseDate: Date of purchase (defaults to current date)
     ///   - purchasePrice: Purchase price (defaults to 0.00)
@@ -49,7 +49,7 @@ class Home {
         address2: String = "",
         city: String = "",
         state: String = "",
-        zip: Int = 0,
+        zip: String = "",  
         country: String = "",
         purchaseDate: Date = Date(),
         purchasePrice: Decimal = 0.00,

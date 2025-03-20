@@ -22,6 +22,8 @@ struct EditHomeView: View {
     var home: Home?
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
+    @State private var country = Locale.current.region?.identifier ?? "US"
+    private let countries = Locale.Region.isoRegions.map({ $0.identifier }).sorted()
     
     // Computed properties
     private var isNewHome: Bool {
@@ -32,13 +34,22 @@ struct EditHomeView: View {
         isNewHome || isEditing
     }
     
+    private func countryName(for code: String) -> String {
+        let locale = Locale.current
+        return locale.localizedString(forIdentifier: code) ?? code
+    }
+    
     var body: some View {
         Form {
             Section {
                 if let uiImage = tempUIImage ?? home?.photo {
                     Image(uiImage: uiImage)
                         .resizable()
-                        .scaledToFit()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .clipped()
+                        .listRowInsets(EdgeInsets())
                 }
                 if isEditingEnabled {
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
@@ -54,47 +65,91 @@ struct EditHomeView: View {
                 }
             }
             Section("Home Address") {
-                TextField("Address 1", text: $homeAddress1)
+                TextField("Street Address", text: $homeAddress1)
+                    .textContentType(.streetAddressLine1)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
-                TextField("Address 2", text: $homeAddress2)
+                
+                TextField("Apt, Suite, Unit", text: $homeAddress2)
+                    .textContentType(.streetAddressLine2)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                
                 TextField("City", text: $city)
+                    .textContentType(.addressCity)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
-                TextField("State", text: $state)
+                
+                TextField("State/Province", text: $state)
+                    .textContentType(.addressState)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
-                TextField("Zip Code", text: $zip)
+                
+                TextField("ZIP/Postal Code", text: $zip)
+                    .textContentType(.postalCode)
+                    .keyboardType(.numberPad)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                
+                if isEditingEnabled {
+                    Picker("Country", selection: $country) {
+                        ForEach(countries, id: \.self) { code in
+                            Text(countryName(for: code))
+                                .tag(code)
+                        }
+                    }
+                } else {
+                    HStack {
+                        Text("Country")
+                        Spacer()
+                        Text(countryName(for: country))
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
         }
         .navigationTitle(isNewHome ? "New Home" : "\(home?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
+        .onAppear {
+            if let existingHome = home {
+                // Initialize editing fields with existing values
+                homeNickName = existingHome.name
+                homeAddress1 = existingHome.address1
+                homeAddress2 = existingHome.address2
+                city = existingHome.city
+                state = existingHome.state
+                zip = existingHome.zip  
+                country = existingHome.country.isEmpty ? Locale.current.region?.identifier ?? "US" : existingHome.country
+            }
+        }
         .toolbar {
             if !isNewHome {
-                // Edit/Save button for existing homes
                 Button(isEditing ? "Save" : "Edit") {
                     if isEditing {
-                        // Save changes
                         home?.name = homeNickName
                         home?.address1 = homeAddress1
                         home?.address2 = homeAddress2
                         home?.city = city
                         home?.state = state
-                        home?.zip = Int(zip) ?? 0
+                        home?.zip = zip  
+                        home?.country = country
                         isEditing = false
                     } else {
                         isEditing = true
                     }
                 }
             } else {
-                // Save button for new homes
                 Button("Save") {
-                    let newHome = Home(name: homeNickName, address1: homeAddress1, address2: homeAddress2, city: city, state: state, zip: Int(zip) ?? 0)
+                    let newHome = Home(
+                        name: homeNickName,
+                        address1: homeAddress1,
+                        address2: homeAddress2,
+                        city: city,
+                        state: state,
+                        zip: zip,  
+                        country: country
+                    )
                     if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
                         newHome.data = imageData
                     }
@@ -104,17 +159,6 @@ struct EditHomeView: View {
                     router.path.removeLast()
                 }
                 .disabled(homeAddress1.isEmpty)
-            }
-        }
-        .onAppear {
-            if let existingHome = home {
-                // Initialize editing fields with existing values
-                homeNickName = existingHome.name
-                homeAddress1 = existingHome.address1
-                homeAddress2 = existingHome.address2
-                city = existingHome.city
-                state = existingHome.state
-                zip = String(existingHome.zip)
             }
         }
     }
@@ -141,7 +185,7 @@ struct EditHomeView: View {
 //#Preview {
 //    do {
 //        let previewer = try Previewer()
-//        
+//
 //        return EditHomeView(home: previewer.home)
 //            .modelContainer(previewer.container)
 //    } catch {
