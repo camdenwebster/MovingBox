@@ -60,7 +60,7 @@ class OpenAIService {
     let itemModel = InventoryItem(title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: Decimal.zero, insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
     
     @MainActor
-    private func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
+    internal func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
             throw OpenAIError.invalidURL
         }

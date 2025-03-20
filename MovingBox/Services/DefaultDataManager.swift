@@ -36,4 +36,7 @@ enum DefaultDataManager {
             print("❌ Error saving test data: \(error)")
         }
     }
+    
+    static func populateDefaultData(modelContext: ModelContext) async {
+        
 }

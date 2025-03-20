@@ -144,6 +144,11 @@ struct TestData {
         ("Smart Bulbs", "Color Changing Set", "Philips", "Hue", Decimal(199.99), "smart-bulbs", "Home Office", "Electronics")
     ]
     
+    // Helper method to load default data into SwiftData
+    static func loadDefaultData(context: ModelContext) async {
+        
+    }
+    
     // Helper method to load test data into SwiftData
     static func loadTestData(context: ModelContext) async {
         // Create home

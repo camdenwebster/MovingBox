@@ -45,14 +45,6 @@ struct MovingBoxApp: App {
         
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            
-            // Load test data immediately if UI testing
-            if isUITesting {
-                Task {
-                    await DefaultDataManager.populateTestData(modelContext: container.mainContext)
-                }
-            }
-            
             return container
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
@@ -172,13 +164,13 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
-//                // Only load initial data if not UI testing
-//                if !ProcessInfo.processInfo.arguments.contains("UI-Testing") && settings.isFirstLaunch {
-//                    Task {
-//                        await DefaultDataManager.populateInitialData(modelContext: container.mainContext)
-//                        settings.isFirstLaunch = false
-//                    }
-//                }
+                // Load test data only if UI testing and first launch
+                if ProcessInfo.processInfo.arguments.contains("UI-Testing") && !settings.hasLaunched {
+                    Task {
+                        await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+                        settings.hasLaunched = true
+                    }
+                }
                 
                 // Send app launch signal
                 TelemetryDeck.signal("appLaunched")
