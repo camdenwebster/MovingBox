@@ -36,7 +36,7 @@ struct LocationItemCard: View {
             // Location details
             VStack(alignment: .leading) {
                 Text(location.name)
-                    .font(.title3)
+                    .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color(.label))
                 

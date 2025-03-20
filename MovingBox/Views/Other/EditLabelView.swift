@@ -34,18 +34,18 @@ struct EditLabelView: View {
             Section("Label Name") {
                 TextField("Appliances, Electronics, etc.", text: $labelName)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .black : .secondary)
+                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
             }
             Section("Color") {
                 ColorPicker("Color", selection: $labelColor, supportsOpacity: false)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .black : .secondary)
+                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
             }
             if isEditingEnabled || !labelDesc.isEmpty {
                 Section("Label Description") {
                     TextField("Enter a Description", text: $labelDesc)
                         .disabled(!isEditingEnabled)
-                        .foregroundColor(isEditingEnabled ? .black : .secondary)
+                        .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 }
             }
         }

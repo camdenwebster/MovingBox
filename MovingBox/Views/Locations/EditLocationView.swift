@@ -48,13 +48,13 @@ struct EditLocationView: View {
             Section("Location Name") {
                 TextField("Attic, Basement, Kitchen, Office, etc.", text: $locationName)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .black : .secondary)
+                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
             }
             if isEditingEnabled || !locationDesc.isEmpty {
                 Section("Location Description") {
                     TextField("Enter a Description", text: $locationDesc)
                         .disabled(!isEditingEnabled)
-                        .foregroundColor(isEditingEnabled ? .black : .secondary)
+                        .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 }
             }
         }

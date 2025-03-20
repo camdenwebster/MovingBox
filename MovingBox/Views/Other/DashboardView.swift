@@ -25,7 +25,7 @@ struct StatCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(RoundedRectangle(cornerRadius: 12)
-            .fill(Color(.systemBackground))
+            .fill(Color(.secondarySystemGroupedBackground))
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
     }
 }
@@ -133,7 +133,7 @@ struct DashboardView: View {
                                 LocationItemCard(location: location)
                                     .frame(width: UIScreen.main.bounds.width / 2 - 16)
                                     .background(RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color(.systemBackground))
+                                        .fill(Color(.secondarySystemGroupedBackground))
                                         .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                             }

@@ -166,11 +166,9 @@ struct MovingBoxApp: App {
             .onAppear {
                 if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
                     // Load all test data for UI testing
-                    if !settings.hasLaunched {
-                        Task {
-                            await DefaultDataManager.populateTestData(modelContext: container.mainContext)
-                            settings.hasLaunched = true
-                        }
+                    Task {
+                        await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+                        settings.hasLaunched = true
                     }
                 } else if !settings.hasLaunched {
                     // Only load default labels for production first launch
