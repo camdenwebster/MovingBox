@@ -49,17 +49,22 @@ struct SettingsView: View {
         "roadmap": ExternalLink(
             title: "Roadmap",
             icon: "map",
-            url: URL(string: "https://github.com/users/camdenwebster/projects/1/views/2")!
+            url: URL(string: "https://movingbox.ai/roadmap")!
+        ),
+        "bugs": ExternalLink(
+            title: "View and Report Issues",
+            icon: "ladybug",
+            url: URL(string: "https://movingbox.ai/bugs")!
         ),
         "privacyPolicy": ExternalLink(
             title: "Privacy Policy",
             icon: "lock",
-            url: URL(string: "https://github.com/camdenwebster/MovingBox/blob/main/PRIVACY_POLICY.md")!
+            url: URL(string: "https://movingbox.ai/privacy")!
         ),
         "termsOfService": ExternalLink(
             title: "Terms of Service",
             icon: "doc.text",
-            url: URL(string: "https://github.com/camdenwebster/MovingBox/blob/main/EULA.md")!
+            url: URL(string: "https://movingbox.ai/eula")!
         )
     ]
 
@@ -98,6 +103,7 @@ struct SettingsView: View {
             Section("Community & Support") {
                 externalLinkButton(for: externalLinks["knowledgeBase"]!)
                 externalLinkButton(for: externalLinks["support"]!)
+                externalLinkButton(for: externalLinks["bugs"]!)
                 externalLinkButton(for: externalLinks["rateUs"]!)
             }
             
