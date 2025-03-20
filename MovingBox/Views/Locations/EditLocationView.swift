@@ -20,6 +20,7 @@ struct EditLocationView: View {
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var tempUIImage: UIImage?
     
     // Computed properties
     private var isNewLocation: Bool {
@@ -33,7 +34,7 @@ struct EditLocationView: View {
     var body: some View {
         Form {
             Section {
-                if let uiImage = location?.photo ?? nil {
+                if let uiImage = tempUIImage ?? location?.photo {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
@@ -77,6 +78,9 @@ struct EditLocationView: View {
                 // Save button for new locations
                 Button("Save") {
                     let newLocation = InventoryLocation(name: locationName, desc: locationDesc)
+                    if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
+                        newLocation.data = imageData
+                    }
                     modelContext.insert(newLocation)
                     TelemetryManager.shared.trackLocationCreated(name: newLocation.name)
                     print("EditLocationView: Created new location - \(newLocation.name)")
@@ -97,8 +101,18 @@ struct EditLocationView: View {
     
     private func loadPhoto() {
         Task {
-            if let location = location {
-                await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: location)
+            if let data = try? await selectedPhoto?.loadTransferable(type: Data.self) {
+                if let uiImage = UIImage(data: data) {
+                    await MainActor.run {
+                        if let location = location {
+                            // Existing location
+                            location.data = data
+                        } else {
+                            // New location
+                            tempUIImage = uiImage
+                        }
+                    }
+                }
             }
         }
     }
