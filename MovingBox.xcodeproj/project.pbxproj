@@ -63,23 +63,6 @@
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
 		198958B12BF9AEF900C52CAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		19AD60802D934BA900465BFF /* WhatToTest.en-US.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "WhatToTest.en-US.txt"; sourceTree = "<group>"; };
-		19C01D452D92ED3D00773DA4 /* index.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = index.js; sourceTree = "<group>"; };
-		19C01D462D92ED3D00773DA4 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
-		19C01D472D92ED3D00773DA4 /* package-lock.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "package-lock.json"; sourceTree = "<group>"; };
-		19C01D492D92ED3D00773DA4 /* __init__.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = __init__.py; sourceTree = "<group>"; };
-		19C01D4A2D92ED3D00773DA4 /* openai_lambda_stack.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = openai_lambda_stack.py; sourceTree = "<group>"; };
-		19C01D4C2D92ED3D00773DA4 /* __init__.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = __init__.py; sourceTree = "<group>"; };
-		19C01D4D2D92ED3D00773DA4 /* test_openai_lambda_stack.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_openai_lambda_stack.py; sourceTree = "<group>"; };
-		19C01D4F2D92ED3D00773DA4 /* __init__.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = __init__.py; sourceTree = "<group>"; };
-		19C01D512D92ED3D00773DA4 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
-		19C01D522D92ED3D00773DA4 /* app.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = app.py; sourceTree = "<group>"; };
-		19C01D532D92ED3D00773DA4 /* cdk.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cdk.json; sourceTree = "<group>"; };
-		19C01D542D92ED3D00773DA4 /* cdk-deploy-policy.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "cdk-deploy-policy.json"; sourceTree = "<group>"; };
-		19C01D552D92ED3D00773DA4 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		19C01D562D92ED3D00773DA4 /* requirements.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = requirements.txt; sourceTree = "<group>"; };
-		19C01D572D92ED3D00773DA4 /* requirements-dev.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "requirements-dev.txt"; sourceTree = "<group>"; };
-		19C01D582D92ED3D00773DA4 /* source.bat */ = {isa = PBXFileReference; lastKnownFileType = text; path = source.bat; sourceTree = "<group>"; };
-		19C01D592D92ED3D00773DA4 /* test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = test.sh; sourceTree = "<group>"; };
 		19C01D5B2D92EEC600773DA4 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		19C01D5D2D93088300773DA4 /* JWTManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTManager.swift; sourceTree = "<group>"; };
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
@@ -118,7 +101,6 @@
 			children = (
 				19AD607F2D934B8100465BFF /* TestFlight */,
 				19C01D5B2D92EEC600773DA4 /* .gitignore */,
-				19C01D5A2D92ED3D00773DA4 /* openai-lambda */,
 				1927DD0F2D89E26600BEFD9D /* LICENSE */,
 				1927DD102D89E26600BEFD9D /* README.md */,
 				1927DD112D89EB1000BEFD9D /* PRIVACY_POLICY.md */,
@@ -193,62 +175,6 @@
 			path = TestFlight;
 			sourceTree = "<group>";
 		};
-		19C01D482D92ED3D00773DA4 /* lambda */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D452D92ED3D00773DA4 /* index.js */,
-				19C01D462D92ED3D00773DA4 /* package.json */,
-				19C01D472D92ED3D00773DA4 /* package-lock.json */,
-			);
-			path = lambda;
-			sourceTree = "<group>";
-		};
-		19C01D4B2D92ED3D00773DA4 /* openai_lambda */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D492D92ED3D00773DA4 /* __init__.py */,
-				19C01D4A2D92ED3D00773DA4 /* openai_lambda_stack.py */,
-			);
-			path = openai_lambda;
-			sourceTree = "<group>";
-		};
-		19C01D4E2D92ED3D00773DA4 /* unit */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D4C2D92ED3D00773DA4 /* __init__.py */,
-				19C01D4D2D92ED3D00773DA4 /* test_openai_lambda_stack.py */,
-			);
-			path = unit;
-			sourceTree = "<group>";
-		};
-		19C01D502D92ED3D00773DA4 /* tests */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D4E2D92ED3D00773DA4 /* unit */,
-				19C01D4F2D92ED3D00773DA4 /* __init__.py */,
-			);
-			path = tests;
-			sourceTree = "<group>";
-		};
-		19C01D5A2D92ED3D00773DA4 /* openai-lambda */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D482D92ED3D00773DA4 /* lambda */,
-				19C01D4B2D92ED3D00773DA4 /* openai_lambda */,
-				19C01D502D92ED3D00773DA4 /* tests */,
-				19C01D512D92ED3D00773DA4 /* .gitignore */,
-				19C01D522D92ED3D00773DA4 /* app.py */,
-				19C01D532D92ED3D00773DA4 /* cdk.json */,
-				19C01D542D92ED3D00773DA4 /* cdk-deploy-policy.json */,
-				19C01D552D92ED3D00773DA4 /* README.md */,
-				19C01D562D92ED3D00773DA4 /* requirements.txt */,
-				19C01D572D92ED3D00773DA4 /* requirements-dev.txt */,
-				19C01D582D92ED3D00773DA4 /* source.bat */,
-				19C01D592D92ED3D00773DA4 /* test.sh */,
-			);
-			path = "openai-lambda";
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -258,6 +184,7 @@
 			buildPhases = (
 				1942DC762BF391CB00734AF4 /* Sources */,
 				1942DC772BF391CB00734AF4 /* Frameworks */,
+				19AD60812D935A9A00465BFF /* ShellScript */,
 				1942DC782BF391CB00734AF4 /* Resources */,
 			);
 			buildRules = (
@@ -359,6 +286,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		19AD60812D935A9A00465BFF /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"${CONFIGURATION}\" = \"Release\" ]; then\n    # Get the path to the built Info.plist\n    PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n    \n    # Check if JWT_SECRET exists in environment\n    if [ ! -z \"${JWT_SECRET}\" ]; then\n        # Add or update the JWT_SECRET in Info.plist\n        /usr/libexec/PlistBuddy -c \"Delete :JWT_SECRET\" \"${PLIST_PATH}\" || true\n        /usr/libexec/PlistBuddy -c \"Add :JWT_SECRET string ${JWT_SECRET}\" \"${PLIST_PATH}\"\n        echo \"Successfully injected JWT_SECRET into Info.plist\"\n    else\n        echo \"Error: JWT_SECRET environment variable not found\"\n        exit 1\n    fi\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1942DC762BF391CB00734AF4 /* Sources */ = {
