@@ -5,10 +5,8 @@ enum AppConfig {
         static let jwtSecret = "JWT_SECRET"
     }
     
-    // ADD: Static initializer to check environment at build time
+    // Check environment at build time, but only show warnings in Debug
     static let environmentChecks: Void = {
-        #if DEBUG
-        // Check environment variables
         let missingKeys = [Keys.jwtSecret].filter { key in
             let envValue = ProcessInfo.processInfo.environment[key]
             if envValue != nil { return false }
@@ -23,6 +21,7 @@ enum AppConfig {
             return false
         }
         
+        #if DEBUG
         if !missingKeys.isEmpty {
             print("⚠️ WARNING: Missing configuration for keys: \(missingKeys.joined(separator: ", "))")
             print("💡 Ensure these keys are either:")
@@ -30,14 +29,24 @@ enum AppConfig {
             print("   2. Set as environment variables for CI")
         }
         #endif
+        
+        // In Release, fail fast if we're missing required configuration
+        #if !DEBUG
+        if !missingKeys.isEmpty {
+            fatalError("Missing required configuration keys: \(missingKeys.joined(separator: ", "))")
+        }
+        #endif
     }()
     
     static func value(for key: String) -> String? {
-        // Trigger environment check at first use
+        // Always trigger environment check at first use, regardless of build configuration
         _ = environmentChecks
         
         // First check if we're running in CI environment
         if let ciValue = ProcessInfo.processInfo.environment[key] {
+            #if DEBUG
+            print("📦 Using environment variable for key: \(key)")
+            #endif
             return ciValue
         }
         
@@ -51,6 +60,10 @@ enum AppConfig {
             #endif
             return nil
         }
+        
+        #if DEBUG
+        print("📄 Using plist value for key: \(key)")
+        #endif
         return value
     }
     
