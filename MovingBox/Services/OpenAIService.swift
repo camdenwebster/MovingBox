@@ -7,16 +7,42 @@
 
 import Foundation
 import SwiftData
+import CryptoKit
 
 enum HTTPMethod: String {
     case post = "POST"
     case get = "GET"
 }
 
+// TODO: Re-implement ability to use your own API key
+
 enum OpenAIError: Error {
     case invalidURL
-    case invalidResponse
+    case invalidResponse(statusCode: Int, responseData: String)
     case invalidData
+    case rateLimitExceeded
+    case serverError(String)
+    
+    var userFriendlyMessage: String {
+        switch self {
+        case .invalidURL:
+            return "Invalid server configuration"
+        case .invalidResponse(let statusCode, let responseData):
+            // Try to parse Lambda/OpenAI error messages
+            if let errorData = responseData.data(using: .utf8),
+               let errorDict = try? JSONSerialization.jsonObject(with: errorData) as? [String: Any],
+               let errorMessage = errorDict["error"] as? String {
+                return "Server Error (\(statusCode)): \(errorMessage)"
+            }
+            return "Server returned an error (Status: \(statusCode))"
+        case .invalidData:
+            return "Unable to process the server response"
+        case .rateLimitExceeded:
+            return "Too many requests. Please try again later."
+        case .serverError(let message):
+            return "Server error: \(message)"
+        }
+    }
 }
 
 struct FunctionParameter: Codable {
@@ -44,12 +70,11 @@ struct FunctionDefinition: Codable {
 }
 
 class OpenAIService {
-    
-    
-    
     var imageBase64: String
     var settings: SettingsManager
     var modelContext: ModelContext
+    
+    private let baseURL = "https://7mc060nx64.execute-api.us-east-2.amazonaws.com/prod"
     
     init(imageBase64: String, settings: SettingsManager, modelContext: ModelContext) {
         self.imageBase64 = imageBase64
@@ -61,11 +86,13 @@ class OpenAIService {
     
     @MainActor
     internal func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
-        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
+        guard let url = URL(string: "\(baseURL)/v1/chat/completions") else {
             throw OpenAIError.invalidURL
         }
         
-        // Get categories and locations from SwiftData
+        // Get JWT token
+        let token = JWTManager.shared.generateToken()
+        
         let categories = DefaultDataManager.getAllLabels(from: modelContext)
         let locations = DefaultDataManager.getAllLocations(from: modelContext)
         
@@ -128,11 +155,6 @@ class OpenAIService {
         
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        if settings.apiKey.isEmpty {
-            throw OpenAIError.invalidResponse
-        }
-        urlRequest.addValue("Bearer \(settings.apiKey)", forHTTPHeaderField: "Authorization")
-        
         let textMessage = MessageContent(type: "text", text: imagePrompt, image_url: nil)
         let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(imageBase64)", detail: "\(settings.isHighDetail ? "high" : "low")"))
         let message = Message(role: "user", content: [textMessage, imageMessage])
@@ -154,6 +176,9 @@ class OpenAIService {
             print("Error encoding payload: \(error)")
         }
         
+        // Add Authorization header with JWT
+        urlRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
         return urlRequest
     }
     
@@ -162,44 +187,92 @@ class OpenAIService {
             try generateURLRequest(httpMethod: .post)
         }
         
+        print("🚀 Sending request to: \(urlRequest.url?.absoluteString ?? "unknown URL")")
+        
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
-        guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-            throw OpenAIError.invalidResponse
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIError.invalidResponse(statusCode: 0, responseData: "Invalid HTTP Response")
+        }
+        
+        print("📥 Response status code: \(httpResponse.statusCode)")
+        
+        let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode response"
+        print("📥 Response body: \(responseString)")
+        
+        // Handle common HTTP error codes
+        switch httpResponse.statusCode {
+        case 200:
+            break // Success, continue processing
+        case 413:
+            throw OpenAIError.serverError("Image is too large. Please try with a smaller image.")
+        case 429:
+            throw OpenAIError.rateLimitExceeded
+        case 400...499:
+            throw OpenAIError.invalidResponse(statusCode: httpResponse.statusCode, responseData: responseString)
+        case 500...599:
+            throw OpenAIError.serverError("Server is temporarily unavailable. Please try again later.")
+        default:
+            throw OpenAIError.invalidResponse(statusCode: httpResponse.statusCode, responseData: responseString)
         }
         
         do {
-            let gptResponse = try JSONDecoder().decode(GPTResponse.self, from: data)
-            let functionCallArgs = gptResponse.choices[0].message.function_call?.arguments ?? ""
+            // First try to parse as a Lambda error response
+            if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
+               let errorMessage = errorResponse["error"] {
+                throw OpenAIError.serverError(errorMessage)
+            }
             
-            guard let responseData = functionCallArgs.data(using: .utf8) else {
+            // If not an error, try to parse as GPTResponse
+            let gptResponse = try JSONDecoder().decode(GPTResponse.self, from: data)
+            
+            guard let functionCall = gptResponse.choices.first?.message.function_call,
+                  let responseData = functionCall.arguments.data(using: .utf8) else {
                 throw OpenAIError.invalidData
             }
             
             return try JSONDecoder().decode(ImageDetails.self, from: responseData)
         } catch {
+            print("❌ Error processing response: \(error)")
+            if error is OpenAIError {
+                throw error
+            }
             throw OpenAIError.invalidData
         }
     }
+    
+    // Rest of the implementation remains the same...
 }
 
-struct Message: Encodable {
+#if DEBUG
+extension OpenAIService {
+    func decodePayload(from data: Data) throws -> GPTPayload {
+        return try JSONDecoder().decode(GPTPayload.self, from: data)
+    }
+    
+    func decodeResponse(from data: Data) throws -> GPTResponse {
+        return try JSONDecoder().decode(GPTResponse.self, from: data)
+    }
+}
+#endif
+
+struct Message: Codable {
     let role: String
     let content: [MessageContent]
 }
 
-struct MessageContent: Encodable {
+struct MessageContent: Codable {
     let type: String
     let text: String?
     let image_url: ImageURL?
 }
 
-struct ImageURL: Encodable {
+struct ImageURL: Codable {
     let url: String
     let detail: String
 }
 
-struct GPTPayload: Encodable {
+struct GPTPayload: Codable {
     let model: String
     let messages: [Message]
     let max_tokens: Int

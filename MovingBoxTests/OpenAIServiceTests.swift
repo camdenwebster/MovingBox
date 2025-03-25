@@ -36,24 +36,9 @@ import SwiftData
         
         // Then
         #expect(request.httpMethod == "POST")
-        #expect(request.url?.absoluteString == "https://api.openai.com/v1/chat/completions")
-        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test_key_123")
+        #expect(request.url?.absoluteString == "https://7mc060nx64.execute-api.us-east-2.amazonaws.com/prod/v1/chat/completions")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
         #expect(request.httpBody != nil)
-    }
-    
-    @Test("Test empty API key handling")
-    func testEmptyAPIKey() async throws {
-        // Given
-        let service = createTestService()
-        service.settings.apiKey = ""
-        
-        // Then
-        await #expect(throws: OpenAIError.invalidResponse) {
-            try await MainActor.run {
-                try service.generateURLRequest(httpMethod: .post)
-            }
-        }
     }
     
     @Test("Test response parsing")
@@ -84,6 +69,135 @@ import SwiftData
         // Then
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(GPTResponse.self, from: invalidData)
+        }
+    }
+    
+    @Test("Test complete integration flow")
+    func testCompleteIntegrationFlow() async throws {
+        // Given
+        let service = createTestService()
+        let request = try await MainActor.run {
+            try service.generateURLRequest(httpMethod: .post)
+        }
+        
+        // Then
+        // Verify request format
+        #expect(request.httpBody != nil)
+        if let body = request.httpBody {
+            let decoder = JSONDecoder()
+            let payload = try decoder.decode(GPTPayload.self, from: body)
+            
+            // Verify payload structure
+            #expect(payload.model == "gpt-4o-mini")
+            #expect(payload.max_tokens == 150)
+            #expect(payload.messages.count == 1)
+            #expect(payload.messages[0].role == "user")
+            #expect(payload.messages[0].content.count == 2)
+            #expect(payload.functions.count == 1)
+            #expect(payload.function_call["name"] == "process_inventory_item")
+        }
+    }
+    
+    @Test("Test error handling for invalid response")
+    func testErrorHandlingInvalidResponse() async {
+        // Given
+        let service = createTestService()
+        
+        do {
+            // Attempt to parse invalid data
+            let mockResponse = "{invalid_json}"
+            let data = mockResponse.data(using: .utf8)!
+            
+            // Then
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(GPTResponse.self, from: data)
+            }
+        }
+    }
+    
+    @Test("Test function call argument parsing")
+    func testFunctionCallArgumentParsing() throws {
+        // Given
+        let validResponse = """
+        {
+            "choices": [{
+                "message": {
+                    "function_call": {
+                        "name": "process_inventory_item",
+                        "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\"}"
+                    }
+                }
+            }]
+        }
+        """
+        
+        let data = validResponse.data(using: .utf8)!
+        
+        // When
+        let response = try JSONDecoder().decode(GPTResponse.self, from: data)
+        let arguments = response.choices[0].message.function_call?.arguments ?? ""
+        let details = try JSONDecoder().decode(ImageDetails.self, from: arguments.data(using: .utf8)!)
+        
+        // Then
+        #expect(details.title == "Test Item")
+        #expect(details.quantity == "1")
+        #expect(details.description == "A test item")
+        #expect(details.make == "TestMake")
+        #expect(details.model == "TestModel")
+        #expect(details.category == "None")
+        #expect(details.location == "None")
+        #expect(details.price == "$99.99")
+    }
+    
+    @Test("Test image encoding in request")
+    func testImageEncoding() async throws {
+        // Given
+        let service = createTestService()
+        
+        // When
+        let request = try await MainActor.run {
+            try service.generateURLRequest(httpMethod: .post)
+        }
+        
+        // Then
+        #expect(request.httpBody != nil)
+        
+        if let body = request.httpBody,
+           let decoded = try? JSONDecoder().decode(GPTPayload.self, from: body),
+           let imageMessage = decoded.messages[0].content.last,
+           let imageUrl = imageMessage.image_url {
+            
+            #expect(imageMessage.type == "image_url")
+            let startsWithBase64 = imageUrl.url.starts(with: "data:image/png:base64,")
+            #expect(startsWithBase64)
+            #expect(imageUrl.detail == "low") // Based on default settings
+        } else {
+            #expect(Bool(false), "Failed to decode request payload")
+        }
+    }
+    
+    @Test("Test high detail mode")
+    func testHighDetailMode() async throws {
+        // Given
+        let service = createTestService()
+        service.settings.isHighDetail = true
+        
+        // When
+        let request = try await MainActor.run {
+            try service.generateURLRequest(httpMethod: .post)
+        }
+        
+        // Then
+        #expect(request.httpBody != nil)
+        
+        if let body = request.httpBody,
+           let decoded = try? JSONDecoder().decode(GPTPayload.self, from: body),
+           let imageMessage = decoded.messages[0].content.last,
+           let imageUrl = imageMessage.image_url {
+            
+            #expect(imageUrl.detail == "high")
+        } else {
+            #expect(Bool(false), "Failed to decode request payload")
         }
     }
 }

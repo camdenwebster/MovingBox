@@ -78,8 +78,8 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("General") {
-                // TODO: Implement Appearance & Notification Settings
+//            Section("General") {
+//                // TODO: Implement Appearance & Notification Settings
 //                NavigationLink(value: "appearance") {
 //                    Label("Apperance", systemImage: "paintbrush")
 //                }
@@ -87,11 +87,11 @@ struct SettingsView: View {
 //                NavigationLink(value: "notifications") {
 //                    Label("Notification Settings", systemImage: "bell")
 //                }
-                
-                NavigationLink(value: "ai") {
-                    Label("AI Settings", systemImage: "brain")
-                }
-            }
+//                
+//                NavigationLink(value: "ai") {
+//                    Label("AI Settings", systemImage: "brain")
+//                }
+//            }
             
             Section("Home Settings") {
                 NavigationLink(value: "home") {
