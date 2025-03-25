@@ -6,6 +6,12 @@ enum AppConfig {
     }
     
     static func value(for key: String) -> String? {
+        // First check if we're running in CI environment
+        if let ciValue = ProcessInfo.processInfo.environment[key] {
+            return ciValue
+        }
+        
+        // If not in CI, check local plist
         let bundle = Bundle.main
         guard let path = bundle.path(forResource: "Config", ofType: "plist"),
               let config = NSDictionary(contentsOfFile: path),
@@ -20,7 +26,7 @@ enum AppConfig {
     
     static var jwtSecret: String {
         guard let secret = value(for: Keys.jwtSecret) else {
-            fatalError("JWT_SECRET not found in Config.plist")
+            fatalError("JWT_SECRET not found in Config.plist or Environment Variables")
         }
         return secret
     }
