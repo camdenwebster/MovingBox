@@ -1,0 +1,16 @@
+{
+    "name": "openai-proxy",
+    "version": "1.0.0",
+    "description": "OpenAI API Proxy Lambda",
+    "main": "index.js",
+    "dependencies": {
+        "aws-sdk": "^2.1033.0",
+        "axios": "^0.21.4"
+    },
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC"
+}

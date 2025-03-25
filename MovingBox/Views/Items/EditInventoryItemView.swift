@@ -29,7 +29,8 @@ struct EditInventoryItemView: View {
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults: Bool = false
     @StateObject private var settings = SettingsManager()
-    @State private var showingApiKeyAlert = false
+    @State private var showingErrorAlert = false
+    @State private var errorMessage = ""
     @State private var showingCamera = false
     
     var showSparklesButton = false
@@ -71,12 +72,22 @@ struct EditInventoryItemView: View {
                 if inventoryItemToDisplay.hasUsedAI == false && (inventoryItemToDisplay.photo != nil) {
                     HStack(spacing: 16) {
                         Button(action: {
-                            if settings.apiKey.isEmpty {
-                                showingApiKeyAlert = true
-                            } else {
-                                Task {
-                                    let imageDetails = await callOpenAI()
+                            Task {
+                                do {
+                                    let imageDetails = try await callOpenAI()
                                     updateUIWithImageDetails(imageDetails)
+                                } catch OpenAIError.invalidURL {
+                                    errorMessage = "Invalid URL configuration"
+                                    showingErrorAlert = true
+                                } catch OpenAIError.invalidResponse {
+                                    errorMessage = "Error communicating with AI service"
+                                    showingErrorAlert = true
+                                } catch OpenAIError.invalidData {
+                                    errorMessage = "Unable to process AI response"
+                                    showingErrorAlert = true
+                                } catch {
+                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                                    showingErrorAlert = true
                                 }
                             }
                         }) {
@@ -197,12 +208,16 @@ struct EditInventoryItemView: View {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton  {
                         Button(action: {
-                            if settings.apiKey.isEmpty {
-                                showingApiKeyAlert = true
-                            } else {
-                                Task {
-                                    let imageDetails = await callOpenAI()
+                            Task {
+                                do {
+                                    let imageDetails = try await callOpenAI()
                                     updateUIWithImageDetails(imageDetails)
+                                } catch let error as OpenAIError {
+                                    errorMessage = error.userFriendlyMessage
+                                    showingErrorAlert = true
+                                } catch {
+                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                                    showingErrorAlert = true
                                 }
                             }
                         }) {
@@ -225,19 +240,33 @@ struct EditInventoryItemView: View {
             CameraView { image, needsAnalysis, completion in
                 let imageEncoder = ImageEncoder(image: image)
                 if let optimizedImage = imageEncoder.optimizeImage(),
-                   let imageData = optimizedImage.jpegData(compressionQuality: 0.5) {
+                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
                     inventoryItemToDisplay.data = imageData
                     try? modelContext.save()
                     
-                    if needsAnalysis && !settings.apiKey.isEmpty {
+                    if needsAnalysis {
                         Task {
                             print("Starting AI image analysis after CameraView in EditInventoryView")
-                            let imageDetails = await callOpenAI()
-                            print("Finishing AI image analysis after CameraView in EditInventoryView")
-                            await MainActor.run {
-                                updateUIWithImageDetails(imageDetails)
-                                print("Finished updating image with details in EditInventoryView, calling completion handler")
-                                completion()
+                            do {
+                                let imageDetails = try await callOpenAI()
+                                print("Finishing AI image analysis after CameraView in EditInventoryView")
+                                await MainActor.run {
+                                    updateUIWithImageDetails(imageDetails)
+                                    print("Finished updating image with details in EditInventoryView, calling completion handler")
+                                    completion()
+                                }
+                            } catch let error as OpenAIError {
+                                await MainActor.run {
+                                    errorMessage = error.userFriendlyMessage
+                                    showingErrorAlert = true
+                                    completion()
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                                    showingErrorAlert = true
+                                    completion()
+                                }
                             }
                         }
                     } else {
@@ -246,43 +275,34 @@ struct EditInventoryItemView: View {
                 }
             }
         }
-        .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
-            Button("Go to Settings") {
-                router.navigate(to: .aISettingsView)
-            }
-            Button("Cancel", role: .cancel) { }
+        .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
+            Button("OK", role: .cancel) { }
         } message: {
-            Text("Please configure your OpenAI API key in the settings to use this feature.")
+            Text(errorMessage)
         }
     }
     
-    func callOpenAI() async -> ImageDetails {
+    func callOpenAI() async throws -> ImageDetails {
         isLoadingOpenAiResults = true
+        defer { isLoadingOpenAiResults = false }
+        
         guard let photo = inventoryItemToDisplay.photo else {
-            return ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "", location: "", price: "")
+            print("❌ No photo available for analysis")
+            throw OpenAIError.invalidData
         }
+        
         let imageEncoder = ImageEncoder(image: photo)
-        let imageBase64 = imageEncoder.encodeImageToBase64() ?? ""
+        guard let imageBase64 = imageEncoder.encodeImageToBase64() else {
+            print("❌ Failed to encode image to base64")
+            throw OpenAIError.invalidData
+        }
+        
         let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
         
         TelemetryManager.shared.trackCameraAnalysisUsed()
-
-        print("Analyze Image button tapped")
-
-        do {
-            imageDetailsFromOpenAI = try await openAi.getImageDetails()
-            isLoadingOpenAiResults = false
-
-        } catch OpenAIError.invalidURL {
-            print("Invalid URL")
-        } catch OpenAIError.invalidResponse {
-            print("Invalid Response")
-        } catch OpenAIError.invalidData {
-            print("Invalid Data")
-        } catch {
-            print("Unexpected Error")
-        }
-        return imageDetailsFromOpenAI
+        print("🔍 Starting image analysis")
+        
+        return try await openAi.getImageDetails()
     }
     
     func updateUIWithImageDetails(_ imageDetails: ImageDetails) {

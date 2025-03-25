@@ -6,7 +6,6 @@ struct AddInventoryItemView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @StateObject private var settings = SettingsManager()
-    @State private var showingApiKeyAlert = false
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
     
@@ -50,7 +49,7 @@ struct AddInventoryItemView: View {
                     TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
                     try? modelContext.save()
                     
-                    if needsAnalysis && !settings.apiKey.isEmpty {
+                    if needsAnalysis {
                         Task {
                             let openAi = OpenAIService(
                                 imageBase64: imageEncoder.encodeImageToBase64() ?? "",
@@ -79,14 +78,6 @@ struct AddInventoryItemView: View {
                 }
             }
         }
-        .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
-            Button("Go to Settings") {
-                router.navigate(to: .aISettingsView)
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Please configure your OpenAI API key in the settings to use this feature.")
-        }
         .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
             Button("Go to Settings", action: openSettings)
             Button("Cancel", role: .cancel) { }
@@ -98,20 +89,12 @@ struct AddInventoryItemView: View {
     private func checkCameraPermissionsAndPresent() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            if settings.apiKey.isEmpty {
-                showingApiKeyAlert = true
-            } else {
-                showingCamera = true
-            }
+            showingCamera = true
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
                     if granted {
-                        if settings.apiKey.isEmpty {
-                            showingApiKeyAlert = true
-                        } else {
-                            showingCamera = true
-                        }
+                        showingCamera = true
                     } else {
                         showingPermissionDenied = true
                     }
