@@ -50,6 +50,24 @@ enum AppConfig {
         #endif
     }()
     
+    // Check environment variables without crashing
+    private static func checkEnvironmentVariable(_ key: String) -> String? {
+        // First check environment variables (CI/TestFlight)
+        if let envValue = ProcessInfo.processInfo.environment[key] {
+            return envValue
+        }
+        
+        // Then check plist (local development)
+        let bundle = Bundle.main
+        guard let path = bundle.path(forResource: "Config", ofType: "plist"),
+              let config = NSDictionary(contentsOfFile: path),
+              let value = config[key] as? String else {
+            return nil
+        }
+        
+        return value
+    }
+    
     static func value(for key: String) -> String? {
         _ = environmentChecks
         
@@ -57,39 +75,21 @@ enum AppConfig {
         print("🔐 Attempting to read key: \(key)")
         #endif
         
-        // First check if we're running in CI environment
-        if let ciValue = ProcessInfo.processInfo.environment[key] {
-            #if DEBUG
-            print("📦 Found value in environment variables for key: \(key)")
-            #endif
-            return ciValue
-        }
-        
-        #if DEBUG
-        print("🔍 Environment variable not found, checking plist...")
-        #endif
-        
-        // If not in CI, check local plist
-        let bundle = Bundle.main
-        guard let path = bundle.path(forResource: "Config", ofType: "plist"),
-              let config = NSDictionary(contentsOfFile: path),
-              let value = config[key] as? String else {
-            #if DEBUG
-            print("⚠️ No value found in plist for key: \(key)")
-            #endif
-            return nil
-        }
-        
-        #if DEBUG
-        print("📄 Found value in plist for key: \(key)")
-        #endif
-        return value
+        return checkEnvironmentVariable(key)
     }
     
     static var jwtSecret: String {
-        guard let secret = value(for: Keys.jwtSecret) else {
-            fatalError("JWT_SECRET not found in Config.plist or Environment Variables")
+        if let secret = checkEnvironmentVariable(Keys.jwtSecret) {
+            return secret
         }
-        return secret
+        
+        #if DEBUG
+        print("⚠️ JWT_SECRET not found in environment or Config.plist")
+        return "debug-secret-key"
+        #else
+        // In Release, return a special value that will fail JWT validation
+        // This is better than crashing the app
+        return "missing-jwt-secret"
+        #endif
     }
 }
