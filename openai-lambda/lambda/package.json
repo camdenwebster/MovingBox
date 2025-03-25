@@ -4,8 +4,9 @@
     "description": "OpenAI API Proxy Lambda",
     "main": "index.js",
     "dependencies": {
-        "aws-sdk": "^2.1033.0",
-        "axios": "^0.21.4"
+        "aws-sdk": "^2.1001.0",
+        "axios": "^1.8.4",
+        "jsonwebtoken": "^9.0.0"
     },
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"

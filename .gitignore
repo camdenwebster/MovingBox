@@ -120,3 +120,4 @@ build/
 .next/
 .vercel/
 .serverless/
+MovingBox/Configuration/Config.plist

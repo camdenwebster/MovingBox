@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import CryptoKit
 
 enum HTTPMethod: String {
     case post = "POST"
@@ -88,6 +89,9 @@ class OpenAIService {
         guard let url = URL(string: "\(baseURL)/v1/chat/completions") else {
             throw OpenAIError.invalidURL
         }
+        
+        // Get JWT token
+        let token = JWTManager.shared.generateToken()
         
         let categories = DefaultDataManager.getAllLabels(from: modelContext)
         let locations = DefaultDataManager.getAllLocations(from: modelContext)
@@ -171,6 +175,9 @@ class OpenAIService {
         } catch {
             print("Error encoding payload: \(error)")
         }
+        
+        // Add Authorization header with JWT
+        urlRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         return urlRequest
     }

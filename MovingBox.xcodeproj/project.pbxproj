@@ -23,6 +23,7 @@
 		196109F52D764D9100A76504 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196109F42D764D9100A76504 /* ColorExtension.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
+		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
 		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
 		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
 /* End PBXBuildFile section */
@@ -79,12 +80,14 @@
 		19C01D582D92ED3D00773DA4 /* source.bat */ = {isa = PBXFileReference; lastKnownFileType = text; path = source.bat; sourceTree = "<group>"; };
 		19C01D592D92ED3D00773DA4 /* test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = test.sh; sourceTree = "<group>"; };
 		19C01D5B2D92EEC600773DA4 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		19C01D5D2D93088300773DA4 /* JWTManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTManager.swift; sourceTree = "<group>"; };
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
 		19D133A82D72BFB2002448A9 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
 		19D133BC2D72BFB8002448A9 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
 		19D133CA2D75455B002448A9 /* MovingBoxTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxTests; sourceTree = "<group>"; };
@@ -137,6 +140,7 @@
 		1942DC7C2BF391CB00734AF4 /* MovingBox */ = {
 			isa = PBXGroup;
 			children = (
+				19C01D602D93157A00773DA4 /* Configuration */,
 				1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */,
 				1927DDF92D8B1FEF00BEFD9D /* download_images.py */,
 				198958B02BF9AEA200C52CAE /* MovingBox.entitlements */,
@@ -162,6 +166,7 @@
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				19C01D5D2D93088300773DA4 /* JWTManager.swift */,
 				1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */,
 				1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */,
 				196109F42D764D9100A76504 /* ColorExtension.swift */,
@@ -250,6 +255,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				19C01D602D93157A00773DA4 /* Configuration */,
 				19D133A82D72BFB2002448A9 /* Views */,
 				19D133BC2D72BFB8002448A9 /* Models */,
 			);
@@ -361,6 +367,7 @@
 				190DFBA42D6FC2170062D079 /* CurrencyFormatter.swift in Sources */,
 				19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */,
 				191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */,
+				19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

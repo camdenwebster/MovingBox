@@ -7,13 +7,13 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_secretsmanager as secretsmanager,
     aws_iam as iam,
-    SecretValue,  # Add this import
+    SecretValue,
 )
 from constructs import Construct
 
 class OpenaiLambdaStack(Stack):
 
-    def __init__(self, scope: Construct, construct_id: str, openai_api_key: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, openai_api_key: str, jwt_secret_value: str, jwt_secret_name: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # Create Secrets Manager secret for OpenAI API key
@@ -22,7 +22,16 @@ class OpenaiLambdaStack(Stack):
             secret_name=f"{construct_id}-openai-api-key",
             description="Secret containing the OpenAI API key",
             removal_policy=RemovalPolicy.DESTROY,  # Change to RETAIN for production
-            secret_string_value=SecretValue.unsafe_plain_text(openai_api_key),  # Fix here
+            secret_string_value=SecretValue.unsafe_plain_text(openai_api_key),
+        )
+
+        # Create Secrets Manager secret for JWT secret
+        jwt_secret = secretsmanager.Secret(
+            self, "JwtSecret",
+            secret_name=jwt_secret_name,
+            description="Secret containing the JWT signing key",
+            removal_policy=RemovalPolicy.DESTROY,  # Change to RETAIN for production
+            secret_string_value=SecretValue.unsafe_plain_text(jwt_secret_value),  # Use the value passed in
         )
 
         # DynamoDB table for rate limiting
@@ -52,12 +61,16 @@ class OpenaiLambdaStack(Stack):
                 "MAX_REQUESTS_PER_WINDOW": "60",
                 "RATE_LIMIT_WINDOW": "60000",
                 "OPENAI_API_KEY_SECRET_NAME": openai_api_key_secret.secret_name,
+                "JWT_SECRET_NAME": jwt_secret.secret_name,  # Pass the secret name as an environment variable
             },
         )
 
         # Grant Lambda permissions to read the secret
         openai_api_key_secret.grant_read(openai_proxy_lambda)
         
+        # Grant Lambda permissions to read the JWT secret
+        jwt_secret.grant_read(openai_proxy_lambda)
+
         # Grant Lambda permissions to read/write to DynamoDB
         rate_limit_table.grant_read_write_data(openai_proxy_lambda)
 

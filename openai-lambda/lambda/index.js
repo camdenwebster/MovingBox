@@ -4,6 +4,7 @@ const zlib = require('zlib');
 const { promisify } = require('util');
 const gunzip = promisify(zlib.gunzip);
 const brotliDecompress = promisify(zlib.brotliDecompress);
+const jwt = require('jsonwebtoken');
 
 // Initialize DynamoDB client for rate limiting
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
@@ -40,8 +41,58 @@ async function getOpenAIApiKey() {
     }
 }
 
+// Function to get the JWT secret from AWS Secrets Manager
+let JWT_SECRET_CACHE;
+async function getJwtSecret() {
+    if (JWT_SECRET_CACHE) return JWT_SECRET_CACHE;
+
+    const secretsManager = new AWS.SecretsManager();
+    const secretName = process.env.JWT_SECRET_NAME; // Environment-specific secret name
+
+    try {
+        const data = await secretsManager.getSecretValue({ SecretId: secretName }).promise();
+        if (data.SecretString) {
+            JWT_SECRET_CACHE = data.SecretString;
+        }
+        return JWT_SECRET_CACHE;
+    } catch (error) {
+        console.error('Error retrieving JWT secret:', error);
+        throw error;
+    }
+}
+
+// Update the verifyToken function to use the secret from AWS Secrets Manager
+const verifyToken = async (event) => {
+    try {
+        const authHeader = event.headers.Authorization || event.headers.authorization;
+        if (!authHeader) {
+            throw new Error('No authorization header');
+        }
+
+        const token = authHeader.replace('Bearer ', '');
+        const jwtSecret = await getJwtSecret(); // Fetch the secret dynamically
+        const decoded = jwt.verify(token, jwtSecret);
+
+        // Check expiration
+        if (decoded.exp < Date.now() / 1000) {
+            throw new Error('Token expired');
+        }
+
+        return decoded;
+    } catch (error) {
+        console.error('JWT verification failed:', error);
+        throw {
+            statusCode: 401,
+            message: 'Unauthorized: ' + error.message
+        };
+    }
+};
+
 exports.handler = async (event) => {
     try {
+        // Verify JWT token first
+        await verifyToken(event);
+        
         // Get the OpenAI API key
         const apiKey = await getOpenAIApiKey();
         
@@ -63,13 +114,7 @@ exports.handler = async (event) => {
         console.error('Error:', error);
         
         const statusCode = error.statusCode || 500;
-        let errorMessage;
-        
-        try {
-            errorMessage = JSON.parse(error.message);
-        } catch {
-            errorMessage = error.message;
-        }
+        let errorMessage = error.message || 'Internal server error';
         
         return formatResponse(statusCode, { error: errorMessage });
     }
