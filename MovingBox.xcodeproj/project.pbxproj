@@ -62,6 +62,7 @@
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
 		198958B12BF9AEF900C52CAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		19AD60802D934BA900465BFF /* WhatToTest.en-US.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "WhatToTest.en-US.txt"; sourceTree = "<group>"; };
 		19C01D452D92ED3D00773DA4 /* index.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = index.js; sourceTree = "<group>"; };
 		19C01D462D92ED3D00773DA4 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		19C01D472D92ED3D00773DA4 /* package-lock.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "package-lock.json"; sourceTree = "<group>"; };
@@ -115,6 +116,7 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				19AD607F2D934B8100465BFF /* TestFlight */,
 				19C01D5B2D92EEC600773DA4 /* .gitignore */,
 				19C01D5A2D92ED3D00773DA4 /* openai-lambda */,
 				1927DD0F2D89E26600BEFD9D /* LICENSE */,
@@ -181,6 +183,14 @@
 				191FEA602D6D04E5006FF067 /* SettingsManager.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		19AD607F2D934B8100465BFF /* TestFlight */ = {
+			isa = PBXGroup;
+			children = (
+				19AD60802D934BA900465BFF /* WhatToTest.en-US.txt */,
+			);
+			path = TestFlight;
 			sourceTree = "<group>";
 		};
 		19C01D482D92ED3D00773DA4 /* lambda */ = {
