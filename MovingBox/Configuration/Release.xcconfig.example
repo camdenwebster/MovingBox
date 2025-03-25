@@ -1,0 +1,2 @@
+// Release configuration template
+JWT_SECRET = your-jwt-secret-here

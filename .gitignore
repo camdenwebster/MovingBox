@@ -89,5 +89,8 @@ fastlane/test_output
 
 iOSInjectionProject/
 
+# Configuration files
+MovingBox/Configuration/Debug.xcconfig
+MovingBox/Configuration/Release.xcconfig
 
 MovingBox/Configuration/Config.plist
