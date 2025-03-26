@@ -38,12 +38,17 @@ struct DashboardView: View {
     @Query private var items: [InventoryItem]
     @Query private var homes: [Home]
     private var home: Home { homes.first ?? Home() }
-
     @State private var selectedPhoto: PhotosPickerItem? = nil
     
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + $1.price })
     }
+
+    // Keep columns for stats cards only
+    private let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
 
     var body: some View {
         ScrollView {
@@ -112,10 +117,7 @@ struct DashboardView: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 16) {
+                    LazyVGrid(columns: columns, spacing: 16) {
                         StatCard(label: "Number of items", value: "\(items.count)")
                         StatCard(label: "Replacement cost", value: CurrencyFormatter.format(totalReplacementCost))
                     }
@@ -127,19 +129,19 @@ struct DashboardView: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
+                    // Restored horizontal scroll view for locations
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 16) {
                             ForEach(locations) { location in
-                                LocationItemCard(location: location)
-                                    .frame(width: UIScreen.main.bounds.width / 2 - 16)
-                                    .background(RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color(.secondarySystemGroupedBackground))
-                                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                NavigationLink(value: location) {
+                                    LocationItemCard(location: location)
+                                }
                             }
                         }
                         .padding(.horizontal)
+                        .scrollTargetBehavior(.viewAligned)
                     }
+                    .scrollTargetBehavior(.viewAligned)
                 }
                 .padding(.horizontal)
             }

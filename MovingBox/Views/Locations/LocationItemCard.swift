@@ -17,14 +17,12 @@ struct LocationItemCard: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 140)
+                        .frame(width: 160, height: 160)
                         .clipped()
                 } else {
                     Rectangle()
                         .fill(Color(.systemGray5))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 140)
+                        .frame(width: 160, height: 160)
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.system(size: 40))
@@ -53,7 +51,11 @@ struct LocationItemCard: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            .frame(width: 160)
         }
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(radius: 2, y: 1)
     }
 }
 
