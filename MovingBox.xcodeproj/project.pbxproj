@@ -51,7 +51,7 @@
 		1927DDF92D8B1FEF00BEFD9D /* download_images.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = download_images.py; sourceTree = "<group>"; };
 		1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
 		1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoManager.swift; sourceTree = "<group>"; };
-		1937AABB2D938FBD00C68797 /* ci_pre_xcodebuild.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_pre_xcodebuild.sh; sourceTree = "<group>"; };
+		1937AABB2D938FBD00C68797 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -101,7 +101,7 @@
 		1937AABA2D938F6D00C68797 /* ci_scripts */ = {
 			isa = PBXGroup;
 			children = (
-				1937AABB2D938FBD00C68797 /* ci_pre_xcodebuild.sh */,
+				1937AABB2D938FBD00C68797 /* ci_post_clone.sh */,
 			);
 			path = ci_scripts;
 			sourceTree = "<group>";
