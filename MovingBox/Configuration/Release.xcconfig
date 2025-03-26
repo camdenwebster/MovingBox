@@ -1,2 +1,0 @@
-// Release configuration
-JWT_SECRET = $(JWT_SECRET)

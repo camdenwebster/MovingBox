@@ -1,0 +1,9 @@
+
+// Base.xcconfig.template
+// Template for generating Base.xcconfig with secrets
+
+// JWT Secret for OpenAI proxy authentication
+JWT_SECRET = $(JWT_SECRET)
+
+// App version information
+MARKETING_VERSION = 1.0
