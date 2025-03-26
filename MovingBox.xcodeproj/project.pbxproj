@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 71;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -51,6 +51,7 @@
 		1927DDF92D8B1FEF00BEFD9D /* download_images.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = download_images.py; sourceTree = "<group>"; };
 		1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
 		1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoManager.swift; sourceTree = "<group>"; };
+		1937AABB2D938FBD00C68797 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -62,23 +63,7 @@
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
 		198958B12BF9AEF900C52CAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		19C01D452D92ED3D00773DA4 /* index.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = index.js; sourceTree = "<group>"; };
-		19C01D462D92ED3D00773DA4 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
-		19C01D472D92ED3D00773DA4 /* package-lock.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "package-lock.json"; sourceTree = "<group>"; };
-		19C01D492D92ED3D00773DA4 /* __init__.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = __init__.py; sourceTree = "<group>"; };
-		19C01D4A2D92ED3D00773DA4 /* openai_lambda_stack.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = openai_lambda_stack.py; sourceTree = "<group>"; };
-		19C01D4C2D92ED3D00773DA4 /* __init__.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = __init__.py; sourceTree = "<group>"; };
-		19C01D4D2D92ED3D00773DA4 /* test_openai_lambda_stack.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = test_openai_lambda_stack.py; sourceTree = "<group>"; };
-		19C01D4F2D92ED3D00773DA4 /* __init__.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = __init__.py; sourceTree = "<group>"; };
-		19C01D512D92ED3D00773DA4 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
-		19C01D522D92ED3D00773DA4 /* app.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = app.py; sourceTree = "<group>"; };
-		19C01D532D92ED3D00773DA4 /* cdk.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cdk.json; sourceTree = "<group>"; };
-		19C01D542D92ED3D00773DA4 /* cdk-deploy-policy.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "cdk-deploy-policy.json"; sourceTree = "<group>"; };
-		19C01D552D92ED3D00773DA4 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		19C01D562D92ED3D00773DA4 /* requirements.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = requirements.txt; sourceTree = "<group>"; };
-		19C01D572D92ED3D00773DA4 /* requirements-dev.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "requirements-dev.txt"; sourceTree = "<group>"; };
-		19C01D582D92ED3D00773DA4 /* source.bat */ = {isa = PBXFileReference; lastKnownFileType = text; path = source.bat; sourceTree = "<group>"; };
-		19C01D592D92ED3D00773DA4 /* test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = test.sh; sourceTree = "<group>"; };
+		19AD60802D934BA900465BFF /* WhatToTest.en-US.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "WhatToTest.en-US.txt"; sourceTree = "<group>"; };
 		19C01D5B2D92EEC600773DA4 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		19C01D5D2D93088300773DA4 /* JWTManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTManager.swift; sourceTree = "<group>"; };
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
@@ -87,6 +72,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		1937AAC92D939E9100C68797 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
 		19D133A82D72BFB2002448A9 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
 		19D133BC2D72BFB8002448A9 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
@@ -112,11 +98,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		1937AABA2D938F6D00C68797 /* ci_scripts */ = {
+			isa = PBXGroup;
+			children = (
+				1937AABB2D938FBD00C68797 /* ci_post_clone.sh */,
+			);
+			path = ci_scripts;
+			sourceTree = "<group>";
+		};
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				1937AAC92D939E9100C68797 /* Configuration */,
+				1937AABA2D938F6D00C68797 /* ci_scripts */,
+				19AD607F2D934B8100465BFF /* TestFlight */,
 				19C01D5B2D92EEC600773DA4 /* .gitignore */,
-				19C01D5A2D92ED3D00773DA4 /* openai-lambda */,
 				1927DD0F2D89E26600BEFD9D /* LICENSE */,
 				1927DD102D89E26600BEFD9D /* README.md */,
 				1927DD112D89EB1000BEFD9D /* PRIVACY_POLICY.md */,
@@ -183,60 +179,12 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		19C01D482D92ED3D00773DA4 /* lambda */ = {
+		19AD607F2D934B8100465BFF /* TestFlight */ = {
 			isa = PBXGroup;
 			children = (
-				19C01D452D92ED3D00773DA4 /* index.js */,
-				19C01D462D92ED3D00773DA4 /* package.json */,
-				19C01D472D92ED3D00773DA4 /* package-lock.json */,
+				19AD60802D934BA900465BFF /* WhatToTest.en-US.txt */,
 			);
-			path = lambda;
-			sourceTree = "<group>";
-		};
-		19C01D4B2D92ED3D00773DA4 /* openai_lambda */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D492D92ED3D00773DA4 /* __init__.py */,
-				19C01D4A2D92ED3D00773DA4 /* openai_lambda_stack.py */,
-			);
-			path = openai_lambda;
-			sourceTree = "<group>";
-		};
-		19C01D4E2D92ED3D00773DA4 /* unit */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D4C2D92ED3D00773DA4 /* __init__.py */,
-				19C01D4D2D92ED3D00773DA4 /* test_openai_lambda_stack.py */,
-			);
-			path = unit;
-			sourceTree = "<group>";
-		};
-		19C01D502D92ED3D00773DA4 /* tests */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D4E2D92ED3D00773DA4 /* unit */,
-				19C01D4F2D92ED3D00773DA4 /* __init__.py */,
-			);
-			path = tests;
-			sourceTree = "<group>";
-		};
-		19C01D5A2D92ED3D00773DA4 /* openai-lambda */ = {
-			isa = PBXGroup;
-			children = (
-				19C01D482D92ED3D00773DA4 /* lambda */,
-				19C01D4B2D92ED3D00773DA4 /* openai_lambda */,
-				19C01D502D92ED3D00773DA4 /* tests */,
-				19C01D512D92ED3D00773DA4 /* .gitignore */,
-				19C01D522D92ED3D00773DA4 /* app.py */,
-				19C01D532D92ED3D00773DA4 /* cdk.json */,
-				19C01D542D92ED3D00773DA4 /* cdk-deploy-policy.json */,
-				19C01D552D92ED3D00773DA4 /* README.md */,
-				19C01D562D92ED3D00773DA4 /* requirements.txt */,
-				19C01D572D92ED3D00773DA4 /* requirements-dev.txt */,
-				19C01D582D92ED3D00773DA4 /* source.bat */,
-				19C01D592D92ED3D00773DA4 /* test.sh */,
-			);
-			path = "openai-lambda";
+			path = TestFlight;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -255,6 +203,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				1937AAC92D939E9100C68797 /* Configuration */,
 				19C01D602D93157A00773DA4 /* Configuration */,
 				19D133A82D72BFB2002448A9 /* Views */,
 				19D133BC2D72BFB8002448A9 /* Models */,
@@ -278,6 +227,7 @@
 				19D133CE2D75455B002448A9 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				1937AAC92D939E9100C68797 /* Configuration */,
 				19D133CA2D75455B002448A9 /* MovingBoxTests */,
 			);
 			name = MovingBoxTests;
@@ -391,6 +341,8 @@
 /* Begin XCBuildConfiguration section */
 		1942DC862BF391CF00734AF4 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1937AAC92D939E9100C68797 /* Configuration */;
+			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -454,6 +406,8 @@
 		};
 		1942DC872BF391CF00734AF4 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1937AAC92D939E9100C68797 /* Configuration */;
+			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -510,6 +464,8 @@
 		};
 		1942DC892BF391CF00734AF4 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1937AAC92D939E9100C68797 /* Configuration */;
+			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -534,7 +490,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -545,6 +501,8 @@
 		};
 		1942DC8A2BF391CF00734AF4 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1937AAC92D939E9100C68797 /* Configuration */;
+			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -569,7 +527,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -580,6 +538,8 @@
 		};
 		19D133D02D75455B002448A9 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1937AAC92D939E9100C68797 /* Configuration */;
+			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -604,6 +564,8 @@
 		};
 		19D133D12D75455B002448A9 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1937AAC92D939E9100C68797 /* Configuration */;
+			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;

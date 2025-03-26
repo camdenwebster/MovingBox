@@ -38,7 +38,6 @@ struct InventoryListView: View {
                 }
                 Menu("Add Item", systemImage: "plus") {
                       Button(action: {
-                          // Present EditInventoryItemView for manual entry
                           let newItem = InventoryItem(
                               title: "",
                               quantityString: "1",
@@ -61,8 +60,7 @@ struct InventoryListView: View {
                       }
                       
                       Button(action: {
-                          // Navigate to camera view
-                          router.navigate(to: .addInventoryItemView)
+                          router.navigate(to: .addInventoryItemView(location: location))
                       }) {
                           Label("Add from Photo", systemImage: "camera")
                       }

@@ -19,7 +19,7 @@ final class Router: ObservableObject {
         case editLabelView(label: InventoryLabel?)
         case editInventoryItemView(item: InventoryItem, showSparklesButton: Bool = false)
         case aISettingsView
-        case addInventoryItemView
+        case addInventoryItemView(location: InventoryLocation?)
     }
     
     @Published var path = NavigationPath()

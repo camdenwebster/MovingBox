@@ -21,8 +21,10 @@ struct InventoryItemRow: View {
             } else {
                 Image(systemName: "photo")
                     .resizable()
-                    .scaledToFit()
-                    .frame(width: 50, height: 50)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: 80, maxHeight: 60)
+                    .clipped()
+                    .cornerRadius(8)
             }
             VStack(alignment: .leading) {
                 Text(item.title)
