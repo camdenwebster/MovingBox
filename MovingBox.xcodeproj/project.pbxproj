@@ -196,7 +196,6 @@
 			buildPhases = (
 				1942DC762BF391CB00734AF4 /* Sources */,
 				1942DC772BF391CB00734AF4 /* Frameworks */,
-				19AD60812D935A9A00465BFF /* ShellScript */,
 				1942DC782BF391CB00734AF4 /* Resources */,
 			);
 			buildRules = (
@@ -300,26 +299,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		19AD60812D935A9A00465BFF /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [ \"${CONFIGURATION}\" = \"Release\" ]; then\n    # Get the path to the built Info.plist\n    PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n    \n    # Check if JWT_SECRET exists in environment\n    if [ ! -z \"${JWT_SECRET}\" ]; then\n        # Add or update the JWT_SECRET in Info.plist\n        /usr/libexec/PlistBuddy -c \"Delete :JWT_SECRET\" \"${PLIST_PATH}\" || true\n        /usr/libexec/PlistBuddy -c \"Add :JWT_SECRET string ${JWT_SECRET}\" \"${PLIST_PATH}\"\n        echo \"Successfully injected JWT_SECRET into Info.plist\"\n    else\n        echo \"Error: JWT_SECRET environment variable not found\"\n        exit 1\n    fi\nfi\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1942DC762BF391CB00734AF4 /* Sources */ = {
