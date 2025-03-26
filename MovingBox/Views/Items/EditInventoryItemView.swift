@@ -198,12 +198,6 @@ struct EditInventoryItemView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
         .toolbar {
-            if isLoadingOpenAiResults {
-                ToolbarItem(placement: .topBarTrailing) {
-                    ProgressView()
-                }
-            }
-            
             ToolbarItem(placement: .topBarTrailing) {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton  {
@@ -224,15 +218,24 @@ struct EditInventoryItemView: View {
                             Image(systemName: "sparkles")
                         }
                         .disabled(isLoadingOpenAiResults)
-                    } else {
-                        Button("Done") {
-                            try? modelContext.save()
-                            navigationPath.removeLast()
-                        }
-                        .fontWeight(.bold)
                     }
                 } else {
                     EmptyView()
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                if isLoadingOpenAiResults {
+                    ProgressView()
+                } else {
+                    Button("Save") {
+                        if inventoryItemToDisplay.modelContext == nil {
+                            modelContext.insert(inventoryItemToDisplay)
+                        }
+                        try? modelContext.save()
+                        navigationPath.removeLast()
+                    }
+                    .fontWeight(.bold)
+                    .disabled(inventoryItemToDisplay.title.isEmpty)
                 }
             }
         }
@@ -306,8 +309,9 @@ struct EditInventoryItemView: View {
     }
     
     func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
-        // Begin a write transaction
-        modelContext.insert(inventoryItemToDisplay)
+        if inventoryItemToDisplay.modelContext == nil {
+            modelContext.insert(inventoryItemToDisplay)
+        }
         
         // Update properties
         inventoryItemToDisplay.title = imageDetails.title
