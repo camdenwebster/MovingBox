@@ -62,7 +62,7 @@ struct InventoryListView: View {
                       
                       Button(action: {
                           // Navigate to camera view
-                          router.navigate(to: .addInventoryItemView)
+                          router.navigate(to: .addInventoryItemView(location: location))
                       }) {
                           Label("Add from Photo", systemImage: "camera")
                       }

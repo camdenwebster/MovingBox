@@ -80,8 +80,8 @@ struct MovingBoxApp: App {
             EditLabelView(label: label)
         case .editInventoryItemView(let item, let showSparklesButton):
             EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton)
-        case .addInventoryItemView:
-            AddInventoryItemView()
+        case .addInventoryItemView(let location):
+            AddInventoryItemView(location: location)
         case .locationsSettingsView:
             LocationSettingsView()
         }
@@ -111,7 +111,7 @@ struct MovingBoxApp: App {
                 .tag(1)
                 
                 NavigationStack(path: $allItemsRouter.path) {
-                    AddInventoryItemView()
+                    AddInventoryItemView(location: nil)
                         .navigationDestination(for: Router.Destination.self) { destination in
                             destinationView(for: destination, navigationPath: $allItemsRouter.path)
                         }

@@ -9,6 +9,8 @@ struct AddInventoryItemView: View {
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
     
+    let location: InventoryLocation?
+    
     var body: some View {
         VStack {
             Text("Tap the camera button below to add a new item")
@@ -32,7 +34,7 @@ struct AddInventoryItemView: View {
                     serial: "",
                     model: "",
                     make: "",
-                    location: nil,
+                    location: location,
                     label: nil,
                     price: Decimal.zero,
                     insured: false,
@@ -126,7 +128,10 @@ struct AddInventoryItemView: View {
         
         let locationDescriptor = FetchDescriptor<InventoryLocation>()
         guard let locations = try? modelContext.fetch(locationDescriptor) else { return }
-        item.location = locations.first { $0.name == imageDetails.location }
+        
+        if location == nil && item.location == nil {
+            item.location = locations.first { $0.name == imageDetails.location }
+        }
         
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
         item.price = Decimal(string: priceString) ?? 0
