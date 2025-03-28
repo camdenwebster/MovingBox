@@ -39,6 +39,7 @@ struct DashboardView: View {
     @Query private var homes: [Home]
     private var home: Home { homes.first ?? Home() }
     @State private var selectedPhoto: PhotosPickerItem? = nil
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + $1.price })
@@ -49,6 +50,8 @@ struct DashboardView: View {
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
+    
+    private let locationRow = GridItem(.fixed(160))
 
     var body: some View {
         ScrollView {
@@ -129,12 +132,16 @@ struct DashboardView: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
-                    // Restored horizontal scroll view for locations
                     ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 16) {
+                        LazyHGrid(rows: [locationRow], spacing: 16) {
                             ForEach(locations) { location in
                                 NavigationLink(value: location) {
                                     LocationItemCard(location: location)
+                                        .frame(width: 160)
+                                        .background(RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color(.secondarySystemGroupedBackground))
+                                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                             }
                         }

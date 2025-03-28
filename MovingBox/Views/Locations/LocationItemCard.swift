@@ -17,7 +17,7 @@ struct LocationItemCard: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 160, height: 160)
+//                        .frame(width: 160, height: 160)
                         .clipped()
                 } else {
                     Rectangle()
@@ -51,7 +51,7 @@ struct LocationItemCard: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .frame(width: 160)
+//            .frame(width: 160)
         }
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
