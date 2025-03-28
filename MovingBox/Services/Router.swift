@@ -17,7 +17,7 @@ final class Router: ObservableObject {
         case editLocationView(location: InventoryLocation?)
         case locationsSettingsView
         case editLabelView(label: InventoryLabel?)
-        case editInventoryItemView(item: InventoryItem, showSparklesButton: Bool = false)
+        case editInventoryItemView(item: InventoryItem, showSparklesButton: Bool = false, isEditing: Bool = false)
         case aISettingsView
         case addInventoryItemView(location: InventoryLocation?)
     }

@@ -65,7 +65,7 @@ struct AddInventoryItemView: View {
                                     updateUIWithImageDetails(imageDetails, for: newItem)
                                     TelemetryManager.shared.trackCameraAnalysisUsed()
                                     completion()
-                                    router.navigate(to: .editInventoryItemView(item: newItem))
+                                    router.navigate(to: .editInventoryItemView(item: newItem, isEditing: true))
                                 }
                             } catch {
                                 print("Error analyzing image: \(error)")

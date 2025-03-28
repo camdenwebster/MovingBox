@@ -27,7 +27,8 @@ struct EditInventoryItemView: View {
     @Binding var navigationPath: NavigationPath
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showingClearAllAlert = false
-    @State private var isLoadingOpenAiResults: Bool = false
+    @State private var isLoadingOpenAiResults = false
+    @State private var isEditing: Bool
     @StateObject private var settings = SettingsManager()
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
@@ -35,6 +36,12 @@ struct EditInventoryItemView: View {
     
     var showSparklesButton = false
 
+    init(inventoryItemToDisplay: InventoryItem, navigationPath: Binding<NavigationPath>, showSparklesButton: Bool = false, isEditing: Bool = false) {
+        self.inventoryItemToDisplay = inventoryItemToDisplay
+        self._navigationPath = navigationPath
+        self.showSparklesButton = showSparklesButton
+        self._isEditing = State(initialValue: isEditing)
+    }
 
     var body: some View {
         Form {
@@ -67,9 +74,9 @@ struct EditInventoryItemView: View {
             }
             .listSectionSpacing(16)
             
-            // Add "Analyze with AI" button here if analysis has not happened yet and there is a photo
+            // Only show AI analysis button when editing
             Section {
-                if inventoryItemToDisplay.hasUsedAI == false && (inventoryItemToDisplay.photo != nil) {
+                if isEditing && inventoryItemToDisplay.hasUsedAI == false && (inventoryItemToDisplay.photo != nil) {
                     HStack(spacing: 16) {
                         Button(action: {
                             Task {
@@ -103,95 +110,130 @@ struct EditInventoryItemView: View {
             }
             .listSectionSpacing(16)
             
+            // Only show photo buttons when editing
             Section {
-                HStack(spacing: 16) {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        HStack {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.title)
+                if isEditing {
+                    HStack(spacing: 16) {
+                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                            HStack {
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.title)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 40)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Button {
-                        showingCamera = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "camera")
-                                .font(.title)
+                        .buttonStyle(.bordered)
+                        
+                        Button {
+                            showingCamera = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "camera")
+                                    .font(.title)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 40)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
+                    .listRowBackground(Color.clear)
+                    .background(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
-                .listRowBackground(Color.clear)
-                .background(Color.clear)
-                .listRowInsets(EdgeInsets())
             }
 
             Section("Details") {
-                FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
-                FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
-                FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
-                FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
+                if isEditing || !inventoryItemToDisplay.title.isEmpty {
+                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
+                        .disabled(!isEditing)
+                }
+                if isEditing || !inventoryItemToDisplay.serial.isEmpty {
+                    FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
+                        .disabled(!isEditing)
+                }
+                if isEditing || !inventoryItemToDisplay.make.isEmpty {
+                    FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
+                        .disabled(!isEditing)
+                }
+                if isEditing || !inventoryItemToDisplay.model.isEmpty {
+                    FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
+                        .disabled(!isEditing)
+                }
             }
-            Section("Quantity") {
-                Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
+            if isEditing || inventoryItemToDisplay.quantityInt > 1 {
+                Section("Quantity") {
+                    Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
+                        .disabled(!isEditing)
+                }
             }
-            Section("Description") {
-                TextEditor(text: $inventoryItemToDisplay.desc)
-                    .lineLimit(5)
+            if isEditing || !inventoryItemToDisplay.desc.isEmpty {
+                Section("Description") {
+                    TextEditor(text: $inventoryItemToDisplay.desc)
+                        .lineLimit(5)
+                        .disabled(!isEditing)
+                }
             }
             Section("Purchase Price") {
                 PriceFieldRow(priceString: $priceString, priceDecimal: $inventoryItemToDisplay.price)
+                    .disabled(!isEditing)
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
+                .disabled(!isEditing)
             }
-            Section {
-                Picker("Label", selection: $inventoryItemToDisplay.label) {
-                    Text("None")
-                        .tag(Optional<InventoryLabel>.none)
-                    
-                    if labels.isEmpty == false {
-                        Divider()
-                        ForEach(labels) { label in
-                            Text(label.name)
-                                .tag(Optional(label))
+            if isEditing || inventoryItemToDisplay.label != nil {
+                Section {
+                    Picker("Label", selection: $inventoryItemToDisplay.label) {
+                        Text("None")
+                            .tag(Optional<InventoryLabel>.none)
+                        
+                        if labels.isEmpty == false {
+                            Divider()
+                            ForEach(labels) { label in
+                                Text(label.name)
+                                    .tag(Optional(label))
+                            }
                         }
                     }
+                    .disabled(!isEditing)
                     
-                }
-                Button("Add a new Label", action: addLabel)
-            }
-            Section {
-                Picker("Location", selection: $inventoryItemToDisplay.location) {
-                    Text("None")
-                        .tag(Optional<InventoryLocation>.none)
-                    
-                    if locations.isEmpty == false {
-                        Divider()
-                        ForEach(locations) { location in
-                            Text(location.name)
-                                .tag(Optional(location))
-                        }
+                    if isEditing {
+                        Button("Add a new Label", action: addLabel)
                     }
                 }
-                Button("Add a new Location", action: addLocation)
             }
-            Section("Notes") {
-                TextEditor(text: $inventoryItemToDisplay.notes)
-                    .lineLimit(5)
-            }
-            Section {
-                Button("Clear All Fields") {
-                    showingClearAllAlert = true
+            if isEditing || inventoryItemToDisplay.location != nil {
+                Section {
+                    Picker("Location", selection: $inventoryItemToDisplay.location) {
+                        Text("None")
+                            .tag(Optional<InventoryLocation>.none)
+                        
+                        if locations.isEmpty == false {
+                            Divider()
+                            ForEach(locations) { location in
+                                Text(location.name)
+                                    .tag(Optional(location))
+                            }
+                        }
+                    }
+                    .disabled(!isEditing)
+                    
+                    if isEditing {
+                        Button("Add a new Location", action: addLocation)
+                    }
                 }
             }
-            .alert("Are you sure?", isPresented: $showingClearAllAlert) {
-                Button("Clear All Fields", role: .destructive) { clearFields() }
-                Button("Cancel", role: .cancel) { }
+            if isEditing || !inventoryItemToDisplay.notes.isEmpty {
+                Section("Notes") {
+                    TextEditor(text: $inventoryItemToDisplay.notes)
+                        .lineLimit(5)
+                        .disabled(!isEditing)
+                }
+            }
+            if isEditing {
+                Section {
+                    Button("Clear All Fields") {
+                        showingClearAllAlert = true
+                    }
+                }
             }
         }
         .navigationTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
@@ -200,7 +242,7 @@ struct EditInventoryItemView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if inventoryItemToDisplay.hasUsedAI {
-                    if showSparklesButton  {
+                    if showSparklesButton && isEditing {
                         Button(action: {
                             Task {
                                 do {
@@ -219,23 +261,27 @@ struct EditInventoryItemView: View {
                         }
                         .disabled(isLoadingOpenAiResults)
                     }
-                } else {
-                    EmptyView()
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if isLoadingOpenAiResults {
                     ProgressView()
                 } else {
-                    Button("Save") {
-                        if inventoryItemToDisplay.modelContext == nil {
-                            modelContext.insert(inventoryItemToDisplay)
+                    if isEditing {
+                        Button("Save") {
+                            if inventoryItemToDisplay.modelContext == nil {
+                                modelContext.insert(inventoryItemToDisplay)
+                            }
+                            try? modelContext.save()
+                            isEditing = false
                         }
-                        try? modelContext.save()
-                        navigationPath.removeLast()
+                        .fontWeight(.bold)
+                        .disabled(inventoryItemToDisplay.title.isEmpty)
+                    } else {
+                        Button("Edit") {
+                            isEditing = true
+                        }
                     }
-                    .fontWeight(.bold)
-                    .disabled(inventoryItemToDisplay.title.isEmpty)
                 }
             }
         }
@@ -282,6 +328,10 @@ struct EditInventoryItemView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
+        }
+        .alert("Are you sure?", isPresented: $showingClearAllAlert) {
+            Button("Clear All Fields", role: .destructive) { clearFields() }
+            Button("Cancel", role: .cancel) { }
         }
     }
     
@@ -377,7 +427,7 @@ struct EditInventoryItemView: View {
     do {
         let previewer = try Previewer()
         
-        return EditInventoryItemView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()))
+        return EditInventoryItemView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()), isEditing: true)
             .modelContainer(previewer.container)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")

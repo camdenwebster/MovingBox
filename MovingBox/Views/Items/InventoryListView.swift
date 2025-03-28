@@ -54,7 +54,7 @@ struct InventoryListView: View {
                               notes: "",
                               showInvalidQuantityAlert: false
                           )
-                          router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true))
+                          router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true, isEditing: true))
                       }) {
                           Label("Add Manually", systemImage: "square.and.pencil")
                       }

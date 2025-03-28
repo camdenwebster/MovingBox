@@ -7,7 +7,6 @@ struct PhotoReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var settings = SettingsManager()
     @State private var isAnalyzing = false
-    @State private var showingApiKeyAlert = false
     @State private var scannerOffset: CGFloat = -100
     @State private var scannerMovingDown = true
 
@@ -54,7 +53,7 @@ struct PhotoReviewView: View {
                                     Image(systemName: "arrow.counterclockwise")
                                         .font(.title)
                                     Text("Retake")
-                                }
+                                    }
                                 .padding()
                                 .background(.ultraThinMaterial)
                                 .clipShape(RoundedRectangle(cornerRadius: 15))
@@ -62,16 +61,12 @@ struct PhotoReviewView: View {
                             }
                             
                             Button(action: {
-                                if settings.apiKey.isEmpty {
-                                    showingApiKeyAlert = true
-                                } else {
-                                    isAnalyzing = true
-                                    onAccept(image, !settings.apiKey.isEmpty) {
-                                        DispatchQueue.main.async {
-                                            isAnalyzing = false
-                                            print("Analysis complete, dismissing PhotoReviewView")
-                                            dismiss()
-                                        }
+                                isAnalyzing = true
+                                onAccept(image, true) {
+                                    DispatchQueue.main.async {
+                                        isAnalyzing = false
+                                        print("Analysis complete, dismissing PhotoReviewView")
+                                        dismiss()
                                     }
                                 }
                             }) {
@@ -101,11 +96,6 @@ struct PhotoReviewView: View {
                         .foregroundStyle(.red)
                 }
             }
-            .alert("OpenAI API Key Required", isPresented: $showingApiKeyAlert) {
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("Please configure your OpenAI API key in the settings to use image analysis.")
-            }
             .animation(.easeInOut(duration: 0.3), value: isAnalyzing)
             .interactiveDismissDisabled(isAnalyzing)
         }
@@ -114,14 +104,6 @@ struct PhotoReviewView: View {
 
 #Preview {
     let settings = SettingsManager()
-    
-    // Debug: Print environment variable status
-    if let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] {
-        print(" OPENAI_API_KEY is set with length: \(apiKey.count)")
-        settings.apiKey = apiKey
-    } else {
-        print(" OPENAI_API_KEY is not set in environment")
-    }
     
     // Print all environment variables for debugging
     print(" All Environment Variables:")

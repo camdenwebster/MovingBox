@@ -78,8 +78,8 @@ struct MovingBoxApp: App {
             EditLocationView(location: location)
         case .editLabelView(let label):
             EditLabelView(label: label)
-        case .editInventoryItemView(let item, let showSparklesButton):
-            EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton)
+        case .editInventoryItemView(let item, let showSparklesButton, let isEditing):
+            EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
         case .addInventoryItemView(let location):
             AddInventoryItemView(location: location)
         case .locationsSettingsView:
@@ -149,6 +149,7 @@ struct MovingBoxApp: App {
                 }
                 .tag(4)
             }
+            .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
             .onChange(of: selectedTab) { oldValue, newValue in
                 let tabName: String = {
