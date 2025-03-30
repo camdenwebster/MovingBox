@@ -40,6 +40,7 @@ struct DashboardView: View {
     private var home: Home { homes.first ?? Home() }
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @EnvironmentObject var router: Router
     
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + $1.price })
@@ -121,21 +122,21 @@ struct DashboardView: View {
                         .foregroundStyle(.secondary)
                     
                     LazyVGrid(columns: columns, spacing: 16) {
-                        StatCard(label: "Number of items", value: "\(items.count)")
-                        StatCard(label: "Replacement cost", value: CurrencyFormatter.format(totalReplacementCost))
+                        StatCard(label: "Number of Items", value: "\(items.count)")
+                        StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
                     }
                 }
                 .padding(.horizontal)
                 
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Items per Location")
+                    Text("Location Statistics")
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHGrid(rows: [locationRow], spacing: 16) {
                             ForEach(locations) { location in
-                                NavigationLink(value: location) {
+                                NavigationLink(value: Router.Destination.inventoryListView(location: location)) {
                                     LocationItemCard(location: location)
                                         .frame(width: 160)
                                         .background(RoundedRectangle(cornerRadius: 12)
@@ -145,8 +146,8 @@ struct DashboardView: View {
                                 }
                             }
                         }
+                        .scrollTargetLayout()
                         .padding(.horizontal)
-                        .scrollTargetBehavior(.viewAligned)
                     }
                     .scrollTargetBehavior(.viewAligned)
                 }

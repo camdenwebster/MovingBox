@@ -107,7 +107,13 @@ struct MovingBoxApp: App {
         WindowGroup {
             TabView(selection: $selectedTab) {
                 Tab("Dashboard", systemImage: "gauge.with.dots.needle.33percent", value: 0) {
-                    DashboardView()
+                    NavigationStack(path: $allItemsRouter.path) {
+                        DashboardView()
+                            .navigationDestination(for: Router.Destination.self) { destination in
+                                destinationView(for: destination, navigationPath: $allItemsRouter.path)
+                            }
+                    }
+                    .environmentObject(allItemsRouter)
                 }
                 
                 Tab("Locations", systemImage: "map", value: 1) {

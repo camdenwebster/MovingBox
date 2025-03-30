@@ -9,6 +9,12 @@ import SwiftUI
 
 struct LocationItemCard: View {
     var location: InventoryLocation
+    var showCost: Bool = false
+    
+    private var totalReplacementCost: Decimal {
+        location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Photo section
@@ -37,21 +43,27 @@ struct LocationItemCard: View {
                     .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color(.label))
-                
                 HStack {
                     Text("Items")
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
                     Text("\(location.inventoryItems?.count ?? 0)")
-                        .font(.title3)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color(.label))
+                }
+                HStack {
+                    Text("Value")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabel))
+                    Spacer()
+                    Text(CurrencyFormatter.format(totalReplacementCost))
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-//            .frame(width: 160)
         }
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
