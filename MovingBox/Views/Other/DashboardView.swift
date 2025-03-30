@@ -89,11 +89,12 @@ struct DashboardView: View {
                                 Spacer()
                                 
                                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                                    Image(systemName: "photo.circle.fill")
-                                        .symbolRenderingMode(.hierarchical)
-                                        .font(.largeTitle)
-                                        .foregroundStyle(.white)
-                                        .background(Circle().fill(.black.opacity(0.5)))
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Circle().fill(.black.opacity(0.6)))
+                                        .padding(8)
                                 }
                             }
                             .padding(.horizontal, 16)

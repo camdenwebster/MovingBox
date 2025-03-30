@@ -21,6 +21,9 @@ struct EditLocationView: View {
     ]) var locations: [InventoryLocation]
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
+    @State private var showPhotoSourceAlert = false
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
     
     // Computed properties
     private var isNewLocation: Bool {
@@ -37,30 +40,90 @@ struct EditLocationView: View {
                 if let uiImage = tempUIImage ?? location?.photo {
                     Image(uiImage: uiImage)
                         .resizable()
-                        .scaledToFit()
-                }
-                if isEditingEnabled {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label("Select Image", systemImage: "photo")
+                        .scaledToFill()
+                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .clipped()
+                        .listRowInsets(EdgeInsets())
+                        .overlay(alignment: .bottomTrailing) {
+                            if isEditingEnabled {
+                                Button {
+                                    showPhotoSourceAlert = true
+                                } label: {
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Circle().fill(.black.opacity(0.6)))
+                                        .padding(8)
+                                }
+                            }
+                        }
+                } else {
+                    if isEditingEnabled {
+                        Button {
+                            showPhotoSourceAlert = true
+                        } label: {
+                            VStack {
+                                Image(systemName: "photo")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 150, maxHeight: 150)
+                                    .foregroundStyle(.secondary)
+                                Text("Tap to add a photo")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
-            Section("Location Name") {
-                TextField("Attic, Basement, Kitchen, Office, etc.", text: $locationName)
-                    .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
-            }
+            FormTextFieldRow(label: "Name", text: $locationName, placeholder: "Kitchen")
+                .disabled(!isEditingEnabled)
+                .foregroundColor(isEditingEnabled ? .primary : .secondary)
             if isEditingEnabled || !locationDesc.isEmpty {
-                Section("Location Description") {
-                    TextField("Enter a Description", text: $locationDesc)
+                Section("Description") {
+                    TextEditor(text: $locationDesc)
                         .disabled(!isEditingEnabled)
                         .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                        .frame(height: 100)
                 }
             }
         }
         .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if tempUIImage != nil || location?.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    if let location = location {
+                        location.data = nil
+                    } else {
+                        tempUIImage = nil
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraView { image, needsAIAnalysis, completion in
+                if let location = location {
+                    if let imageData = image.jpegData(compressionQuality: 0.8) {
+                        location.data = imageData
+                    }
+                } else {
+                    tempUIImage = image
+                }
+                completion()
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .toolbar {
             if !isNewLocation {
                 // Edit/Save button for existing locations
@@ -74,6 +137,7 @@ struct EditLocationView: View {
                         isEditing = true
                     }
                 }
+                .font(isEditing ? .body.bold() : .body)
             } else {
                 // Save button for new locations
                 Button("Save") {
@@ -85,9 +149,10 @@ struct EditLocationView: View {
                     TelemetryManager.shared.trackLocationCreated(name: newLocation.name)
                     print("EditLocationView: Created new location - \(newLocation.name)")
                     print("EditLocationView: Total number of locations after save: \(locations.count)")
-                    router.path.removeLast()
+                    router.navigateBack()
                 }
                 .disabled(locationName.isEmpty)
+                .bold()
             }
         }
         .onAppear {

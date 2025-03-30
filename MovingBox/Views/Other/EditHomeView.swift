@@ -156,7 +156,7 @@ struct EditHomeView: View {
                     modelContext.insert(newHome)
                     TelemetryManager.shared.trackLocationCreated(name: newHome.address1)
                     print("EditHomeView: Created new home - \(newHome.name)")
-                    router.path.removeLast()
+                    router.navigateBack()
                 }
                 .disabled(homeAddress1.isEmpty)
             }

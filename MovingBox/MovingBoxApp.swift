@@ -12,9 +12,7 @@ import TelemetryDeck
 
 @main
 struct MovingBoxApp: App {
-    @StateObject var locationsRouter = Router()
-    @StateObject var allItemsRouter = Router()
-    @StateObject var settingsRouter = Router()
+    @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
     
@@ -37,8 +35,6 @@ struct MovingBoxApp: App {
             }
         }
     }
-    
-    @State private var selectedTab = 0
     
     static func registerTransformers() {
         UIColorValueTransformer.register()
@@ -105,68 +101,72 @@ struct MovingBoxApp: App {
     
     var body: some Scene {
         WindowGroup {
-            TabView(selection: $selectedTab) {
-                Tab("Dashboard", systemImage: "gauge.with.dots.needle.33percent", value: 0) {
-                    NavigationStack(path: $allItemsRouter.path) {
-                        DashboardView()
-                            .navigationDestination(for: Router.Destination.self) { destination in
-                                destinationView(for: destination, navigationPath: $allItemsRouter.path)
-                            }
-                    }
-                    .environmentObject(allItemsRouter)
+            TabView(selection: $router.selectedTab) {
+                NavigationStack(path: router.path(for: .dashboard)) {
+                    DashboardView()
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: router.path(for: .dashboard))
+                        }
                 }
+                .tabItem {
+                    Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
+                }
+                .tag(Router.Tab.dashboard)
                 
-                Tab("Locations", systemImage: "map", value: 1) {
-                    NavigationStack(path: $locationsRouter.path) {
-                        LocationsListView()
-                            .navigationDestination(for: Router.Destination.self) { destination in
-                                destinationView(for: destination, navigationPath: $locationsRouter.path)
-                            }
-                    }
-                    .environmentObject(locationsRouter)
+                NavigationStack(path: router.path(for: .locations)) {
+                    LocationsListView()
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: router.path(for: .locations))
+                        }
                 }
+                .tabItem {
+                    Label("Locations", systemImage: "map")
+                }
+                .tag(Router.Tab.locations)
                 
-                Tab("Add Item", systemImage: "camera.viewfinder", value: 2) {
-                    NavigationStack(path: $allItemsRouter.path) {
-                        AddInventoryItemView(location: nil)
-                            .navigationDestination(for: Router.Destination.self) { destination in
-                                destinationView(for: destination, navigationPath: $allItemsRouter.path)
-                            }
-                    }
-                    .environmentObject(allItemsRouter)
+                NavigationStack(path: router.path(for: .addItem)) {
+                    AddInventoryItemView(location: nil)
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: router.path(for: .addItem))
+                        }
                 }
+                .tabItem {
+                    Label("Add Item", systemImage: "camera.viewfinder")
+                }
+                .tag(Router.Tab.addItem)
                 
-                Tab("All Items", systemImage: "list.bullet", value: 3) {
-                    NavigationStack(path: $allItemsRouter.path) {
-                        InventoryListView(location: nil)
-                            .navigationDestination(for: Router.Destination.self) { destination in
-                                destinationView(for: destination, navigationPath: $allItemsRouter.path)
-                            }
-                    }
-                    .environmentObject(allItemsRouter)
+                NavigationStack(path: router.path(for: .allItems)) {
+                    InventoryListView(location: nil)
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: router.path(for: .allItems))
+                        }
                 }
+                .tabItem {
+                    Label("All Items", systemImage: "list.bullet")
+                }
+                .tag(Router.Tab.allItems)
                 
-                Tab("Settings", systemImage: "gearshape", value: 4) {
-                    NavigationStack(path: $settingsRouter.path) {
-                        SettingsView()
-                            .navigationDestination(for: Router.Destination.self) { destination in
-                                destinationView(for: destination, navigationPath: $settingsRouter.path)
-                            }
-                    }
-                    .environmentObject(settingsRouter)
+                NavigationStack(path: router.path(for: .settings)) {
+                    SettingsView()
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: router.path(for: .settings))
+                        }
                 }
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .tag(Router.Tab.settings)
             }
             .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
-            .onChange(of: selectedTab) { oldValue, newValue in
+            .onChange(of: router.selectedTab) { oldValue, newValue in
                 let tabName: String = {
                     switch newValue {
-                    case 0: return "dashboard"
-                    case 1: return "locations"
-                    case 2: return "add_item"
-                    case 3: return "all_items"
-                    case 4: return "settings"
-                    default: return "unknown"
+                    case .dashboard: return "dashboard"
+                    case .locations: return "locations"
+                    case .addItem: return "add_item"
+                    case .allItems: return "all_items"
+                    case .settings: return "settings"
                     }
                 }()
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
@@ -188,5 +188,6 @@ struct MovingBoxApp: App {
             }
         }
         .modelContainer(container)
+        .environmentObject(router)
     }
 }
