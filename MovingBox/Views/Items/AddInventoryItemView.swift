@@ -43,18 +43,24 @@ struct AddInventoryItemView: View {
                     showInvalidQuantityAlert: false
                 )
                 
-                let imageEncoder = ImageEncoder(image: image)
-                if let optimizedImage = imageEncoder.optimizeImage(),
-                   let imageData = optimizedImage.jpegData(compressionQuality: 0.5) {
-                    newItem.data = imageData
+                // CHANGE: Save image at original quality instead of compressed
+                if let originalData = image.jpegData(compressionQuality: 1.0) {
+                    newItem.data = originalData
                     modelContext.insert(newItem)
                     TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
                     try? modelContext.save()
                     
                     if needsAnalysis {
                         Task {
+                            // CHANGE: Use PhotoManager for AI analysis
+                            guard let base64ForAI = PhotoManager.loadCompressedPhotoForAI(from: image) else {
+                                completion()
+                                router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true))
+                                return
+                            }
+                            
                             let openAi = OpenAIService(
-                                imageBase64: imageEncoder.encodeImageToBase64() ?? "",
+                                imageBase64: base64ForAI,
                                 settings: settings,
                                 modelContext: modelContext
                             )
@@ -65,7 +71,7 @@ struct AddInventoryItemView: View {
                                     updateUIWithImageDetails(imageDetails, for: newItem)
                                     TelemetryManager.shared.trackCameraAnalysisUsed()
                                     completion()
-                                    router.navigate(to: .editInventoryItemView(item: newItem))
+                                    router.navigate(to: .editInventoryItemView(item: newItem, isEditing: true))
                                 }
                             } catch {
                                 print("Error analyzing image: \(error)")

@@ -31,21 +31,20 @@ struct EditLabelView: View {
     
     var body: some View {
         Form {
-            Section("Label Name") {
-                TextField("Appliances, Electronics, etc.", text: $labelName)
+            Section("Details"){
+                FormTextFieldRow(label: "Name", text: $labelName, placeholder: "Electronics")
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
-            }
-            Section("Color") {
                 ColorPicker("Color", selection: $labelColor, supportsOpacity: false)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
             }
             if isEditingEnabled || !labelDesc.isEmpty {
-                Section("Label Description") {
-                    TextField("Enter a Description", text: $labelDesc)
+                Section("Description") {
+                    TextEditor(text: $labelDesc)
                         .disabled(!isEditingEnabled)
                         .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                        .frame(height: 100)
                 }
             }
         }
@@ -54,30 +53,27 @@ struct EditLabelView: View {
         .onChange(of: labelColor, setColor)
         .toolbar {
             if !isNewLabel {
-                // Edit/Save button for existing locations
                 Button(isEditing ? "Save" : "Edit") {
                     if isEditing {
-                        // Save changes
                         label?.name = labelName
                         label?.desc = labelDesc
                         label?.color = UIColor(labelColor)
                         isEditing = false
-                        router.path.removeLast()
+                        router.navigateBack()
                     } else {
                         isEditing = true
                     }
                 }
             } else {
-                // Save button for new labels
                 Button("Save") {
                     let newLabel = InventoryLabel(name: labelName, desc: labelDesc, color: UIColor(labelColor))
                     modelContext.insert(newLabel)
                     TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
                     print("EditLabelView: Created new label - \(newLabel.name)")
                     print("EditLabelView: Total number of labels after save: \(labels.count)")
-                    router.path.removeLast()
                 }
                 .disabled(labelName.isEmpty)
+                .bold()
             }
         }
         .onAppear {

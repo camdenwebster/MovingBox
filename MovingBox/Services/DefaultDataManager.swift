@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @MainActor
-enum DefaultDataManager {
+class DefaultDataManager {
     static func getAllLabels(from context: ModelContext) -> [String] {
         let descriptor = FetchDescriptor<InventoryLabel>()
         do {
@@ -26,7 +26,6 @@ enum DefaultDataManager {
     }
     
     static func populateDefaultLabels(modelContext: ModelContext) async {
-        // Load only the default labels from TestData
         await TestData.loadDefaultData(context: modelContext)
         
         do {
@@ -38,7 +37,6 @@ enum DefaultDataManager {
     }
     
     static func populateTestData(modelContext: ModelContext) async {
-        // Load test data directly
         await TestData.loadTestData(context: modelContext)
         
         do {
@@ -49,30 +47,22 @@ enum DefaultDataManager {
         }
     }
     
-    static func createDefaultHome(modelContext: ModelContext) async -> Bool {
-        let descriptor = FetchDescriptor<Home>()
-        
-        do {
-            let homes = try modelContext.fetch(descriptor)
-            if homes.isEmpty {
-                let home = Home()
-                home.address1 = ""
-                modelContext.insert(home)
-                try modelContext.save()
-                print("✅ Default home created successfully")
-                return true
-            }
-            return false
-        } catch {
-            print("❌ Error creating default home: \(error)")
-            return false
-        }
-    }
-    
     static func populateDefaultData(modelContext: ModelContext) async {
-        // Create default home if needed
-        let _ = await createDefaultHome(modelContext: modelContext)
+        if !ProcessInfo.processInfo.arguments.contains("UI-Testing") {
+            let homesFetch = try? modelContext.fetch(FetchDescriptor<Home>())
+            if homesFetch?.isEmpty ?? true {
+                let defaultHome = Home()
+                modelContext.insert(defaultHome)
+            }
+        }
+        
         // Create default labels if needed
         let _ = await populateDefaultLabels(modelContext: modelContext)
+        
+        do {
+            try modelContext.save()
+        } catch {
+            print("❌ Error saving default data: \(error)")
+        }
     }
 }

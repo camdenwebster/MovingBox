@@ -23,7 +23,6 @@ struct InventoryListView: View {
     var body: some View {
         InventoryListSubView(location: location, searchString: searchText, sortOrder: sortOrder)
             .navigationTitle(location?.name ?? "All Items")
-            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
@@ -54,7 +53,7 @@ struct InventoryListView: View {
                               notes: "",
                               showInvalidQuantityAlert: false
                           )
-                          router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true))
+                          router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true, isEditing: true))
                       }) {
                           Label("Add Manually", systemImage: "square.and.pencil")
                       }

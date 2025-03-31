@@ -9,7 +9,35 @@ import SwiftUI
 
 final class Router: ObservableObject {
     
-    public enum Destination: Hashable {
+    enum Tab: Int {
+        case dashboard = 0
+        case locations = 1
+        case addItem = 2
+        case allItems = 3
+        case settings = 4
+        
+        var title: String {
+            switch self {
+            case .dashboard: return "Dashboard"
+            case .locations: return "Locations"
+            case .addItem: return "Add Item"
+            case .allItems: return "All Items"
+            case .settings: return "Settings"
+            }
+        }
+        
+        var iconName: String {
+            switch self {
+            case .dashboard: return "gauge.with.dots.needle.33percent"
+            case .locations: return "map"
+            case .addItem: return "camera.viewfinder"
+            case .allItems: return "list.bullet"
+            case .settings: return "gearshape"
+            }
+        }
+    }
+    
+    enum Destination: Hashable {
         case dashboardView
         case locationsListView
         case settingsView
@@ -17,23 +45,36 @@ final class Router: ObservableObject {
         case editLocationView(location: InventoryLocation?)
         case locationsSettingsView
         case editLabelView(label: InventoryLabel?)
-        case editInventoryItemView(item: InventoryItem, showSparklesButton: Bool = false)
+        case editInventoryItemView(item: InventoryItem, showSparklesButton: Bool = false, isEditing: Bool = false)
         case aISettingsView
         case addInventoryItemView(location: InventoryLocation?)
     }
     
-    @Published var path = NavigationPath()
+    @Published var selectedTab: Tab = .dashboard
+    @Published var navigationPaths: [Tab: NavigationPath] = [
+        .dashboard: NavigationPath(),
+        .locations: NavigationPath(),
+        .addItem: NavigationPath(),
+        .allItems: NavigationPath(),
+        .settings: NavigationPath()
+    ]
     
     func navigate(to destination: Destination) {
-        print("Navigating to a new destination")
-        path.append(destination)
+        navigationPaths[selectedTab]?.append(destination)
     }
     
     func navigateBack() {
-        path.removeLast()
+        navigationPaths[selectedTab]?.removeLast()
     }
     
     func navigateToRoot() {
-        path.removeLast(path.count)
+        navigationPaths[selectedTab] = NavigationPath()
+    }
+    
+    func path(for tab: Tab) -> Binding<NavigationPath> {
+        Binding(
+            get: { self.navigationPaths[tab] ?? NavigationPath() },
+            set: { self.navigationPaths[tab] = $0 }
+        )
     }
 }

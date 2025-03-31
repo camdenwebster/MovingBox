@@ -3,7 +3,8 @@ import PhotosUI
 import SwiftData
 
 class PhotoManager {
-    static func loadPhoto(from item: PhotosPickerItem?, quality: CGFloat = 0.5) async throws -> Data? {
+    // Original high quality loading
+    static func loadPhoto(from item: PhotosPickerItem?, quality: CGFloat = 0.8) async throws -> Data? {
         guard let imageData = try await item?.loadTransferable(type: Data.self),
               let uiImage = UIImage(data: imageData),
               let optimizedImage = ImageEncoder(image: uiImage).optimizeImage(),
@@ -13,8 +14,18 @@ class PhotoManager {
         return compressedData
     }
     
+    // New method for AI analysis version
+    static func loadCompressedPhotoForAI(from image: UIImage) -> String? {
+        let imageEncoder = ImageEncoder(image: image)
+        guard let optimizedImage = imageEncoder.optimizeImage(),
+              let compressedData = optimizedImage.jpegData(compressionQuality: 0.3) else {
+            return nil
+        }
+        return compressedData.base64EncodedString()
+    }
+    
     @MainActor
-    static func loadAndSavePhoto(from item: PhotosPickerItem?, to model: Any, quality: CGFloat = 0.5) async {
+    static func loadAndSavePhoto(from item: PhotosPickerItem?, to model: Any, quality: CGFloat = 0.8) async {
         do {
             if let data = try await loadPhoto(from: item, quality: quality) {
                 switch model {

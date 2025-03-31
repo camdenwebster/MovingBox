@@ -12,11 +12,29 @@ import TelemetryDeck
 
 @main
 struct MovingBoxApp: App {
-    @StateObject var locationsRouter = Router()
-    @StateObject var allItemsRouter = Router()
-    @StateObject var settingsRouter = Router()
+    @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
-    @State private var selectedTab = 0
+    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
+    
+    enum TabDestination: Hashable {
+        case dashboard
+        case locations
+        case addItem
+        case allItems
+        case settings
+        case location(PersistentIdentifier)
+        
+        var title: String {
+            switch self {
+            case .dashboard: return "Dashboard"
+            case .locations: return "Locations"
+            case .addItem: return "Add Item"
+            case .allItems: return "All Items"
+            case .settings: return "Settings"
+            case .location: return "Location"
+            }
+        }
+    }
     
     static func registerTransformers() {
         UIColorValueTransformer.register()
@@ -25,7 +43,6 @@ struct MovingBoxApp: App {
     let container: ModelContainer = {
         Self.registerTransformers()
         
-        // Update schema to include all models in dependency order
         let schema = Schema([
             InventoryLabel.self,
             InventoryItem.self,
@@ -34,10 +51,8 @@ struct MovingBoxApp: App {
             Home.self
         ])
         
-        // Get UI testing argument
         let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-Testing")
         
-        // Configure storage based on UI testing flag
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: isUITesting
@@ -52,11 +67,8 @@ struct MovingBoxApp: App {
     }()
 
     init() {
-        // Initialize TelemetryDeck
         let config = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
-        // Add a prefix to all signal names
         config.defaultSignalPrefix = "App."
-        // Add a prefix to all parameter names
         config.defaultParameterPrefix = "MyApp."
         TelemetryDeck.initialize(config: config)
     }
@@ -78,8 +90,8 @@ struct MovingBoxApp: App {
             EditLocationView(location: location)
         case .editLabelView(let label):
             EditLabelView(label: label)
-        case .editInventoryItemView(let item, let showSparklesButton):
-            EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton)
+        case .editInventoryItemView(let item, let showSparklesButton, let isEditing):
+            EditInventoryItemView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
         case .addInventoryItemView(let location):
             AddInventoryItemView(location: location)
         case .locationsSettingsView:
@@ -89,99 +101,93 @@ struct MovingBoxApp: App {
     
     var body: some Scene {
         WindowGroup {
-            TabView(selection: $selectedTab) {
-                DashboardView()
-                    .tabItem {
-                        Image(systemName: "gauge.with.dots.needle.33percent")
-                        Text("Dashboard")
-                    }
-                    .tag(0)
+            TabView(selection: $router.selectedTab) {
+                NavigationStack(path: router.path(for: .dashboard)) {
+                    DashboardView()
+                        .navigationDestination(for: Router.Destination.self) { destination in
+                            destinationView(for: destination, navigationPath: router.path(for: .dashboard))
+                        }
+                }
+                .tabItem {
+                    Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
+                }
+                .tag(Router.Tab.dashboard)
                 
-                NavigationStack(path: $locationsRouter.path) {
+                NavigationStack(path: router.path(for: .locations)) {
                     LocationsListView()
                         .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: $locationsRouter.path)
+                            destinationView(for: destination, navigationPath: router.path(for: .locations))
                         }
                 }
-                .environmentObject(locationsRouter)
                 .tabItem {
-                    Image(systemName: "map")
-                    Text("Locations")
+                    Label("Locations", systemImage: "map")
                 }
-                .tag(1)
+                .tag(Router.Tab.locations)
                 
-                NavigationStack(path: $allItemsRouter.path) {
+                NavigationStack(path: router.path(for: .addItem)) {
                     AddInventoryItemView(location: nil)
                         .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: $allItemsRouter.path)
+                            destinationView(for: destination, navigationPath: router.path(for: .addItem))
                         }
                 }
-                .environmentObject(allItemsRouter)
                 .tabItem {
-                    Image(systemName: "camera.viewfinder")
-                    Text("Add Item")
+                    Label("Add Item", systemImage: "camera.viewfinder")
                 }
-                .tag(2)
+                .tag(Router.Tab.addItem)
                 
-                NavigationStack(path: $allItemsRouter.path) {
+                NavigationStack(path: router.path(for: .allItems)) {
                     InventoryListView(location: nil)
                         .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: $allItemsRouter.path)
+                            destinationView(for: destination, navigationPath: router.path(for: .allItems))
                         }
                 }
-                .environmentObject(allItemsRouter)
                 .tabItem {
-                    Image(systemName: "list.bullet")
-                    Text("All Items")
+                    Label("All Items", systemImage: "list.bullet")
                 }
-                .tag(3)
-                             
-                NavigationStack(path: $settingsRouter.path){
+                .tag(Router.Tab.allItems)
+                
+                NavigationStack(path: router.path(for: .settings)) {
                     SettingsView()
                         .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: $settingsRouter.path)
+                            destinationView(for: destination, navigationPath: router.path(for: .settings))
                         }
                 }
-                .environmentObject(settingsRouter)
                 .tabItem {
-                    Image(systemName: "gearshape")
-                    Text("Settings")
+                    Label("Settings", systemImage: "gearshape")
                 }
-                .tag(4)
+                .tag(Router.Tab.settings)
             }
+            .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
-            .onChange(of: selectedTab) { oldValue, newValue in
+            .onChange(of: router.selectedTab) { oldValue, newValue in
                 let tabName: String = {
-                switch newValue {
-                case 0: return "dashboard"
-                case 1: return "locations"
-                case 2: return "add_item"
-                case 3: return "all_items"
-                case 4: return "settings"
-                default: return "unknown"
-                }
+                    switch newValue {
+                    case .dashboard: return "dashboard"
+                    case .locations: return "locations"
+                    case .addItem: return "add_item"
+                    case .allItems: return "all_items"
+                    case .settings: return "settings"
+                    }
                 }()
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
                 if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
-                    // Load all test data for UI testing
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: container.mainContext)
                         settings.hasLaunched = true
                     }
                 } else if !settings.hasLaunched {
-                    // Load default labels and create default home for production first launch
                     Task {
                         await DefaultDataManager.populateDefaultData(modelContext: container.mainContext)
                         settings.hasLaunched = true
                     }
                 }
                 
-                // Send app launch signal
                 TelemetryDeck.signal("appLaunched")
             }
         }
         .modelContainer(container)
+        .environmentObject(router)
     }
 }

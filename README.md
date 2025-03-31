@@ -1,6 +1,6 @@
 # MovingBox
 
-<img src="https://github.com/camdenwebster/MovingBox/blob/main/MovingBox/Assets.xcassets/AppIcon.appiconset/Light%20Icon.png?raw=true" alt="Light Icon" width="200" height="200">
+<img src="https://github.com/camdenwebster/MovingBox/blob/main/icon_shadow.png?raw=true" alt="Light Icon" width="200" height="200">
 
 ## About MovingBox
 

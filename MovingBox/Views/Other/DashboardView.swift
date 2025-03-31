@@ -31,24 +31,39 @@ struct StatCard: View {
 }
 
 struct DashboardView: View {
+    @Environment(\.modelContext) var modelContext
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
     @Query private var items: [InventoryItem]
     @Query private var homes: [Home]
-    private var home: Home { homes.first ?? Home() }
+    private var home: Home {
+        if let existingHome = homes.first {
+            return existingHome
+        }
+        let newHome = Home()
+        modelContext.insert(newHome)
+        return newHome
+    }
     @State private var selectedPhoto: PhotosPickerItem? = nil
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @EnvironmentObject var router: Router
+    
+    @State private var showPhotoSourceAlert = false
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
     
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + $1.price })
     }
 
-    // Keep columns for stats cards only
     private let columns = [
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
+    
+    private let locationRow = GridItem(.fixed(160))
 
     var body: some View {
         ScrollView {
@@ -81,29 +96,32 @@ struct DashboardView: View {
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
-                                
                                 Spacer()
-                                
-                                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                                    Image(systemName: "photo.circle.fill")
-                                        .symbolRenderingMode(.hierarchical)
-                                        .font(.largeTitle)
-                                        .foregroundStyle(.white)
-                                        .background(Circle().fill(.black.opacity(0.5)))
+                                Button {
+                                    showPhotoSourceAlert = true
+                                } label: {
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Circle().fill(.black.opacity(0.6)))
+                                        .padding(8)
                                 }
                             }
                             .padding(.horizontal, 16)
                             .padding(.bottom, 16)
                         }
                     } else {
-                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Button {
+                            showPhotoSourceAlert = true
+                        } label: {
                             VStack {
                                 Image(systemName: "photo")
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(maxWidth: 150, maxHeight: 150)
                                     .foregroundStyle(.secondary)
-                                Text("Add a photo of your home")
+                                Text("Tap to add a photo")
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
@@ -118,28 +136,32 @@ struct DashboardView: View {
                         .foregroundStyle(.secondary)
                     
                     LazyVGrid(columns: columns, spacing: 16) {
-                        StatCard(label: "Number of items", value: "\(items.count)")
-                        StatCard(label: "Replacement cost", value: CurrencyFormatter.format(totalReplacementCost))
+                        StatCard(label: "Number of Items", value: "\(items.count)")
+                        StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
                     }
                 }
                 .padding(.horizontal)
                 
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Items per Location")
+                    Text("Location Statistics")
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
-                    // Restored horizontal scroll view for locations
                     ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 16) {
+                        LazyHGrid(rows: [locationRow], spacing: 16) {
                             ForEach(locations) { location in
-                                NavigationLink(value: location) {
+                                NavigationLink(value: Router.Destination.inventoryListView(location: location)) {
                                     LocationItemCard(location: location)
+                                        .frame(width: 160)
+                                        .background(RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color(.secondarySystemGroupedBackground))
+                                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                             }
                         }
+                        .scrollTargetLayout()
                         .padding(.horizontal)
-                        .scrollTargetBehavior(.viewAligned)
                     }
                     .scrollTargetBehavior(.viewAligned)
                 }
@@ -148,12 +170,44 @@ struct DashboardView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
-        .onChange(of: selectedPhoto, loadPhoto)
+        .onChange(of: selectedPhoto) { oldValue, newValue in
+            Task {
+                if let photo = newValue {
+                    await loadPhoto(from: photo)
+                    selectedPhoto = nil
+                }
+            }
+        }
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if home.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    home.data = nil
+                }
+            }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraView { image, needsAIAnalysis, completion in
+                if let imageData = image.jpegData(compressionQuality: 0.8) {
+                    home.data = imageData
+                }
+                completion()
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
     }
     
-    private func loadPhoto() {
-        Task {
-            await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: home)
+    private func loadPhoto(from item: PhotosPickerItem) async {
+        if let data = try? await item.loadTransferable(type: Data.self) {
+            await MainActor.run {
+                home.data = data  
+                try? modelContext.save()
+            }
         }
     }
 }

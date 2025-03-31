@@ -11,6 +11,7 @@ import SwiftUI
 
 struct EditInventoryItemView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
@@ -25,16 +26,40 @@ struct EditInventoryItemView: View {
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
-    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var showPhotoSourceAlert = false
+    @State private var showPhotoPicker = false
     @State private var showingClearAllAlert = false
-    @State private var isLoadingOpenAiResults: Bool = false
+    @State private var isLoadingOpenAiResults = false
+    @State private var isEditing: Bool
     @StateObject private var settings = SettingsManager()
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var showingCamera = false
+    @State private var selectedPhoto: PhotosPickerItem? = nil
     
+    @State private var showAIButton = false
+    @State private var showUnsavedChangesAlert = false
+    @State private var showAIConfirmationAlert = false
+
     var showSparklesButton = false
 
+    init(inventoryItemToDisplay: InventoryItem, navigationPath: Binding<NavigationPath>, showSparklesButton: Bool = false, isEditing: Bool = false) {
+        self.inventoryItemToDisplay = inventoryItemToDisplay
+        self._navigationPath = navigationPath
+        self.showSparklesButton = showSparklesButton
+        self._isEditing = State(initialValue: isEditing)
+    }
+
+    @FocusState private var focusedField: Field?
+    
+    private enum Field {
+        case title
+        case serial
+        case make
+        case model
+        case description
+        case notes
+    }
 
     var body: some View {
         Form {
@@ -45,31 +70,64 @@ struct EditInventoryItemView: View {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .clipped()
-                            .listRowInsets(EdgeInsets())
+                            .overlay(alignment: .bottomTrailing) {
+                                if isEditing {
+                                    Button(action: {
+                                        showPhotoSourceAlert = true
+                                    }) {
+                                        Image(systemName: "photo")
+                                            .font(.title2)
+                                            .foregroundColor(.white)
+                                            .padding(8)
+                                            .background(Circle().fill(.black.opacity(0.6)))
+                                            .padding(8)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                     } else {
-                        VStack {
-                            Image(systemName: "photo")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: 150, maxHeight: 150)
+                        if isEditing {
+                            Button(action: {
+                                showPhotoSourceAlert = true
+                            }) {
+                                VStack {
+                                    Image(systemName: "photo")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(maxWidth: 150, maxHeight: 150)
+                                        .foregroundStyle(.secondary)
+                                    Text("Tap to add a photo")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: UIScreen.main.bounds.height / 3)
                                 .foregroundStyle(.secondary)
-                            Text("Add a photo to get started")
+                            }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                        } else {
+                            VStack {
+                                Image(systemName: "photo")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 150, maxHeight: 150)
+                                    .foregroundStyle(.secondary)
+                                Text("No photo available")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .foregroundStyle(.secondary)
                     }
                 }
                 .listRowInsets(EdgeInsets())
             }
-            .listSectionSpacing(16)
             
-            // Add "Analyze with AI" button here if analysis has not happened yet and there is a photo
-            Section {
-                if inventoryItemToDisplay.hasUsedAI == false && (inventoryItemToDisplay.photo != nil) {
+            // Only show AI analysis button when editing and AI hasn't been used
+            if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
+                Section {
                     HStack(spacing: 16) {
                         Button(action: {
                             Task {
@@ -91,190 +149,233 @@ struct EditInventoryItemView: View {
                                 }
                             }
                         }) {
-                            Label("Analyze with AI", systemImage: "sparkles")
-                                .frame(maxWidth: .infinity, minHeight: 40)
+                            if isLoadingOpenAiResults {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, minHeight: 40)
+                            } else {
+                                Label("Analyze with AI", systemImage: "sparkles")
+                                    .frame(maxWidth: .infinity, minHeight: 40)
+                            }
                         }
                         .buttonStyle(.bordered)
+                        .scaleEffect(showAIButton ? 1 : 0.8)
+                        .opacity(showAIButton ? 1 : 0)
                     }
                     .listRowBackground(Color.clear)
                     .background(Color.clear)
                     .listRowInsets(EdgeInsets())
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showAIButton = true
+                            }
+                        }
+                    }
+                    .onDisappear {
+                        showAIButton = false
+                    }
                 }
+                .listSectionSpacing(16)
+                .transition(.asymmetric(
+                    insertion: .opacity,
+                    removal: .scale.combined(with: .opacity)
+                ))
             }
-            .listSectionSpacing(16)
             
-            Section {
-                HStack(spacing: 16) {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        HStack {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.title)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Button {
-                        showingCamera = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "camera")
-                                .font(.title)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .listRowBackground(Color.clear)
-                .background(Color.clear)
-                .listRowInsets(EdgeInsets())
-            }
-
             Section("Details") {
-                FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
-                FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
-                FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
-                FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
+                if isEditing || !inventoryItemToDisplay.title.isEmpty {
+                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
+                        .focused($focusedField, equals: .title)
+                        .disabled(!isEditing)
+                }
+                if isEditing || !inventoryItemToDisplay.serial.isEmpty {
+                    FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
+                        .focused($focusedField, equals: .serial)
+                        .disabled(!isEditing)
+                }
+                if isEditing || !inventoryItemToDisplay.make.isEmpty {
+                    FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
+                        .focused($focusedField, equals: .make)
+                        .disabled(!isEditing)
+                }
+                if isEditing || !inventoryItemToDisplay.model.isEmpty {
+                    FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
+                        .focused($focusedField, equals: .model)
+                        .disabled(!isEditing)
+                }
             }
-            Section("Quantity") {
-                Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
+            if isEditing || inventoryItemToDisplay.quantityInt > 1 {
+                Section("Quantity") {
+                    Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
+                        .disabled(!isEditing)
+                }
             }
-            Section("Description") {
-                TextEditor(text: $inventoryItemToDisplay.desc)
-                    .lineLimit(5)
+            if isEditing || !inventoryItemToDisplay.desc.isEmpty {
+                Section("Description") {
+                    TextEditor(text: $inventoryItemToDisplay.desc)
+                        .focused($focusedField, equals: .description)
+                        .frame(height: 60)
+                        .disabled(!isEditing)
+                }
             }
             Section("Purchase Price") {
                 PriceFieldRow(priceString: $priceString, priceDecimal: $inventoryItemToDisplay.price)
+                    .disabled(!isEditing)
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
+                .disabled(!isEditing)
             }
-            Section {
-                Picker("Label", selection: $inventoryItemToDisplay.label) {
-                    Text("None")
-                        .tag(Optional<InventoryLabel>.none)
-                    
-                    if labels.isEmpty == false {
-                        Divider()
-                        ForEach(labels) { label in
-                            Text(label.name)
-                                .tag(Optional(label))
+            if isEditing || inventoryItemToDisplay.label != nil {
+                Section {
+                    Picker("Label", selection: $inventoryItemToDisplay.label) {
+                        Text("None")
+                            .tag(Optional<InventoryLabel>.none)
+                        
+                        if labels.isEmpty == false {
+                            Divider()
+                            ForEach(labels) { label in
+                                Text(label.name)
+                                    .tag(Optional(label))
+                            }
                         }
                     }
+                    .disabled(!isEditing)
                     
-                }
-                Button("Add a new Label", action: addLabel)
-            }
-            Section {
-                Picker("Location", selection: $inventoryItemToDisplay.location) {
-                    Text("None")
-                        .tag(Optional<InventoryLocation>.none)
-                    
-                    if locations.isEmpty == false {
-                        Divider()
-                        ForEach(locations) { location in
-                            Text(location.name)
-                                .tag(Optional(location))
-                        }
+                    if isEditing {
+                        Button("Add a new Label", action: addLabel)
                     }
                 }
-                Button("Add a new Location", action: addLocation)
             }
-            Section("Notes") {
-                TextEditor(text: $inventoryItemToDisplay.notes)
-                    .lineLimit(5)
-            }
-            Section {
-                Button("Clear All Fields") {
-                    showingClearAllAlert = true
+            if isEditing || inventoryItemToDisplay.location != nil {
+                Section {
+                    Picker("Location", selection: $inventoryItemToDisplay.location) {
+                        Text("None")
+                            .tag(Optional<InventoryLocation>.none)
+                        
+                        if locations.isEmpty == false {
+                            Divider()
+                            ForEach(locations) { location in
+                                Text(location.name)
+                                    .tag(Optional(location))
+                            }
+                        }
+                    }
+                    .disabled(!isEditing)
+                    
+                    if isEditing {
+                        Button("Add a new Location", action: addLocation)
+                    }
                 }
             }
-            .alert("Are you sure?", isPresented: $showingClearAllAlert) {
-                Button("Clear All Fields", role: .destructive) { clearFields() }
-                Button("Cancel", role: .cancel) { }
+            if isEditing || !inventoryItemToDisplay.notes.isEmpty {
+                Section("Notes") {
+                    TextEditor(text: $inventoryItemToDisplay.notes)
+                        .focused($focusedField, equals: .notes)
+                        .frame(height: 100)
+                        .disabled(!isEditing)
+                }
             }
+            if isEditing {
+                Section {
+                    Button("Clear All Fields") {
+                        showingClearAllAlert = true
+                    }
+                }
+            }
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .onTapGesture {
+            focusedField = nil
+        }
+        .submitLabel(.done)
+        .onSubmit {
+            focusedField = nil
         }
         .navigationTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto, loadPhoto)
+        .navigationBarBackButtonHidden(isEditing)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if isEditing {
+                    Button("Back") {
+                        if modelContext.hasChanges {
+                            showUnsavedChangesAlert = true
+                        } else {
+                            isEditing = false
+                            dismiss()
+                        }
+                    }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if inventoryItemToDisplay.hasUsedAI {
-                    if showSparklesButton  {
+                    if showSparklesButton && isEditing {
                         Button(action: {
-                            Task {
-                                do {
-                                    let imageDetails = try await callOpenAI()
-                                    updateUIWithImageDetails(imageDetails)
-                                } catch let error as OpenAIError {
-                                    errorMessage = error.userFriendlyMessage
-                                    showingErrorAlert = true
-                                } catch {
-                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                    showingErrorAlert = true
-                                }
-                            }
+                            showAIConfirmationAlert = true
                         }) {
                             Image(systemName: "sparkles")
                         }
                         .disabled(isLoadingOpenAiResults)
                     }
-                } else {
-                    EmptyView()
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                if isLoadingOpenAiResults {
+                if isLoadingOpenAiResults && !showAIButton {
                     ProgressView()
                 } else {
-                    Button("Save") {
-                        if inventoryItemToDisplay.modelContext == nil {
-                            modelContext.insert(inventoryItemToDisplay)
+                    if isEditing {
+                        Button("Save") {
+                            if inventoryItemToDisplay.modelContext == nil {
+                                modelContext.insert(inventoryItemToDisplay)
+                            }
+                            try? modelContext.save()
+                            isEditing = false
                         }
-                        try? modelContext.save()
-                        navigationPath.removeLast()
+                        .fontWeight(.bold)
+                        .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+                    } else {
+                        Button("Edit") {
+                            isEditing = true
+                        }
                     }
-                    .fontWeight(.bold)
-                    .disabled(inventoryItemToDisplay.title.isEmpty)
+                }
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .onChange(of: selectedPhoto) { oldValue, newValue in
+            Task {
+                if let photo = newValue {
+                    await loadPhoto(from: photo)
+                    // Clear the selection after processing
+                    selectedPhoto = nil
                 }
             }
         }
         .sheet(isPresented: $showingCamera) {
-            CameraView { image, needsAnalysis, completion in
-                let imageEncoder = ImageEncoder(image: image)
-                if let optimizedImage = imageEncoder.optimizeImage(),
-                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
-                    inventoryItemToDisplay.data = imageData
-                    try? modelContext.save()
-                    
-                    if needsAnalysis {
-                        Task {
-                            print("Starting AI image analysis after CameraView in EditInventoryView")
-                            do {
-                                let imageDetails = try await callOpenAI()
-                                print("Finishing AI image analysis after CameraView in EditInventoryView")
-                                await MainActor.run {
-                                    updateUIWithImageDetails(imageDetails)
-                                    print("Finished updating image with details in EditInventoryView, calling completion handler")
-                                    completion()
-                                }
-                            } catch let error as OpenAIError {
-                                await MainActor.run {
-                                    errorMessage = error.userFriendlyMessage
-                                    showingErrorAlert = true
-                                    completion()
-                                }
-                            } catch {
-                                await MainActor.run {
-                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                    showingErrorAlert = true
-                                    completion()
-                                }
-                            }
-                        }
-                    } else {
+            CameraView { image, needsAIAnalysis, completion in
+                if let originalData = image.jpegData(compressionQuality: 1.0) {  // Save at full quality
+                    Task { @MainActor in
+                        inventoryItemToDisplay.data = originalData
+                        inventoryItemToDisplay.hasUsedAI = false
+                        try? modelContext.save()
                         completion()
                     }
+                } else {
+                    completion()
+                }
+            }
+        }
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showingCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if inventoryItemToDisplay.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    inventoryItemToDisplay.data = nil
                 }
             }
         }
@@ -282,6 +383,59 @@ struct EditInventoryItemView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
+        }
+        .alert("Are you sure?", isPresented: $showingClearAllAlert) {
+            Button("Clear All Fields", role: .destructive) { clearFields() }
+            Button("Cancel", role: .cancel) { }
+        }
+        .alert("Unsaved Changes", isPresented: $showUnsavedChangesAlert) {
+            Button("Save & Go Back", role: .none) {
+                try? modelContext.save()
+                isEditing = false
+                dismiss()
+            }
+            
+            Button("Discard Changes", role: .destructive) {
+                modelContext.rollback()
+                isEditing = false
+                dismiss()
+            }
+            
+            Button("Cancel", role: .cancel) {
+                showUnsavedChangesAlert = false
+            }
+        } message: {
+            Text("Do you want to save your changes before going back?")
+        }
+        .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
+            Button("Analyze Image", role: .none) {
+                Task {
+                    do {
+                        let imageDetails = try await callOpenAI()
+                        updateUIWithImageDetails(imageDetails)
+                    } catch let error as OpenAIError {
+                        errorMessage = error.userFriendlyMessage
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                        showingErrorAlert = true
+                    }
+                }
+            }
+            
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
+        }
+    }
+    
+    private func loadPhoto(from item: PhotosPickerItem) async {
+        if let data = try? await item.loadTransferable(type: Data.self) {
+            await MainActor.run {
+                inventoryItemToDisplay.data = data  // Save original data directly
+                inventoryItemToDisplay.hasUsedAI = false
+                try? modelContext.save()
+            }
         }
     }
     
@@ -294,8 +448,7 @@ struct EditInventoryItemView: View {
             throw OpenAIError.invalidData
         }
         
-        let imageEncoder = ImageEncoder(image: photo)
-        guard let imageBase64 = imageEncoder.encodeImageToBase64() else {
+        guard let imageBase64 = PhotoManager.loadCompressedPhotoForAI(from: photo) else {
             print("❌ Failed to encode image to base64")
             throw OpenAIError.invalidData
         }
@@ -314,18 +467,26 @@ struct EditInventoryItemView: View {
         }
         
         // Update properties
-        inventoryItemToDisplay.title = imageDetails.title
-        inventoryItemToDisplay.quantityString = imageDetails.quantity
-        inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
-        inventoryItemToDisplay.desc = imageDetails.description
-        inventoryItemToDisplay.make = imageDetails.make
-        inventoryItemToDisplay.model = imageDetails.model
-        inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
-        inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
-        
-        // Convert price string to Decimal
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            inventoryItemToDisplay.title = imageDetails.title
+            inventoryItemToDisplay.quantityString = imageDetails.quantity
+            inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
+            inventoryItemToDisplay.desc = imageDetails.description
+            inventoryItemToDisplay.make = imageDetails.make
+            inventoryItemToDisplay.model = imageDetails.model
+            inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
+            
+            // Convert price string to Decimal
+            let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+            
+            // Delay setting hasUsedAI to allow animation to complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation {
+                    inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
+                }
+            }
+        }
         
         // Explicitly save changes
         try? modelContext.save()
@@ -362,22 +523,13 @@ struct EditInventoryItemView: View {
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
     }
-    
-    private func loadPhoto() {
-        Task {
-            await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: inventoryItemToDisplay)
-            try? modelContext.save()
-            TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
-        }
-    }
 }
-
 
 #Preview {
     do {
         let previewer = try Previewer()
         
-        return EditInventoryItemView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()))
+        return EditInventoryItemView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()), isEditing: true)
             .modelContainer(previewer.container)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")

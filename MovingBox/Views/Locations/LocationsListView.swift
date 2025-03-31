@@ -10,6 +10,7 @@ import SwiftData
 
 struct LocationsListView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
@@ -17,11 +18,16 @@ struct LocationsListView: View {
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
     
-    // Add grid layout configuration
-    private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
+    // CHANGE: Make grid layout adaptive
+    private var columns: [GridItem] {
+        // Card width + padding on each side
+        let minimumCardWidth: CGFloat = 160
+        
+        // Use more columns on larger devices
+        let columnCount = horizontalSizeClass == .regular ? 4 : 2
+        
+        return Array(repeating: GridItem(.adaptive(minimum: minimumCardWidth), spacing: 16), count: columnCount)
+    }
     
     var body: some View {
         ScrollView {
@@ -36,6 +42,7 @@ struct LocationsListView: View {
                     ForEach(locations) { location in
                         NavigationLink(value: location) {
                             LocationItemCard(location: location)
+                                .frame(minWidth: 160, maxWidth: .infinity)
                                 .background(RoundedRectangle(cornerRadius: 12)
                                 .fill(Color(.secondarySystemGroupedBackground))
                                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
@@ -66,7 +73,6 @@ struct LocationsListView: View {
     func addLocation() {
         router.navigate(to: .editLocationView(location: nil))
     }
-    
 }
 
 #Preview {
