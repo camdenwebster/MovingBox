@@ -74,9 +74,9 @@ struct EditInventoryItemView: View {
                             .clipped()
                             .overlay(alignment: .bottomTrailing) {
                                 if isEditing {
-                                    Button {
+                                    Button(action: {
                                         showPhotoSourceAlert = true
-                                    } label: {
+                                    }) {
                                         Image(systemName: "photo")
                                             .font(.title2)
                                             .foregroundColor(.white)
@@ -84,13 +84,14 @@ struct EditInventoryItemView: View {
                                             .background(Circle().fill(.black.opacity(0.6)))
                                             .padding(8)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                     } else {
                         if isEditing {
-                            Button {
+                            Button(action: {
                                 showPhotoSourceAlert = true
-                            } label: {
+                            }) {
                                 VStack {
                                     Image(systemName: "photo")
                                         .resizable()
@@ -98,11 +99,13 @@ struct EditInventoryItemView: View {
                                         .frame(maxWidth: 150, maxHeight: 150)
                                         .foregroundStyle(.secondary)
                                     Text("Tap to add a photo")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: UIScreen.main.bounds.height / 3)
-                                    .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: UIScreen.main.bounds.height / 3)
+                                .foregroundStyle(.secondary)
                             }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
                         } else {
                             VStack {
                                 Image(systemName: "photo")
@@ -338,6 +341,19 @@ struct EditInventoryItemView: View {
                 }
             }
         }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .sheet(isPresented: $showingCamera) {
+            CameraView { image, needsAIAnalysis, completion in
+                let imageEncoder = ImageEncoder(image: image)
+                if let optimizedImage = imageEncoder.optimizeImage(),
+                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
+                    inventoryItemToDisplay.data = imageData
+                    inventoryItemToDisplay.hasUsedAI = false
+                    try? modelContext.save()
+                }
+                completion()
+            }
+        }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showingCamera = true
@@ -351,29 +367,19 @@ struct EditInventoryItemView: View {
                 }
             }
         }
-        .onChange(of: selectedPhoto) {
+        .onChange(of: selectedPhoto) { oldValue, newValue in
             Task {
-                await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: inventoryItemToDisplay)
-                await MainActor.run {
-                    inventoryItemToDisplay.hasUsedAI = false
+                if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                    if let uiImage = UIImage(data: data) {
+                        await MainActor.run {
+                            inventoryItemToDisplay.data = data
+                            inventoryItemToDisplay.hasUsedAI = false
+                            try? modelContext.save()
+                        }
+                    }
                 }
-                try? modelContext.save()
-                TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
             }
         }
-        .sheet(isPresented: $showingCamera) {
-            CameraView { image, needsAIAnalysis, completion in
-                let imageEncoder = ImageEncoder(image: image)
-                if let optimizedImage = imageEncoder.optimizeImage(),
-                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
-                    inventoryItemToDisplay.data = imageData
-                    inventoryItemToDisplay.hasUsedAI = false
-                    try? modelContext.save()
-                }
-                completion()
-            }
-        }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
         } message: {
