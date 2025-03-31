@@ -49,6 +49,17 @@ struct EditInventoryItemView: View {
         self._isEditing = State(initialValue: isEditing)
     }
 
+    @FocusState private var focusedField: Field?
+    
+    private enum Field {
+        case title
+        case serial
+        case make
+        case model
+        case description
+        case notes
+    }
+
     var body: some View {
         Form {
             // Photo banner section
@@ -134,8 +145,13 @@ struct EditInventoryItemView: View {
                                 }
                             }
                         }) {
-                            Label("Analyze with AI", systemImage: "sparkles")
-                                .frame(maxWidth: .infinity, minHeight: 40)
+                            if isLoadingOpenAiResults {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, minHeight: 40)
+                            } else {
+                                Label("Analyze with AI", systemImage: "sparkles")
+                                    .frame(maxWidth: .infinity, minHeight: 40)
+                            }
                         }
                         .buttonStyle(.bordered)
                         .scaleEffect(showAIButton ? 1 : 0.8)
@@ -165,18 +181,22 @@ struct EditInventoryItemView: View {
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
                     FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
+                        .focused($focusedField, equals: .title)
                         .disabled(!isEditing)
                 }
                 if isEditing || !inventoryItemToDisplay.serial.isEmpty {
                     FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
+                        .focused($focusedField, equals: .serial)
                         .disabled(!isEditing)
                 }
                 if isEditing || !inventoryItemToDisplay.make.isEmpty {
                     FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
+                        .focused($focusedField, equals: .make)
                         .disabled(!isEditing)
                 }
                 if isEditing || !inventoryItemToDisplay.model.isEmpty {
                     FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
+                        .focused($focusedField, equals: .model)
                         .disabled(!isEditing)
                 }
             }
@@ -189,6 +209,7 @@ struct EditInventoryItemView: View {
             if isEditing || !inventoryItemToDisplay.desc.isEmpty {
                 Section("Description") {
                     TextEditor(text: $inventoryItemToDisplay.desc)
+                        .focused($focusedField, equals: .description)
                         .frame(height: 60)
                         .disabled(!isEditing)
                 }
@@ -246,6 +267,7 @@ struct EditInventoryItemView: View {
             if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                 Section("Notes") {
                     TextEditor(text: $inventoryItemToDisplay.notes)
+                        .focused($focusedField, equals: .notes)
                         .frame(height: 100)
                         .disabled(!isEditing)
                 }
@@ -257,6 +279,14 @@ struct EditInventoryItemView: View {
                     }
                 }
             }
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .onTapGesture {
+            focusedField = nil
+        }
+        .submitLabel(.done)
+        .onSubmit {
+            focusedField = nil
         }
         .navigationTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -287,7 +317,7 @@ struct EditInventoryItemView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                if isLoadingOpenAiResults {
+                if isLoadingOpenAiResults && !showAIButton {
                     ProgressView()
                 } else {
                     if isEditing {
@@ -299,7 +329,7 @@ struct EditInventoryItemView: View {
                             isEditing = false
                         }
                         .fontWeight(.bold)
-                        .disabled(inventoryItemToDisplay.title.isEmpty)
+                        .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
                     } else {
                         Button("Edit") {
                             isEditing = true
