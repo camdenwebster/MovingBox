@@ -36,6 +36,7 @@ struct EditInventoryItemView: View {
     @State private var errorMessage = ""
     @State private var showingCamera = false
     @State private var selectedPhoto: PhotosPickerItem? = nil
+    
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
@@ -342,16 +343,27 @@ struct EditInventoryItemView: View {
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .onChange(of: selectedPhoto) { oldValue, newValue in
+            Task {
+                if let photo = newValue {
+                    await loadPhoto(from: photo)
+                    // Clear the selection after processing
+                    selectedPhoto = nil
+                }
+            }
+        }
         .sheet(isPresented: $showingCamera) {
             CameraView { image, needsAIAnalysis, completion in
-                let imageEncoder = ImageEncoder(image: image)
-                if let optimizedImage = imageEncoder.optimizeImage(),
-                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
-                    inventoryItemToDisplay.data = imageData
-                    inventoryItemToDisplay.hasUsedAI = false
-                    try? modelContext.save()
+                if let originalData = image.jpegData(compressionQuality: 1.0) {  // Save at full quality
+                    Task { @MainActor in
+                        inventoryItemToDisplay.data = originalData
+                        inventoryItemToDisplay.hasUsedAI = false
+                        try? modelContext.save()
+                        completion()
+                    }
+                } else {
+                    completion()
                 }
-                completion()
             }
         }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
@@ -364,19 +376,6 @@ struct EditInventoryItemView: View {
             if inventoryItemToDisplay.photo != nil {
                 Button("Remove Photo", role: .destructive) {
                     inventoryItemToDisplay.data = nil
-                }
-            }
-        }
-        .onChange(of: selectedPhoto) { oldValue, newValue in
-            Task {
-                if let data = try? await newValue?.loadTransferable(type: Data.self) {
-                    if let uiImage = UIImage(data: data) {
-                        await MainActor.run {
-                            inventoryItemToDisplay.data = data
-                            inventoryItemToDisplay.hasUsedAI = false
-                            try? modelContext.save()
-                        }
-                    }
                 }
             }
         }
@@ -430,6 +429,16 @@ struct EditInventoryItemView: View {
         }
     }
     
+    private func loadPhoto(from item: PhotosPickerItem) async {
+        if let data = try? await item.loadTransferable(type: Data.self) {
+            await MainActor.run {
+                inventoryItemToDisplay.data = data  // Save original data directly
+                inventoryItemToDisplay.hasUsedAI = false
+                try? modelContext.save()
+            }
+        }
+    }
+    
     func callOpenAI() async throws -> ImageDetails {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
@@ -439,8 +448,7 @@ struct EditInventoryItemView: View {
             throw OpenAIError.invalidData
         }
         
-        let imageEncoder = ImageEncoder(image: photo)
-        guard let imageBase64 = imageEncoder.encodeImageToBase64() else {
+        guard let imageBase64 = PhotoManager.loadCompressedPhotoForAI(from: photo) else {
             print("❌ Failed to encode image to base64")
             throw OpenAIError.invalidData
         }

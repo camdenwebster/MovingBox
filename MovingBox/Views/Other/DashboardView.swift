@@ -31,18 +31,25 @@ struct StatCard: View {
 }
 
 struct DashboardView: View {
+    @Environment(\.modelContext) var modelContext
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
     @Query private var items: [InventoryItem]
     @Query private var homes: [Home]
-    private var home: Home { homes.first ?? Home() }
+    private var home: Home {
+        if let existingHome = homes.first {
+            return existingHome
+        }
+        let newHome = Home()
+        modelContext.insert(newHome)
+        return newHome
+    }
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     
-    // ADD: New state properties after existing @State properties
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
@@ -51,7 +58,6 @@ struct DashboardView: View {
         items.reduce(0, { $0 + $1.price })
     }
 
-    // Keep columns for stats cards only
     private let columns = [
         GridItem(.flexible()),
         GridItem(.flexible())
@@ -106,7 +112,6 @@ struct DashboardView: View {
                             .padding(.bottom, 16)
                         }
                     } else {
-                        // CHANGE: Replace PhotosPicker with Button
                         Button {
                             showPhotoSourceAlert = true
                         } label: {
@@ -165,7 +170,14 @@ struct DashboardView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
-        .onChange(of: selectedPhoto, loadPhoto)
+        .onChange(of: selectedPhoto) { oldValue, newValue in
+            Task {
+                if let photo = newValue {
+                    await loadPhoto(from: photo)
+                    selectedPhoto = nil
+                }
+            }
+        }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showCamera = true
@@ -190,9 +202,12 @@ struct DashboardView: View {
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
     }
     
-    private func loadPhoto() {
-        Task {
-            await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: home)
+    private func loadPhoto(from item: PhotosPickerItem) async {
+        if let data = try? await item.loadTransferable(type: Data.self) {
+            await MainActor.run {
+                home.data = data  
+                try? modelContext.save()
+            }
         }
     }
 }

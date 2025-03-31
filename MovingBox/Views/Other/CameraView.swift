@@ -18,12 +18,16 @@ struct CameraView: View {
         Group {
             if showingPhotoReview, let image = capturedImage {
                 PhotoReviewView(image: image, onAccept: { acceptedImage, needsAnalysis, completion in
-                    onPhotoCapture?(acceptedImage, needsAnalysis, completion)
-                    print("Calling completion handler for camera view and dismissing sheet in CameraView")
+                    onPhotoCapture?(acceptedImage, needsAnalysis) {
+                        // Clear references before completing
+                        self.capturedImage = nil
+                        completion()
+                        dismiss()
+                    }
                 }, onRetake: {
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        showingPhotoReview = false
                         capturedImage = nil
+                        showingPhotoReview = false
                     }
                 })
                 .transition(.asymmetric(
@@ -108,6 +112,10 @@ struct CameraView: View {
                 }
             }
         }
+        .onDisappear {
+            // Clean up resources
+            capturedImage = nil
+        }
     }
     
     private func openSettings() {
@@ -163,6 +171,7 @@ class CameraController: NSObject, ObservableObject {
     private var currentCamera: AVCaptureDevice?
     private var photoOutput: AVCapturePhotoOutput?
     private var completionHandler: ((UIImage?) -> Void)?
+    private var isConfigured = false
     
     var previewLayer: AVCaptureVideoPreviewLayer?
     
@@ -177,61 +186,20 @@ class CameraController: NSObject, ObservableObject {
         #endif
     }
     
-    #if targetEnvironment(simulator)
-    private func setupSimulatorPreview() {
-        print("[Camera Simulator] Setting up simulator preview")
-        let simulatedSession = AVCaptureSession()
-        let previewLayer = AVCaptureVideoPreviewLayer(session: simulatedSession)
-        
-        // Create a simple colored background
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data("Test Image".utf8)
-        
-        if let outputImage = filter.outputImage,
-           let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
-            let testImage = UIImage(cgImage: cgImage)
-            
-            // Create a CALayer with the test image
-            let imageLayer = CALayer()
-            imageLayer.contents = testImage.cgImage
-            imageLayer.contentsGravity = .resizeAspectFill
-            imageLayer.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
-            
-            // Add the image layer to the preview layer
-            previewLayer.addSublayer(imageLayer)
-        }
-        
-        self.previewLayer = previewLayer
-        self.isSessionReady = true
+    deinit {
+        stopSession()
     }
     
-    private func createTestImage() -> UIImage? {
-        // Create a solid color image for testing
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400))
-        let testImage = renderer.image { context in
-            UIColor.systemBlue.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
-            
-            // Add some text
-            let text = "Camera Simulator"
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 24),
-                .foregroundColor: UIColor.white
-            ]
-            let textSize = text.size(withAttributes: attributes)
-            let textRect = CGRect(
-                x: (400 - textSize.width) / 2,
-                y: (400 - textSize.height) / 2,
-                width: textSize.width,
-                height: textSize.height
-            )
-            text.draw(in: textRect, withAttributes: attributes)
-        }
-        return testImage
+    private func stopSession() {
+        captureSession?.stopRunning()
+        captureSession = nil
+        photoOutput = nil
+        previewLayer = nil
+        frontCamera = nil
+        backCamera = nil
+        currentCamera = nil
     }
-    #endif
-    
+
     func checkPermissions(completion: @escaping (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
@@ -352,11 +320,9 @@ class CameraController: NSObject, ObservableObject {
         self.completionHandler = completion
         
         #if targetEnvironment(simulator)
-        // Return a test image in simulator
         if let image = UIImage(named: "bicycle") {
             completion(image)
         } else {
-            print("❌ Could not load camera image")
             completion(createTestImage())
         }
         #else
@@ -368,12 +334,70 @@ class CameraController: NSObject, ObservableObject {
 
 extension CameraController: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        guard let imageData = photo.fileDataRepresentation(),
-              let image = UIImage(data: imageData) else {
-            completionHandler?(nil)
-            return
+        autoreleasepool {
+            guard let imageData = photo.fileDataRepresentation(),
+                  let image = UIImage(data: imageData) else {
+                completionHandler?(nil)
+                return
+            }
+            
+            completionHandler?(image)
+            completionHandler = nil  // Clear the reference
         }
-        
-        completionHandler?(image)
     }
 }
+
+#if targetEnvironment(simulator)
+private func setupSimulatorPreview() {
+    print("[Camera Simulator] Setting up simulator preview")
+    let simulatedSession = AVCaptureSession()
+    let previewLayer = AVCaptureVideoPreviewLayer(session: simulatedSession)
+    
+    // Create a simple colored background
+    let context = CIContext()
+    let filter = CIFilter.qrCodeGenerator()
+    filter.message = Data("Test Image".utf8)
+    
+    if let outputImage = filter.outputImage,
+       let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
+        let testImage = UIImage(cgImage: cgImage)
+        
+        // Create a CALayer with the test image
+        let imageLayer = CALayer()
+        imageLayer.contents = testImage.cgImage
+        imageLayer.contentsGravity = .resizeAspectFill
+        imageLayer.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
+        
+        // Add the image layer to the preview layer
+        previewLayer.addSublayer(imageLayer)
+    }
+    
+    self.previewLayer = previewLayer
+    self.isSessionReady = true
+}
+
+private func createTestImage() -> UIImage? {
+    // Create a solid color image for testing
+    let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400))
+    let testImage = renderer.image { context in
+        UIColor.systemBlue.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+        
+        // Add some text
+        let text = "Camera Simulator"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 24),
+            .foregroundColor: UIColor.white
+        ]
+        let textSize = text.size(withAttributes: attributes)
+        let textRect = CGRect(
+            x: (400 - textSize.width) / 2,
+            y: (400 - textSize.height) / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+        text.draw(in: textRect, withAttributes: attributes)
+    }
+    return testImage
+}
+#endif
