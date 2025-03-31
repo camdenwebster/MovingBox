@@ -83,7 +83,7 @@ struct EditInventoryItemView: View {
                                         .aspectRatio(contentMode: .fit)
                                         .frame(maxWidth: 150, maxHeight: 150)
                                         .foregroundStyle(.secondary)
-                                    Text("Add a photo to get started")
+                                    Text("Tap to add a photo")
                                 }
                                 .frame(maxWidth: .infinity)
                                 .frame(height: UIScreen.main.bounds.height / 3)
@@ -186,7 +186,7 @@ struct EditInventoryItemView: View {
             if isEditing || !inventoryItemToDisplay.desc.isEmpty {
                 Section("Description") {
                     TextEditor(text: $inventoryItemToDisplay.desc)
-                        .lineLimit(5)
+                        .frame(height: 60)
                         .disabled(!isEditing)
                 }
             }
@@ -243,7 +243,7 @@ struct EditInventoryItemView: View {
             if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                 Section("Notes") {
                     TextEditor(text: $inventoryItemToDisplay.notes)
-                        .lineLimit(5)
+                        .frame(height: 100)
                         .disabled(!isEditing)
                 }
             }

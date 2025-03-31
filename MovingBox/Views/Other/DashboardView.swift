@@ -116,7 +116,7 @@ struct DashboardView: View {
                                     .aspectRatio(contentMode: .fit)
                                     .frame(maxWidth: 150, maxHeight: 150)
                                     .foregroundStyle(.secondary)
-                                Text("Add a photo of your home")
+                                Text("Tap to add a photo")
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
