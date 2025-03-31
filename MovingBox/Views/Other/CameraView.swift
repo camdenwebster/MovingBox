@@ -330,6 +330,61 @@ class CameraController: NSObject, ObservableObject {
         photoOutput?.capturePhoto(with: settings, delegate: self)
         #endif
     }
+    
+    #if targetEnvironment(simulator)
+    private func setupSimulatorPreview() {
+        print("[Camera Simulator] Setting up simulator preview")
+        let simulatedSession = AVCaptureSession()
+        let previewLayer = AVCaptureVideoPreviewLayer(session: simulatedSession)
+        
+        // Create a simple colored background
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data("Test Image".utf8)
+        
+        if let outputImage = filter.outputImage,
+           let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
+            let testImage = UIImage(cgImage: cgImage)
+            
+            // Create a CALayer with the test image
+            let imageLayer = CALayer()
+            imageLayer.contents = testImage.cgImage
+            imageLayer.contentsGravity = .resizeAspectFill
+            imageLayer.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
+            
+            // Add the image layer to the preview layer
+            previewLayer.addSublayer(imageLayer)
+        }
+        
+        self.previewLayer = previewLayer
+        self.isSessionReady = true
+    }
+    #endif
+
+    private func createTestImage() -> UIImage? {
+        // Create a solid color image for testing
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400))
+        let testImage = renderer.image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+            
+            // Add some text
+            let text = "Camera Simulator"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 24),
+                .foregroundColor: UIColor.white
+            ]
+            let textSize = text.size(withAttributes: attributes)
+            let textRect = CGRect(
+                x: (400 - textSize.width) / 2,
+                y: (400 - textSize.height) / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            text.draw(in: textRect, withAttributes: attributes)
+        }
+        return testImage
+    }
 }
 
 extension CameraController: AVCapturePhotoCaptureDelegate {
@@ -346,58 +401,3 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
         }
     }
 }
-
-#if targetEnvironment(simulator)
-private func setupSimulatorPreview() {
-    print("[Camera Simulator] Setting up simulator preview")
-    let simulatedSession = AVCaptureSession()
-    let previewLayer = AVCaptureVideoPreviewLayer(session: simulatedSession)
-    
-    // Create a simple colored background
-    let context = CIContext()
-    let filter = CIFilter.qrCodeGenerator()
-    filter.message = Data("Test Image".utf8)
-    
-    if let outputImage = filter.outputImage,
-       let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
-        let testImage = UIImage(cgImage: cgImage)
-        
-        // Create a CALayer with the test image
-        let imageLayer = CALayer()
-        imageLayer.contents = testImage.cgImage
-        imageLayer.contentsGravity = .resizeAspectFill
-        imageLayer.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
-        
-        // Add the image layer to the preview layer
-        previewLayer.addSublayer(imageLayer)
-    }
-    
-    self.previewLayer = previewLayer
-    self.isSessionReady = true
-}
-
-private func createTestImage() -> UIImage? {
-    // Create a solid color image for testing
-    let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400))
-    let testImage = renderer.image { context in
-        UIColor.systemBlue.setFill()
-        context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
-        
-        // Add some text
-        let text = "Camera Simulator"
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 24),
-            .foregroundColor: UIColor.white
-        ]
-        let textSize = text.size(withAttributes: attributes)
-        let textRect = CGRect(
-            x: (400 - textSize.width) / 2,
-            y: (400 - textSize.height) / 2,
-            width: textSize.width,
-            height: textSize.height
-        )
-        text.draw(in: textRect, withAttributes: attributes)
-    }
-    return testImage
-}
-#endif
