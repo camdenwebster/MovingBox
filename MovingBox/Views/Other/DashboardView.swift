@@ -42,6 +42,11 @@ struct DashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     
+    // ADD: New state properties after existing @State properties
+    @State private var showPhotoSourceAlert = false
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
+    
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + $1.price })
     }
@@ -85,10 +90,10 @@ struct DashboardView: View {
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
-                                
                                 Spacer()
-                                
-                                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                                Button {
+                                    showPhotoSourceAlert = true
+                                } label: {
                                     Image(systemName: "photo")
                                         .font(.title2)
                                         .foregroundColor(.white)
@@ -101,7 +106,10 @@ struct DashboardView: View {
                             .padding(.bottom, 16)
                         }
                     } else {
-                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        // CHANGE: Replace PhotosPicker with Button
+                        Button {
+                            showPhotoSourceAlert = true
+                        } label: {
                             VStack {
                                 Image(systemName: "photo")
                                     .resizable()
@@ -158,6 +166,29 @@ struct DashboardView: View {
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
         .onChange(of: selectedPhoto, loadPhoto)
+        // ADD: Photo selection modifiers
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if home.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    home.data = nil
+                }
+            }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraView { image, needsAIAnalysis, completion in
+                if let imageData = image.jpegData(compressionQuality: 0.8) {
+                    home.data = imageData
+                }
+                completion()
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
     }
     
     private func loadPhoto() {
