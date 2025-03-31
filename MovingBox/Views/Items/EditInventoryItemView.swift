@@ -35,7 +35,8 @@ struct EditInventoryItemView: View {
     @State private var errorMessage = ""
     @State private var showingCamera = false
     @State private var selectedPhoto: PhotosPickerItem? = nil
-    
+    @State private var showAIButton = false
+
     var showSparklesButton = false
 
     init(inventoryItemToDisplay: InventoryItem, navigationPath: Binding<NavigationPath>, showSparklesButton: Bool = false, isEditing: Bool = false) {
@@ -105,11 +106,10 @@ struct EditInventoryItemView: View {
                 }
                 .listRowInsets(EdgeInsets())
             }
-            .listSectionSpacing(16)
             
-            // Only show AI analysis button when editing
-            Section {
-                if isEditing && inventoryItemToDisplay.hasUsedAI == false && (inventoryItemToDisplay.photo != nil) {
+            // Only show AI analysis button when editing and AI hasn't been used
+            if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
+                Section {
                     HStack(spacing: 16) {
                         Button(action: {
                             Task {
@@ -135,13 +135,29 @@ struct EditInventoryItemView: View {
                                 .frame(maxWidth: .infinity, minHeight: 40)
                         }
                         .buttonStyle(.bordered)
+                        .scaleEffect(showAIButton ? 1 : 0.8)
+                        .opacity(showAIButton ? 1 : 0)
                     }
                     .listRowBackground(Color.clear)
                     .background(Color.clear)
                     .listRowInsets(EdgeInsets())
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showAIButton = true
+                            }
+                        }
+                    }
+                    .onDisappear {
+                        showAIButton = false
+                    }
                 }
+                .listSectionSpacing(16)
+                .transition(.asymmetric(
+                    insertion: .opacity,
+                    removal: .scale.combined(with: .opacity)
+                ))
             }
-            .listSectionSpacing(16)
             
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
@@ -354,18 +370,26 @@ struct EditInventoryItemView: View {
         }
         
         // Update properties
-        inventoryItemToDisplay.title = imageDetails.title
-        inventoryItemToDisplay.quantityString = imageDetails.quantity
-        inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
-        inventoryItemToDisplay.desc = imageDetails.description
-        inventoryItemToDisplay.make = imageDetails.make
-        inventoryItemToDisplay.model = imageDetails.model
-        inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
-        inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
-        
-        // Convert price string to Decimal
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            inventoryItemToDisplay.title = imageDetails.title
+            inventoryItemToDisplay.quantityString = imageDetails.quantity
+            inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
+            inventoryItemToDisplay.desc = imageDetails.description
+            inventoryItemToDisplay.make = imageDetails.make
+            inventoryItemToDisplay.model = imageDetails.model
+            inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
+            
+            // Convert price string to Decimal
+            let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+            
+            // Delay setting hasUsedAI to allow animation to complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation {
+                    inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
+                }
+            }
+        }
         
         // Explicitly save changes
         try? modelContext.save()
