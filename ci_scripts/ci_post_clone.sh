@@ -10,7 +10,7 @@ set -e
 
 # Define paths relative to the project root
 PROJECT_ROOT="$(dirname "$0")/.."
-CONFIG_DIR="$PROJECT_ROOT/Configuration"
+CONFIG_DIR="$PROJECT_ROOT/MovingBox/Configuration"
 OUTPUT_FILE="$CONFIG_DIR/Base.xcconfig"
 TEMPLATE_FILE="$CONFIG_DIR/Base.template.xcconfig"
 
