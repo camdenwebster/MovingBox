@@ -69,6 +69,7 @@ struct PhotoReviewView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 15))
                                     .foregroundColor(.red)
                                 }
+                                .accessibilityIdentifier("retakePhoto")
                                 
                                 Button(action: {
                                     guard let displayImage = localImage else { return }
@@ -91,6 +92,7 @@ struct PhotoReviewView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 15))
                                     .foregroundColor(.green)
                                 }
+                                .accessibilityIdentifier("usePhoto")
                             }
                             .padding(.bottom, 30)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -108,6 +110,7 @@ struct PhotoReviewView: View {
                         dismiss()
                     }
                     .foregroundStyle(.red)
+                    .accessibilityIdentifier("cancelPhotoReview")
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: isAnalyzing)

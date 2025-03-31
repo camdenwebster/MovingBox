@@ -24,7 +24,7 @@ struct InventoryListView: View {
         InventoryListSubView(location: location, searchString: searchText, sortOrder: sortOrder)
             .navigationTitle(location?.name ?? "All Items")
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
-                EditInventoryItemView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
+                InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
             .toolbar {
                 Menu("Sort", systemImage: "arrow.up.arrow.down") {
@@ -53,17 +53,20 @@ struct InventoryListView: View {
                               notes: "",
                               showInvalidQuantityAlert: false
                           )
-                          router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true, isEditing: true))
+                          router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
                       }) {
                           Label("Add Manually", systemImage: "square.and.pencil")
                       }
+                      .accessibilityIdentifier("createManually")
                       
                       Button(action: {
                           router.navigate(to: .addInventoryItemView(location: location))
                       }) {
                           Label("Add from Photo", systemImage: "camera")
                       }
+                      .accessibilityIdentifier("createFromCamera")
                   }
+                  .accessibilityIdentifier("addItem")
             }
             .searchable(text: $searchText)
     }

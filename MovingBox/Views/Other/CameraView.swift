@@ -58,6 +58,7 @@ struct CameraView: View {
                                     .foregroundColor(.white)
                             }
                             .padding()
+                            .accessibilityIdentifier("dismissCamera")
                             
                             Spacer()
                             
@@ -77,6 +78,7 @@ struct CameraView: View {
                                         .frame(width: 75, height: 75)
                                 }
                             }
+                            .accessibilityIdentifier("capturePhoto")
                             
                             Spacer()
                             
@@ -87,6 +89,7 @@ struct CameraView: View {
                                     .foregroundColor(.white)
                             }
                             .padding()
+                            .accessibilityIdentifier("switchCamera")
                         }
                         .padding(.bottom)
                     }

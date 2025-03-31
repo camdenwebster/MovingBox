@@ -9,7 +9,7 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
-struct EditInventoryItemView: View {
+struct InventoryDetailView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
@@ -86,6 +86,7 @@ struct EditInventoryItemView: View {
                                             .padding(8)
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityIdentifier("changePhoto")
                                 }
                             }
                     } else {
@@ -107,6 +108,7 @@ struct EditInventoryItemView: View {
                             }
                             .buttonStyle(.plain)
                             .contentShape(Rectangle())
+                            .accessibilityIdentifier("tapToAddPhoto")
                         } else {
                             VStack {
                                 Image(systemName: "photo")
@@ -158,6 +160,7 @@ struct EditInventoryItemView: View {
                             }
                         }
                         .buttonStyle(.bordered)
+                        .accessibilityIdentifier("analyzeWithAi")
                         .scaleEffect(showAIButton ? 1 : 0.8)
                         .opacity(showAIButton ? 1 : 0)
                     }
@@ -187,21 +190,25 @@ struct EditInventoryItemView: View {
                     FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
                         .focused($focusedField, equals: .title)
                         .disabled(!isEditing)
+                        .accessibilityIdentifier("titleField")
                 }
                 if isEditing || !inventoryItemToDisplay.serial.isEmpty {
                     FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
                         .focused($focusedField, equals: .serial)
                         .disabled(!isEditing)
+                        .accessibilityIdentifier("serialField")
                 }
                 if isEditing || !inventoryItemToDisplay.make.isEmpty {
                     FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
                         .focused($focusedField, equals: .make)
                         .disabled(!isEditing)
+                        .accessibilityIdentifier("makeField")
                 }
                 if isEditing || !inventoryItemToDisplay.model.isEmpty {
                     FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
                         .focused($focusedField, equals: .model)
                         .disabled(!isEditing)
+                        .accessibilityIdentifier("modelField")
                 }
             }
             if isEditing || inventoryItemToDisplay.quantityInt > 1 {
@@ -216,15 +223,18 @@ struct EditInventoryItemView: View {
                         .focused($focusedField, equals: .description)
                         .frame(height: 60)
                         .disabled(!isEditing)
+                        .accessibilityIdentifier("descriptionField")
                 }
             }
             Section("Purchase Price") {
                 PriceFieldRow(priceString: $priceString, priceDecimal: $inventoryItemToDisplay.price)
                     .disabled(!isEditing)
+                    .accessibilityIdentifier("priceField")
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
                 .disabled(!isEditing)
+                .accessibilityIdentifier("insuredToggle")
             }
             if isEditing || inventoryItemToDisplay.label != nil {
                 Section {
@@ -241,9 +251,11 @@ struct EditInventoryItemView: View {
                         }
                     }
                     .disabled(!isEditing)
+                    .accessibilityIdentifier("labelPicker")
                     
                     if isEditing {
                         Button("Add a new Label", action: addLabel)
+                            .accessibilityIdentifier("addNewLabel")
                     }
                 }
             }
@@ -262,9 +274,11 @@ struct EditInventoryItemView: View {
                         }
                     }
                     .disabled(!isEditing)
+                    .accessibilityIdentifier("locationPicker")
                     
                     if isEditing {
                         Button("Add a new Location", action: addLocation)
+                            .accessibilityIdentifier("addNewLocation")
                     }
                 }
             }
@@ -274,6 +288,7 @@ struct EditInventoryItemView: View {
                         .focused($focusedField, equals: .notes)
                         .frame(height: 100)
                         .disabled(!isEditing)
+                        .accessibilityIdentifier("notesField")
                 }
             }
             if isEditing {
@@ -281,6 +296,7 @@ struct EditInventoryItemView: View {
                     Button("Clear All Fields") {
                         showingClearAllAlert = true
                     }
+                    .accessibilityIdentifier("clearAllFields")
                 }
             }
         }
@@ -306,6 +322,7 @@ struct EditInventoryItemView: View {
                             dismiss()
                         }
                     }
+                    .accessibilityIdentifier("backButton")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -317,6 +334,7 @@ struct EditInventoryItemView: View {
                             Image(systemName: "sparkles")
                         }
                         .disabled(isLoadingOpenAiResults)
+                        .accessibilityIdentifier("sparkles")
                     }
                 }
             }
@@ -334,10 +352,12 @@ struct EditInventoryItemView: View {
                         }
                         .fontWeight(.bold)
                         .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+                        .accessibilityIdentifier("save")
                     } else {
                         Button("Edit") {
                             isEditing = true
                         }
+                        .accessibilityIdentifier("edit")
                     }
                 }
             }
@@ -529,7 +549,7 @@ struct EditInventoryItemView: View {
     do {
         let previewer = try Previewer()
         
-        return EditInventoryItemView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()), isEditing: true)
+        return InventoryDetailView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()), isEditing: true)
             .modelContainer(previewer.container)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")

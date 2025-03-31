@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "D9FDECEC-49EC-48F1-9FB9-90C651B0580F",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:MovingBox.xcodeproj",
+        "identifier" : "19D133C82D75455B002448A9",
+        "name" : "MovingBoxTests"
+      }
+    }
+  ],
+  "version" : 1
+}
