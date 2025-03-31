@@ -11,6 +11,7 @@ import SwiftUI
 
 struct EditInventoryItemView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
@@ -36,6 +37,8 @@ struct EditInventoryItemView: View {
     @State private var showingCamera = false
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @State private var showAIButton = false
+    @State private var showUnsavedChangesAlert = false
+    @State private var showAIConfirmationAlert = false
 
     var showSparklesButton = false
 
@@ -84,10 +87,10 @@ struct EditInventoryItemView: View {
                                         .frame(maxWidth: 150, maxHeight: 150)
                                         .foregroundStyle(.secondary)
                                     Text("Tap to add a photo")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: UIScreen.main.bounds.height / 3)
-                                .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: UIScreen.main.bounds.height / 3)
+                                    .foregroundStyle(.secondary)
                             }
                         } else {
                             VStack {
@@ -257,50 +260,25 @@ struct EditInventoryItemView: View {
         }
         .navigationTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto, loadPhoto)
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showingCamera = true
-            }
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            if inventoryItemToDisplay.photo != nil {
-                Button("Remove Photo", role: .destructive) {
-                    inventoryItemToDisplay.data = nil
-                }
-            }
-        }
-        .sheet(isPresented: $showingCamera) {
-            CameraView { image, needsAIAnalysis, completion in
-                let imageEncoder = ImageEncoder(image: image)
-                if let optimizedImage = imageEncoder.optimizeImage(),
-                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
-                    inventoryItemToDisplay.data = imageData
-                    inventoryItemToDisplay.hasUsedAI = false
-                    try? modelContext.save()
-                }
-                completion()
-            }
-        }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .navigationBarBackButtonHidden(isEditing)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if isEditing {
+                    Button("Back") {
+                        if modelContext.hasChanges {
+                            showUnsavedChangesAlert = true
+                        } else {
+                            isEditing = false
+                            dismiss()
+                        }
+                    }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton && isEditing {
                         Button(action: {
-                            Task {
-                                do {
-                                    let imageDetails = try await callOpenAI()
-                                    updateUIWithImageDetails(imageDetails)
-                                } catch let error as OpenAIError {
-                                    errorMessage = error.userFriendlyMessage
-                                    showingErrorAlert = true
-                                } catch {
-                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                    showingErrorAlert = true
-                                }
-                            }
+                            showAIConfirmationAlert = true
                         }) {
                             Image(systemName: "sparkles")
                         }
@@ -330,6 +308,42 @@ struct EditInventoryItemView: View {
                 }
             }
         }
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showingCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if inventoryItemToDisplay.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    inventoryItemToDisplay.data = nil
+                }
+            }
+        }
+        .onChange(of: selectedPhoto) {
+            Task {
+                await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: inventoryItemToDisplay)
+                await MainActor.run {
+                    inventoryItemToDisplay.hasUsedAI = false
+                }
+                try? modelContext.save()
+                TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
+            }
+        }
+        .sheet(isPresented: $showingCamera) {
+            CameraView { image, needsAIAnalysis, completion in
+                let imageEncoder = ImageEncoder(image: image)
+                if let optimizedImage = imageEncoder.optimizeImage(),
+                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
+                    inventoryItemToDisplay.data = imageData
+                    inventoryItemToDisplay.hasUsedAI = false
+                    try? modelContext.save()
+                }
+                completion()
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -338,6 +352,45 @@ struct EditInventoryItemView: View {
         .alert("Are you sure?", isPresented: $showingClearAllAlert) {
             Button("Clear All Fields", role: .destructive) { clearFields() }
             Button("Cancel", role: .cancel) { }
+        }
+        .alert("Unsaved Changes", isPresented: $showUnsavedChangesAlert) {
+            Button("Save & Go Back", role: .none) {
+                try? modelContext.save()
+                isEditing = false
+                dismiss()
+            }
+            
+            Button("Discard Changes", role: .destructive) {
+                modelContext.rollback()
+                isEditing = false
+                dismiss()
+            }
+            
+            Button("Cancel", role: .cancel) {
+                showUnsavedChangesAlert = false
+            }
+        } message: {
+            Text("Do you want to save your changes before going back?")
+        }
+        .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
+            Button("Analyze Image", role: .none) {
+                Task {
+                    do {
+                        let imageDetails = try await callOpenAI()
+                        updateUIWithImageDetails(imageDetails)
+                    } catch let error as OpenAIError {
+                        errorMessage = error.userFriendlyMessage
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                        showingErrorAlert = true
+                    }
+                }
+            }
+            
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
         }
     }
     
@@ -426,19 +479,7 @@ struct EditInventoryItemView: View {
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
     }
-    
-    private func loadPhoto() {
-        Task {
-            await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: inventoryItemToDisplay)
-            await MainActor.run {
-                inventoryItemToDisplay.hasUsedAI = false
-            }
-            try? modelContext.save()
-            TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
-        }
-    }
 }
-
 
 #Preview {
     do {
