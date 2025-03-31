@@ -25,7 +25,8 @@ struct EditInventoryItemView: View {
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
-    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var showPhotoSourceAlert = false
+    @State private var showPhotoPicker = false
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults = false
     @State private var isEditing: Bool
@@ -33,6 +34,7 @@ struct EditInventoryItemView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var showingCamera = false
+    @State private var selectedPhoto: PhotosPickerItem? = nil
     
     var showSparklesButton = false
 
@@ -52,22 +54,53 @@ struct EditInventoryItemView: View {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .clipped()
-                            .listRowInsets(EdgeInsets())
+                            .overlay(alignment: .bottomTrailing) {
+                                if isEditing {
+                                    Button {
+                                        showPhotoSourceAlert = true
+                                    } label: {
+                                        Image(systemName: "photo")
+                                            .font(.title2)
+                                            .foregroundColor(.white)
+                                            .padding(8)
+                                            .background(Circle().fill(.black.opacity(0.6)))
+                                            .padding(8)
+                                    }
+                                }
+                            }
                     } else {
-                        VStack {
-                            Image(systemName: "photo")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: 150, maxHeight: 150)
+                        if isEditing {
+                            Button {
+                                showPhotoSourceAlert = true
+                            } label: {
+                                VStack {
+                                    Image(systemName: "photo")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(maxWidth: 150, maxHeight: 150)
+                                        .foregroundStyle(.secondary)
+                                    Text("Add a photo to get started")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: UIScreen.main.bounds.height / 3)
                                 .foregroundStyle(.secondary)
-                            Text("Add a photo to get started")
+                            }
+                        } else {
+                            VStack {
+                                Image(systemName: "photo")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 150, maxHeight: 150)
+                                    .foregroundStyle(.secondary)
+                                Text("No photo available")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .foregroundStyle(.secondary)
                     }
                 }
                 .listRowInsets(EdgeInsets())
@@ -110,36 +143,6 @@ struct EditInventoryItemView: View {
             }
             .listSectionSpacing(16)
             
-            // Only show photo buttons when editing
-            Section {
-                if isEditing {
-                    HStack(spacing: 16) {
-                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                            HStack {
-                                Image(systemName: "photo.on.rectangle")
-                                    .font(.title)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 40)
-                        }
-                        .buttonStyle(.bordered)
-                        
-                        Button {
-                            showingCamera = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "camera")
-                                    .font(.title)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 40)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .listRowBackground(Color.clear)
-                    .background(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                }
-            }
-
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
                     FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
@@ -239,6 +242,32 @@ struct EditInventoryItemView: View {
         .navigationTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showingCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if inventoryItemToDisplay.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    inventoryItemToDisplay.data = nil
+                }
+            }
+        }
+        .sheet(isPresented: $showingCamera) {
+            CameraView { image, needsAIAnalysis, completion in
+                let imageEncoder = ImageEncoder(image: image)
+                if let optimizedImage = imageEncoder.optimizeImage(),
+                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
+                    inventoryItemToDisplay.data = imageData
+                    inventoryItemToDisplay.hasUsedAI = false
+                    try? modelContext.save()
+                }
+                completion()
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if inventoryItemToDisplay.hasUsedAI {
@@ -281,45 +310,6 @@ struct EditInventoryItemView: View {
                         Button("Edit") {
                             isEditing = true
                         }
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $showingCamera) {
-            CameraView { image, needsAnalysis, completion in
-                let imageEncoder = ImageEncoder(image: image)
-                if let optimizedImage = imageEncoder.optimizeImage(),
-                   let imageData = optimizedImage.jpegData(compressionQuality: 0.3) {
-                    inventoryItemToDisplay.data = imageData
-                    try? modelContext.save()
-                    
-                    if needsAnalysis {
-                        Task {
-                            print("Starting AI image analysis after CameraView in EditInventoryView")
-                            do {
-                                let imageDetails = try await callOpenAI()
-                                print("Finishing AI image analysis after CameraView in EditInventoryView")
-                                await MainActor.run {
-                                    updateUIWithImageDetails(imageDetails)
-                                    print("Finished updating image with details in EditInventoryView, calling completion handler")
-                                    completion()
-                                }
-                            } catch let error as OpenAIError {
-                                await MainActor.run {
-                                    errorMessage = error.userFriendlyMessage
-                                    showingErrorAlert = true
-                                    completion()
-                                }
-                            } catch {
-                                await MainActor.run {
-                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                    showingErrorAlert = true
-                                    completion()
-                                }
-                            }
-                        }
-                    } else {
-                        completion()
                     }
                 }
             }
@@ -416,6 +406,9 @@ struct EditInventoryItemView: View {
     private func loadPhoto() {
         Task {
             await PhotoManager.loadAndSavePhoto(from: selectedPhoto, to: inventoryItemToDisplay)
+            await MainActor.run {
+                inventoryItemToDisplay.hasUsedAI = false
+            }
             try? modelContext.save()
             TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
         }

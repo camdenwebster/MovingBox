@@ -166,7 +166,6 @@ struct DashboardView: View {
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
         .onChange(of: selectedPhoto, loadPhoto)
-        // ADD: Photo selection modifiers
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showCamera = true
