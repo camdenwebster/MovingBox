@@ -83,7 +83,9 @@ class InventoryDetailScreen {
         chooseFromLibraryButton.tap()
         
         // Handle photo library selection
-        app.otherElements["photos_layout"].images.firstMatch.tap()
+        let photoLibrary = app.otherElements["photos_layout"]
+        XCTAssertTrue(photoLibrary.waitForExistence(timeout: 10), "Photo library did not appear after 10 seconds")
+        photoLibrary.images.firstMatch.tap()
     }
     
     func updatePhotoFromLibrary() {
