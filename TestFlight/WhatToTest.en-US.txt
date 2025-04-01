@@ -5,3 +5,21 @@ We are excited to prepare for our 1.0 launch, and we will greatly appreciate any
 - Updating existing inventory records with AI (either the "Anlayze with AI" button or the "sparkle" button in an existing inventory record)
 - Analyzing a wide variety of items
 - Testing on a wide variety of iPhone models
+
+What's New?
+0.5.1
+- Fixed an issue with buttons not being responsive on the Item Detail view
+- Began adding accessibility identifiers and UI tests to maintain app stability
+
+0.5.0
+- Added separate "edit" and "read" modes for the Item Detail view
+- Implemented an alert to notify of unsaved changes when leaving the Item Detail page
+- Implemented an alert to notify user that details will be overwritten when performing image analysis on an item with populated fields
+- Implemented a new "change photo" button for the Item Detail, Local Detail, and Dashboard views, which also allows for removal of the photo
+- Other UI enhancements
+
+0.4.0
+- Implemented a backend to handle OpenAI authentication, so there is no longer a need for testers to proide their own OpenAI API key
+
+0.3.0
+- Initial beta
