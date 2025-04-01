@@ -79,7 +79,7 @@ final class InventoryItemUITests: XCTestCase {
                      "Camera view should reappear after navigating back")
     }
 
-    func testAddItemManuallyViaListView() throws {
+    func testAddItemManuallyViaListViewFromCameraRoll() throws {
         // Given: User is on the All Items tab
         tabBar.tapAllItems()
         
@@ -92,7 +92,7 @@ final class InventoryItemUITests: XCTestCase {
                      "Detail view should appear with add photo button")
         
         // When: User adds a photo from the library
-        detailScreen.addPhoto(photoExists: false, useCamera: false)
+        detailScreen.addPhotoFromLibrary()
         
         // And: User initiates AI analysis
         let analyzeButton = detailScreen.analyzeWithAiButton
@@ -101,14 +101,21 @@ final class InventoryItemUITests: XCTestCase {
         analyzeButton.tap()
         
         // Then: Detail view should be updated after AI analysis completes
-        XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 10),
+        XCTAssertTrue(detailScreen.sparklesButton.waitForExistence(timeout: 10),
                      "Detail view should be updated after AI analysis")
         
         // And: Fields should be populated with AI analysis results
         verifyPopulatedFields()
         
+        // And the "Analyze with AI" button should be gone
+        XCTAssertFalse(analyzeButton.exists)
+        
         // When: User saves the item
-        detailScreen.saveButton.tap()
+        if detailScreen.saveButton.isEnabled {
+            detailScreen.saveButton.tap()
+        } else {
+            XCTFail("Save button was not enabled after fields were populated")
+        }
         
         // Then: Detail view should switch to read mode
         XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
@@ -117,29 +124,30 @@ final class InventoryItemUITests: XCTestCase {
         // When: User navigates back
         app.navigationBars.buttons.firstMatch.tap()
         
-        // Then: Camera view should reappear
-        XCTAssertTrue(cameraScreen.captureButton.waitForExistence(timeout: 5),
-                     "Camera view should reappear after navigating back")
+        // Then: The inventory list should be displayed
+        XCTAssertTrue(listScreen.addItemButton.waitForExistence(timeout: 5),
+                     "Inventory list view should reappear after navigating back")
     }
 
     func testAddItemViaTabBar() throws {
         // Given: User is in the app
         
-        // When: User taps the Add Item tab
+        // And: User taps the Add Item tab
         tabBar.tapAddItem()
         
-        // And: User selects a photo from the library
-        detailScreen.addPhoto(photoExists: false, useCamera: false)
+        // And: User takes a photo using the camera
+        XCTAssertTrue(cameraScreen.captureButton.waitForExistence(timeout: 5),
+                     "Camera capture button should be visible")
+        cameraScreen.takePhoto()
         
-        // And: User initiates AI analysis
-        let analyzeButton = detailScreen.analyzeWithAiButton
-        XCTAssertTrue(analyzeButton.waitForExistence(timeout: 5),
-                     "AI analysis button should be visible")
-        analyzeButton.tap()
+        // And: User accepts the photo in review
+        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
+                     "Use photo button should be visible")
+        photoReviewScreen.acceptPhoto()
         
-        // Then: Detail view should be updated after AI analysis completes
+        // Then: Detail view should appear after AI analysis completes
         XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 10),
-                     "Detail view should be updated after AI analysis")
+                     "Detail view should appear after AI analysis")
         
         // And: Fields should be populated with AI analysis results
         verifyPopulatedFields()
@@ -163,11 +171,10 @@ final class InventoryItemUITests: XCTestCase {
     
     private func verifyPopulatedFields() {
         // Given: Fields are visible and populated
-        let titleField = detailScreen.titleField
         
         // Then: Fields should contain non-empty values
         XCTAssertFalse(
-            (titleField.value as? String)?.isEmpty ?? true,
+            (detailScreen.titleField.value as? String)?.isEmpty ?? true,
             "Title field should not be empty"
         )
         XCTAssertFalse(

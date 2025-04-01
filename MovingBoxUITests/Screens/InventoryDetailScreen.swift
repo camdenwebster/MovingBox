@@ -20,6 +20,8 @@ class InventoryDetailScreen {
     let saveButton: XCUIElement
     let changePhotoButton: XCUIElement
     let tapToAddPhotoButton: XCUIElement
+    let addLabelButton: XCUIElement
+    let addLocationButton: XCUIElement
     
     // Text Fields
     let titleField: XCUIElement
@@ -28,8 +30,17 @@ class InventoryDetailScreen {
     let modelField: XCUIElement
     
     // Toggles
+    let insuredToggle: XCUIElement
     
-    // Steppers
+    // Pickers
+    let locationPicker: XCUIElement
+    let labelPicker: XCUIElement
+    
+    // Confirmation dialog buttons
+    let takePhotoButton: XCUIElement
+    let chooseFromLibraryButton: XCUIElement
+    let removePhotoButton: XCUIElement
+    let cancelButton: XCUIElement
     
     init(app: XCUIApplication) {
         self.app = app
@@ -41,22 +52,55 @@ class InventoryDetailScreen {
         self.saveButton = app.buttons["save"]
         self.changePhotoButton = app.buttons["changePhoto"]
         self.tapToAddPhotoButton = app.buttons["tapToAddPhoto"]
+        self.addLabelButton = app.buttons["addNewLabel"]
+        self.addLocationButton = app.buttons["addNewLocation"]
         
         // Initialize text fields
         self.titleField = app.textFields["titleField"]
         self.serialField = app.textFields["serialField"]
         self.makeField = app.textFields["makeField"]
         self.modelField = app.textFields["modelField"]
+        
+        // Initialize toggles
+        self.insuredToggle = app.switches["insuredToggle"]
+        
+        // Initialize pickers
+        self.locationPicker = app.pickers["locationPicker"]
+        self.labelPicker = app.pickers["labelPicker"]
+        
+        // Initialize confirmation dialog buttons
+        self.takePhotoButton = app.sheets.buttons["takePhoto"]
+        self.chooseFromLibraryButton = app.sheets.buttons["chooseFromLibrary"]
+        self.removePhotoButton = app.sheets.buttons["removePhoto"]
+        self.cancelButton = app.sheets.buttons["cancel"]
     }
     
-    func addPhoto(photoExists: Bool, useCamera: Bool) {
-        let button = photoExists ? changePhotoButton : tapToAddPhotoButton
-        button.tap()
+    func addPhotoFromLibrary() {
+        // Open the confirmation dialog to add a photo
+        tapToAddPhotoButton.tap()
         
-        if useCamera {
-            app.sheets.buttons["Take Photo"].tap()
-        } else {
-            app.sheets.buttons["Choose from Library"].tap()
-        }
+        // Handle the confirmation dialog to use camera or library
+        chooseFromLibraryButton.tap()
+        
+        // Handle photo library selection
+        app.otherElements["photos_layout"].images.firstMatch.tap()
+    }
+    
+    func updatePhotoFromLibrary() {
+        changePhotoButton.tap()
+        chooseFromLibraryButton.tap()
+            
+        // Handle photo library selection
+        let photosApp = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
+        let firstPhoto = photosApp.scrollViews.firstMatch.images.firstMatch
+        firstPhoto.tap()
+        
+        // Tap the Choose/Done button to confirm selection
+        photosApp.buttons["Choose"].tap()
+    }
+    
+    func removePhoto() {
+        changePhotoButton.tap()
+        removePhotoButton.tap()
     }
 }

@@ -390,13 +390,18 @@ struct InventoryDetailView: View {
             Button("Take Photo") {
                 showingCamera = true
             }
+            .accessibilityIdentifier("takePhoto")
+            
             Button("Choose from Library") {
                 showPhotoPicker = true
             }
+            .accessibilityIdentifier("chooseFromLibrary")
+            
             if inventoryItemToDisplay.photo != nil {
                 Button("Remove Photo", role: .destructive) {
                     inventoryItemToDisplay.data = nil
                 }
+                .accessibilityIdentifier("removePhoto")
             }
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
