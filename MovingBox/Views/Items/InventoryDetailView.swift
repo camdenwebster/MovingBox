@@ -85,7 +85,8 @@ struct InventoryDetailView: View {
                                             .background(Circle().fill(.black.opacity(0.6)))
                                             .padding(8)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(TouchDownButtonStyle())
+                                    .contentShape(Rectangle())
                                     .accessibilityIdentifier("changePhoto")
                                 }
                             }
@@ -131,7 +132,8 @@ struct InventoryDetailView: View {
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
                     HStack(spacing: 16) {
-                        Button(action: {
+                        Button {
+                            guard !isLoadingOpenAiResults else { return }
                             Task {
                                 do {
                                     let imageDetails = try await callOpenAI()
@@ -150,19 +152,30 @@ struct InventoryDetailView: View {
                                     showingErrorAlert = true
                                 }
                             }
-                        }) {
-                            if isLoadingOpenAiResults {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity, minHeight: 40)
-                            } else {
-                                Label("Analyze with AI", systemImage: "sparkles")
-                                    .frame(maxWidth: .infinity, minHeight: 40)
+                        } label: {
+                            HStack {
+                                if isLoadingOpenAiResults {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "sparkles")
+                                    Text("Analyze with AI")
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .foregroundColor(.white)
+                            .background(Color.accentColor)
+                            .cornerRadius(8)
+                            .padding(.horizontal)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.plain)
+                        .disabled(isLoadingOpenAiResults)
                         .accessibilityIdentifier("analyzeWithAi")
-                        .scaleEffect(showAIButton ? 1 : 0.8)
+                        .contentShape(Rectangle())
                         .opacity(showAIButton ? 1 : 0)
+                        .animation(.easeInOut, value: showAIButton)
+                        .scaleEffect(showAIButton ? 1 : 0.8)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showAIButton)
                     }
                     .listRowBackground(Color.clear)
                     .background(Color.clear)
@@ -451,6 +464,13 @@ struct InventoryDetailView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
+        }
+    }
+    
+    private struct TouchDownButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .contentShape(Rectangle())
         }
     }
     
