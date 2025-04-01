@@ -36,11 +36,10 @@ struct InventoryDetailView: View {
     @State private var errorMessage = ""
     @State private var showingCamera = false
     @State private var selectedPhoto: PhotosPickerItem? = nil
-    
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
-
+    
     var showSparklesButton = false
 
     init(inventoryItemToDisplay: InventoryItem, navigationPath: Binding<NavigationPath>, showSparklesButton: Bool = false, isEditing: Bool = false) {
@@ -63,141 +62,104 @@ struct InventoryDetailView: View {
 
     var body: some View {
         Form {
-            // Photo banner section
             Section {
-                VStack(spacing: 0) {
+                // Photo Section
+                ZStack(alignment: .bottomTrailing) {
                     if let uiImage = inventoryItemToDisplay.photo {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
-                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                            .frame(width: UIScreen.main.bounds.width - 32)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .clipped()
-                            .overlay(alignment: .bottomTrailing) {
-                                if isEditing {
-                                    Button(action: {
-                                        showPhotoSourceAlert = true
-                                    }) {
-                                        Image(systemName: "photo")
-                                            .font(.title2)
-                                            .foregroundColor(.white)
-                                            .padding(8)
-                                            .background(Circle().fill(.black.opacity(0.6)))
-                                            .padding(8)
-                                    }
-                                    .buttonStyle(TouchDownButtonStyle())
-                                    .contentShape(Rectangle())
-                                    .accessibilityIdentifier("changePhoto")
-                                }
-                            }
-                    } else {
+                        
                         if isEditing {
-                            Button(action: {
+                            Button {
                                 showPhotoSourceAlert = true
-                            }) {
-                                VStack {
-                                    Image(systemName: "photo")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(maxWidth: 150, maxHeight: 150)
-                                        .foregroundStyle(.secondary)
-                                    Text("Tap to add a photo")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: UIScreen.main.bounds.height / 3)
-                                .foregroundStyle(.secondary)
+                            } label: {
+                                Image(systemName: "photo")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
+                                    .padding(8)
+                                    .background(Circle().fill(.black.opacity(0.6)))
+                                    .padding(8)
                             }
-                            .buttonStyle(.plain)
-                            .contentShape(Rectangle())
-                            .accessibilityIdentifier("tapToAddPhoto")
-                        } else {
+                            .buttonStyle(.automatic)
+                            .accessibilityIdentifier("changePhoto")
+                        }
+                    } else {
+                        Button {
+                            showPhotoSourceAlert = true
+                        } label: {
                             VStack {
                                 Image(systemName: "photo")
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(maxWidth: 150, maxHeight: 150)
-                                    .foregroundStyle(.secondary)
-                                Text("No photo available")
+                                Text(isEditing ? "Tap to add a photo" : "No photo available")
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
+                            .background(Color(.systemBackground))
                         }
+                        .buttonStyle(.automatic)
+                        .disabled(!isEditing)
+                        .accessibilityIdentifier("tapToAddPhoto")
                     }
                 }
+                .ignoresSafeArea(edges: .top)
                 .listRowInsets(EdgeInsets())
             }
-            
-            // Only show AI analysis button when editing and AI hasn't been used
+
+            // AI Button Section
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
-                    HStack(spacing: 16) {
-                        Button {
-                            guard !isLoadingOpenAiResults else { return }
-                            Task {
-                                do {
-                                    let imageDetails = try await callOpenAI()
-                                    updateUIWithImageDetails(imageDetails)
-                                } catch OpenAIError.invalidURL {
-                                    errorMessage = "Invalid URL configuration"
-                                    showingErrorAlert = true
-                                } catch OpenAIError.invalidResponse {
-                                    errorMessage = "Error communicating with AI service"
-                                    showingErrorAlert = true
-                                } catch OpenAIError.invalidData {
-                                    errorMessage = "Unable to process AI response"
-                                    showingErrorAlert = true
-                                } catch {
-                                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                    showingErrorAlert = true
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                if isLoadingOpenAiResults {
-                                    ProgressView()
-                                } else {
-                                    Image(systemName: "sparkles")
-                                    Text("Analyze with AI")
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .foregroundColor(.white)
-                            .background(Color.accentColor)
-                            .cornerRadius(8)
-                            .padding(.horizontal)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isLoadingOpenAiResults)
-                        .accessibilityIdentifier("analyzeWithAi")
-                        .contentShape(Rectangle())
-                        .opacity(showAIButton ? 1 : 0)
-                        .animation(.easeInOut, value: showAIButton)
-                        .scaleEffect(showAIButton ? 1 : 0.8)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showAIButton)
-                    }
-                    .listRowBackground(Color.clear)
-                    .background(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                showAIButton = true
+                    Button {
+                        guard !isLoadingOpenAiResults else { return }
+                        Task {
+                            do {
+                                let imageDetails = try await callOpenAI()
+                                updateUIWithImageDetails(imageDetails)
+                            } catch OpenAIError.invalidURL {
+                                errorMessage = "Invalid URL configuration"
+                                showingErrorAlert = true
+                            } catch OpenAIError.invalidResponse {
+                                errorMessage = "Error communicating with AI service"
+                                showingErrorAlert = true
+                            } catch OpenAIError.invalidData {
+                                errorMessage = "Unable to process AI response"
+                                showingErrorAlert = true
+                            } catch {
+                                errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                                showingErrorAlert = true
                             }
                         }
+                    } label: {
+                        HStack {
+                            if isLoadingOpenAiResults {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "sparkles")
+                                Text("Analyze with AI")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .foregroundColor(.white)
+                        .background(Color.accentColor)
+                        .cornerRadius(8)
                     }
-                    .onDisappear {
-                        showAIButton = false
-                    }
+                    .buttonStyle(.automatic)
+                    .disabled(isLoadingOpenAiResults)
+                    .accessibilityIdentifier("analyzeWithAi")
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
+                .listRowBackground(Color.clear)
                 .listSectionSpacing(16)
-                .transition(.asymmetric(
-                    insertion: .opacity,
-                    removal: .scale.combined(with: .opacity)
-                ))
             }
-            
+
+            // Details Section
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
                     FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
@@ -259,17 +221,17 @@ struct InventoryDetailView: View {
                             Divider()
                             ForEach(labels) { label in
                                 Text(label.name)
-                                    .tag(Optional(label))
+                                .tag(Optional(label))
                             }
                         }
                     }
-                    .disabled(!isEditing)
-                    .accessibilityIdentifier("labelPicker")
-                    
-                    if isEditing {
-                        Button("Add a new Label", action: addLabel)
-                            .accessibilityIdentifier("addNewLabel")
-                    }
+                .disabled(!isEditing)
+                .accessibilityIdentifier("labelPicker")
+                
+                if isEditing {
+                    Button("Add a new Label", action: addLabel)
+                    .accessibilityIdentifier("addNewLabel")
+                }
                 }
             }
             if isEditing || inventoryItemToDisplay.location != nil {
@@ -282,26 +244,26 @@ struct InventoryDetailView: View {
                             Divider()
                             ForEach(locations) { location in
                                 Text(location.name)
-                                    .tag(Optional(location))
+                                .tag(Optional(location))
                             }
                         }
                     }
-                    .disabled(!isEditing)
-                    .accessibilityIdentifier("locationPicker")
-                    
-                    if isEditing {
-                        Button("Add a new Location", action: addLocation)
-                            .accessibilityIdentifier("addNewLocation")
-                    }
+                .disabled(!isEditing)
+                .accessibilityIdentifier("locationPicker")
+                
+                if isEditing {
+                    Button("Add a new Location", action: addLocation)
+                    .accessibilityIdentifier("addNewLocation")
+                }
                 }
             }
             if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                 Section("Notes") {
                     TextEditor(text: $inventoryItemToDisplay.notes)
-                        .focused($focusedField, equals: .notes)
-                        .frame(height: 100)
-                        .disabled(!isEditing)
-                        .accessibilityIdentifier("notesField")
+                .focused($focusedField, equals: .notes)
+                .frame(height: 100)
+                .disabled(!isEditing)
+                .accessibilityIdentifier("notesField")
                 }
             }
             if isEditing {
@@ -309,20 +271,12 @@ struct InventoryDetailView: View {
                     Button("Clear All Fields") {
                         showingClearAllAlert = true
                     }
-                    .accessibilityIdentifier("clearAllFields")
+                .accessibilityIdentifier("clearAllFields")
                 }
             }
         }
-        .scrollDismissesKeyboard(.immediately)
-        .onTapGesture {
-            focusedField = nil
-        }
-        .submitLabel(.done)
-        .onSubmit {
-            focusedField = nil
-        }
-        .navigationTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarBackButtonHidden(isEditing)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -363,9 +317,9 @@ struct InventoryDetailView: View {
                             try? modelContext.save()
                             isEditing = false
                         }
-                        .fontWeight(.bold)
-                        .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
-                        .accessibilityIdentifier("save")
+                    .fontWeight(.bold)
+                    .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+                    .accessibilityIdentifier("save")
                     } else {
                         Button("Edit") {
                             isEditing = true
@@ -512,26 +466,18 @@ struct InventoryDetailView: View {
         }
         
         // Update properties
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            inventoryItemToDisplay.title = imageDetails.title
-            inventoryItemToDisplay.quantityString = imageDetails.quantity
-            inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
-            inventoryItemToDisplay.desc = imageDetails.description
-            inventoryItemToDisplay.make = imageDetails.make
-            inventoryItemToDisplay.model = imageDetails.model
-            inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
-            
-            // Convert price string to Decimal
-            let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-            inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
-            
-            // Delay setting hasUsedAI to allow animation to complete
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation {
-                    inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
-                }
-            }
-        }
+        inventoryItemToDisplay.title = imageDetails.title
+        inventoryItemToDisplay.quantityString = imageDetails.quantity
+        inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
+        inventoryItemToDisplay.desc = imageDetails.description
+        inventoryItemToDisplay.make = imageDetails.make
+        inventoryItemToDisplay.model = imageDetails.model
+        inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
+        inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
+        
+        // Convert price string to Decimal
+        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+        inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
         
         // Explicitly save changes
         try? modelContext.save()
