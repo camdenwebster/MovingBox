@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "id" : "FB1A4F89-AF10-43AE-AC8E-E09660FE5DBF",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "maximumTestRepetitions" : 2,
+    "repeatInNewRunnerProcess" : true,
+    "testRepetitionMode" : "retryOnFailure",
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:MovingBox.xcodeproj",
+        "identifier" : "19B7D96E2D9B112200690F64",
+        "name" : "MovingBoxUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

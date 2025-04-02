@@ -41,6 +41,17 @@
                ReferencedContainer = "container:MovingBox.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "19B7D96E2D9B112200690F64"
+               BuildableName = "MovingBoxUITests.xctest"
+               BlueprintName = "MovingBoxUITests"
+               ReferencedContainer = "container:MovingBox.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

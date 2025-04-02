@@ -55,7 +55,7 @@ struct AddInventoryItemView: View {
                             // CHANGE: Use PhotoManager for AI analysis
                             guard let base64ForAI = PhotoManager.loadCompressedPhotoForAI(from: image) else {
                                 completion()
-                                router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true))
+                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true))
                                 return
                             }
                             
@@ -71,17 +71,17 @@ struct AddInventoryItemView: View {
                                     updateUIWithImageDetails(imageDetails, for: newItem)
                                     TelemetryManager.shared.trackCameraAnalysisUsed()
                                     completion()
-                                    router.navigate(to: .editInventoryItemView(item: newItem, isEditing: true))
+                                    router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
                                 }
                             } catch {
                                 print("Error analyzing image: \(error)")
                                 completion()
-                                router.navigate(to: .editInventoryItemView(item: newItem, showSparklesButton: true))
+                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true))
                             }
                         }
                     } else {
                         completion()
-                        router.navigate(to: .editInventoryItemView(item: newItem))
+                        router.navigate(to: .inventoryDetailView(item: newItem))
                     }
                 }
             }

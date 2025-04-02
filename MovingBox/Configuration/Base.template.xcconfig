@@ -6,4 +6,4 @@
 JWT_SECRET = $(JWT_SECRET)
 
 // App version information
-MARKETING_VERSION = 0.5.0
+MARKETING_VERSION = 0.5.1
