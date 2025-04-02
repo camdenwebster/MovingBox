@@ -17,7 +17,8 @@ struct SnapshotTests {
     var filePath: StaticString {
         let xcodeCloudPath: StaticString = "/Volumes/workspace/repository/ci_scripts/SnapshotTests.swift"
         if ProcessInfo.processInfo.environment["CI"] == "TRUE" {
-          return xcodeCloudPath
+            print("☁️ Using Xcode Cloud path for Snapshots")
+            return xcodeCloudPath
         } else {
           return #file
         }
