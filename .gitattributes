@@ -1,0 +1,4 @@
+# Image files
+*.png filter=lfs diff=lfs merge=lfs -text
+# Specifically for snapshot test images
+MovingBoxTests/__Snapshots__/**/*.png filter=lfs diff=lfs merge=lfs -text
