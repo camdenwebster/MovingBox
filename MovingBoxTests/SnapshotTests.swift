@@ -13,6 +13,15 @@ import SwiftData
 
 @MainActor
 struct SnapshotTests {
+
+    var filePath: StaticString {
+        let xcodeCloudPath: StaticString = "/Volumes/workspace/repository/ci_scripts/SnapshotTests.swift"
+        if ProcessInfo.processInfo.environment["CI"] == "TRUE" {
+          return xcodeCloudPath
+        } else {
+          return #file
+        }
+    }
     
     var precision: Float = 0.99
     
@@ -71,7 +80,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "dashboard_view\(snapshotSuffix)"
+            named: "dashboard_view\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -98,7 +108,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "inventory_list_view\(snapshotSuffix)"
+            named: "inventory_list_view\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -116,7 +127,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "locations_list_view\(snapshotSuffix)"
+            named: "locations_list_view\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -143,7 +155,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "add_inventory_item_view\(snapshotSuffix)"
+            named: "add_inventory_item_view\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -170,7 +183,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "edit_location_view_edit\(snapshotSuffix)"
+            named: "edit_location_view_edit\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -197,7 +211,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "edit_label_view_read\(snapshotSuffix)"
+            named: "edit_label_view_read\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -224,7 +239,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "edit_label_view_edit\(snapshotSuffix)"
+            named: "edit_label_view_edit\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -247,7 +263,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "edit_home_view_read\(snapshotSuffix)"
+            named: "edit_home_view_read\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -270,7 +287,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "edit_home_view_edit\(snapshotSuffix)"
+            named: "edit_home_view_edit\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -301,7 +319,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "inventory_detail_view_read\(snapshotSuffix)"
+            named: "inventory_detail_view_read\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -332,7 +351,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "inventory_detail_view_edit\(snapshotSuffix)"
+            named: "inventory_detail_view_edit\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -350,7 +370,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "settings_view\(snapshotSuffix)"
+            named: "settings_view\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -370,7 +391,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "camera_view\(snapshotSuffix)"
+            named: "camera_view\(snapshotSuffix)",
+            file: #file
         )
     }
     
@@ -401,7 +423,8 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "photo_review_view\(snapshotSuffix)"
+            named: "photo_review_view\(snapshotSuffix)",
+            file: #file
         )
     }
 }

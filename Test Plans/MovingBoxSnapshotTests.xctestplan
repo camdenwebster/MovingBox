@@ -47,7 +47,17 @@
     }
   ],
   "defaultOptions" : {
-
+    "environmentVariableEntries" : [
+      {
+        "key" : "CI",
+        "value" : "$(CI)"
+      }
+    ],
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:MovingBox.xcodeproj",
+      "identifier" : "1942DC792BF391CB00734AF4",
+      "name" : "MovingBox"
+    }
   },
   "testTargets" : [
     {
