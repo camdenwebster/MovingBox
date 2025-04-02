@@ -101,8 +101,6 @@ import SwiftData
     @Test("Test error handling for invalid response")
     func testErrorHandlingInvalidResponse() async {
         // Given
-        let service = createTestService()
-        
         do {
             // Attempt to parse invalid data
             let mockResponse = "{invalid_json}"
