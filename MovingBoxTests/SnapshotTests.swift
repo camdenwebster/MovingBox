@@ -82,7 +82,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "dashboard_view\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -110,7 +110,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "inventory_list_view\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -129,7 +129,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "locations_list_view\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -157,7 +157,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "add_inventory_item_view\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -185,7 +185,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "edit_location_view_edit\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -213,7 +213,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "edit_label_view_read\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -241,7 +241,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "edit_label_view_edit\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -265,7 +265,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "edit_home_view_read\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -289,7 +289,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "edit_home_view_edit\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -321,7 +321,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "inventory_detail_view_read\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -353,7 +353,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "inventory_detail_view_edit\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -372,7 +372,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "settings_view\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -393,7 +393,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "camera_view\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
     
@@ -425,7 +425,7 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "photo_review_view\(snapshotSuffix)",
-            file: #file
+            file: filePath
         )
     }
 }
