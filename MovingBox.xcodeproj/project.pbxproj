@@ -21,6 +21,8 @@
 		1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */; };
 		1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */; };
 		196109F52D764D9100A76504 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196109F42D764D9100A76504 /* ColorExtension.swift */; };
+		1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */; };
+		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
 		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
@@ -66,6 +68,7 @@
 		1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
 		196109F42D764D9100A76504 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
+		1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotTests.swift; path = MovingBoxTests/SnapshotTests.swift; sourceTree = "<group>"; };
 		198958AC2BF8FAC700C52CAE /* TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestData.swift; path = MovingBox/Services/TestData.swift; sourceTree = SOURCE_ROOT; };
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
@@ -79,6 +82,8 @@
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
+		19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxSnapshotTests.xctestplan; path = "Test Plans/MovingBoxSnapshotTests.xctestplan"; sourceTree = "<group>"; };
+		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -89,6 +94,13 @@
 			);
 			target = 1942DC792BF391CB00734AF4 /* MovingBox */;
 		};
+		19F2CC3E2D9D83580053050B /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				SnapshotTests.swift,
+			);
+			target = 19D133C82D75455B002448A9 /* MovingBoxTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -96,7 +108,7 @@
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1981B5C92D9ACB6A007AD7F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
 		19D133A82D72BFB2002448A9 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
 		19D133BC2D72BFB8002448A9 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
-		19D133CA2D75455B002448A9 /* MovingBoxTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxTests; sourceTree = "<group>"; };
+		19D133CA2D75455B002448A9 /* MovingBoxTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19F2CC3E2D9D83580053050B /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MovingBoxTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,6 +131,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,7 +149,10 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				19F2CC3F2D9D85210053050B /* .gitattributes */,
+				1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */,
 				19B7D9912D9B364800690F64 /* MovingBoxTests.xctestplan */,
+				19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */,
 				19B7D9902D9B362E00690F64 /* MovingBoxUITests.xctestplan */,
 				1937AABA2D938F6D00C68797 /* ci_scripts */,
 				19AD607F2D934B8100465BFF /* TestFlight */,
@@ -283,6 +299,7 @@
 			);
 			name = MovingBoxTests;
 			packageProductDependencies = (
+				1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */,
 			);
 			productName = MovingBoxTests;
 			productReference = 19D133C92D75455B002448A9 /* MovingBoxTests.xctest */;
@@ -322,6 +339,7 @@
 			mainGroup = 1942DC712BF391CB00734AF4;
 			packageReferences = (
 				1920B0D42D88B13000CFA1E9 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
+				1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -395,6 +413,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -757,6 +776,14 @@
 				minimumVersion = 2.9.1;
 			};
 		};
+		1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.18.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -764,6 +791,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1920B0D42D88B13000CFA1E9 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
 			productName = TelemetryDeck;
+		};
+		1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

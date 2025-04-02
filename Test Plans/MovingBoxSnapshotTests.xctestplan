@@ -1,0 +1,88 @@
+{
+  "configurations" : [
+    {
+      "id" : "4C2D3D9D-7662-4C88-A4AE-3976E4571A49",
+      "name" : "Light Mode",
+      "options" : {
+        "commandLineArgumentEntries" : [
+
+        ]
+      }
+    },
+    {
+      "id" : "DA5857BE-52DF-4B35-94E0-BCBEDD3D8111",
+      "name" : "Dark Mode",
+      "options" : {
+        "commandLineArgumentEntries" : [
+          {
+            "argument" : "Dark-Mode"
+          }
+        ]
+      }
+    },
+    {
+      "id" : "B08E868F-4112-4EA6-97B2-E5500D60E973",
+      "name" : "Light Mode - Mock Data",
+      "options" : {
+        "commandLineArgumentEntries" : [
+          {
+            "argument" : "Mock-Data"
+          }
+        ]
+      }
+    },
+    {
+      "id" : "535A01F1-8F96-43C5-90EC-6605426D88AA",
+      "name" : "Dark Mode - Mock Data",
+      "options" : {
+        "commandLineArgumentEntries" : [
+          {
+            "argument" : "Mock-Data"
+          },
+          {
+            "argument" : "Dark-Mode"
+          }
+        ]
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "CI",
+        "value" : "$(CI)"
+      }
+    ],
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:MovingBox.xcodeproj",
+      "identifier" : "1942DC792BF391CB00734AF4",
+      "name" : "MovingBox"
+    }
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "CurrencyFormatterTests"
+          },
+          {
+            "name" : "InventoryItemModelTests"
+          },
+          {
+            "name" : "JWTManagerTests"
+          },
+          {
+            "name" : "OpenAIServiceTests"
+          }
+        ]
+      },
+      "target" : {
+        "containerPath" : "container:MovingBox.xcodeproj",
+        "identifier" : "19D133C82D75455B002448A9",
+        "name" : "MovingBoxTests"
+      }
+    }
+  ],
+  "version" : 2
+}

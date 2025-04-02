@@ -2,7 +2,7 @@
   "configurations" : [
     {
       "id" : "D9FDECEC-49EC-48F1-9FB9-90C651B0580F",
-      "name" : "Test Scheme Action",
+      "name" : "Default",
       "options" : {
 
       }
@@ -14,6 +14,13 @@
   "testTargets" : [
     {
       "parallelizable" : true,
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "SnapshotTests"
+          }
+        ]
+      },
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",
         "identifier" : "19D133C82D75455B002448A9",
@@ -21,5 +28,5 @@
       }
     }
   ],
-  "version" : 1
+  "version" : 2
 }
