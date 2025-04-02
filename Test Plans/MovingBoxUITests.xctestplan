@@ -9,7 +9,10 @@
     }
   ],
   "defaultOptions" : {
-
+    "maximumTestRepetitions" : 2,
+    "repeatInNewRunnerProcess" : true,
+    "testRepetitionMode" : "retryOnFailure",
+    "testTimeoutsEnabled" : true
   },
   "testTargets" : [
     {

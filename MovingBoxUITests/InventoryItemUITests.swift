@@ -23,7 +23,7 @@ final class InventoryItemUITests: XCTestCase {
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
-        cameraScreen = CameraScreen(app: app)
+        cameraScreen = CameraScreen(app: app, testCase: self)
         photoReviewScreen = PhotoReviewScreen(app: app)
         tabBar = TabBar(app: app)
         
