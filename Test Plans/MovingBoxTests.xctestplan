@@ -13,7 +13,7 @@
       "options" : {
         "commandLineArgumentEntries" : [
           {
-            "argument" : "UI-Testing"
+            "argument" : "Mock-Data"
           }
         ]
       }
