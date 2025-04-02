@@ -129,11 +129,11 @@ struct SnapshotTests {
         )
     }
     
-    @Test("Edit Location View Layout")
-    func editLocationViewSnapshot() async {
+    @Test("Edit Location View Layout - Edit Mode")
+    func editLocationViewEditModeSnapshot() async {
         let container = try! await createTestContainer()
         
-        // Get kitchen location instead of first one
+        // Get kitchen location for consistency
         let descriptor = FetchDescriptor<InventoryLocation>(
             predicate: #Predicate<InventoryLocation> { location in
                 location.name == "Kitchen"
@@ -152,7 +152,107 @@ struct SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "edit_location_view\(snapshotSuffix)"
+            named: "edit_location_view_edit\(snapshotSuffix)"
+        )
+    }
+    
+    @Test("Edit Label View Layout - Read Mode")
+    func editLabelViewReadModeSnapshot() async {
+        let container = try! await createTestContainer()
+        
+        // Get Electronics label for consistency
+        let descriptor = FetchDescriptor<InventoryLabel>(
+            predicate: #Predicate<InventoryLabel> { label in
+                label.name == "Electronics"
+            }
+        )
+        let labels = try! container.mainContext.fetch(descriptor)
+        let label = labels.first ?? InventoryLabel()
+        
+        let view = EditLabelView(label: label)
+            .frame(width: 390, height: 844)
+            .preferredColorScheme(.light)
+            .modelContainer(container)
+        
+        try! await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "edit_label_view_read\(snapshotSuffix)"
+        )
+    }
+    
+    @Test("Edit Label View Layout - Edit Mode")
+    func editLabelViewEditModeSnapshot() async {
+        let container = try! await createTestContainer()
+        
+        // Get Electronics label for consistency
+        let descriptor = FetchDescriptor<InventoryLabel>(
+            predicate: #Predicate<InventoryLabel> { label in
+                label.name == "Electronics"
+            }
+        )
+        let labels = try! container.mainContext.fetch(descriptor)
+        let label = labels.first ?? InventoryLabel()
+        
+        let view = EditLabelView(label: label)
+            .frame(width: 390, height: 844)
+            .preferredColorScheme(.light)
+            .modelContainer(container)
+        
+        try! await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "edit_label_view_edit\(snapshotSuffix)"
+        )
+    }
+    
+    @Test("Edit Home View Layout - Read Mode")
+    func editHomeViewReadModeSnapshot() async {
+        let container = try! await createTestContainer()
+        
+        // Get first home for consistency
+        let descriptor = FetchDescriptor<Home>()
+        let homes = try! container.mainContext.fetch(descriptor)
+        let home = homes.first ?? Home()
+        
+        let view = EditHomeView(home: home)
+            .frame(width: 390, height: 844)
+            .preferredColorScheme(.light)
+            .modelContainer(container)
+        
+        try! await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "edit_home_view_read\(snapshotSuffix)"
+        )
+    }
+    
+    @Test("Edit Home View Layout - Edit Mode")
+    func editHomeViewEditModeSnapshot() async {
+        let container = try! await createTestContainer()
+        
+        // Get first home for consistency
+        let descriptor = FetchDescriptor<Home>()
+        let homes = try! container.mainContext.fetch(descriptor)
+        let home = homes.first ?? Home()
+        
+        let view = EditHomeView(home: home)
+            .frame(width: 390, height: 844)
+            .preferredColorScheme(.light)
+            .modelContainer(container)
+        
+        try! await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "edit_home_view_edit\(snapshotSuffix)"
         )
     }
     
@@ -170,7 +270,7 @@ struct SnapshotTests {
         let item = items.first ?? InventoryItem()
         
         let view = InventoryDetailView(
-            inventoryItemToDisplay: item, 
+            inventoryItemToDisplay: item,
             navigationPath: .constant(NavigationPath()),
             isEditing: false
         )
@@ -201,7 +301,7 @@ struct SnapshotTests {
         let item = items.first ?? InventoryItem()
         
         let view = InventoryDetailView(
-            inventoryItemToDisplay: item, 
+            inventoryItemToDisplay: item,
             navigationPath: .constant(NavigationPath()),
             isEditing: true
         )
@@ -233,6 +333,57 @@ struct SnapshotTests {
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "settings_view\(snapshotSuffix)"
+        )
+    }
+    
+    @Test("Camera View Layout")
+    func cameraViewSnapshot() async {
+        let container = try! await createTestContainer()
+        
+        let view = CameraView { image, needsAIAnalysis, completion in
+            completion()
+        }
+        .frame(width: 390, height: 844)
+        .preferredColorScheme(.light)
+        .modelContainer(container)
+        
+        try! await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "camera_view\(snapshotSuffix)"
+        )
+    }
+    
+    @Test("Photo Review View Layout")
+    func photoReviewViewSnapshot() async {
+        let container = try! await createTestContainer()
+        
+        // Get MacBook Pro item's photo for consistency
+        let descriptor = FetchDescriptor<InventoryItem>(
+            predicate: #Predicate<InventoryItem> { item in
+                item.title == "MacBook Pro" && item.make == "Apple"
+            }
+        )
+        let items = try! container.mainContext.fetch(descriptor)
+        let item = items.first ?? InventoryItem()
+        
+        let view = PhotoReviewView(
+            image: item.photo ?? UIImage(),
+            onAccept: { _, _, completion in completion() },
+            onRetake: { }
+        )
+        .frame(width: 390, height: 844)
+        .preferredColorScheme(.light)
+        .modelContainer(container)
+        
+        try! await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "photo_review_view\(snapshotSuffix)"
         )
     }
 }
