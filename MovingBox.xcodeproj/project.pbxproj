@@ -82,6 +82,7 @@
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
+		19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxSnapshotTests.xctestplan; path = "Test Plans/MovingBoxSnapshotTests.xctestplan"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -142,6 +143,7 @@
 			children = (
 				1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */,
 				19B7D9912D9B364800690F64 /* MovingBoxTests.xctestplan */,
+				19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */,
 				19B7D9902D9B362E00690F64 /* MovingBoxUITests.xctestplan */,
 				1937AABA2D938F6D00C68797 /* ci_scripts */,
 				19AD607F2D934B8100465BFF /* TestFlight */,

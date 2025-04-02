@@ -21,8 +21,18 @@ struct SnapshotTests {
         return ProcessInfo.processInfo.arguments.contains("Mock-Data")
     }
     
+    // Helper property to check if dark mode should be used
+    private var isDarkMode: Bool {
+        let darkMode = ProcessInfo.processInfo.arguments.contains("Dark-Mode")
+        print("🎨 Running tests in \(darkMode ? "dark" : "light") mode")
+        return darkMode
+    }
+    
     private var snapshotSuffix: String {
-        return shouldLoadMockData ? "_mockData" : ""
+        var suffix = ""
+        if shouldLoadMockData { suffix += "_mockData" }
+        if isDarkMode { suffix += "_dark" }
+        return suffix
     }
     
     // Helper function to create and populate test container
@@ -38,21 +48,29 @@ struct SnapshotTests {
         return container
     }
     
+    // Helper function to configure view for snapshot testing
+    private func configureViewForSnapshot<T: View>(_ view: T) -> some View {
+        view
+            .frame(width: 390, height: 844)
+            .preferredColorScheme(isDarkMode ? .dark : .light)
+            .background(Color(.systemBackground))
+            .environment(\.colorScheme, isDarkMode ? .dark : .light)
+    }
+    
     @Test("Dashboard View Layout")
     func dashboardViewSnapshot() async {
         let container = try! await createTestContainer()
         
-        let view = DashboardView()
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            DashboardView()
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
-            
-            as: .image(precision: precision, layout: .device(config: .iPhone13Pro), ),
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
             named: "dashboard_view\(snapshotSuffix)"
         )
     }
@@ -70,10 +88,10 @@ struct SnapshotTests {
         let locations = try! container.mainContext.fetch(descriptor)
         let location = locations.first
         
-        let view = InventoryListView(location: location)
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            InventoryListView(location: location)
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -88,10 +106,10 @@ struct SnapshotTests {
     func locationsListViewSnapshot() async {
         let container = try! await createTestContainer()
         
-        let view = LocationsListView()
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            LocationsListView()
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -115,10 +133,10 @@ struct SnapshotTests {
         let locations = try! container.mainContext.fetch(descriptor)
         let location = locations.first
         
-        let view = AddInventoryItemView(location: location)
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            AddInventoryItemView(location: location)
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -142,10 +160,10 @@ struct SnapshotTests {
         let locations = try! container.mainContext.fetch(descriptor)
         let location = locations.first ?? InventoryLocation()
         
-        let view = EditLocationView(location: location)
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            EditLocationView(location: location)
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -169,10 +187,10 @@ struct SnapshotTests {
         let labels = try! container.mainContext.fetch(descriptor)
         let label = labels.first ?? InventoryLabel()
         
-        let view = EditLabelView(label: label)
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            EditLabelView(label: label)
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -196,10 +214,10 @@ struct SnapshotTests {
         let labels = try! container.mainContext.fetch(descriptor)
         let label = labels.first ?? InventoryLabel()
         
-        let view = EditLabelView(label: label)
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            EditLabelView(label: label)
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -219,10 +237,10 @@ struct SnapshotTests {
         let homes = try! container.mainContext.fetch(descriptor)
         let home = homes.first ?? Home()
         
-        let view = EditHomeView(home: home)
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            EditHomeView(home: home)
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -242,10 +260,10 @@ struct SnapshotTests {
         let homes = try! container.mainContext.fetch(descriptor)
         let home = homes.first ?? Home()
         
-        let view = EditHomeView(home: home)
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            EditHomeView(home: home)
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -269,14 +287,14 @@ struct SnapshotTests {
         let items = try! container.mainContext.fetch(descriptor)
         let item = items.first ?? InventoryItem()
         
-        let view = InventoryDetailView(
-            inventoryItemToDisplay: item,
-            navigationPath: .constant(NavigationPath()),
-            isEditing: false
+        let view = configureViewForSnapshot(
+            InventoryDetailView(
+                inventoryItemToDisplay: item,
+                navigationPath: .constant(NavigationPath()),
+                isEditing: false
+            )
+                .modelContainer(container)
         )
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -300,14 +318,14 @@ struct SnapshotTests {
         let items = try! container.mainContext.fetch(descriptor)
         let item = items.first ?? InventoryItem()
         
-        let view = InventoryDetailView(
-            inventoryItemToDisplay: item,
-            navigationPath: .constant(NavigationPath()),
-            isEditing: true
+        let view = configureViewForSnapshot(
+            InventoryDetailView(
+                inventoryItemToDisplay: item,
+                navigationPath: .constant(NavigationPath()),
+                isEditing: true
+            )
+                .modelContainer(container)
         )
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -322,10 +340,10 @@ struct SnapshotTests {
     func settingsViewSnapshot() async {
         let container = try! await createTestContainer()
         
-        let view = SettingsView()
-            .frame(width: 390, height: 844)
-            .preferredColorScheme(.light)
-            .modelContainer(container)
+        let view = configureViewForSnapshot(
+            SettingsView()
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -340,12 +358,12 @@ struct SnapshotTests {
     func cameraViewSnapshot() async {
         let container = try! await createTestContainer()
         
-        let view = CameraView { image, needsAIAnalysis, completion in
-            completion()
-        }
-        .frame(width: 390, height: 844)
-        .preferredColorScheme(.light)
-        .modelContainer(container)
+        let view = configureViewForSnapshot(
+            CameraView { image, needsAIAnalysis, completion in
+                completion()
+            }
+                .modelContainer(container)
+        )
         
         try! await Task.sleep(for: .seconds(1))
         
@@ -369,14 +387,14 @@ struct SnapshotTests {
         let items = try! container.mainContext.fetch(descriptor)
         let item = items.first ?? InventoryItem()
         
-        let view = PhotoReviewView(
-            image: item.photo ?? UIImage(),
-            onAccept: { _, _, completion in completion() },
-            onRetake: { }
+        let view = configureViewForSnapshot(
+            PhotoReviewView(
+                image: item.photo ?? UIImage(),
+                onAccept: { _, _, completion in completion() },
+                onRetake: { }
+            )
+                .modelContainer(container)
         )
-        .frame(width: 390, height: 844)
-        .preferredColorScheme(.light)
-        .modelContainer(container)
         
         try! await Task.sleep(for: .seconds(1))
         

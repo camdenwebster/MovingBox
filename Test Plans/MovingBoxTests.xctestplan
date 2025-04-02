@@ -6,17 +6,6 @@
       "options" : {
 
       }
-    },
-    {
-      "id" : "147FB807-6964-470E-B5F5-DEE46877EFD1",
-      "name" : "Use Mock Data",
-      "options" : {
-        "commandLineArgumentEntries" : [
-          {
-            "argument" : "Mock-Data"
-          }
-        ]
-      }
     }
   ],
   "defaultOptions" : {
@@ -25,6 +14,13 @@
   "testTargets" : [
     {
       "parallelizable" : true,
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "SnapshotTests"
+          }
+        ]
+      },
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",
         "identifier" : "19D133C82D75455B002448A9",
@@ -32,5 +28,5 @@
       }
     }
   ],
-  "version" : 1
+  "version" : 2
 }
