@@ -47,12 +47,14 @@ final class InventoryItemUITests: XCTestCase {
         listScreen.tapAddItem()
         listScreen.tapCreateFromCamera()
         
-        // And: User takes a photo using the camera
-        XCTAssertTrue(cameraScreen.captureButton.waitForExistence(timeout: 5),
-                     "Camera capture button should be visible")
+        // Then: Camera should be ready
+        XCTAssertTrue(cameraScreen.waitForCamera(),
+                     "Camera should be ready after permissions")
+        
+        // When: User takes a photo
         cameraScreen.takePhoto()
         
-        // And: User accepts the photo in review
+        // Then: User accepts the photo in review
         XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
                      "Use photo button should be visible")
         photoReviewScreen.acceptPhoto()
@@ -75,7 +77,7 @@ final class InventoryItemUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         
         // Then: Camera view should reappear
-        XCTAssertTrue(cameraScreen.captureButton.waitForExistence(timeout: 5),
+        XCTAssertTrue(cameraScreen.waitForCamera(),
                      "Camera view should reappear after navigating back")
     }
 
@@ -135,9 +137,11 @@ final class InventoryItemUITests: XCTestCase {
         // And: User taps the Add Item tab
         tabBar.tapAddItem()
         
-        // And: User takes a photo using the camera
-        XCTAssertTrue(cameraScreen.captureButton.waitForExistence(timeout: 5),
-                     "Camera capture button should be visible")
+        // Then: Camera should be ready
+        XCTAssertTrue(cameraScreen.waitForCamera(),
+                     "Camera should be ready after permissions")
+        
+        // When: User takes a photo
         cameraScreen.takePhoto()
         
         // And: User accepts the photo in review
@@ -162,9 +166,9 @@ final class InventoryItemUITests: XCTestCase {
         // When: User navigates back
         app.navigationBars.buttons.firstMatch.tap()
         
-        // Then: Camera view should reappear
-        XCTAssertTrue(cameraScreen.captureButton.waitForExistence(timeout: 5),
-                     "Camera view should reappear after navigating back")
+        // Then: Camera view should reappear and be ready
+        XCTAssertTrue(cameraScreen.waitForCamera(),
+                     "Camera view should reappear and be ready after navigating back")
     }
     
     // MARK: - Helper Methods

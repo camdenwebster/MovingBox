@@ -24,26 +24,42 @@ class CameraScreen {
     
     // Camera permissions handler
     private func addCameraPermissionsHandler() {
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         testCase.addUIInterruptionMonitor(withDescription: "Camera Authorization Alert") { alert in
+            print("📱 Camera permission alert appeared")
             let allowButton = alert.buttons["Allow"]
             if allowButton.exists {
+                print("✅ Tapping Allow button")
                 allowButton.tap()
                 return true
             }
+            print("❌ Allow button not found")
             return false
         }
     }
     
+    func waitForCamera() -> Bool {
+        // Trigger the permission dialog if needed
+        app.tap()
+        
+        // Wait for capture button to be available
+        return captureButton.waitForExistence(timeout: 5)
+    }
+    
     func takePhoto() {
-        // Handle potential system alert by interacting with app
-        app.tap() // Trigger interruption handler if alert exists
+        guard waitForCamera() else {
+            print("❌ Camera not ready")
+            return
+        }
+        print("📸 Taking photo")
         captureButton.tap()
     }
     
     func switchCamera() {
-        // Handle potential system alert by interacting with app
-        app.tap() // Trigger interruption handler if alert exists
+        guard waitForCamera() else {
+            print("❌ Camera not ready")
+            return
+        }
+        print("🔄 Switching camera")
         switchCameraButton.tap()
     }
     
