@@ -2,9 +2,20 @@
   "configurations" : [
     {
       "id" : "D9FDECEC-49EC-48F1-9FB9-90C651B0580F",
-      "name" : "Test Scheme Action",
+      "name" : "Default",
       "options" : {
 
+      }
+    },
+    {
+      "id" : "147FB807-6964-470E-B5F5-DEE46877EFD1",
+      "name" : "Use Mock Data",
+      "options" : {
+        "commandLineArgumentEntries" : [
+          {
+            "argument" : "UI-Testing"
+          }
+        ]
       }
     }
   ],
