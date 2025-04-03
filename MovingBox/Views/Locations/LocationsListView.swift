@@ -12,8 +12,11 @@ struct LocationsListView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
+    @State private var showProUpgradeAlert = false
+    
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -42,11 +45,10 @@ struct LocationsListView: View {
                     ForEach(locations) { location in
                         NavigationLink(value: location) {
                             LocationItemCard(location: location)
-                                .frame(width: 180)
+                                .frame(maxWidth: 180)
                         }
                     }
                 }
-                .padding(.vertical, 8)
                 .padding()
             }
         }
@@ -59,7 +61,21 @@ struct LocationsListView: View {
             Button("Edit") {
                 router.navigate(to: .locationsSettingsView)
             }
-            Button("Add Item", systemImage: "plus", action: addLocation)
+            Button("Add Item", systemImage: "plus") {
+                if !settings.isProUser && locations.count >= SettingsManager.maxFreeLocations {
+                    showProUpgradeAlert = true
+                } else {
+                    addLocation()
+                }
+            }
+        }
+        .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
+            Button("Upgrade") {
+                // TODO: Implement upgrade flow
+            }
+            Button("Not Now", role: .cancel) { }
+        } message: {
+            Text("You've reached the maximum number of locations (\(SettingsManager.maxFreeLocations)) for free users. Upgrade to Pro for unlimited locations!")
         }
         .background(Color(.systemGroupedBackground))
         .onAppear {

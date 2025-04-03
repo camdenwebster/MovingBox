@@ -9,6 +9,7 @@ class SettingsManager: ObservableObject {
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
+        static let isProUser = "isProUser"
     }
     
     // Published properties that will update the UI
@@ -48,6 +49,12 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    @Published var isProUser: Bool {
+        didSet {
+            UserDefaults.standard.set(isProUser, forKey: Keys.isProUser)
+        }
+    }
+    
     // Default values
     private let defaultAIModel = "gpt-4o-mini"
     private let defaultTemperature = 0.7
@@ -55,6 +62,12 @@ class SettingsManager: ObservableObject {
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
     private let hasLaunchedDefault = false
+    
+    // CHANGE: Set this to true to test Pro features
+    private let isProUserDefault = false
+    
+    static let maxFreeItems = 50
+    static let maxFreeLocations = 5
     
     init() {
         // Initialize properties from UserDefaults or use defaults
@@ -64,6 +77,7 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
+        self.isProUser = (UserDefaults.standard.object(forKey: Keys.isProUser) as? Bool) ?? isProUserDefault
         
         // Set defaults if not already set
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
@@ -78,5 +92,6 @@ class SettingsManager: ObservableObject {
         apiKey = defaultApiKey
         isHighDetail = isHighDetailDefault
         hasLaunched = hasLaunchedDefault
+        isProUser = false
     }
 }

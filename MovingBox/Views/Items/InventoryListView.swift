@@ -15,9 +15,14 @@ enum Options: Hashable {
 struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
+    @State private var showProUpgradeAlert = false
+    
+    @Query private var allItems: [InventoryItem]
+    
     let location: InventoryLocation?
     
     var body: some View {
@@ -37,30 +42,38 @@ struct InventoryListView: View {
                 }
                 Menu("Add Item", systemImage: "plus") {
                     Button(action: {
-                        let newItem = InventoryItem(
-                            title: "",
-                            quantityString: "1",
-                            quantityInt: 1,
-                            desc: "",
-                            serial: "",
-                            model: "",
-                            make: "",
-                            location: location,
-                            label: nil,
-                            price: Decimal.zero,
-                            insured: false,
-                            assetId: "",
-                            notes: "",
-                            showInvalidQuantityAlert: false
-                        )
-                        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                        if !settings.isProUser && allItems.count >= SettingsManager.maxFreeItems {
+                            showProUpgradeAlert = true
+                        } else {
+                            let newItem = InventoryItem(
+                                title: "",
+                                quantityString: "1",
+                                quantityInt: 1,
+                                desc: "",
+                                serial: "",
+                                model: "",
+                                make: "",
+                                location: location,
+                                label: nil,
+                                price: Decimal.zero,
+                                insured: false,
+                                assetId: "",
+                                notes: "",
+                                showInvalidQuantityAlert: false
+                            )
+                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                        }
                     }) {
                         Label("Add Manually", systemImage: "square.and.pencil")
                     }
                     .accessibilityIdentifier("createManually")
                     
                     Button(action: {
-                        router.navigate(to: .addInventoryItemView(location: location))
+                        if !settings.isProUser && allItems.count >= SettingsManager.maxFreeItems {
+                            showProUpgradeAlert = true
+                        } else {
+                            router.navigate(to: .addInventoryItemView(location: location))
+                        }
                     }) {
                         Label("Add from Photo", systemImage: "camera")
                     }
@@ -69,6 +82,14 @@ struct InventoryListView: View {
                 .accessibilityIdentifier("addItem")
             }
             .searchable(text: $searchText)
+            .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
+                Button("Upgrade") {
+                    // TODO: Implement upgrade flow
+                }
+                Button("Not Now", role: .cancel) { }
+            } message: {
+                Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
+            }
     }
 }
 
@@ -78,6 +99,7 @@ struct InventoryListView: View {
         return InventoryListView(location: previewer.location)
             .modelContainer(previewer.container)
             .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Preview Error: \(error.localizedDescription)")
     }

@@ -78,20 +78,39 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-//            Section("General") {
-//                // TODO: Implement Appearance & Notification Settings
-//                NavigationLink(value: "appearance") {
-//                    Label("Apperance", systemImage: "paintbrush")
-//                }
-//                
-//                NavigationLink(value: "notifications") {
-//                    Label("Notification Settings", systemImage: "bell")
-//                }
-//                
-//                NavigationLink(value: "ai") {
-//                    Label("AI Settings", systemImage: "brain")
-//                }
-//            }
+            if !settings.isProUser {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                            Text("Upgrade to Pro")
+                                .font(.headline)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            FeatureRow(icon: "photo", text: "AI Image Analysis")
+                            FeatureRow(icon: "infinity", text: "Unlimited Items")
+                            FeatureRow(icon: "rectangle.stack", text: "Unlimited Locations")
+                            FeatureRow(icon: "icloud", text: "iCloud Sync")
+                        }
+                        
+                        Button(action: {
+                            // TODO: Implement upgrade flow
+                        }) {
+                            Text("Upgrade Now")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.accentColor)
+                                .cornerRadius(10)
+                        }
+                        .padding(.top, 8)
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
             
             Section("Home Settings") {
                 NavigationLink(value: "home") {
@@ -160,6 +179,22 @@ struct SettingsView: View {
             }
         }
     }
+    
+    private struct FeatureRow: View {
+        let icon: String
+        let text: String
+        
+        var body: some View {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .foregroundColor(.accentColor)
+                    .frame(width: 20)
+                Text(text)
+                    .foregroundColor(.primary)
+            }
+        }
+    }
+    
     // Helper function to create external link buttons
     private func externalLinkButton(for link: ExternalLink) -> some View {
         Button {
@@ -433,22 +468,20 @@ struct SafariView: UIViewControllerRepresentable {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: InventoryLocation.self, configurations: config)
         
-        // Create sample data with default empty descriptions
         let location1 = InventoryLocation(name: "Living Room")
         let location2 = InventoryLocation(name: "Kitchen")
         let location3 = InventoryLocation(name: "Master Bedroom")
         
-        // Insert sample data
         container.mainContext.insert(location1)
         container.mainContext.insert(location2)
         container.mainContext.insert(location3)
         
-        // Return the view with necessary modifiers
-        return SettingsView()
-            .modelContainer(container)
-            .environmentObject(Router())
+        return NavigationStack {
+            SettingsView()
+                .modelContainer(container)
+                .environmentObject(Router())
+        }
     } catch {
-        // Return a fallback view in case of errors
         return Text("Failed to set up preview")
             .foregroundColor(.red)
     }

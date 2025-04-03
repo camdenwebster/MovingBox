@@ -208,5 +208,6 @@ struct MovingBoxApp: App {
         }
         .modelContainer(container)
         .environmentObject(router)
+        .environmentObject(settings)
     }
 }

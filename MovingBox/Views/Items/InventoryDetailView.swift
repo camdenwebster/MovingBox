@@ -13,6 +13,7 @@ struct InventoryDetailView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -31,7 +32,6 @@ struct InventoryDetailView: View {
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults = false
     @State private var isEditing: Bool
-    @StateObject private var settings = SettingsManager()
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var showingCamera = false
@@ -39,6 +39,7 @@ struct InventoryDetailView: View {
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
+    @State private var showProUpgradeAlert = false
     
     var showSparklesButton = false
 
@@ -116,6 +117,11 @@ struct InventoryDetailView: View {
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
                     Button {
+                        if !settings.isProUser {
+                            showProUpgradeAlert = true
+                            return
+                        }
+                        
                         guard !isLoadingOpenAiResults else { return }
                         Task {
                             do {
@@ -296,7 +302,11 @@ struct InventoryDetailView: View {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton && isEditing {
                         Button(action: {
-                            showAIConfirmationAlert = true
+                            if !settings.isProUser {
+                                showProUpgradeAlert = true
+                            } else {
+                                showAIConfirmationAlert = true
+                            }
                         }) {
                             Image(systemName: "sparkles")
                         }
@@ -399,6 +409,14 @@ struct InventoryDetailView: View {
         } message: {
             Text("Do you want to save your changes before going back?")
         }
+        .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
+            Button("Upgrade") {
+                // TODO: Implement upgrade flow
+            }
+            Button("Not Now", role: .cancel) { }
+        } message: {
+            Text("AI image analysis is a Pro feature. Upgrade to Pro to automatically analyze your items!")
+        }
         .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
             Button("Analyze Image", role: .none) {
                 Task {
@@ -414,7 +432,6 @@ struct InventoryDetailView: View {
                     }
                 }
             }
-            
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
@@ -519,9 +536,10 @@ struct InventoryDetailView: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        
         return InventoryDetailView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()), isEditing: true)
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
