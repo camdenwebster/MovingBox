@@ -21,6 +21,9 @@
 		1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */; };
 		1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */; };
 		196109F52D764D9100A76504 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196109F42D764D9100A76504 /* ColorExtension.swift */; };
+		1961C6E92D9DDC56004CF387 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6E82D9DDC56004CF387 /* RevenueCat */; };
+		1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6EA2D9DDC56004CF387 /* RevenueCatUI */; };
+		1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */; };
 		1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */; };
 		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
@@ -68,6 +71,7 @@
 		1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
 		196109F42D764D9100A76504 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
+		1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotTests.swift; path = MovingBoxTests/SnapshotTests.swift; sourceTree = "<group>"; };
 		198958AC2BF8FAC700C52CAE /* TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestData.swift; path = MovingBox/Services/TestData.swift; sourceTree = SOURCE_ROOT; };
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
@@ -116,7 +120,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1961C6E92D9DDC56004CF387 /* RevenueCat in Frameworks */,
 				1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */,
+				1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */,
+				1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +173,7 @@
 				19B7D9702D9B112200690F64 /* MovingBoxUITests */,
 				1942DC7B2BF391CB00734AF4 /* Products */,
 				1927DD132D89EE5D00BEFD9D /* icon_shadow.png */,
+				1961C6EC2D9DDCA8004CF387 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -203,6 +211,14 @@
 				1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		1961C6EC2D9DDCA8004CF387 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		198958A32BF6FDC400C52CAE /* Services */ = {
@@ -340,6 +356,7 @@
 			packageReferences = (
 				1920B0D42D88B13000CFA1E9 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
 				1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+				1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -776,6 +793,14 @@
 				minimumVersion = 2.9.1;
 			};
 		};
+		1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.20.2;
+			};
+		};
 		1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
@@ -791,6 +816,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1920B0D42D88B13000CFA1E9 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
 			productName = TelemetryDeck;
+		};
+		1961C6E82D9DDC56004CF387 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		1961C6EA2D9DDC56004CF387 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
 		};
 		1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;

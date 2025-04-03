@@ -5,6 +5,14 @@ enum AppConfig {
         static let jwtSecret = "JWT_SECRET"
     }
     
+    // ADD: RevenueCat API key
+    static let revenueCatAPIKey: String = {
+        guard let key = Bundle.main.infoDictionary?["REVENUE_CAT_API_KEY"] as? String else {
+            fatalError("RevenueCat API key not found in configuration")
+        }
+        return key
+    }()
+    
     private static func checkBundleVariable(_ key: String) -> String? {
         // Check Info.plist first (for runtime values injected during build)
         if let infoValue = Bundle.main.object(forInfoDictionaryKey: key) as? String {

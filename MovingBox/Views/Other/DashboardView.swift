@@ -152,15 +152,12 @@ struct DashboardView: View {
                             ForEach(locations) { location in
                                 NavigationLink(value: Router.Destination.inventoryListView(location: location)) {
                                     LocationItemCard(location: location)
-                                        .frame(width: 160)
-                                        .background(RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color(.secondarySystemGroupedBackground))
-                                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .frame(width: 180)
                                 }
                             }
                         }
                         .scrollTargetLayout()
+                        .padding(.vertical, 8)
                         .padding(.horizontal)
                     }
                     .scrollTargetBehavior(.viewAligned)
@@ -205,7 +202,7 @@ struct DashboardView: View {
     private func loadPhoto(from item: PhotosPickerItem) async {
         if let data = try? await item.loadTransferable(type: Data.self) {
             await MainActor.run {
-                home.data = data  
+                home.data = data
                 try? modelContext.save()
             }
         }

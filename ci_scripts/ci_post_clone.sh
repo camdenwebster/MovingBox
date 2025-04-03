@@ -60,3 +60,8 @@ echo "========================================================"
 SECRET_PREVIEW=$(grep "JWT_SECRET" "$OUTPUT_FILE" | cut -d "=" -f2 | tr -d ' ' | cut -c1-5)
 echo "JWT_SECRET preview (first 5 chars): ${SECRET_PREVIEW}..."
 echo "========================================================"
+
+# Add preview of REVENUE_CAT_API_KEY (first 5 characters)
+RC_API_KEY_PREVIEW=$(grep "REVENUE_CAT_API_KEY" "$OUTPUT_FILE" | cut -d "=" -f2 | tr -d ' ' | cut -c1-5)
+echo "REVENUE_CAT_API_KEY preview (first 5 chars): ${RC_API_KEY_PREVIEW}..."
+echo "========================================================"

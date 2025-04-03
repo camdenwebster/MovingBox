@@ -42,14 +42,11 @@ struct LocationsListView: View {
                     ForEach(locations) { location in
                         NavigationLink(value: location) {
                             LocationItemCard(location: location)
-                                .frame(minWidth: 160, maxWidth: .infinity)
-                                .background(RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.secondarySystemGroupedBackground))
-                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .frame(width: 180)
                         }
                     }
                 }
+                .padding(.vertical, 8)
                 .padding()
             }
         }
