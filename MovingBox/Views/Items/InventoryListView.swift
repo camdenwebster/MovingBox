@@ -36,37 +36,37 @@ struct InventoryListView: View {
                     }
                 }
                 Menu("Add Item", systemImage: "plus") {
-                      Button(action: {
-                          let newItem = InventoryItem(
-                              title: "",
-                              quantityString: "1",
-                              quantityInt: 1,
-                              desc: "",
-                              serial: "",
-                              model: "",
-                              make: "",
-                              location: location,
-                              label: nil,
-                              price: Decimal.zero,
-                              insured: false,
-                              assetId: "",
-                              notes: "",
-                              showInvalidQuantityAlert: false
-                          )
-                          router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                      }) {
-                          Label("Add Manually", systemImage: "square.and.pencil")
-                      }
-                      .accessibilityIdentifier("createManually")
-                      
-                      Button(action: {
-                          router.navigate(to: .addInventoryItemView(location: location))
-                      }) {
-                          Label("Add from Photo", systemImage: "camera")
-                      }
-                      .accessibilityIdentifier("createFromCamera")
-                  }
-                  .accessibilityIdentifier("addItem")
+                    Button(action: {
+                        let newItem = InventoryItem(
+                            title: "",
+                            quantityString: "1",
+                            quantityInt: 1,
+                            desc: "",
+                            serial: "",
+                            model: "",
+                            make: "",
+                            location: location,
+                            label: nil,
+                            price: Decimal.zero,
+                            insured: false,
+                            assetId: "",
+                            notes: "",
+                            showInvalidQuantityAlert: false
+                        )
+                        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                    }) {
+                        Label("Add Manually", systemImage: "square.and.pencil")
+                    }
+                    .accessibilityIdentifier("createManually")
+                    
+                    Button(action: {
+                        router.navigate(to: .addInventoryItemView(location: location))
+                    }) {
+                        Label("Add from Photo", systemImage: "camera")
+                    }
+                    .accessibilityIdentifier("createFromCamera")
+                }
+                .accessibilityIdentifier("addItem")
             }
             .searchable(text: $searchText)
     }
