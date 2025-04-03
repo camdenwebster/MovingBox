@@ -165,7 +165,7 @@
 				1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */,
 				19B7D9912D9B364800690F64 /* MovingBoxTests.xctestplan */,
 				19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */,
-				19B7D9902D9B362E00690F64 /*                                                                         .xctestplan */,
+				19B7D9902D9B362E00690F64 /* MovingBoxUITests.xctestplan */,
 				1937AABA2D938F6D00C68797 /* ci_scripts */,
 				19AD607F2D934B8100465BFF /* TestFlight */,
 				19C01D5B2D92EEC600773DA4 /* .gitignore */,

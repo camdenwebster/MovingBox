@@ -15,7 +15,8 @@ struct LocationsListView: View {
     @EnvironmentObject var settings: SettingsManager
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
-    @State private var showProUpgradeAlert = false
+    @State private var showingPaywall = false
+    @State private var showLimitAlert = false
     
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
@@ -62,18 +63,23 @@ struct LocationsListView: View {
                 router.navigate(to: .locationsSettingsView)
             }
             Button("Add Item", systemImage: "plus") {
-                if !settings.isProUser && locations.count >= SettingsManager.maxFreeLocations {
-                    showProUpgradeAlert = true
+                if settings.shouldShowFirstLocationPaywall(locationCount: locations.count) {
+                    showingPaywall = true
+                } else if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                    showLimitAlert = true
                 } else {
                     addLocation()
                 }
             }
         }
-        .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
+        .sheet(isPresented: $showingPaywall) {
+            MovingBoxPaywallView()
+        }
+        .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
             Button("Upgrade") {
-                // TODO: Implement upgrade flow
+                showingPaywall = true
             }
-            Button("Not Now", role: .cancel) { }
+            Button("Cancel", role: .cancel) { }
         } message: {
             Text("You've reached the maximum number of locations (\(SettingsManager.maxFreeLocations)) for free users. Upgrade to Pro for unlimited locations!")
         }

@@ -19,7 +19,8 @@ struct InventoryListView: View {
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
-    @State private var showProUpgradeAlert = false
+    @State private var showingPaywall = false
+    @State private var showLimitAlert = false
     
     @Query private var allItems: [InventoryItem]
     
@@ -42,8 +43,10 @@ struct InventoryListView: View {
                 }
                 Menu("Add Item", systemImage: "plus") {
                     Button(action: {
-                        if !settings.isProUser && allItems.count >= SettingsManager.maxFreeItems {
-                            showProUpgradeAlert = true
+                        if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                            showingPaywall = true
+                        } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                            showLimitAlert = true
                         } else {
                             let newItem = InventoryItem(
                                 title: "",
@@ -69,8 +72,10 @@ struct InventoryListView: View {
                     .accessibilityIdentifier("createManually")
                     
                     Button(action: {
-                        if !settings.isProUser && allItems.count >= SettingsManager.maxFreeItems {
-                            showProUpgradeAlert = true
+                        if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                            showingPaywall = true
+                        } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                            showLimitAlert = true
                         } else {
                             router.navigate(to: .addInventoryItemView(location: location))
                         }
@@ -82,11 +87,14 @@ struct InventoryListView: View {
                 .accessibilityIdentifier("addItem")
             }
             .searchable(text: $searchText)
-            .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
+            .sheet(isPresented: $showingPaywall) {
+                MovingBoxPaywallView()
+            }
+            .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
                 Button("Upgrade") {
-                    // TODO: Implement upgrade flow
+                    showingPaywall = true
                 }
-                Button("Not Now", role: .cancel) { }
+                Button("Cancel", role: .cancel) { }
             } message: {
                 Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
             }

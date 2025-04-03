@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 class SettingsManager: ObservableObject {
     // Keys for UserDefaults
@@ -9,7 +10,6 @@ class SettingsManager: ObservableObject {
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
-        static let isProUser = "isProUser"
     }
     
     // Published properties that will update the UI
@@ -49,11 +49,14 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    @Published var isProUser: Bool {
-        didSet {
-            UserDefaults.standard.set(isProUser, forKey: Keys.isProUser)
-        }
-    }
+    // Pro feature constants
+    static let maxFreeItems = 50
+    static let maxFreeLocations = 5
+    static let maxFreePhotosPerItem = 3
+    
+    // Pro status
+    @AppStorage("isPro") var isPro: Bool = false
+    @AppStorage("hasSeenPaywall") var hasSeenPaywall: Bool = false
     
     // Default values
     private let defaultAIModel = "gpt-4o-mini"
@@ -63,11 +66,6 @@ class SettingsManager: ObservableObject {
     private let isHighDetailDefault = false
     private let hasLaunchedDefault = false
     
-    private let isProUserDefault = AppConfig.shared.isPro
-    
-    static let maxFreeItems = 50
-    static let maxFreeLocations = 5
-    
     init() {
         // Initialize properties from UserDefaults or use defaults
         self.aiModel = UserDefaults.standard.string(forKey: Keys.aiModel) ?? defaultAIModel
@@ -76,7 +74,6 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
-        self.isProUser = (UserDefaults.standard.object(forKey: Keys.isProUser) as? Bool) ?? AppConfig.shared.isPro
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
@@ -90,6 +87,42 @@ class SettingsManager: ObservableObject {
         #endif
     }
     
+    func shouldShowPaywall() -> Bool {
+        !isPro
+    }
+    
+    func shouldShowPaywallForAI() -> Bool {
+        !isPro
+    }
+    
+    func hasReachedItemLimit(currentCount: Int) -> Bool {
+        !isPro && currentCount >= SettingsManager.maxFreeItems
+    }
+    
+    func hasReachedLocationLimit(currentCount: Int) -> Bool {
+        !isPro && currentCount >= SettingsManager.maxFreeLocations
+    }
+    
+    func shouldShowFirstTimePaywall(itemCount: Int) -> Bool {
+        !isPro && itemCount == 0 && !hasSeenPaywall
+    }
+    
+    func shouldShowFirstLocationPaywall(locationCount: Int) -> Bool {
+        !isPro && locationCount == 0 && !hasSeenPaywall
+    }
+    
+    func canAddMoreItems(currentCount: Int) -> Bool {
+        isPro || currentCount < SettingsManager.maxFreeItems
+    }
+    
+    func canAddMoreLocations(currentCount: Int) -> Bool {
+        isPro || currentCount < SettingsManager.maxFreeLocations
+    }
+    
+    func canAddMorePhotos(currentCount: Int) -> Bool {
+        isPro || currentCount < SettingsManager.maxFreePhotosPerItem
+    }
+    
     // Reset settings to defaults
     func resetToDefaults() {
         aiModel = defaultAIModel
@@ -98,6 +131,7 @@ class SettingsManager: ObservableObject {
         apiKey = defaultApiKey
         isHighDetail = isHighDetailDefault
         hasLaunched = hasLaunchedDefault
-        isProUser = false
+        hasSeenPaywall = false
+        isPro = false
     }
 }

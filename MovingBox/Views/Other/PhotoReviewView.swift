@@ -10,7 +10,7 @@ struct PhotoReviewView: View {
     @State private var scannerOffset: CGFloat = -100
     @State private var scannerMovingDown = true
     @State private var localImage: UIImage?
-    @State private var showProUpgradeAlert = false
+    @State private var showingPaywall = false
 
     init(image: UIImage, onAccept: @escaping ((UIImage, Bool, @escaping () -> Void) -> Void), onRetake: @escaping () -> Void) {
         self.image = image
@@ -75,8 +75,8 @@ struct PhotoReviewView: View {
                                 Button(action: {
                                     guard let displayImage = localImage else { return }
                                     
-                                    if !settings.isProUser {
-                                        showProUpgradeAlert = true
+                                    if settings.shouldShowPaywallForAI() {
+                                        showingPaywall = true
                                     } else {
                                         isAnalyzing = true
                                         onAccept(displayImage, true) {
@@ -127,21 +127,8 @@ struct PhotoReviewView: View {
             .onDisappear {
                 localImage = nil
             }
-            .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
-                Button("Upgrade") {
-                    // TODO: Implement upgrade flow
-                }
-                Button("Not Now", role: .cancel) {
-                    guard let displayImage = localImage else { return }
-                    isAnalyzing = false
-                    onAccept(displayImage, false) {
-                        DispatchQueue.main.async {
-                            dismiss()
-                        }
-                    }
-                }
-            } message: {
-                Text("AI image analysis is a Pro feature. Upgrade to Pro to automatically analyze your items!")
+            .sheet(isPresented: $showingPaywall) {
+                MovingBoxPaywallView()
             }
         }
     }

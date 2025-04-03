@@ -9,7 +9,8 @@ struct AddInventoryItemView: View {
     @EnvironmentObject var settings: SettingsManager
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
-    @State private var showProUpgradeAlert = false
+    @State private var showingPaywall = false
+    @State private var showLimitAlert = false
     @Query private var allItems: [InventoryItem]
     
     let location: InventoryLocation?
@@ -21,8 +22,10 @@ struct AddInventoryItemView: View {
                 .padding()
             
             Button(action: {
-                if !settings.isProUser && allItems.count >= SettingsManager.maxFreeItems {
-                    showProUpgradeAlert = true
+                if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                    showingPaywall = true
+                } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                    showLimitAlert = true
                 } else {
                     checkCameraPermissionsAndPresent()
                 }
@@ -33,8 +36,10 @@ struct AddInventoryItemView: View {
         }
         .navigationTitle("Add New Item")
         .onAppear {
-            if !settings.isProUser && allItems.count >= SettingsManager.maxFreeItems {
-                showProUpgradeAlert = true
+            if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                showingPaywall = true
+            } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                showLimitAlert = true
             } else {
                 checkCameraPermissionsAndPresent()
             }
@@ -99,21 +104,24 @@ struct AddInventoryItemView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingPaywall) {
+            MovingBoxPaywallView()
+        }
+        .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
+            Button("Upgrade") {
+                showingPaywall = true
+            }
+            Button("Cancel", role: .cancel) {
+                dismiss()
+            }
+        } message: {
+            Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
+        }
         .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
             Button("Go to Settings", action: openSettings)
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Please grant camera access in Settings to use this feature.")
-        }
-        .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
-            Button("Upgrade") {
-                // TODO: Implement upgrade flow
-            }
-            Button("Not Now", role: .cancel) {
-                dismiss()
-            }
-        } message: {
-            Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
         }
     }
     

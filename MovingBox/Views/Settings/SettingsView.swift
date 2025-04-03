@@ -23,12 +23,13 @@ struct ExternalLink {
 
 // MARK: - Main Settings Body
 struct SettingsView: View {
-    @StateObject private var settings = SettingsManager()
+    @StateObject private var settingsManager = SettingsManager()
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
     @State private var selectedSection: SettingsSection? = .categories // Default selection
     @State private var showingSafariView = false
     @State private var selectedURL: URL?
+    @State private var showingPaywall = false
     @Query private var homes: [Home]
     private var home: Home { homes.first ?? Home() }
     
@@ -77,28 +78,16 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        List {
-            if !settings.isProUser {
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
-                            Text("Upgrade to Pro")
-                                .font(.headline)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            FeatureRow(icon: "photo", text: "AI Image Analysis")
-                            FeatureRow(icon: "infinity", text: "Unlimited Items")
-                            FeatureRow(icon: "rectangle.stack", text: "Unlimited Locations")
-                            FeatureRow(icon: "icloud", text: "iCloud Sync")
-                        }
-                        
+        NavigationView {
+            List {
+                if !settingsManager.isPro {
+                    Section {
+
+                            
                         Button(action: {
-                            // TODO: Implement upgrade flow
+                            showingPaywall = true
                         }) {
-                            Text("Upgrade Now")
+                            Text("Get MovingBox Pro")
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -106,76 +95,93 @@ struct SettingsView: View {
                                 .background(Color.accentColor)
                                 .cornerRadius(10)
                         }
-                        .padding(.top, 8)
+                        .listRowInsets(EdgeInsets())
                     }
-                    .padding(.vertical, 8)
+                }
+                
+                Section("Home Settings") {
+                    NavigationLink(value: "home") {
+                        Label("Home Details", systemImage: "house")
+                    }
+                    NavigationLink(value: "locations") {
+                        Label("Location Settings", systemImage: "location")
+                    }
+                    NavigationLink(value: "labels") {
+                        Label("Label Settings", systemImage: "tag")
+                    }
+                }
+                
+                Section("Community & Support") {
+                    externalLinkButton(for: externalLinks["knowledgeBase"]!)
+                    externalLinkButton(for: externalLinks["support"]!)
+                    externalLinkButton(for: externalLinks["bugs"]!)
+                    externalLinkButton(for: externalLinks["rateUs"]!)
+                }
+                
+                
+                Section("About") {
+                    HStack {
+                        Label("Version", systemImage: "info.circle")
+                        Spacer()
+                        Text(appVersion)
+                            .foregroundColor(.secondary)
+                    }
+                    externalLinkButton(for: externalLinks["roadmap"]!)
+                    externalLinkButton(for: externalLinks["privacyPolicy"]!)
+                    externalLinkButton(for: externalLinks["termsOfService"]!)
+                }
+                
+                Section {
+                    if !settingsManager.isPro {
+                        Button(action: {
+                            showingPaywall = true
+                        }) {
+                            HStack {
+                                Text("Upgrade to Pro")
+                                Spacer()
+                                Image(systemName: "star.circle.fill")
+                                    .foregroundColor(.yellow)
+                            }
+                        }
+                    }
                 }
             }
-            
-            Section("Home Settings") {
-                NavigationLink(value: "home") {
-                    Label("Home Details", systemImage: "house")
+            .navigationTitle("Settings")
+            .navigationDestination(for: String.self) { destination in
+                switch destination {
+                case "appearance":
+                    AppearanceSettingsView()
+                case "notifications":
+                    NotificationSettingsView()
+                case "ai":
+                    AISettingsView(settings: settingsManager)
+                case "locations":
+                    LocationSettingsView()
+                case "labels":
+                    LabelSettingsView()
+                case "home":
+                    EditHomeView(home: home)
+                default:
+                    EmptyView()
                 }
-                NavigationLink(value: "locations") {
-                    Label("Location Settings", systemImage: "location")
+            }
+            .navigationDestination(for: Router.Destination.self) { destination in
+                switch destination {
+                case .editLocationView(let location):
+                    EditLocationView(location: location)
+                case .editLabelView(let label):
+                    EditLabelView(label: label)
+                default:
+                    EmptyView()
                 }
-                NavigationLink(value: "labels") {
-                    Label("Label Settings", systemImage: "tag")
+            }
+            .sheet(isPresented: $showingSafariView) {
+                if let url = selectedURL {
+                    SafariView(url: url)
                 }
             }
-            
-            Section("Community & Support") {
-                externalLinkButton(for: externalLinks["knowledgeBase"]!)
-                externalLinkButton(for: externalLinks["support"]!)
-                externalLinkButton(for: externalLinks["bugs"]!)
-                externalLinkButton(for: externalLinks["rateUs"]!)
-            }
-            
-            
-            Section("About") {
-                HStack {
-                    Label("Version", systemImage: "info.circle")
-                    Spacer()
-                    Text(appVersion)
-                        .foregroundColor(.secondary)
-                }
-                externalLinkButton(for: externalLinks["roadmap"]!)
-                externalLinkButton(for: externalLinks["privacyPolicy"]!)
-                externalLinkButton(for: externalLinks["termsOfService"]!)
-            }
-        }
-        .navigationTitle("Settings")
-        .navigationDestination(for: String.self) { destination in
-            switch destination {
-            case "appearance":
-                AppearanceSettingsView()
-            case "notifications":
-                NotificationSettingsView()
-            case "ai":
-                AISettingsView(settings: settings)
-            case "locations":
-                LocationSettingsView()
-            case "labels":
-                LabelSettingsView()
-            case "home":
-                EditHomeView(home: home)
-            default:
-                EmptyView()
-            }
-        }
-        .navigationDestination(for: Router.Destination.self) { destination in
-            switch destination {
-            case .editLocationView(let location):
-                EditLocationView(location: location)
-            case .editLabelView(let label):
-                EditLabelView(label: label)
-            default:
-                EmptyView()
-            }
-        }
-        .sheet(isPresented: $showingSafariView) {
-            if let url = selectedURL {
-                SafariView(url: url)
+            .sheet(isPresented: $showingPaywall) {
+                MovingBoxPaywallView()
             }
         }
     }

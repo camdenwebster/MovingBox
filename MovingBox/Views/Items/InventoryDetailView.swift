@@ -39,7 +39,7 @@ struct InventoryDetailView: View {
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
-    @State private var showProUpgradeAlert = false
+    @State private var showingPaywall = false
     
     var showSparklesButton = false
 
@@ -117,8 +117,8 @@ struct InventoryDetailView: View {
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
                     Button {
-                        if !settings.isProUser {
-                            showProUpgradeAlert = true
+                        if settings.shouldShowPaywallForAI() {
+                            showingPaywall = true
                             return
                         }
                         
@@ -302,8 +302,8 @@ struct InventoryDetailView: View {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton && isEditing {
                         Button(action: {
-                            if !settings.isProUser {
-                                showProUpgradeAlert = true
+                            if settings.shouldShowPaywallForAI() {
+                                showingPaywall = true
                             } else {
                                 showAIConfirmationAlert = true
                             }
@@ -363,6 +363,9 @@ struct InventoryDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingPaywall) {
+            MovingBoxPaywallView()
+        }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showingCamera = true
@@ -408,14 +411,6 @@ struct InventoryDetailView: View {
             }
         } message: {
             Text("Do you want to save your changes before going back?")
-        }
-        .alert("Upgrade to Pro", isPresented: $showProUpgradeAlert) {
-            Button("Upgrade") {
-                // TODO: Implement upgrade flow
-            }
-            Button("Not Now", role: .cancel) { }
-        } message: {
-            Text("AI image analysis is a Pro feature. Upgrade to Pro to automatically analyze your items!")
         }
         .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
             Button("Analyze Image", role: .none) {
