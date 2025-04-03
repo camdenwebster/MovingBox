@@ -24,6 +24,7 @@
 		1961C6E92D9DDC56004CF387 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6E82D9DDC56004CF387 /* RevenueCat */; };
 		1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6EA2D9DDC56004CF387 /* RevenueCatUI */; };
 		1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */; };
+		1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */; };
 		1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */; };
 		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
@@ -72,6 +73,8 @@
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
 		196109F42D764D9100A76504 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
 		1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxStoreKit.storekit; path = MovingBox/MovingBoxStoreKit.storekit; sourceTree = "<group>"; };
+		1961C6FB2D9EBB5F004CF387 /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; name = StoreKitTestCertificate.cer; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
 		1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotTests.swift; path = MovingBoxTests/SnapshotTests.swift; sourceTree = "<group>"; };
 		198958AC2BF8FAC700C52CAE /* TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestData.swift; path = MovingBox/Services/TestData.swift; sourceTree = SOURCE_ROOT; };
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
@@ -156,6 +159,8 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */,
+				1961C6FB2D9EBB5F004CF387 /* StoreKitTestCertificate.cer */,
 				19F2CC3F2D9D85210053050B /* .gitattributes */,
 				1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */,
 				19B7D9912D9B364800690F64 /* MovingBoxTests.xctestplan */,
@@ -377,6 +382,7 @@
 				1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */,
 				1927DDF32D8B1F4C00BEFD9D /* placeholder.txt in Resources */,
 				1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */,
+				1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */,
 				1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */,
 				1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */,
 			);

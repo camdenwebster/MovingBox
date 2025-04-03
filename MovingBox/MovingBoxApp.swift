@@ -88,7 +88,7 @@ struct MovingBoxApp: App {
         case .dashboardView:
             DashboardView()
                 .presentPaywallIfNeeded(
-                    requiredEntitlementIdentifier: "pro",
+                    requiredEntitlementIdentifier: "Pro",
                     purchaseCompleted: { customerInfo in
                         print("Purchase completed: \(customerInfo.entitlements)")
                     },
