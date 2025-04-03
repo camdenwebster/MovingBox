@@ -63,8 +63,7 @@ class SettingsManager: ObservableObject {
     private let isHighDetailDefault = false
     private let hasLaunchedDefault = false
     
-    // CHANGE: Set this to true to test Pro features
-    private let isProUserDefault = false
+    private let isProUserDefault = AppConfig.shared.isPro
     
     static let maxFreeItems = 50
     static let maxFreeLocations = 5
@@ -77,11 +76,18 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
-        self.isProUser = (UserDefaults.standard.object(forKey: Keys.isProUser) as? Bool) ?? isProUserDefault
+        self.isProUser = (UserDefaults.standard.object(forKey: Keys.isProUser) as? Bool) ?? AppConfig.shared.isPro
         
-        // Set defaults if not already set
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
+        
+        #if BETA
+        if AppConfig.shared.configuration == .debug {
+            print("⚠️ Running in BETA-DEBUG mode - All Pro features enabled")
+        } else {
+            print("⚠️ Running in BETA-RELEASE mode - All Pro features enabled")
+        }
+        #endif
     }
     
     // Reset settings to defaults

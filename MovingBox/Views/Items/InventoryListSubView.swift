@@ -1,6 +1,6 @@
 //
 //  InventoryList.swift
-//  FirebaseCRUD-CamdenW
+//  MovingBox
 //
 //  Created by Camden Webster on 4/9/24.
 //
@@ -55,20 +55,32 @@ struct InventoryListSubView: View {
     }
     
     private func loadItems() async {
+        // Guard against running during teardown
+        guard !Task.isCancelled else {
+            print("LoadItems cancelled - context might be invalidated")
+            return
+        }
+        
+        print("Starting to load items...")
         let descriptor = FetchDescriptor<InventoryItem>(sortBy: sortOrder)
         
         do {
+            print("Fetching items from context...")
             var allItems = try modelContext.fetch(descriptor)
+            print("Fetched \(allItems.count) items")
             
             // Filter by location if specified
             if let location = location {
+                print("Filtering by location: \(location.name)")
                 allItems = allItems.filter { item in
                     item.location?.persistentModelID == location.persistentModelID
                 }
+                print("After location filter: \(allItems.count) items")
             }
             
             // Apply search filter if specified
             if !searchString.isEmpty {
+                print("Applying search filter: \(searchString)")
                 allItems = allItems.filter { item in
                     let searchTerm = searchString.lowercased()
                     return item.title.localizedStandardContains(searchTerm) ||
@@ -78,16 +90,20 @@ struct InventoryListSubView: View {
                            item.model.localizedStandardContains(searchTerm) ||
                            item.serial.localizedStandardContains(searchTerm)
                 }
+                print("After search filter: \(allItems.count) items")
             }
             
             await MainActor.run {
                 self.items = allItems
+                print("Items set on MainActor: \(self.items.count)")
             }
         } catch {
             print("Failed to fetch items: \(error)")
+            print("Error details: \(String(describing: error))")
+            print("Model Context state: \(String(describing: modelContext))")
         }
     }
-    
+
     func deleteItems(at offsets: IndexSet) {
         for index in offsets {
             let itemToDelete = items[index]

@@ -12,8 +12,7 @@ import SwiftData
 @testable import MovingBox
 
 @MainActor
-struct SnapshotTests {
-
+final class SnapshotTests {
     var filePath: StaticString {
         let xcodeCloudPath: StaticString = "/Volumes/workspace/repository/ci_scripts/SnapshotTests.swift"
         if ProcessInfo.processInfo.environment["CI"] == "TRUE" {
@@ -45,38 +44,97 @@ struct SnapshotTests {
         return suffix
     }
     
-    // Helper function to create and populate test container
+    private var testContainer: ModelContainer?
+    
+    private func cleanup() async {
+        print("Cleaning up test resources...")
+        guard let container = testContainer else { return }
+        
+        let context = container.mainContext
+        
+        do {
+            print("Deleting items...")
+            try context.delete(model: InventoryItem.self)
+            
+            print("Deleting locations...")
+            try context.delete(model: InventoryLocation.self)
+            
+            print("Deleting labels...")
+            try context.delete(model: InventoryLabel.self)
+            
+            print("Deleting homes...")
+            try context.delete(model: Home.self)
+            
+            print("Deleting policies...")
+            try context.delete(model: InsurancePolicy.self)
+            
+            try context.save()
+            print("Test data cleared successfully")
+        } catch {
+            print("Error during cleanup: \(error)")
+        }
+        
+        testContainer = nil
+    }
+    
     private func createTestContainer() async throws -> ModelContainer {
+        await cleanup()
+        
+        print("Creating test container...")
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Home.self, InventoryLabel.self, InventoryItem.self, InventoryLocation.self, InsurancePolicy.self, configurations: config)
         
-        // Only load test data if the Mock-Data argument is present
+        print("Container created successfully")
+        testContainer = container
+        
         if shouldLoadMockData {
+            print("Populating test data...")
             await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+            try container.mainContext.save()
+            print("Test data populated and saved")
+            
+            // Verify data was loaded
+            let itemCount = try container.mainContext.fetch(FetchDescriptor<InventoryItem>()).count
+            let locationCount = try container.mainContext.fetch(FetchDescriptor<InventoryLocation>()).count
+            let labelCount = try container.mainContext.fetch(FetchDescriptor<InventoryLabel>()).count
+            print("Verification - Items: \(itemCount), Locations: \(locationCount), Labels: \(labelCount)")
         }
         
         return container
     }
     
-    // Helper function to configure view for snapshot testing
     private func configureViewForSnapshot<T: View>(_ view: T) -> some View {
         view
             .frame(width: 390, height: 844)
             .preferredColorScheme(isDarkMode ? .dark : .light)
             .background(Color(.systemBackground))
             .environment(\.colorScheme, isDarkMode ? .dark : .light)
+            .environmentObject(SettingsManager())
+            .environmentObject(Router())
     }
-    
+}
+
+// MARK: - Test Extensions
+extension ModelContext {
+    func delete<T: PersistentModel>(model: T.Type) throws {
+        let descriptor = FetchDescriptor<T>()
+        let items = try fetch(descriptor)
+        items.forEach { delete($0) }
+    }
+}
+
+// MARK: - Tests
+extension SnapshotTests {
     @Test("Dashboard View Layout")
-    func dashboardViewSnapshot() async {
-        let container = try! await createTestContainer()
+    func dashboardViewSnapshot() async throws {
+        let container = try await createTestContainer()
         
         let view = configureViewForSnapshot(
             DashboardView()
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -84,19 +142,20 @@ struct SnapshotTests {
             named: "dashboard_view\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Inventory List View Layout")
-    func inventoryListViewSnapshot() async {
-        let container = try! await createTestContainer()
+    func inventoryListViewSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get kitchen location instead of first one
         let descriptor = FetchDescriptor<InventoryLocation>(
             predicate: #Predicate<InventoryLocation> { location in
                 location.name == "Kitchen"
             }
         )
-        let locations = try! container.mainContext.fetch(descriptor)
+        let locations = try container.mainContext.fetch(descriptor)
         let location = locations.first
         
         let view = configureViewForSnapshot(
@@ -104,7 +163,10 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        for i in 1...4 {
+            try await Task.sleep(for: .seconds(0.5))
+            print("Wait iteration \(i) complete")
+        }
         
         assertSnapshot(
             of: view,
@@ -112,18 +174,20 @@ struct SnapshotTests {
             named: "inventory_list_view\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Locations List View Layout")
-    func locationsListViewSnapshot() async {
-        let container = try! await createTestContainer()
+    func locationsListViewSnapshot() async throws {
+        let container = try await createTestContainer()
         
         let view = configureViewForSnapshot(
             LocationsListView()
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -131,19 +195,20 @@ struct SnapshotTests {
             named: "locations_list_view\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Add Inventory Item View Layout")
-    func addInventoryItemViewSnapshot() async {
-        let container = try! await createTestContainer()
+    func addInventoryItemViewSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get kitchen location instead of first one
         let descriptor = FetchDescriptor<InventoryLocation>(
             predicate: #Predicate<InventoryLocation> { location in
                 location.name == "Kitchen"
             }
         )
-        let locations = try! container.mainContext.fetch(descriptor)
+        let locations = try container.mainContext.fetch(descriptor)
         let location = locations.first
         
         let view = configureViewForSnapshot(
@@ -151,7 +216,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -159,19 +224,20 @@ struct SnapshotTests {
             named: "add_inventory_item_view\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Edit Location View Layout - Edit Mode")
-    func editLocationViewEditModeSnapshot() async {
-        let container = try! await createTestContainer()
+    func editLocationViewEditModeSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get kitchen location for consistency
         let descriptor = FetchDescriptor<InventoryLocation>(
             predicate: #Predicate<InventoryLocation> { location in
                 location.name == "Kitchen"
             }
         )
-        let locations = try! container.mainContext.fetch(descriptor)
+        let locations = try container.mainContext.fetch(descriptor)
         let location = locations.first ?? InventoryLocation()
         
         let view = configureViewForSnapshot(
@@ -179,7 +245,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -187,19 +253,20 @@ struct SnapshotTests {
             named: "edit_location_view_edit\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Edit Label View Layout - Read Mode")
-    func editLabelViewReadModeSnapshot() async {
-        let container = try! await createTestContainer()
+    func editLabelViewReadModeSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get Electronics label for consistency
         let descriptor = FetchDescriptor<InventoryLabel>(
             predicate: #Predicate<InventoryLabel> { label in
                 label.name == "Electronics"
             }
         )
-        let labels = try! container.mainContext.fetch(descriptor)
+        let labels = try container.mainContext.fetch(descriptor)
         let label = labels.first ?? InventoryLabel()
         
         let view = configureViewForSnapshot(
@@ -207,7 +274,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -215,19 +282,20 @@ struct SnapshotTests {
             named: "edit_label_view_read\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Edit Label View Layout - Edit Mode")
-    func editLabelViewEditModeSnapshot() async {
-        let container = try! await createTestContainer()
+    func editLabelViewEditModeSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get Electronics label for consistency
         let descriptor = FetchDescriptor<InventoryLabel>(
             predicate: #Predicate<InventoryLabel> { label in
                 label.name == "Electronics"
             }
         )
-        let labels = try! container.mainContext.fetch(descriptor)
+        let labels = try container.mainContext.fetch(descriptor)
         let label = labels.first ?? InventoryLabel()
         
         let view = configureViewForSnapshot(
@@ -235,7 +303,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -243,15 +311,16 @@ struct SnapshotTests {
             named: "edit_label_view_edit\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Edit Home View Layout - Read Mode")
-    func editHomeViewReadModeSnapshot() async {
-        let container = try! await createTestContainer()
+    func editHomeViewReadModeSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get first home for consistency
         let descriptor = FetchDescriptor<Home>()
-        let homes = try! container.mainContext.fetch(descriptor)
+        let homes = try container.mainContext.fetch(descriptor)
         let home = homes.first ?? Home()
         
         let view = configureViewForSnapshot(
@@ -259,7 +328,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -267,15 +336,16 @@ struct SnapshotTests {
             named: "edit_home_view_read\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Edit Home View Layout - Edit Mode")
-    func editHomeViewEditModeSnapshot() async {
-        let container = try! await createTestContainer()
+    func editHomeViewEditModeSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get first home for consistency
         let descriptor = FetchDescriptor<Home>()
-        let homes = try! container.mainContext.fetch(descriptor)
+        let homes = try container.mainContext.fetch(descriptor)
         let home = homes.first ?? Home()
         
         let view = configureViewForSnapshot(
@@ -283,7 +353,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -291,19 +361,20 @@ struct SnapshotTests {
             named: "edit_home_view_edit\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Inventory Detail View - Read Mode")
-    func inventoryDetailViewReadModeSnapshot() async {
-        let container = try! await createTestContainer()
+    func inventoryDetailViewReadModeSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get MacBook Pro item for consistency
         let descriptor = FetchDescriptor<InventoryItem>(
             predicate: #Predicate<InventoryItem> { item in
                 item.title == "MacBook Pro" && item.make == "Apple" && item.model == "MacBook Pro M2"
             }
         )
-        let items = try! container.mainContext.fetch(descriptor)
+        let items = try container.mainContext.fetch(descriptor)
         let item = items.first ?? InventoryItem()
         
         let view = configureViewForSnapshot(
@@ -315,7 +386,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -323,19 +394,20 @@ struct SnapshotTests {
             named: "inventory_detail_view_read\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Inventory Detail View - Edit Mode")
-    func inventoryDetailViewEditModeSnapshot() async {
-        let container = try! await createTestContainer()
+    func inventoryDetailViewEditModeSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get MacBook Pro item for consistency
         let descriptor = FetchDescriptor<InventoryItem>(
             predicate: #Predicate<InventoryItem> { item in
                 item.title == "MacBook Pro" && item.make == "Apple" && item.model == "MacBook Pro M2"
             }
         )
-        let items = try! container.mainContext.fetch(descriptor)
+        let items = try container.mainContext.fetch(descriptor)
         let item = items.first ?? InventoryItem()
         
         let view = configureViewForSnapshot(
@@ -347,7 +419,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -355,18 +427,20 @@ struct SnapshotTests {
             named: "inventory_detail_view_edit\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Settings View Layout")
-    func settingsViewSnapshot() async {
-        let container = try! await createTestContainer()
+    func settingsViewSnapshot() async throws {
+        let container = try await createTestContainer()
         
         let view = configureViewForSnapshot(
             SettingsView()
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -374,11 +448,13 @@ struct SnapshotTests {
             named: "settings_view\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Camera View Layout")
-    func cameraViewSnapshot() async {
-        let container = try! await createTestContainer()
+    func cameraViewSnapshot() async throws {
+        let container = try await createTestContainer()
         
         let view = configureViewForSnapshot(
             CameraView { image, needsAIAnalysis, completion in
@@ -387,7 +463,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -395,19 +471,20 @@ struct SnapshotTests {
             named: "camera_view\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
     
     @Test("Photo Review View Layout")
-    func photoReviewViewSnapshot() async {
-        let container = try! await createTestContainer()
+    func photoReviewViewSnapshot() async throws {
+        let container = try await createTestContainer()
         
-        // Get MacBook Pro item's photo for consistency
         let descriptor = FetchDescriptor<InventoryItem>(
             predicate: #Predicate<InventoryItem> { item in
                 item.title == "MacBook Pro" && item.make == "Apple"
             }
         )
-        let items = try! container.mainContext.fetch(descriptor)
+        let items = try container.mainContext.fetch(descriptor)
         let item = items.first ?? InventoryItem()
         
         let view = configureViewForSnapshot(
@@ -419,7 +496,7 @@ struct SnapshotTests {
                 .modelContainer(container)
         )
         
-        try! await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(1))
         
         assertSnapshot(
             of: view,
@@ -427,5 +504,7 @@ struct SnapshotTests {
             named: "photo_review_view\(snapshotSuffix)",
             file: filePath
         )
+        
+        await cleanup()
     }
 }

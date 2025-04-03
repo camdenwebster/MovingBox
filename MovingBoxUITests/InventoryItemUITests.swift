@@ -18,7 +18,7 @@ final class InventoryItemUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
         
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)

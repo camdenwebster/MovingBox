@@ -93,3 +93,4 @@ iOSInjectionProject/
 # Configuration files with secrets
 MovingBox/Configuration/Base.xcconfig
 StoreKitTestCertificate.cer
+/MovingBox/.venv
