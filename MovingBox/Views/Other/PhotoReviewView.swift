@@ -78,8 +78,11 @@ struct PhotoReviewView: View {
                                     if settings.shouldShowPaywallForCamera() {
                                         showingPaywall = true
                                     } else {
-                                        isAnalyzing = true
-                                        onAccept(displayImage, true) {
+                                        let needsAnalysis = settings.isPro
+                                        if needsAnalysis {
+                                            isAnalyzing = true
+                                        }
+                                        onAccept(displayImage, needsAnalysis) {
                                             DispatchQueue.main.async {
                                                 isAnalyzing = false
                                                 print("Analysis complete, dismissing PhotoReviewView")

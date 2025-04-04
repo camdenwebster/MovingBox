@@ -146,7 +146,7 @@ struct InventoryDetailView: View {
                             if isLoadingOpenAiResults {
                                 ProgressView()
                             } else {
-                                Image(systemName: "sparkles")
+                                Image(systemName: "wand.and.sparkles")
                                 Text("Analyze with AI")
                             }
                         }
@@ -308,7 +308,7 @@ struct InventoryDetailView: View {
                                 showAIConfirmationAlert = true
                             }
                         }) {
-                            Image(systemName: "sparkles")
+                            Image(systemName: "wand.and.sparkles")
                         }
                         .disabled(isLoadingOpenAiResults)
                         .accessibilityIdentifier("sparkles")
