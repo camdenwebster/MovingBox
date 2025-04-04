@@ -76,12 +76,12 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "UI-Testing"
-            isEnabled = "YES">
+            argument = "UI-Testing-Pro"
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "UI-Testing-Pro"
-            isEnabled = "YES">
+            argument = "UI-Testing"
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>

@@ -115,6 +115,10 @@ class SettingsManager: ObservableObject {
         !isPro
     }
     
+    func shouldShowPaywallForCamera() -> Bool {
+        !isPro && !hasSeenPaywall
+    }
+    
     func hasReachedItemLimit(currentCount: Int) -> Bool {
         !isPro && currentCount >= SettingsManager.maxFreeItems
     }

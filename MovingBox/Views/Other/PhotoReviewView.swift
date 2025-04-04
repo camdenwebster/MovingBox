@@ -75,7 +75,7 @@ struct PhotoReviewView: View {
                                 Button(action: {
                                     guard let displayImage = localImage else { return }
                                     
-                                    if settings.shouldShowPaywallForAI() {
+                                    if settings.shouldShowPaywallForCamera() {
                                         showingPaywall = true
                                     } else {
                                         isAnalyzing = true
