@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import StoreKit
 
 class SettingsManager: ObservableObject {
     // Keys for UserDefaults
@@ -67,6 +68,23 @@ class SettingsManager: ObservableObject {
     private let hasLaunchedDefault = false
     
     init() {
+        // Configure for testing
+        #if DEBUG
+        // For UI testing, we just need to check the launch argument
+        if ProcessInfo.processInfo.arguments.contains("UI-Testing-Pro") {
+            print("⚠️ Running with UI-Testing-Pro flag enabled - All Pro features enabled")
+            isPro = true
+        }
+        // Otherwise use AppConfig
+        else if AppConfig.shared.isPro {
+            isPro = true
+        }
+        #else
+        if AppConfig.shared.isPro {
+            isPro = true
+        }
+        #endif
+        
         // Initialize properties from UserDefaults or use defaults
         self.aiModel = UserDefaults.standard.string(forKey: Keys.aiModel) ?? defaultAIModel
         self.temperature = UserDefaults.standard.double(forKey: Keys.temperature)
@@ -86,6 +104,8 @@ class SettingsManager: ObservableObject {
         }
         #endif
     }
+    
+    // MARK: - Pro Feature Checks
     
     func shouldShowPaywall() -> Bool {
         !isPro
@@ -123,7 +143,20 @@ class SettingsManager: ObservableObject {
         isPro || currentCount < SettingsManager.maxFreePhotosPerItem
     }
     
-    // Reset settings to defaults
+    // MARK: - Purchase Flow
+    
+    // TODO: Implement RevenueCat purchase flow
+    func purchasePro() {
+        // This would be replaced with RevenueCat purchase logic
+        // Example:
+        // Purchases.shared.purchasePackage(package) { (transaction, customerInfo, error, userCancelled) in
+        //     self.isPro = customerInfo?.entitlements["pro"]?.isActive ?? false
+        // }
+        isPro = true
+    }
+    
+    // MARK: - Reset Settings
+    
     func resetToDefaults() {
         aiModel = defaultAIModel
         temperature = defaultTemperature
@@ -133,5 +166,11 @@ class SettingsManager: ObservableObject {
         hasLaunched = hasLaunchedDefault
         hasSeenPaywall = false
         isPro = false
+        
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UI-Testing-Pro") {
+            isPro = true
+        }
+        #endif
     }
 }

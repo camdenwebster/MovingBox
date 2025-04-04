@@ -62,7 +62,7 @@ struct LocationsListView: View {
             Button("Edit") {
                 router.navigate(to: .locationsSettingsView)
             }
-            Button("Add Item", systemImage: "plus") {
+            Button("Add Location", systemImage: "plus") {
                 if settings.shouldShowFirstLocationPaywall(locationCount: locations.count) {
                     showingPaywall = true
                 } else if settings.hasReachedLocationLimit(currentCount: locations.count) {
@@ -71,6 +71,7 @@ struct LocationsListView: View {
                     addLocation()
                 }
             }
+            .accessibilityIdentifier("addLocation")
         }
         .sheet(isPresented: $showingPaywall) {
             MovingBoxPaywallView()

@@ -37,6 +37,7 @@ struct MovingBoxPaywallView: View {
                         .background(Color.accentColor)
                         .cornerRadius(12)
                 }
+                .accessibilityIdentifier("upgradeButton")
                 .padding(.horizontal)
                 
                 Spacer()
@@ -55,8 +56,10 @@ struct MovingBoxPaywallView: View {
                         .foregroundColor(.secondary)
                         .imageScale(.large)
                 }
+                .accessibilityIdentifier("dismissPaywall")
             )
         }
+        .accessibilityIdentifier("paywallView")
     }
 }
 

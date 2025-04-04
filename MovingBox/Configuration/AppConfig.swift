@@ -36,11 +36,12 @@ struct AppConfig {
         // 2. When "UI-Testing-Pro" launch argument is present (DEBUG only)
         isPro = buildType == .beta
         #if DEBUG
-        isPro = isPro || ProcessInfo.processInfo.arguments.contains("UI-Testing-Pro")
+        if ProcessInfo.processInfo.arguments.contains("UI-Testing-Pro") {
+            isPro = true
+            // Set UserDefaults for isPro
+            UserDefaults.standard.set(true, forKey: "isPro")
+        }
         #endif
-        
-        // Set the app icon on init
-        updateAppIcon()
     }
     
     var isDebugLoggingEnabled: Bool {
@@ -92,9 +93,5 @@ struct AppConfig {
         #else
         return "missing-jwt-secret"
         #endif
-    }
-    
-    func updateAppIcon() {
-        // You need to implement this function
     }
 }
