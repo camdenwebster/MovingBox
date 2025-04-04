@@ -2,13 +2,15 @@
   "configurations" : [
     {
       "id" : "FB1A4F89-AF10-43AE-AC8E-E09660FE5DBF",
-      "name" : "Test Scheme Action",
+      "name" : "Default",
       "options" : {
 
       }
     }
   ],
   "defaultOptions" : {
+    "defaultTestExecutionTimeAllowance" : 240,
+    "maximumTestExecutionTimeAllowance" : 300,
     "maximumTestRepetitions" : 2,
     "repeatInNewRunnerProcess" : true,
     "testRepetitionMode" : "retryOnFailure",

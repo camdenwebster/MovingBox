@@ -191,6 +191,13 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
+                // Reset paywall state if testing
+                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
+                    let defaults = UserDefaults.standard
+                    defaults.removeObject(forKey: "hasSeenPaywall")
+                    defaults.synchronize()
+                }
+
                 if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: container.mainContext)
