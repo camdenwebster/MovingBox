@@ -1,9 +1,11 @@
-
 // Base.xcconfig.template
 // Template for generating Base.xcconfig with secrets
 
 // JWT Secret for OpenAI proxy authentication
 JWT_SECRET = $(JWT_SECRET)
 
+// RevenueCat API key
+REVENUE_CAT_API_KEY = $(REVENUE_CAT_API_KEY)
+
 // App version information
-MARKETING_VERSION = 0.5.1
+MARKETING_VERSION = 0.6.0

@@ -13,6 +13,7 @@ struct InventoryDetailView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -31,7 +32,6 @@ struct InventoryDetailView: View {
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults = false
     @State private var isEditing: Bool
-    @StateObject private var settings = SettingsManager()
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var showingCamera = false
@@ -39,6 +39,7 @@ struct InventoryDetailView: View {
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
+    @State private var showingPaywall = false
     
     var showSparklesButton = false
 
@@ -116,6 +117,11 @@ struct InventoryDetailView: View {
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
                     Button {
+                        if settings.shouldShowPaywallForAI() {
+                            showingPaywall = true
+                            return
+                        }
+                        
                         guard !isLoadingOpenAiResults else { return }
                         Task {
                             do {
@@ -140,7 +146,7 @@ struct InventoryDetailView: View {
                             if isLoadingOpenAiResults {
                                 ProgressView()
                             } else {
-                                Image(systemName: "sparkles")
+                                Image(systemName: "wand.and.sparkles")
                                 Text("Analyze with AI")
                             }
                         }
@@ -296,9 +302,13 @@ struct InventoryDetailView: View {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton && isEditing {
                         Button(action: {
-                            showAIConfirmationAlert = true
+                            if settings.shouldShowPaywallForAI() {
+                                showingPaywall = true
+                            } else {
+                                showAIConfirmationAlert = true
+                            }
                         }) {
-                            Image(systemName: "sparkles")
+                            Image(systemName: "wand.and.sparkles")
                         }
                         .disabled(isLoadingOpenAiResults)
                         .accessibilityIdentifier("sparkles")
@@ -352,6 +362,9 @@ struct InventoryDetailView: View {
                     completion()
                 }
             }
+        }
+        .sheet(isPresented: $showingPaywall) {
+            MovingBoxPaywallView()
         }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
@@ -414,7 +427,6 @@ struct InventoryDetailView: View {
                     }
                 }
             }
-            
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
@@ -519,9 +531,10 @@ struct InventoryDetailView: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        
         return InventoryDetailView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()), isEditing: true)
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

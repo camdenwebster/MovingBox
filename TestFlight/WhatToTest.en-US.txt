@@ -7,6 +7,11 @@ We are excited to prepare for our 1.0 launch, and we will greatly appreciate any
 - Testing on a wide variety of iPhone models
 
 What's New?
+0.6.0
+- Implemented a control for camera flash on the Camera view
+- Minor UI enhancements
+- Implemented UI and Snapshot tests to ensure app stability and quality
+
 0.5.1
 - Fixed an issue with buttons not being responsive on the Item Detail view
 - Began adding accessibility identifiers and UI tests to maintain app stability

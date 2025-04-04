@@ -15,9 +15,15 @@ enum Options: Hashable {
 struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
+    @State private var showingPaywall = false
+    @State private var showLimitAlert = false
+    
+    @Query private var allItems: [InventoryItem]
+    
     let location: InventoryLocation?
     
     var body: some View {
@@ -36,39 +42,62 @@ struct InventoryListView: View {
                     }
                 }
                 Menu("Add Item", systemImage: "plus") {
-                      Button(action: {
-                          let newItem = InventoryItem(
-                              title: "",
-                              quantityString: "1",
-                              quantityInt: 1,
-                              desc: "",
-                              serial: "",
-                              model: "",
-                              make: "",
-                              location: location,
-                              label: nil,
-                              price: Decimal.zero,
-                              insured: false,
-                              assetId: "",
-                              notes: "",
-                              showInvalidQuantityAlert: false
-                          )
-                          router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                      }) {
-                          Label("Add Manually", systemImage: "square.and.pencil")
-                      }
-                      .accessibilityIdentifier("createManually")
-                      
-                      Button(action: {
-                          router.navigate(to: .addInventoryItemView(location: location))
-                      }) {
-                          Label("Add from Photo", systemImage: "camera")
-                      }
-                      .accessibilityIdentifier("createFromCamera")
-                  }
-                  .accessibilityIdentifier("addItem")
+                    Button(action: {
+                        if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                            showingPaywall = true
+                        } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                            showLimitAlert = true
+                        } else {
+                            let newItem = InventoryItem(
+                                title: "",
+                                quantityString: "1",
+                                quantityInt: 1,
+                                desc: "",
+                                serial: "",
+                                model: "",
+                                make: "",
+                                location: location,
+                                label: nil,
+                                price: Decimal.zero,
+                                insured: false,
+                                assetId: "",
+                                notes: "",
+                                showInvalidQuantityAlert: false
+                            )
+                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                        }
+                    }) {
+                        Label("Add Manually", systemImage: "square.and.pencil")
+                    }
+                    .accessibilityIdentifier("createManually")
+                    
+                    Button(action: {
+                        if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                            showingPaywall = true
+                        } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                            showLimitAlert = true
+                        } else {
+                            router.navigate(to: .addInventoryItemView(location: location))
+                        }
+                    }) {
+                        Label("Add from Photo", systemImage: "camera")
+                    }
+                    .accessibilityIdentifier("createFromCamera")
+                }
+                .accessibilityIdentifier("addItem")
             }
             .searchable(text: $searchText)
+            .sheet(isPresented: $showingPaywall) {
+                MovingBoxPaywallView()
+            }
+            .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
+                Button("Upgrade") {
+                    showingPaywall = true
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
+            }
     }
 }
 
@@ -78,6 +107,7 @@ struct InventoryListView: View {
         return InventoryListView(location: previewer.location)
             .modelContainer(previewer.container)
             .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Preview Error: \(error.localizedDescription)")
     }

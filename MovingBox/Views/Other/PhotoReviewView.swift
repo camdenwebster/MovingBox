@@ -5,11 +5,12 @@ struct PhotoReviewView: View {
     let onAccept: ((UIImage, Bool, @escaping () -> Void) -> Void)
     let onRetake: () -> Void
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var settings = SettingsManager()
+    @EnvironmentObject var settings: SettingsManager
     @State private var isAnalyzing = false
     @State private var scannerOffset: CGFloat = -100
     @State private var scannerMovingDown = true
     @State private var localImage: UIImage?
+    @State private var showingPaywall = false
 
     init(image: UIImage, onAccept: @escaping ((UIImage, Bool, @escaping () -> Void) -> Void), onRetake: @escaping () -> Void) {
         self.image = image
@@ -73,12 +74,20 @@ struct PhotoReviewView: View {
                                 
                                 Button(action: {
                                     guard let displayImage = localImage else { return }
-                                    isAnalyzing = true
-                                    onAccept(displayImage, true) {
-                                        DispatchQueue.main.async {
-                                            isAnalyzing = false
-                                            print("Analysis complete, dismissing PhotoReviewView")
-                                            dismiss()
+                                    
+                                    if settings.shouldShowPaywallForCamera() {
+                                        showingPaywall = true
+                                    } else {
+                                        let needsAnalysis = settings.isPro
+                                        if needsAnalysis {
+                                            isAnalyzing = true
+                                        }
+                                        onAccept(displayImage, needsAnalysis) {
+                                            DispatchQueue.main.async {
+                                                isAnalyzing = false
+                                                print("Analysis complete, dismissing PhotoReviewView")
+                                                dismiss()
+                                            }
                                         }
                                     }
                                 }) {
@@ -120,6 +129,9 @@ struct PhotoReviewView: View {
             }
             .onDisappear {
                 localImage = nil
+            }
+            .sheet(isPresented: $showingPaywall) {
+                MovingBoxPaywallView()
             }
         }
     }

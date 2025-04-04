@@ -9,6 +9,7 @@ import SwiftData
 import SwiftUI
 import UIKit
 import TelemetryDeck
+import RevenueCat
 
 @main
 struct MovingBoxApp: App {
@@ -67,10 +68,18 @@ struct MovingBoxApp: App {
     }()
 
     init() {
-        let config = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
-        config.defaultSignalPrefix = "App."
-        config.defaultParameterPrefix = "MyApp."
-        TelemetryDeck.initialize(config: config)
+        // Configure TelemetryDeck
+        let telemetryConfig = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
+        telemetryConfig.defaultSignalPrefix = "App."
+        telemetryConfig.defaultParameterPrefix = "MyApp."
+        TelemetryDeck.initialize(config: telemetryConfig)
+        
+        // Configure RevenueCat with API key from config
+        Purchases.configure(withAPIKey: AppConfig.revenueCatAPIKey)
+        
+        #if DEBUG
+        Purchases.logLevel = .debug
+        #endif
     }
     
     @ViewBuilder
@@ -78,6 +87,16 @@ struct MovingBoxApp: App {
         switch destination {
         case .dashboardView:
             DashboardView()
+                .presentPaywallIfNeeded(
+                    requiredEntitlementIdentifier: "Pro",
+                    purchaseCompleted: { customerInfo in
+                        print("Purchase completed: \(customerInfo.entitlements)")
+                    },
+                    restoreCompleted: { customerInfo in
+                        // Paywall will be dismissed automatically if "pro" is now active.
+                        print("Purchases restored: \(customerInfo.entitlements)")
+                    }
+                )
         case .locationsListView:
             LocationsListView()
         case .settingsView:
@@ -189,5 +208,6 @@ struct MovingBoxApp: App {
         }
         .modelContainer(container)
         .environmentObject(router)
+        .environmentObject(settings)
     }
 }

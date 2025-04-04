@@ -4,10 +4,14 @@ import AVFoundation
 
 struct AddInventoryItemView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
-    @StateObject private var settings = SettingsManager()
+    @EnvironmentObject var settings: SettingsManager
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
+    @State private var showingPaywall = false
+    @State private var showLimitAlert = false
+    @Query private var allItems: [InventoryItem]
     
     let location: InventoryLocation?
     
@@ -17,13 +21,29 @@ struct AddInventoryItemView: View {
                 .multilineTextAlignment(.center)
                 .padding()
             
-            Button(action: checkCameraPermissionsAndPresent) {
+            Button(action: {
+                if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                    showingPaywall = true
+                } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                    showLimitAlert = true
+                } else {
+                    checkCameraPermissionsAndPresent()
+                }
+            }) {
                 Image(systemName: "camera.viewfinder")
                     .font(.system(size: 60))
             }
         }
         .navigationTitle("Add New Item")
-        .onAppear(perform: checkCameraPermissionsAndPresent)
+        .onAppear {
+            if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                showingPaywall = true
+            } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                showLimitAlert = true
+            } else {
+                checkCameraPermissionsAndPresent()
+            }
+        }
         .sheet(isPresented: $showingCamera) {
             CameraView { image, needsAnalysis, completion in
                 let newItem = InventoryItem(
@@ -43,7 +63,6 @@ struct AddInventoryItemView: View {
                     showInvalidQuantityAlert: false
                 )
                 
-                // CHANGE: Save image at original quality instead of compressed
                 if let originalData = image.jpegData(compressionQuality: 1.0) {
                     newItem.data = originalData
                     modelContext.insert(newItem)
@@ -52,10 +71,9 @@ struct AddInventoryItemView: View {
                     
                     if needsAnalysis {
                         Task {
-                            // CHANGE: Use PhotoManager for AI analysis
                             guard let base64ForAI = PhotoManager.loadCompressedPhotoForAI(from: image) else {
                                 completion()
-                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true))
+                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
                                 return
                             }
                             
@@ -76,15 +94,28 @@ struct AddInventoryItemView: View {
                             } catch {
                                 print("Error analyzing image: \(error)")
                                 completion()
-                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true))
+                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
                             }
                         }
                     } else {
                         completion()
-                        router.navigate(to: .inventoryDetailView(item: newItem))
+                        router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showingPaywall) {
+            MovingBoxPaywallView()
+        }
+        .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
+            Button("Upgrade") {
+                showingPaywall = true
+            }
+            Button("Cancel", role: .cancel) {
+                dismiss()
+            }
+        } message: {
+            Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
         }
         .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
             Button("Go to Settings", action: openSettings)
@@ -145,5 +176,3 @@ struct AddInventoryItemView: View {
         try? modelContext.save()
     }
 }
-
-// End of file

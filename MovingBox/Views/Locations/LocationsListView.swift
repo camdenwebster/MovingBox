@@ -12,8 +12,12 @@ struct LocationsListView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
+    @State private var showingPaywall = false
+    @State private var showLimitAlert = false
+    
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -42,11 +46,7 @@ struct LocationsListView: View {
                     ForEach(locations) { location in
                         NavigationLink(value: location) {
                             LocationItemCard(location: location)
-                                .frame(minWidth: 160, maxWidth: .infinity)
-                                .background(RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.secondarySystemGroupedBackground))
-                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .frame(maxWidth: 180)
                         }
                     }
                 }
@@ -62,7 +62,27 @@ struct LocationsListView: View {
             Button("Edit") {
                 router.navigate(to: .locationsSettingsView)
             }
-            Button("Add Item", systemImage: "plus", action: addLocation)
+            Button("Add Location", systemImage: "plus") {
+                if settings.shouldShowFirstLocationPaywall(locationCount: locations.count) {
+                    showingPaywall = true
+                } else if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                    showLimitAlert = true
+                } else {
+                    addLocation()
+                }
+            }
+            .accessibilityIdentifier("addLocation")
+        }
+        .sheet(isPresented: $showingPaywall) {
+            MovingBoxPaywallView()
+        }
+        .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
+            Button("Upgrade") {
+                showingPaywall = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("You've reached the maximum number of locations (\(SettingsManager.maxFreeLocations)) for free users. Upgrade to Pro for unlimited locations!")
         }
         .background(Color(.systemGroupedBackground))
         .onAppear {

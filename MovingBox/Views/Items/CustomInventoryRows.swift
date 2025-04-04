@@ -1,6 +1,6 @@
 //
 //  InventoryRow.swift
-//  FirebaseCRUD-CamdenW
+//  MovingBox
 //
 //  Created by Camden Webster on 4/12/24.
 //

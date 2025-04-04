@@ -1,0 +1,159 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "81E12CB2",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "129.99",
+      "familyShareable" : false,
+      "internalID" : "6744124916",
+      "localizations" : [
+        {
+          "description" : "Unlocks unlimited access to all features",
+          "displayName" : "MovingBox Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "mb_iap_12999_lt_1w0",
+      "referenceName" : "Lifetime $129.99, 1-week free",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6742755218",
+    "_developerTeamID" : "V7HLP74XY3",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 765379420.65565705,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21661057",
+      "localizations" : [
+
+      ],
+      "name" : "MovingBox Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "49.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6744124591",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlocks unlimited access to all features",
+              "displayName" : "MovingBox Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "mb_rc_4999_1y_1w0",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Annual $49.99, 1-week free",
+          "subscriptionGroupID" : "21661057",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "6.99",
+          "familyShareable" : false,
+          "groupNumber" : 4,
+          "internalID" : "6744124772",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlocks unlimited access to all features",
+              "displayName" : "MovingBox Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "mb_rc_699_1m_1w0",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly $6.99, 1-week free",
+          "subscriptionGroupID" : "21661057",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

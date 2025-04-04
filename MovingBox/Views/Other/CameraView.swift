@@ -11,6 +11,7 @@ struct CameraView: View {
     @State private var showingPhotoReview = false
     @State private var capturedImage: UIImage?
     @State private var showingPermissionDenied = false
+    @State private var isFlashEnabled = false
     
     var onPhotoCapture: ((UIImage, Bool, @escaping () -> Void) -> Void)?
     
@@ -19,7 +20,6 @@ struct CameraView: View {
             if showingPhotoReview, let image = capturedImage {
                 PhotoReviewView(image: image, onAccept: { acceptedImage, needsAnalysis, completion in
                     onPhotoCapture?(acceptedImage, needsAnalysis) {
-                        // Clear references before completing
                         self.capturedImage = nil
                         completion()
                         dismiss()
@@ -36,22 +36,18 @@ struct CameraView: View {
                 ))
             } else {
                 ZStack {
-                    // Camera preview
                     if let preview = camera.previewLayer, camera.isSessionReady {
                         CameraPreviewView(previewLayer: preview)
                             .ignoresSafeArea()
                     } else {
-                        // Show loading state
                         ProgressView()
                             .scaleEffect(2)
                             .tint(.white)
                     }
                     
-                    // Camera controls
                     VStack {
-                        Spacer()
-                        
                         HStack {
+                            Spacer()
                             Button(action: { dismiss() }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.largeTitle)
@@ -59,10 +55,24 @@ struct CameraView: View {
                             }
                             .padding()
                             .accessibilityIdentifier("dismissCamera")
+                        }
+                        
+                        Spacer()
+                        
+                        HStack {
+                            Button(action: {
+                                isFlashEnabled.toggle()
+                                camera.toggleFlash(isFlashEnabled)
+                            }) {
+                                Image(systemName: isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.white)
+                            }
+                            .padding()
+                            .accessibilityIdentifier("toggleFlash")
                             
                             Spacer()
                             
-                            // Capture button
                             Button(action: {
                                 camera.captureImage { image in
                                     capturedImage = image
@@ -82,7 +92,6 @@ struct CameraView: View {
                             
                             Spacer()
                             
-                            // Toggle camera button
                             Button(action: { camera.switchCamera() }) {
                                 Image(systemName: "camera.rotate.fill")
                                     .font(.largeTitle)
@@ -116,7 +125,6 @@ struct CameraView: View {
             }
         }
         .onDisappear {
-            // Clean up resources
             capturedImage = nil
         }
     }
@@ -175,6 +183,7 @@ class CameraController: NSObject, ObservableObject {
     private var photoOutput: AVCapturePhotoOutput?
     private var completionHandler: ((UIImage?) -> Void)?
     private var isConfigured = false
+    private var flashEnabled = false
     
     var previewLayer: AVCaptureVideoPreviewLayer?
     
@@ -222,14 +231,11 @@ class CameraController: NSObject, ObservableObject {
         print("[Camera] Starting capture session setup")
         captureSession = AVCaptureSession()
         
-        // Begin configuration
         captureSession?.beginConfiguration()
         print("[Camera] Session configuration started")
         
-        // Set session preset
         captureSession?.sessionPreset = .photo
         
-        // Setup cameras
         if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
             print("[Camera] Back camera found")
             backCamera = device
@@ -245,7 +251,6 @@ class CameraController: NSObject, ObservableObject {
             print("[Camera] Warning: Could not initialize front camera")
         }
         
-        // Setup camera input
         guard let captureSession = self.captureSession,
               let currentCamera = self.currentCamera,
               let input = try? AVCaptureDeviceInput(device: currentCamera) else {
@@ -255,7 +260,6 @@ class CameraController: NSObject, ObservableObject {
         
         print("[Camera] Camera input created successfully")
         
-        // Setup photo output
         photoOutput = AVCapturePhotoOutput()
         
         if captureSession.canAddInput(input) && captureSession.canAddOutput(photoOutput!) {
@@ -266,14 +270,11 @@ class CameraController: NSObject, ObservableObject {
             print("[Camera] Error: Could not add input or output to session")
         }
         
-        // Commit configuration
         captureSession.commitConfiguration()
         print("[Camera] Session configuration committed")
         
-        // Setup preview layer
         setupPreviewLayer()
         
-        // Start session in background
         print("[Camera] Starting capture session")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.captureSession?.startRunning()
@@ -301,15 +302,12 @@ class CameraController: NSObject, ObservableObject {
         guard let currentCamera = currentCamera,
               let captureSession = captureSession else { return }
         
-        // Get new camera
         let newCamera = currentCamera.position == .back ? frontCamera : backCamera
         
-        // Remove current camera input
         captureSession.inputs.forEach { input in
             captureSession.removeInput(input)
         }
         
-        // Add new camera input
         if let newCamera = newCamera,
            let input = try? AVCaptureDeviceInput(device: newCamera) {
             if captureSession.canAddInput(input) {
@@ -330,6 +328,10 @@ class CameraController: NSObject, ObservableObject {
         }
         #else
         let settings = AVCapturePhotoSettings()
+        if let deviceInput = captureSession?.inputs.first as? AVCaptureDeviceInput,
+           deviceInput.device.position == .back {
+            settings.flashMode = flashEnabled ? .on : .off
+        }
         photoOutput?.capturePhoto(with: settings, delegate: self)
         #endif
     }
@@ -340,7 +342,6 @@ class CameraController: NSObject, ObservableObject {
         let simulatedSession = AVCaptureSession()
         let previewLayer = AVCaptureVideoPreviewLayer(session: simulatedSession)
         
-        // Create a simple colored background
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data("Test Image".utf8)
@@ -349,13 +350,11 @@ class CameraController: NSObject, ObservableObject {
            let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
             let testImage = UIImage(cgImage: cgImage)
             
-            // Create a CALayer with the test image
             let imageLayer = CALayer()
             imageLayer.contents = testImage.cgImage
             imageLayer.contentsGravity = .resizeAspectFill
             imageLayer.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
             
-            // Add the image layer to the preview layer
             previewLayer.addSublayer(imageLayer)
         }
         
@@ -365,13 +364,11 @@ class CameraController: NSObject, ObservableObject {
     #endif
 
     private func createTestImage() -> UIImage? {
-        // Create a solid color image for testing
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400))
         let testImage = renderer.image { context in
             UIColor.systemBlue.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
             
-            // Add some text
             let text = "Camera Simulator"
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 24),
@@ -388,6 +385,10 @@ class CameraController: NSObject, ObservableObject {
         }
         return testImage
     }
+    
+    func toggleFlash(_ enabled: Bool) {
+        flashEnabled = enabled
+    }
 }
 
 extension CameraController: AVCapturePhotoCaptureDelegate {
@@ -400,7 +401,7 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             }
             
             completionHandler?(image)
-            completionHandler = nil  // Clear the reference
+            completionHandler = nil
         }
     }
 }

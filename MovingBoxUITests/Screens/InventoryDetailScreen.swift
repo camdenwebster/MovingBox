@@ -105,4 +105,12 @@ class InventoryDetailScreen {
         changePhotoButton.tap()
         removePhotoButton.tap()
     }
+    
+    func tapAnalyzeWithAI() {
+        analyzeWithAiButton.tap()
+    }
+    
+    func tapSparkles() {
+        sparklesButton.tap()
+    }
 }
