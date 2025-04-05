@@ -91,10 +91,11 @@ struct PhotoReviewView: View {
                                         onAccept(displayImage, needsAnalysis) {
                                             DispatchQueue.main.async {
                                                 isAnalyzing = false
-                                                if onboardingManager.currentStep == .item {
-                                                    // Call InventoryDetailView here, or from somewhere else if necessary, as long as it stays within the sheet view
+                                                print("[DEBUG] PhotoReviewView - Completing photo review, isOnboarding: \(isOnboarding)")
+                                                // Only dismiss if not in onboarding
+                                                if !isOnboarding {
+                                                    dismiss()
                                                 }
-                                                dismiss()
                                             }
                                         }
                                     }
@@ -123,20 +124,24 @@ struct PhotoReviewView: View {
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+                    if !isOnboarding {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("cancelPhotoReview")
                     }
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("cancelPhotoReview")
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: isAnalyzing)
             .interactiveDismissDisabled(isAnalyzing)
             .onAppear {
                 localImage = image
+                print("[DEBUG] PhotoReviewView appeared, isOnboarding: \(isOnboarding)")
             }
             .onDisappear {
                 localImage = nil
+                print("[DEBUG] PhotoReviewView disappeared, isOnboarding: \(isOnboarding)")
             }
             .sheet(isPresented: $showingPaywall) {
                 MovingBoxPaywallView()

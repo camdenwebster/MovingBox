@@ -18,7 +18,7 @@ struct CameraView: View {
     
     var body: some View {
         Group {
-            if showingPhotoReview, let image = capturedImage {
+            if showingPhotoReview && !isOnboarding, let image = capturedImage {
                 PhotoReviewView(image: image, onAccept: { acceptedImage, needsAnalysis, completion in
                     onPhotoCapture?(acceptedImage, needsAnalysis) {
                         self.capturedImage = nil
@@ -75,9 +75,18 @@ struct CameraView: View {
                             Spacer()
                             
                             Button(action: {
-                                camera.captureImage { image in
-                                    capturedImage = image
-                                    showingPhotoReview = true
+                                camera.captureImage { capturedImage in
+                                    if let image = capturedImage {
+                                        self.capturedImage = image
+                                        if isOnboarding {
+                                            onPhotoCapture?(image, true) {
+                                                self.capturedImage = nil
+                                                // Don't dismiss here - let parent handle navigation
+                                            }
+                                        } else {
+                                            showingPhotoReview = true
+                                        }
+                                    }
                                 }
                             }) {
                                 ZStack {
