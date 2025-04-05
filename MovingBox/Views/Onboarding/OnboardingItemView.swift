@@ -2,7 +2,10 @@ import SwiftUI
 
 struct OnboardingItemView: View {
     @EnvironmentObject private var manager: OnboardingManager
-    @State private var showCameraSheet = false
+    @EnvironmentObject private var router: Router
+    @EnvironmentObject private var settings: SettingsManager
+    @Environment(\.modelContext) var modelContext
+    @State private var showCameraFlow = false
     @State private var showPrivacyAlert = false
     
     var body: some View {
@@ -42,13 +45,11 @@ struct OnboardingItemView: View {
                             .foregroundStyle(.secondary)
                         }
                         
-                        // Add some bottom padding to ensure content doesn't get hidden behind the button
                         Spacer()
                             .frame(height: 100)
                     }
                 }
                 
-                // Take Photo button in its own VStack outside of ScrollView
                 VStack {
                     OnboardingContinueButton(action: {
                         showPrivacyAlert = true
@@ -57,22 +58,23 @@ struct OnboardingItemView: View {
             }
         }
         .onboardingBackground()
-        .sheet(isPresented: $showCameraSheet) {
-            CameraView { image, needsAIAnalysis, completion in
-                // After successfully creating an item, move to the next screen
-                completion()
-                manager.moveToNext()
+        .fullScreenCover(isPresented: $showCameraFlow) {
+            NavigationStack {
+                OnboardingCameraFlow()
             }
-            .onboardingCamera()
         }
         .alert("Privacy Notice", isPresented: $showPrivacyAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Continue") {
-                showCameraSheet = true
+                showCameraFlow = true
             }
         } message: {
             Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.")
         }
+    }
+    
+    private func updateUIWithImageDetails(_ imageDetails: ImageDetails, for item: InventoryItem) {
+        // ... existing updateUIWithImageDetails implementation ...
     }
 }
 
@@ -106,4 +108,6 @@ struct PrivacyBulletPoint: View {
 #Preview {
     OnboardingItemView()
         .environmentObject(OnboardingManager())
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

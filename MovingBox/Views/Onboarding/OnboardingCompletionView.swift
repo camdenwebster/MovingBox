@@ -3,7 +3,6 @@ import SwiftUI
 struct OnboardingCompletionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var manager: OnboardingManager
-    @State private var showPaywall = false
     
     // TODO: Replace with actual subscription check
     @State private var isProSubscriber = false
@@ -12,7 +11,7 @@ struct OnboardingCompletionView: View {
         OnboardingContainer {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack{
+                    VStack {
                         // Success Icon
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 80))
@@ -51,28 +50,21 @@ struct OnboardingCompletionView: View {
                     }
                 }
                 
-                // CHANGE: Add Spacer to push button to bottom
                 Spacer()
                 
                 OnboardingContinueButton(action: completeOnboarding, title: "Get Started")
             }
         }
-        .sheet(isPresented: $showPaywall) {
-            MovingBoxPaywallView()
-        }
+        .onboardingBackground()
     }
     
     private func completeOnboarding() {
         if isProSubscriber {
-            completeAndDismiss()
+            manager.markOnboardingComplete()
+            dismiss()
         } else {
-            showPaywall = true
+            manager.currentStep = .paywall
         }
-    }
-    
-    private func completeAndDismiss() {
-        manager.markOnboardingComplete()
-        dismiss()
     }
 }
 

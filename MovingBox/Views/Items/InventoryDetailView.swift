@@ -14,6 +14,7 @@ struct InventoryDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject private var onboardingManager: OnboardingManager
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -326,10 +327,11 @@ struct InventoryDetailView: View {
                             }
                             try? modelContext.save()
                             isEditing = false
+                            dismiss()
                         }
-                    .fontWeight(.bold)
-                    .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
-                    .accessibilityIdentifier("save")
+                        .fontWeight(.bold)
+                        .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+                        .accessibilityIdentifier("save")
                     } else {
                         Button("Edit") {
                             isEditing = true
@@ -535,6 +537,7 @@ struct InventoryDetailView: View {
             .modelContainer(previewer.container)
             .environmentObject(Router())
             .environmentObject(SettingsManager())
+            .environmentObject(OnboardingManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

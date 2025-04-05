@@ -7,6 +7,7 @@ struct PhotoReviewView: View {
     let isOnboarding: Bool
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject var onboardingManager: OnboardingManager
     @State private var isAnalyzing = false
     @State private var scannerOffset: CGFloat = -100
     @State private var scannerMovingDown = true
@@ -83,14 +84,16 @@ struct PhotoReviewView: View {
                                     if !isOnboarding && settings.shouldShowPaywallForCamera() {
                                         showingPaywall = true
                                     } else {
-                                        let needsAnalysis = settings.isPro
+                                        let needsAnalysis = settings.isPro || isOnboarding
                                         if needsAnalysis {
                                             isAnalyzing = true
                                         }
                                         onAccept(displayImage, needsAnalysis) {
                                             DispatchQueue.main.async {
                                                 isAnalyzing = false
-                                                print("Analysis complete, dismissing PhotoReviewView")
+                                                if onboardingManager.currentStep == .item {
+                                                    // Call InventoryDetailView here, or from somewhere else if necessary, as long as it stays within the sheet view
+                                                }
                                                 dismiss()
                                             }
                                         }

@@ -3,6 +3,7 @@ import SwiftUI
 struct OnboardingView: View {
     @StateObject private var manager = OnboardingManager()
     @Environment(\.dismiss) private var dismiss
+    @State private var isProSubscriber = false
     
     var body: some View {
         NavigationStack {
@@ -18,6 +19,8 @@ struct OnboardingView: View {
                     OnboardingItemView()
                 case .completion:
                     OnboardingCompletionView()
+                case .paywall:
+                    MovingBoxPaywallView()
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -31,8 +34,10 @@ struct OnboardingView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Skip") {
-                        manager.moveToNext()
+                    if manager.currentStep != .paywall {
+                        Button("Skip") {
+                            manager.moveToNext()
+                        }
                     }
                 }
             }

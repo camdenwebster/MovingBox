@@ -3,6 +3,8 @@ import SwiftUI
 struct MovingBoxPaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settingsManager: SettingsManager
+    @EnvironmentObject private var onboardingManager: OnboardingManager
+    @EnvironmentObject var router: Router
     
     var body: some View {
         NavigationView {
@@ -27,7 +29,7 @@ struct MovingBoxPaywallView: View {
                 Button(action: {
                     // TODO: Implement purchase flow
                     settingsManager.isPro = true
-                    dismiss()
+                    handleDismiss()
                 }) {
                     Text("Upgrade Now - $4.99")
                         .font(.headline)
@@ -50,7 +52,7 @@ struct MovingBoxPaywallView: View {
             .navigationBarItems(
                 trailing: Button(action: {
                     settingsManager.hasSeenPaywall = true
-                    dismiss()
+                    handleDismiss()
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
@@ -60,6 +62,16 @@ struct MovingBoxPaywallView: View {
             )
         }
         .accessibilityIdentifier("paywallView")
+    }
+    
+    private func handleDismiss() {
+        // If we're in onboarding, mark it complete and dismiss the entire flow
+        if OnboardingManager.hasCompletedOnboarding() == false {
+            onboardingManager.markOnboardingComplete()
+            router.selectedTab = .dashboard
+            router.navigate(to: .dashboardView)
+        }
+        dismiss()
     }
 }
 
@@ -81,4 +93,5 @@ private struct FeatureRow: View {
 #Preview {
     MovingBoxPaywallView()
         .environmentObject(SettingsManager())
+        .environmentObject(OnboardingManager())
 }

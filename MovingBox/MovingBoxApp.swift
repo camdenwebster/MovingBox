@@ -89,16 +89,17 @@ struct MovingBoxApp: App {
         switch destination {
         case .dashboardView:
             DashboardView()
-                .presentPaywallIfNeeded(
-                    requiredEntitlementIdentifier: "Pro",
-                    purchaseCompleted: { customerInfo in
-                        print("Purchase completed: \(customerInfo.entitlements)")
-                    },
-                    restoreCompleted: { customerInfo in
-                        // Paywall will be dismissed automatically if "pro" is now active.
-                        print("Purchases restored: \(customerInfo.entitlements)")
-                    }
-                )
+            // TODO: Perhaps call RevenueCat paywall here instead of onboarding
+//                .presentPaywallIfNeeded(
+//                    requiredEntitlementIdentifier: "Pro",
+//                    purchaseCompleted: { customerInfo in
+//                        print("Purchase completed: \(customerInfo.entitlements)")
+//                    },
+//                    restoreCompleted: { customerInfo in
+//                        // Paywall will be dismissed automatically if "pro" is now active.
+//                        print("Purchases restored: \(customerInfo.entitlements)")
+//                    }
+//                )
         case .locationsListView:
             LocationsListView()
         case .settingsView:
@@ -224,6 +225,11 @@ struct MovingBoxApp: App {
                 if showOnboarding {
                     OnboardingView()
                         .transition(.opacity)
+                }
+            }
+            .onChange(of: OnboardingManager.hasCompletedOnboarding()) { _, completed in
+                if completed {
+                    showOnboarding = false
                 }
             }
         }

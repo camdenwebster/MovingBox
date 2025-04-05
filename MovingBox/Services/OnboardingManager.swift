@@ -14,6 +14,7 @@ class OnboardingManager: ObservableObject {
         case location
         case item
         case completion
+        case paywall
         
         var title: String {
             switch self {
@@ -22,6 +23,7 @@ class OnboardingManager: ObservableObject {
             case .location: return "Add Location"
             case .item: return "Add Item"
             case .completion: return "Great Job!"
+            case .paywall: return "MovingBox Pro"
             }
         }
     }
