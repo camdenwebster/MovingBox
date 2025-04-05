@@ -2,6 +2,7 @@ import SwiftUI
 
 extension Color {
     static let customPrimary = Color(hex: 0x63A377)
+    static let onboardingBackgroundLight = Color(hex: 0xFBF1E5)
     
     init(hex: UInt, alpha: Double = 1.0) {
         self.init(

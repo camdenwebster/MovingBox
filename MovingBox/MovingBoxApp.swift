@@ -15,6 +15,8 @@ import RevenueCat
 struct MovingBoxApp: App {
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
+    @StateObject private var onboardingManager = OnboardingManager()
+    @State private var showOnboarding = false
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
     
     enum TabDestination: Hashable {
@@ -120,101 +122,114 @@ struct MovingBoxApp: App {
     
     var body: some Scene {
         WindowGroup {
-            TabView(selection: $router.selectedTab) {
-                NavigationStack(path: router.path(for: .dashboard)) {
-                    DashboardView()
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .dashboard))
-                        }
-                }
-                .tabItem {
-                    Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
-                }
-                .tag(Router.Tab.dashboard)
-                
-                NavigationStack(path: router.path(for: .locations)) {
-                    LocationsListView()
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .locations))
-                        }
-                }
-                .tabItem {
-                    Label("Locations", systemImage: "map")
-                }
-                .tag(Router.Tab.locations)
-                
-                NavigationStack(path: router.path(for: .addItem)) {
-                    AddInventoryItemView(location: nil)
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .addItem))
-                        }
-                }
-                .tabItem {
-                    Label("Add Item", systemImage: "camera.viewfinder")
-                }
-                .tag(Router.Tab.addItem)
-                
-                NavigationStack(path: router.path(for: .allItems)) {
-                    InventoryListView(location: nil)
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .allItems))
-                        }
-                }
-                .tabItem {
-                    Label("All Items", systemImage: "list.bullet")
-                }
-                .tag(Router.Tab.allItems)
-                
-                NavigationStack(path: router.path(for: .settings)) {
-                    SettingsView()
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .settings))
-                        }
-                }
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .tag(Router.Tab.settings)
-            }
-            .tabViewStyle(.sidebarAdaptable)
-            .tint(Color.customPrimary)
-            .onChange(of: router.selectedTab) { oldValue, newValue in
-                let tabName: String = {
-                    switch newValue {
-                    case .dashboard: return "dashboard"
-                    case .locations: return "locations"
-                    case .addItem: return "add_item"
-                    case .allItems: return "all_items"
-                    case .settings: return "settings"
+            ZStack {
+                TabView(selection: $router.selectedTab) {
+                    NavigationStack(path: router.path(for: .dashboard)) {
+                        DashboardView()
+                            .navigationDestination(for: Router.Destination.self) { destination in
+                                destinationView(for: destination, navigationPath: router.path(for: .dashboard))
+                            }
                     }
-                }()
-                TelemetryManager.shared.trackTabSelected(tab: tabName)
-            }
-            .onAppear {
-                // Reset paywall state if testing
-                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    let defaults = UserDefaults.standard
-                    defaults.removeObject(forKey: "hasSeenPaywall")
-                    defaults.synchronize()
+                    .tabItem {
+                        Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
+                    }
+                    .tag(Router.Tab.dashboard)
+                    
+                    NavigationStack(path: router.path(for: .locations)) {
+                        LocationsListView()
+                            .navigationDestination(for: Router.Destination.self) { destination in
+                                destinationView(for: destination, navigationPath: router.path(for: .locations))
+                            }
+                    }
+                    .tabItem {
+                        Label("Locations", systemImage: "map")
+                    }
+                    .tag(Router.Tab.locations)
+                    
+                    NavigationStack(path: router.path(for: .addItem)) {
+                        AddInventoryItemView(location: nil)
+                            .navigationDestination(for: Router.Destination.self) { destination in
+                                destinationView(for: destination, navigationPath: router.path(for: .addItem))
+                            }
+                    }
+                    .tabItem {
+                        Label("Add Item", systemImage: "camera.viewfinder")
+                    }
+                    .tag(Router.Tab.addItem)
+                    
+                    NavigationStack(path: router.path(for: .allItems)) {
+                        InventoryListView(location: nil)
+                            .navigationDestination(for: Router.Destination.self) { destination in
+                                destinationView(for: destination, navigationPath: router.path(for: .allItems))
+                            }
+                    }
+                    .tabItem {
+                        Label("All Items", systemImage: "list.bullet")
+                    }
+                    .tag(Router.Tab.allItems)
+                    
+                    NavigationStack(path: router.path(for: .settings)) {
+                        SettingsView()
+                            .navigationDestination(for: Router.Destination.self) { destination in
+                                destinationView(for: destination, navigationPath: router.path(for: .settings))
+                            }
+                    }
+                    .tabItem {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    .tag(Router.Tab.settings)
                 }
+                .tabViewStyle(.sidebarAdaptable)
+                .tint(Color.customPrimary)
+                .onChange(of: router.selectedTab) { oldValue, newValue in
+                    let tabName: String = {
+                        switch newValue {
+                        case .dashboard: return "dashboard"
+                        case .locations: return "locations"
+                        case .addItem: return "add_item"
+                        case .allItems: return "all_items"
+                        case .settings: return "settings"
+                        }
+                    }()
+                    TelemetryManager.shared.trackTabSelected(tab: tabName)
+                }
+                .onAppear {
+                    // Check if we need to show onboarding
+                    if !OnboardingManager.hasCompletedOnboarding() {
+                        showOnboarding = true
+                    }
+                    
+                    // Reset paywall state if testing
+                    if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
+                        let defaults = UserDefaults.standard
+                        defaults.removeObject(forKey: "hasSeenPaywall")
+                        defaults.synchronize()
+                    }
 
-                if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
-                    Task {
-                        await DefaultDataManager.populateTestData(modelContext: container.mainContext)
-                        settings.hasLaunched = true
+                    if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
+                        Task {
+                            await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+                            settings.hasLaunched = true
+                        }
+                    } else if !settings.hasLaunched {
+                        Task {
+                            await DefaultDataManager.populateDefaultData(modelContext: container.mainContext)
+                            settings.hasLaunched = true
+                        }
                     }
-                } else if !settings.hasLaunched {
-                    Task {
-                        await DefaultDataManager.populateDefaultData(modelContext: container.mainContext)
-                        settings.hasLaunched = true
-                    }
+                    
+                    TelemetryDeck.signal("appLaunched")
                 }
                 
-                TelemetryDeck.signal("appLaunched")
+                if showOnboarding {
+                    OnboardingView()
+                        .transition(.opacity)
+                }
             }
         }
         .modelContainer(container)
         .environmentObject(router)
         .environmentObject(settings)
+        .environmentObject(onboardingManager)
     }
 }

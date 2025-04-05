@@ -4,6 +4,7 @@ struct PhotoReviewView: View {
     let image: UIImage
     let onAccept: ((UIImage, Bool, @escaping () -> Void) -> Void)
     let onRetake: () -> Void
+    let isOnboarding: Bool
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var settings: SettingsManager
     @State private var isAnalyzing = false
@@ -12,10 +13,14 @@ struct PhotoReviewView: View {
     @State private var localImage: UIImage?
     @State private var showingPaywall = false
 
-    init(image: UIImage, onAccept: @escaping ((UIImage, Bool, @escaping () -> Void) -> Void), onRetake: @escaping () -> Void) {
+    init(image: UIImage,
+         onAccept: @escaping ((UIImage, Bool, @escaping () -> Void) -> Void),
+         onRetake: @escaping () -> Void,
+         isOnboarding: Bool = false) {
         self.image = image
         self.onAccept = onAccept
         self.onRetake = onRetake
+        self.isOnboarding = isOnboarding
     }
 
     var body: some View {
@@ -75,7 +80,7 @@ struct PhotoReviewView: View {
                                 Button(action: {
                                     guard let displayImage = localImage else { return }
                                     
-                                    if settings.shouldShowPaywallForCamera() {
+                                    if !isOnboarding && settings.shouldShowPaywallForCamera() {
                                         showingPaywall = true
                                     } else {
                                         let needsAnalysis = settings.isPro

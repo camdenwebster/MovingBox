@@ -7,6 +7,7 @@ import CoreImage.CIFilterBuiltins
 
 struct CameraView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.isOnboarding) private var isOnboarding
     @StateObject private var camera = CameraController()
     @State private var showingPhotoReview = false
     @State private var capturedImage: UIImage?
@@ -29,7 +30,7 @@ struct CameraView: View {
                         capturedImage = nil
                         showingPhotoReview = false
                     }
-                })
+                }, isOnboarding: isOnboarding)
                 .transition(.asymmetric(
                     insertion: .move(edge: .trailing).combined(with: .opacity),
                     removal: .move(edge: .trailing).combined(with: .opacity)
@@ -403,5 +404,28 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             completionHandler?(image)
             completionHandler = nil
         }
+    }
+}
+
+extension View {
+    func onboardingCamera() -> some View {
+        self.modifier(OnboardingCameraModifier())
+    }
+}
+
+private struct IsOnboardingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var isOnboarding: Bool {
+        get { self[IsOnboardingKey.self] }
+        set { self[IsOnboardingKey.self] = newValue }
+    }
+}
+
+struct OnboardingCameraModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content.environment(\.isOnboarding, true)
     }
 }
