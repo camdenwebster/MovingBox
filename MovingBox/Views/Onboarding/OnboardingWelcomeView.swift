@@ -3,6 +3,11 @@ import SwiftUI
 struct OnboardingWelcomeView: View {
     @EnvironmentObject private var manager: OnboardingManager
     @Environment(\.colorScheme) private var colorScheme
+    @State private var imageOpacity = 0.0
+    @State private var welcomeOpacity = 0.0
+    @State private var titleOpacity = 0.0
+    @State private var descriptionOpacity = 0.0
+    @State private var buttonOpacity = 0.0
     
     var body: some View {
         OnboardingContainer {
@@ -15,22 +20,29 @@ struct OnboardingWelcomeView: View {
                             .frame(minHeight: 200, maxHeight: 400)
                             .padding(.horizontal, 32)
                             .padding(.vertical)
+                            .opacity(imageOpacity)
+                            .offset(y: imageOpacity == 0 ? -20 : 0)
                         
                         VStack {
                             Text("Welcome to")
                                 .fontWeight(.bold)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal)
+                                .opacity(welcomeOpacity)
+                                .offset(y: welcomeOpacity == 0 ? -20 : 0)
+                            
                             Text("MovingBox")
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal)
+                                .opacity(titleOpacity)
+                                .offset(y: titleOpacity == 0 ? -20 : 0)
                         }
                         
                         OnboardingDescriptionText(text: "Your personal home inventory assistant. We'll help you catalog and protect your valuable possessions using the power of AI.")
-                        
-
+                            .opacity(descriptionOpacity)
+                            .offset(y: descriptionOpacity == 0 ? -20 : 0)
                     }
                 }
                 
@@ -39,13 +51,35 @@ struct OnboardingWelcomeView: View {
                         manager.moveToNext()
                     }, title: "Get Started")
                     .accessibilityIdentifier("onboarding-welcome-continue-button")
+                    .opacity(buttonOpacity)
+                    .offset(y: buttonOpacity == 0 ? -20 : 0)
                 }
             }
         }
         .onboardingBackground()
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.8)) {
+                imageOpacity = 1
+            }
+            
+            withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
+                welcomeOpacity = 1
+            }
+            
+            withAnimation(.easeOut(duration: 0.8).delay(0.6)) {
+                titleOpacity = 1
+            }
+            
+            withAnimation(.easeOut(duration: 0.8).delay(0.9)) {
+                descriptionOpacity = 1
+            }
+            
+            withAnimation(.easeOut(duration: 0.8).delay(1.2)) {
+                buttonOpacity = 1
+            }
+        }
     }
 }
-
 
 #Preview {
     Group {
