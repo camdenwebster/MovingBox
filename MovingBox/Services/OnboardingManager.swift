@@ -44,13 +44,11 @@ class OnboardingManager: ObservableObject {
     }
     
     static func hasCompletedOnboarding() -> Bool {
-        // Force show onboarding if launch argument is present
-        if CommandLine.arguments.contains("Show-Onboarding") {
+        if ProcessInfo.processInfo.arguments.contains("Show-Onboarding") {
             return false
         }
         
-        // Skip onboarding if launch argument is present
-        if CommandLine.arguments.contains("Skip-Onboarding") {
+        if ProcessInfo.processInfo.arguments.contains("Skip-Onboarding") {
             return true
         }
         

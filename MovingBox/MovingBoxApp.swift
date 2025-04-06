@@ -54,11 +54,11 @@ struct MovingBoxApp: App {
             Home.self
         ])
         
-        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-Testing")
+        let disablePersistence = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
         
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: isUITesting
+            isStoredInMemoryOnly: disablePersistence
         )
         
         do {
@@ -194,18 +194,7 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
-                if !OnboardingManager.hasCompletedOnboarding() {
-                    showOnboarding = true
-                }
-                
-                // Reset paywall state if testing
-                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    let defaults = UserDefaults.standard
-                    defaults.removeObject(forKey: "hasSeenPaywall")
-                    defaults.synchronize()
-                }
-
-                if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
+                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: container.mainContext)
                         settings.hasLaunched = true
@@ -216,7 +205,17 @@ struct MovingBoxApp: App {
                         settings.hasLaunched = true
                     }
                 }
-                
+
+                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
+                    let defaults = UserDefaults.standard
+                    defaults.removeObject(forKey: "hasSeenPaywall")
+                    defaults.synchronize()
+                }
+
+                if !OnboardingManager.hasCompletedOnboarding() {
+                    showOnboarding = true
+                }
+
                 TelemetryDeck.signal("appLaunched")
             }
             .fullScreenCover(isPresented: $showOnboarding) {

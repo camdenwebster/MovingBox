@@ -117,7 +117,7 @@ struct InventoryDetailView: View {
             // AI Button Section
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
-                    Button {                        
+                    Button {
                         guard !isLoadingOpenAiResults else { return }
                         Task {
                             do {
@@ -481,12 +481,16 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.desc = imageDetails.description
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
-        inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
-        inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
+        
+        // CHANGE: Only update location if one isn't already set
+        if inventoryItemToDisplay.location == nil {
+            inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
+        }
         
         // Convert price string to Decimal
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
         inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+        inventoryItemToDisplay.hasUsedAI = true
         
         // Explicitly save changes
         try? modelContext.save()

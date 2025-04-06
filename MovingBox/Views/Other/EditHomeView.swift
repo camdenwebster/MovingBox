@@ -19,6 +19,9 @@ struct EditHomeView: View {
     @State private var state = ""
     @State private var zip = ""
     @State private var isEditing = false
+    @State private var showPhotoSourceAlert = false
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
     var home: Home?
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
@@ -46,14 +49,33 @@ struct EditHomeView: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
                         .frame(height: UIScreen.main.bounds.height / 3)
                         .clipped()
                         .listRowInsets(EdgeInsets())
-                }
-                if isEditingEnabled {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label("Select Image", systemImage: "photo")
+                        .overlay(alignment: .bottomTrailing) {
+                            if isEditingEnabled {
+                                Button {
+                                    showPhotoSourceAlert = true
+                                } label: {
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Circle().fill(.black.opacity(0.6)))
+                                        .padding(8)
+                                }
+                            }
+                        }
+                } else {
+                    if isEditingEnabled {
+                        AddPhotoButton(action: {
+                            showPhotoSourceAlert = true
+                        })
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
+                        
                     }
                 }
             }
@@ -111,6 +133,23 @@ struct EditHomeView: View {
         .navigationTitle(isNewHome ? "New Home" : "\(home?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if tempUIImage != nil || home?.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    if let home = home {
+                        home.data = nil
+                    } else {
+                        tempUIImage = nil
+                    }
+                }
+            }
+        }
         .onAppear {
             if let existingHome = home {
                 // Initialize editing fields with existing values

@@ -75,7 +75,8 @@ struct DashboardView: View {
                                 Image(uiImage: uiImage)
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(width: geometry.size.width, height: max(UIScreen.main.bounds.height / 3, geometry.frame(in: .global).minY + UIScreen.main.bounds.height / 3))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(width: UIScreen.main.bounds.width, height: max(UIScreen.main.bounds.height / 3, geometry.frame(in: .global).minY + UIScreen.main.bounds.height / 3))
                                     .clipped()
                                     .offset(y: -geometry.frame(in: .global).minY)
                             }
@@ -109,6 +110,7 @@ struct DashboardView: View {
                             .padding(.horizontal, 16)
                             .padding(.bottom, 16)
                         }
+                        .ignoresSafeArea(edges: .horizontal)
                     } else {
                         VStack {
                             Spacer()

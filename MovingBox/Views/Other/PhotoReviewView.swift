@@ -39,10 +39,6 @@ struct PhotoReviewView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: min(geometry.size.width, geometry.size.height))
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(Color.white, lineWidth: 2)
-                                )
                                 .padding(.vertical)
                             
                             Spacer()

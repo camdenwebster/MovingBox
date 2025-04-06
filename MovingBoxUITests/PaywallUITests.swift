@@ -13,9 +13,12 @@ final class PaywallUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         
-        // Add launch argument to reset UserDefaults in the main app
-        app.launchArguments = ["reset-paywall-state"]
-        app.launchArguments = ["Skip-Onboarding"]
+        // CHANGE: Add UI-Testing-Skip-Onboarding flag
+        app.launchArguments = [
+            "reset-paywall-state",
+            "Skip-Onboarding",
+            "Disable-Persistence"
+        ]
 
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
@@ -24,10 +27,8 @@ final class PaywallUITests: XCTestCase {
         photoReviewScreen = PhotoReviewScreen(app: app)
         paywallScreen = PaywallScreen(app: app)
         tabBar = TabBar(app: app)
-        
-        app.launch()
     }
-    
+        
     override func tearDownWithError() throws {
         // No need for cleanup here since we'll reset on next launch
         app = nil
@@ -43,7 +44,6 @@ final class PaywallUITests: XCTestCase {
     
     func testFirstItemCreationShowsPaywall() throws {
         // Given: Fresh install (no items)
-        
         app.launch()
         
         // When: User attempts to create first item
@@ -67,7 +67,7 @@ final class PaywallUITests: XCTestCase {
     
     func testItemLimitShowsAlert() throws {
         // Given: User has reached item limit
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add another item
@@ -89,7 +89,7 @@ final class PaywallUITests: XCTestCase {
     
     func testLocationLimitShowsAlert() throws {
         // Given: User has reached location limit
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add another location
@@ -110,7 +110,7 @@ final class PaywallUITests: XCTestCase {
     
     func testItemLimitShowsAlertFromTabBarCamera() throws {
         // Given: User has reached free tier limit
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add item via tab bar camera
@@ -130,7 +130,7 @@ final class PaywallUITests: XCTestCase {
     
     func testItemLimitShowsAlertFromListViewCamera() throws {
         // Given: User has reached item limit
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add item via list view camera option
@@ -172,7 +172,7 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForManualItemCreationOfFirstItem() throws {
         // Given: Pro user with no items
-        app.launchArguments = ["UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
         app.launch()
         
         // When: User attempts to create their first item
@@ -188,7 +188,8 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForManualItemCreationOverLimit() throws {
         // Given: Pro user with items over limit
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts actions that would normally show paywall
@@ -204,7 +205,8 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForListViewCamera() throws {
         // Given: Pro user with items over limit
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts actions that would normally show paywall
@@ -220,7 +222,8 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForTabViewCamera() throws {
         // Given: Pro user with items over limit
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to call the camera view from the tab bar

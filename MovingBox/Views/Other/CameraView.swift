@@ -13,6 +13,7 @@ struct CameraView: View {
     @State private var capturedImage: UIImage?
     @State private var showingPermissionDenied = false
     @State private var isFlashEnabled = false
+    @State private var deviceOrientation: UIDeviceOrientation = UIDevice.current.orientation
     
     var onPhotoCapture: ((UIImage, Bool, @escaping () -> Void) -> Void)?
     
@@ -41,6 +42,13 @@ struct CameraView: View {
                         GeometryReader { geometry in
                             ZStack {
                                 CameraPreviewView(previewLayer: preview)
+                                    .onAppear {
+                                        camera.updatePreviewOrientation(deviceOrientation)
+                                    }
+                                    .onRotate { newOrientation in
+                                        deviceOrientation = newOrientation
+                                        camera.updatePreviewOrientation(newOrientation)
+                                    }
                                     .edgesIgnoringSafeArea(.all)
                                 
                                 Rectangle()
@@ -53,11 +61,6 @@ struct CameraView: View {
                                             .blendMode(.destinationOut)
                                     )
                                     .compositingGroup()
-                                
-                                Rectangle()
-                                    .stroke(Color.white, lineWidth: 2)
-                                    .frame(width: min(geometry.size.width, geometry.size.height),
-                                           height: min(geometry.size.width, geometry.size.height))
                             }
                         }
                     } else {
@@ -161,54 +164,22 @@ struct CameraView: View {
     }
 }
 
-class PreviewViewController: UIViewController {
-    let previewLayer: AVCaptureVideoPreviewLayer
-    private var maskLayer: CAShapeLayer?
-    
-    init(previewLayer: AVCaptureVideoPreviewLayer) {
-        self.previewLayer = previewLayer
-        super.init(nibName: nil, bundle: nil)
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        
-        maskLayer = CAShapeLayer()
-        previewLayer.mask = maskLayer
-    }
-    
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        
-        previewLayer.frame = view.bounds
-        
-        let squareSize = min(view.bounds.width, view.bounds.height)
-        let centerX = view.bounds.width / 2
-        let centerY = view.bounds.height / 2
-        let x = centerX - squareSize / 2
-        let y = centerY - squareSize / 2
-        
-        let path = CGPath(rect: CGRect(x: x, y: y, width: squareSize, height: squareSize), transform: nil)
-        maskLayer?.path = path
+// Add rotation view modifier
+struct DeviceRotationViewModifier: ViewModifier {
+    let action: (UIDeviceOrientation) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear()
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                action(UIDevice.current.orientation)
+            }
     }
 }
 
-struct CameraPreviewView: UIViewControllerRepresentable {
-    let previewLayer: AVCaptureVideoPreviewLayer
-    
-    func makeUIViewController(context: Context) -> PreviewViewController {
-        print("[Camera] Creating PreviewViewController")
-        return PreviewViewController(previewLayer: previewLayer)
-    }
-    
-    func updateUIViewController(_ uiViewController: PreviewViewController, context: Context) {
-        print("[Camera] Updating PreviewViewController")
+extension View {
+    func onRotate(action: @escaping (UIDeviceOrientation) -> Void) -> some View {
+        self.modifier(DeviceRotationViewModifier(action: action))
     }
 }
 
@@ -273,6 +244,19 @@ class CameraController: NSObject, ObservableObject {
         
         captureSession?.sessionPreset = .photo
         
+        let initialOrientation = UIDevice.current.orientation
+        let videoOrientation: AVCaptureVideoOrientation
+        switch initialOrientation {
+        case .landscapeLeft:
+            videoOrientation = .landscapeRight
+        case .landscapeRight:
+            videoOrientation = .landscapeLeft
+        case .portraitUpsideDown:
+            videoOrientation = .portraitUpsideDown
+        default:
+            videoOrientation = .portrait
+        }
+        
         if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
             print("[Camera] Back camera found")
             backCamera = device
@@ -313,6 +297,12 @@ class CameraController: NSObject, ObservableObject {
         if captureSession.canAddInput(input) && captureSession.canAddOutput(photoOutput!) {
             captureSession.addInput(input)
             captureSession.addOutput(photoOutput!)
+            
+            if let photoConnection = photoOutput?.connection(with: .video),
+               photoConnection.isVideoOrientationSupported {
+                photoConnection.videoOrientation = videoOrientation
+            }
+            
             print("[Camera] Input and output added to session")
         } else {
             print("[Camera] Error: Could not add input or output to session")
@@ -322,6 +312,11 @@ class CameraController: NSObject, ObservableObject {
         print("[Camera] Session configuration committed")
         
         setupPreviewLayer()
+        
+        if let connection = previewLayer?.connection,
+           connection.isVideoOrientationSupported {
+            connection.videoOrientation = videoOrientation
+        }
         
         print("[Camera] Starting capture session")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -440,6 +435,32 @@ class CameraController: NSObject, ObservableObject {
     func toggleFlash(_ enabled: Bool) {
         flashEnabled = enabled
     }
+    
+    func updatePreviewOrientation(_ orientation: UIDeviceOrientation) {
+        guard let connection = previewLayer?.connection else { return }
+        
+        let videoOrientation: AVCaptureVideoOrientation
+        switch orientation {
+        case .landscapeLeft:
+            videoOrientation = .landscapeRight
+        case .landscapeRight:
+            videoOrientation = .landscapeLeft
+        case .portraitUpsideDown:
+            videoOrientation = .portraitUpsideDown
+        default:
+            videoOrientation = .portrait
+        }
+        
+        if connection.isVideoOrientationSupported {
+            connection.videoOrientation = videoOrientation
+        }
+        
+        // Update photo output connection orientation
+        if let photoConnection = photoOutput?.connection(with: .video),
+           photoConnection.isVideoOrientationSupported {
+            photoConnection.videoOrientation = videoOrientation
+        }
+    }
 }
 
 extension CameraController: AVCapturePhotoCaptureDelegate {
@@ -484,6 +505,43 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             
             completionHandler = nil
         }
+    }
+}
+
+class PreviewViewController: UIViewController {
+    let previewLayer: AVCaptureVideoPreviewLayer
+    
+    init(previewLayer: AVCaptureVideoPreviewLayer) {
+        self.previewLayer = previewLayer
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer.frame = view.bounds
+    }
+}
+
+struct CameraPreviewView: UIViewControllerRepresentable {
+    let previewLayer: AVCaptureVideoPreviewLayer
+    
+    func makeUIViewController(context: Context) -> PreviewViewController {
+        print("[Camera] Creating PreviewViewController")
+        return PreviewViewController(previewLayer: previewLayer)
+    }
+    
+    func updateUIViewController(_ uiViewController: PreviewViewController, context: Context) {
+        print("[Camera] Updating PreviewViewController")
     }
 }
 
