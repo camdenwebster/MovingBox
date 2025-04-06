@@ -38,8 +38,28 @@ struct CameraView: View {
             } else {
                 ZStack {
                     if let preview = camera.previewLayer, camera.isSessionReady {
-                        CameraPreviewView(previewLayer: preview)
-                            .ignoresSafeArea()
+                        GeometryReader { geometry in
+                            ZStack {
+                                CameraPreviewView(previewLayer: preview)
+                                    .edgesIgnoringSafeArea(.all)
+                                
+                                Rectangle()
+                                    .fill(Color.black.opacity(0.5))
+                                    .edgesIgnoringSafeArea(.all)
+                                    .overlay(
+                                        Rectangle()
+                                            .frame(width: min(geometry.size.width, geometry.size.height),
+                                                   height: min(geometry.size.width, geometry.size.height))
+                                            .blendMode(.destinationOut)
+                                    )
+                                    .compositingGroup()
+                                
+                                Rectangle()
+                                    .stroke(Color.white, lineWidth: 2)
+                                    .frame(width: min(geometry.size.width, geometry.size.height),
+                                           height: min(geometry.size.width, geometry.size.height))
+                            }
+                        }
                     } else {
                         ProgressView()
                             .scaleEffect(2)
@@ -81,7 +101,6 @@ struct CameraView: View {
                                         if isOnboarding {
                                             onPhotoCapture?(image, true) {
                                                 self.capturedImage = nil
-                                                // Don't dismiss here - let parent handle navigation
                                             }
                                         } else {
                                             showingPhotoReview = true
@@ -114,10 +133,6 @@ struct CameraView: View {
                     }
                 }
                 .background(Color.black)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .leading).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
-                ))
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showingPhotoReview)
@@ -160,14 +175,12 @@ class PreviewViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        print("[Camera] PreviewViewController viewDidLoad")
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
     }
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        print("[Camera] PreviewViewController viewDidLayoutSubviews with frame: \(view.frame)")
         previewLayer.frame = view.bounds
     }
 }
@@ -374,10 +387,11 @@ class CameraController: NSObject, ObservableObject {
     #endif
 
     private func createTestImage() -> UIImage? {
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400))
+        let size = CGSize(width: 400, height: 400)
+        let renderer = UIGraphicsImageRenderer(size: size)
         let testImage = renderer.image { context in
             UIColor.systemBlue.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+            context.fill(CGRect(x: 0, y: 0, width: size.width, height: size.height))
             
             let text = "Camera Simulator"
             let attributes: [NSAttributedString.Key: Any] = [
@@ -386,8 +400,8 @@ class CameraController: NSObject, ObservableObject {
             ]
             let textSize = text.size(withAttributes: attributes)
             let textRect = CGRect(
-                x: (400 - textSize.width) / 2,
-                y: (400 - textSize.height) / 2,
+                x: (size.width - textSize.width) / 2,
+                y: (size.height - textSize.height) / 2,
                 width: textSize.width,
                 height: textSize.height
             )
@@ -405,12 +419,24 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         autoreleasepool {
             guard let imageData = photo.fileDataRepresentation(),
-                  let image = UIImage(data: imageData) else {
+                  let originalImage = UIImage(data: imageData) else {
                 completionHandler?(nil)
                 return
             }
             
-            completionHandler?(image)
+            let shorterSide = min(originalImage.size.width, originalImage.size.height)
+            let xOffset = (originalImage.size.width - shorterSide) / 2
+            let yOffset = (originalImage.size.height - shorterSide) / 2
+            let cropRect = CGRect(x: xOffset, y: yOffset, width: shorterSide, height: shorterSide)
+            
+            if let cgImage = originalImage.cgImage,
+               let croppedCGImage = cgImage.cropping(to: cropRect) {
+                let croppedImage = UIImage(cgImage: croppedCGImage, scale: originalImage.scale, orientation: originalImage.imageOrientation)
+                completionHandler?(croppedImage)
+            } else {
+                completionHandler?(nil)
+            }
+            
             completionHandler = nil
         }
     }

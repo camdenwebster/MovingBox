@@ -27,88 +27,108 @@ struct PhotoReviewView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                if let displayImage = localImage {
-                    Image(uiImage: displayImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .edgesIgnoringSafeArea(.all)
+                Color.black.edgesIgnoringSafeArea(.all)
                 
-                    if isAnalyzing {
-                        Rectangle()
-                            .fill(.red.opacity(0.8))
-                            .frame(height: 2)
-                            .blur(radius: 2)
-                            .offset(y: scannerOffset)
-                            .onAppear {
-                                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                                    scannerOffset = UIScreen.main.bounds.height
-                                }
-                            }
-                        
-                        VStack(spacing: 10) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                            Text("Analyzing image...")
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(height: 100)
-                        .transition(.opacity)
-                        .padding()
-                        .foregroundStyle(.secondary)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 15))
-                        
-                    } else {
+                if let displayImage = localImage {
+                    GeometryReader { geometry in
                         VStack {
                             Spacer()
                             
-                            HStack(spacing: 40) {
-                                Button(action: {
-                                    onRetake()
-                                }) {
-                                    VStack {
-                                        Image(systemName: "arrow.counterclockwise")
-                                            .font(.title)
-                                        Text("Retake")
+                            // Center the image with proper scaling
+                            Image(uiImage: displayImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: min(geometry.size.width, geometry.size.height))
+                                .overlay(
+                                    Rectangle()
+                                        .stroke(Color.white, lineWidth: 2)
+                                )
+                                .padding(.vertical)
+                            
+                            Spacer()
+                            
+                            // Control buttons
+                            if !isAnalyzing {
+                                HStack(spacing: 40) {
+                                    Button(action: {
+                                        onRetake()
+                                    }) {
+                                        VStack {
+                                            Image(systemName: "arrow.counterclockwise")
+                                                .font(.title)
+                                            Text("Retake")
+                                        }
+                                        .padding()
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                                        .foregroundColor(.red)
                                     }
-                                    .padding()
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                                    .foregroundColor(.red)
-                                }
-                                .accessibilityIdentifier("retakePhoto")
-                                
-                                Button(action: {
-                                    guard let displayImage = localImage else { return }
-                                    let needsAnalysis = true
-                                    if needsAnalysis {
-                                        isAnalyzing = true
-                                    }
-                                    onAccept(displayImage, needsAnalysis) {
-                                        DispatchQueue.main.async {
-                                            isAnalyzing = false
-                                            print("[DEBUG] PhotoReviewView - Completing photo review, isOnboarding: \(isOnboarding)")
-                                            // Only dismiss if not in onboarding
-                                            if !isOnboarding {
-                                                dismiss()
+                                    .accessibilityIdentifier("retakePhoto")
+                                    
+                                    Button(action: {
+                                        guard let displayImage = localImage else { return }
+                                        let needsAnalysis = true
+                                        if needsAnalysis {
+                                            isAnalyzing = true
+                                        }
+                                        onAccept(displayImage, needsAnalysis) {
+                                            DispatchQueue.main.async {
+                                                isAnalyzing = false
+                                                if !isOnboarding {
+                                                    dismiss()
+                                                }
                                             }
                                         }
+                                    }) {
+                                        VStack {
+                                            Image(systemName: "checkmark.circle")
+                                                .font(.title)
+                                            Text("Use Photo")
+                                        }
+                                        .padding()
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                                        .foregroundColor(.green)
                                     }
-                                }) {
-                                    VStack {
-                                        Image(systemName: "checkmark.circle")
-                                            .font(.title)
-                                        Text("Use Photo")
+                                    .accessibilityIdentifier("usePhoto")
+                                }
+                                .padding(.bottom, 30)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+                        }
+                        
+                        if isAnalyzing {
+                            // Center the analyzing overlay
+                            VStack {
+                                Spacer()
+                                HStack {
+                                    Spacer()
+                                    VStack(spacing: 10) {
+                                        ProgressView()
+                                            .scaleEffect(1.5)
+                                        Text("Analyzing image...")
+                                            .foregroundStyle(.secondary)
                                     }
+                                    .frame(height: 100)
                                     .padding()
                                     .background(.ultraThinMaterial)
                                     .clipShape(RoundedRectangle(cornerRadius: 15))
-                                    .foregroundColor(.green)
+                                    Spacer()
                                 }
-                                .accessibilityIdentifier("usePhoto")
+                                Spacer()
                             }
-                            .padding(.bottom, 30)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            
+                            // Scanner animation
+                            Rectangle()
+                                .fill(.red.opacity(0.8))
+                                .frame(height: 2)
+                                .blur(radius: 2)
+                                .offset(y: scannerOffset)
+                                .onAppear {
+                                    withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                                        scannerOffset = UIScreen.main.bounds.height
+                                    }
+                                }
                         }
                     }
                 }
@@ -132,11 +152,9 @@ struct PhotoReviewView: View {
             .interactiveDismissDisabled(isAnalyzing)
             .onAppear {
                 localImage = image
-                print("[DEBUG] PhotoReviewView appeared, isOnboarding: \(isOnboarding)")
             }
             .onDisappear {
                 localImage = nil
-                print("[DEBUG] PhotoReviewView disappeared, isOnboarding: \(isOnboarding)")
             }
             .sheet(isPresented: $showingPaywall) {
                 MovingBoxPaywallView()
