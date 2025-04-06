@@ -110,21 +110,17 @@ struct DashboardView: View {
                             .padding(.bottom, 16)
                         }
                     } else {
-                        Button {
-                            showPhotoSourceAlert = true
-                        } label: {
-
-                            VStack {
-                                Spacer()
-                                    .frame(height: 100)
-                                AddPhotoButton()
-                                    .padding()
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(.ultraThinMaterial)
-                                    }
-
-                            }
+                        VStack {
+                            Spacer()
+                                .frame(height: 100)
+                            AddPhotoButton(action: {
+                                showPhotoSourceAlert = true
+                            })                                    .padding()
+                                .background {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(.ultraThinMaterial)
+                                }
+                            
                         }
                     }
                 }

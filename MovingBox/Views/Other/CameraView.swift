@@ -163,6 +163,7 @@ struct CameraView: View {
 
 class PreviewViewController: UIViewController {
     let previewLayer: AVCaptureVideoPreviewLayer
+    private var maskLayer: CAShapeLayer?
     
     init(previewLayer: AVCaptureVideoPreviewLayer) {
         self.previewLayer = previewLayer
@@ -177,11 +178,24 @@ class PreviewViewController: UIViewController {
         super.viewDidLoad()
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        
+        maskLayer = CAShapeLayer()
+        previewLayer.mask = maskLayer
     }
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        
         previewLayer.frame = view.bounds
+        
+        let squareSize = min(view.bounds.width, view.bounds.height)
+        let centerX = view.bounds.width / 2
+        let centerY = view.bounds.height / 2
+        let x = centerX - squareSize / 2
+        let y = centerY - squareSize / 2
+        
+        let path = CGPath(rect: CGRect(x: x, y: y, width: squareSize, height: squareSize), transform: nil)
+        maskLayer?.path = path
     }
 }
 
@@ -263,6 +277,13 @@ class CameraController: NSObject, ObservableObject {
             print("[Camera] Back camera found")
             backCamera = device
             currentCamera = device
+            
+            do {
+                try device.lockForConfiguration()
+                device.unlockForConfiguration()
+            } catch {
+                print("[Camera] Error configuring device: \(error)")
+            }
         } else {
             print("[Camera] Error: Could not initialize back camera")
         }
@@ -281,9 +302,13 @@ class CameraController: NSObject, ObservableObject {
             return
         }
         
-        print("[Camera] Camera input created successfully")
-        
         photoOutput = AVCapturePhotoOutput()
+        
+        if let photoOutput = photoOutput {
+            if #available(iOS 14.0, *) {
+                photoOutput.maxPhotoQualityPrioritization = .quality
+            }
+        }
         
         if captureSession.canAddInput(input) && captureSession.canAddOutput(photoOutput!) {
             captureSession.addInput(input)
@@ -351,6 +376,8 @@ class CameraController: NSObject, ObservableObject {
         }
         #else
         let settings = AVCapturePhotoSettings()
+        settings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)]
+        
         if let deviceInput = captureSession?.inputs.first as? AVCaptureDeviceInput,
            deviceInput.device.position == .back {
             settings.flashMode = flashEnabled ? .on : .off
@@ -424,14 +451,32 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 return
             }
             
-            let shorterSide = min(originalImage.size.width, originalImage.size.height)
-            let xOffset = (originalImage.size.width - shorterSide) / 2
-            let yOffset = (originalImage.size.height - shorterSide) / 2
+            let imageToProcess: UIImage
+            if originalImage.imageOrientation != .up {
+                UIGraphicsBeginImageContextWithOptions(originalImage.size, false, originalImage.scale)
+                originalImage.draw(in: CGRect(origin: .zero, size: originalImage.size))
+                if let normalizedImage = UIGraphicsGetImageFromCurrentImageContext() {
+                    imageToProcess = normalizedImage
+                } else {
+                    imageToProcess = originalImage
+                }
+                UIGraphicsEndImageContext()
+            } else {
+                imageToProcess = originalImage
+            }
+            
+            let imageSize = imageToProcess.size
+            let shorterSide = min(imageSize.width, imageSize.height)
+            let xOffset = (imageSize.width - shorterSide) / 2
+            let yOffset = (imageSize.height - shorterSide) / 2
             let cropRect = CGRect(x: xOffset, y: yOffset, width: shorterSide, height: shorterSide)
             
-            if let cgImage = originalImage.cgImage,
+            if let cgImage = imageToProcess.cgImage,
                let croppedCGImage = cgImage.cropping(to: cropRect) {
-                let croppedImage = UIImage(cgImage: croppedCGImage, scale: originalImage.scale, orientation: originalImage.imageOrientation)
+                let croppedImage = UIImage(cgImage: croppedCGImage, scale: imageToProcess.scale, orientation: .up)
+                
+                assert(croppedImage.size.width == croppedImage.size.height, "Cropped image is not square!")
+                
                 completionHandler?(croppedImage)
             } else {
                 completionHandler?(nil)

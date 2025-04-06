@@ -6,6 +6,7 @@ struct OnboardingCompletionView: View {
     @Binding var isPresented: Bool
     @StateObject private var settingsManager = SettingsManager()
     @State private var showCheckmark = false
+    @State private var showTransition = false
     
     var body: some View {
         OnboardingContainer {
@@ -17,7 +18,8 @@ struct OnboardingCompletionView: View {
                             .font(.system(size: 100))
                             .foregroundStyle(.green)
                             .padding()
-                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+                            .animation(.default, value: showCheckmark)
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
                         OnboardingHeaderText(text: "Great Job!")
                         
                         VStack(spacing: 16) {
@@ -57,7 +59,10 @@ struct OnboardingCompletionView: View {
         }
         .onboardingBackground()
         .onAppear {
-            showCheckmark = true
+            // Delay the checkmark animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                showCheckmark = true
+            }
         }
     }
     
@@ -83,6 +88,13 @@ struct TipRow: View {
             Text(text)
                 .font(.subheadline)
         }
+    }
+}
+
+// Helper to conditionally apply view modifiers
+struct AnyViewModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
     }
 }
 

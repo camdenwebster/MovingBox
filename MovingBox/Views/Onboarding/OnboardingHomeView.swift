@@ -57,11 +57,9 @@ struct OnboardingHomeView: View {
                                         }
                                     }
                             } else {
-                                Button {
+                                AddPhotoButton(action: {
                                     showPhotoSourceAlert = true
-                                } label: {
-                                    AddPhotoButton()
-                                }
+                                })
                                 .accessibilityIdentifier("onboarding-home-add-photo-button")
                                 .padding()
                                 .background {

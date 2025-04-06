@@ -60,11 +60,9 @@ struct OnboardingLocationView: View {
                                         .accessibilityIdentifier("onboarding-location-change-photo-button")
                                     }
                             } else {
-                                Button {
+                                AddPhotoButton(action: {
                                     showPhotoSourceAlert = true
-                                } label: {
-                                    AddPhotoButton()
-                                }
+                                })
                                 .accessibilityIdentifier("onboarding-location-add-photo-button")
                                 .padding()
                                 .background {

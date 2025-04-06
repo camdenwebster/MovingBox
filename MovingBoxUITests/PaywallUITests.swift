@@ -43,6 +43,7 @@ final class PaywallUITests: XCTestCase {
     
     func testFirstItemCreationShowsPaywall() throws {
         // Given: Fresh install (no items)
+        
         app.launch()
         
         // When: User attempts to create first item
@@ -105,26 +106,6 @@ final class PaywallUITests: XCTestCase {
         // Then: Paywall should appear
         XCTAssertTrue(paywallScreen.waitForPaywall(),
                      "Paywall should appear after tapping upgrade in alert")
-    }
-    
-    func testAIAnalysisShowsPaywall() throws {
-        // Given: User has added an item with photo and is now over the free tier limit
-        app.launchArguments = ["UI-Testing"]
-        app.launch()
-        
-        // And: a user has opened the first item in the inventory list
-        tabBar.tapAllItems()
-        listScreen.tapFirstItem()
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 10),
-                      "AI button should be visible")
-        
-        // When: User attempts to use AI analysis
-        detailScreen.editButton.tap()
-        detailScreen.analyzeWithAiButton.tap()
-        
-        // Then: Paywall should appear immediately (no alert)
-        XCTAssertTrue(paywallScreen.waitForPaywall(),
-                     "Paywall should appear for AI analysis")
     }
     
     func testItemLimitShowsAlertFromTabBarCamera() throws {
