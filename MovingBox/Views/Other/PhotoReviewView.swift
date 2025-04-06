@@ -80,22 +80,17 @@ struct PhotoReviewView: View {
                                 
                                 Button(action: {
                                     guard let displayImage = localImage else { return }
-                                    
-                                    if !isOnboarding && settings.shouldShowPaywallForCamera() {
-                                        showingPaywall = true
-                                    } else {
-                                        let needsAnalysis = settings.isPro || isOnboarding
-                                        if needsAnalysis {
-                                            isAnalyzing = true
-                                        }
-                                        onAccept(displayImage, needsAnalysis) {
-                                            DispatchQueue.main.async {
-                                                isAnalyzing = false
-                                                print("[DEBUG] PhotoReviewView - Completing photo review, isOnboarding: \(isOnboarding)")
-                                                // Only dismiss if not in onboarding
-                                                if !isOnboarding {
-                                                    dismiss()
-                                                }
+                                    let needsAnalysis = settings.isPro || isOnboarding
+                                    if needsAnalysis {
+                                        isAnalyzing = true
+                                    }
+                                    onAccept(displayImage, needsAnalysis) {
+                                        DispatchQueue.main.async {
+                                            isAnalyzing = false
+                                            print("[DEBUG] PhotoReviewView - Completing photo review, isOnboarding: \(isOnboarding)")
+                                            // Only dismiss if not in onboarding
+                                            if !isOnboarding {
+                                                dismiss()
                                             }
                                         }
                                     }
