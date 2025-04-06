@@ -117,12 +117,7 @@ struct InventoryDetailView: View {
             // AI Button Section
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
-                    Button {
-                        if settings.shouldShowPaywallForAI() {
-                            showingPaywall = true
-                            return
-                        }
-                        
+                    Button {                        
                         guard !isLoadingOpenAiResults else { return }
                         Task {
                             do {

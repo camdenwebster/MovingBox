@@ -54,6 +54,7 @@ struct OnboardingItemView: View {
                     OnboardingContinueButton(action: {
                         showPrivacyAlert = true
                     }, title: "Take a Photo")
+                    .accessibilityIdentifier("onboarding-item-take-photo-button")
                 }
             }
         }

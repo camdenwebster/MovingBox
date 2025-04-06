@@ -7,6 +7,8 @@ struct OnboardingLocationView: View {
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
     
+    @Query private var locations: [InventoryLocation]
+    
     @State private var locationName = ""
     @State private var locationDesc = ""
     @State private var selectedPhoto: PhotosPickerItem?
@@ -15,6 +17,16 @@ struct OnboardingLocationView: View {
     @State private var showCamera = false
     @State private var showPhotoPicker = false
     @State private var showValidationAlert = false
+    
+    private func loadExistingData() {
+        if let existingLocation = locations.first {
+            locationName = existingLocation.name
+            locationDesc = existingLocation.desc
+            if let imageData = existingLocation.data {
+                tempUIImage = UIImage(data: imageData)
+            }
+        }
+    }
     
     var body: some View {
         OnboardingContainer {
@@ -33,7 +45,7 @@ struct OnboardingLocationView: View {
                                     .scaledToFill()
                                     .frame(maxWidth: UIScreen.main.bounds.width - 32)
                                     .frame(height: UIScreen.main.bounds.height / 3)
-                                    .clipped()
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
                                     .overlay(alignment: .bottomTrailing) {
                                         Button {
                                             showPhotoSourceAlert = true
@@ -45,6 +57,7 @@ struct OnboardingLocationView: View {
                                                 .background(Circle().fill(.black.opacity(0.6)))
                                                 .padding(8)
                                         }
+                                        .accessibilityIdentifier("onboarding-location-change-photo-button")
                                     }
                             } else {
                                 Button {
@@ -52,6 +65,7 @@ struct OnboardingLocationView: View {
                                 } label: {
                                     AddPhotoButton()
                                 }
+                                .accessibilityIdentifier("onboarding-location-add-photo-button")
                                 .padding()
                                 .background {
                                     RoundedRectangle(cornerRadius: 12)
@@ -61,12 +75,14 @@ struct OnboardingLocationView: View {
                         }
                         
                         // Name Field
-                        TextField("Location Name (e.g. Kitchen, Living Room)", text: $locationName)
+                        TextField("Location Name", text: $locationName)
+                            .accessibilityIdentifier("onboarding-location-name-field")
                             .textFieldStyle(.roundedBorder)
                             .padding(.horizontal)
                         
                         // Optional Description
-                        TextField("Description (optional)", text: $locationDesc, axis: .vertical)
+                        TextField("Description", text: $locationDesc, axis: .vertical)
+                            .accessibilityIdentifier("onboarding-location-description-field")
                             .textFieldStyle(.roundedBorder)
                             .lineLimit(3...)
                             .padding(.horizontal)
@@ -86,22 +102,27 @@ struct OnboardingLocationView: View {
                             saveLocationAndContinue()
                         }
                     }
+                    .accessibilityIdentifier("onboarding-location-continue-button")
                 }
             }
         }
         .onboardingBackground()
         .onChange(of: selectedPhoto, loadPhoto)
+        .onAppear(perform: loadExistingData)
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showCamera = true
             }
+            .accessibilityIdentifier("takePhoto")
             Button("Choose from Library") {
                 showPhotoPicker = true
             }
+            .accessibilityIdentifier("chooseFromLibrary")
             if tempUIImage != nil {
                 Button("Remove Photo", role: .destructive) {
                     tempUIImage = nil
                 }
+                .accessibilityIdentifier("removePhoto")
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -135,12 +156,20 @@ struct OnboardingLocationView: View {
     }
     
     private func saveLocationAndContinue() {
-        let location = InventoryLocation(name: locationName, desc: locationDesc)
-        if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-            location.data = imageData
+        if let existingLocation = locations.first {
+            existingLocation.name = locationName
+            existingLocation.desc = locationDesc
+            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
+                existingLocation.data = imageData
+            }
+        } else {
+            let location = InventoryLocation(name: locationName, desc: locationDesc)
+            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
+                location.data = imageData
+            }
+            modelContext.insert(location)
+            TelemetryManager.shared.trackLocationCreated(name: location.name)
         }
-        modelContext.insert(location)
-        TelemetryManager.shared.trackLocationCreated(name: location.name)
         manager.moveToNext()
     }
 }

@@ -7,6 +7,8 @@ struct OnboardingHomeView: View {
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
     
+    @Query private var homes: [Home]
+    
     @State private var homeName = ""
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
@@ -14,6 +16,15 @@ struct OnboardingHomeView: View {
     @State private var showCamera = false
     @State private var showPhotoPicker = false
     @State private var showValidationAlert = false
+    
+    private func loadExistingData() {
+        if let existingHome = homes.first {
+            homeName = existingHome.name
+            if let imageData = existingHome.data {
+                tempUIImage = UIImage(data: imageData)
+            }
+        }
+    }
     
     var body: some View {
         OnboardingContainer {
@@ -32,7 +43,7 @@ struct OnboardingHomeView: View {
                                     .scaledToFill()
                                     .frame(maxWidth: UIScreen.main.bounds.width - 32)
                                     .frame(height: UIScreen.main.bounds.height / 3)
-                                    .clipped()
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
                                     .overlay(alignment: .bottomTrailing) {
                                         Button {
                                             showPhotoSourceAlert = true
@@ -51,6 +62,7 @@ struct OnboardingHomeView: View {
                                 } label: {
                                     AddPhotoButton()
                                 }
+                                .accessibilityIdentifier("onboarding-home-add-photo-button")
                                 .padding()
                                 .background {
                                     RoundedRectangle(cornerRadius: 12)
@@ -61,6 +73,7 @@ struct OnboardingHomeView: View {
                         
                         // Name Field
                         TextField("Home Name", text: $homeName)
+                            .accessibilityIdentifier("onboarding-home-name-field")
                             .textFieldStyle(.roundedBorder)
                             .padding(.horizontal)
                         
@@ -79,22 +92,27 @@ struct OnboardingHomeView: View {
                             saveHomeAndContinue()
                         }
                     }
+                    .accessibilityIdentifier("onboarding-home-continue-button")
                 }
             }
         }
         .onboardingBackground()
         .onChange(of: selectedPhoto, loadPhoto)
+        .onAppear(perform: loadExistingData)
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showCamera = true
             }
+            .accessibilityIdentifier("takePhoto")
             Button("Choose from Library") {
                 showPhotoPicker = true
             }
+            .accessibilityIdentifier("chooseFromLibrary")
             if tempUIImage != nil {
                 Button("Remove Photo", role: .destructive) {
                     tempUIImage = nil
                 }
+                .accessibilityIdentifier("removePhoto")
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -128,12 +146,19 @@ struct OnboardingHomeView: View {
     }
     
     private func saveHomeAndContinue() {
-        let home = Home()
-        home.address1 = homeName
-        if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-            home.data = imageData
+        if let existingHome = homes.first {
+            existingHome.name = homeName
+            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
+                existingHome.data = imageData
+            }
+        } else {
+            let home = Home()
+            home.name = homeName
+            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
+                home.data = imageData
+            }
+            modelContext.insert(home)
         }
-        modelContext.insert(home)
         manager.moveToNext()
     }
 }

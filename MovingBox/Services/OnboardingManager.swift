@@ -29,12 +29,32 @@ class OnboardingManager: ObservableObject {
         }
     }
     
+    var transition: AnyTransition {
+        if isMovingForward {
+            return .asymmetric(insertion: .move(edge: .trailing),
+                              removal: .move(edge: .leading))
+        } else {
+            return .asymmetric(insertion: .move(edge: .leading),
+                              removal: .move(edge: .trailing))
+        }
+    }
+    
     func markOnboardingComplete() {
         UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
     }
     
     static func hasCompletedOnboarding() -> Bool {
-        UserDefaults.standard.bool(forKey: hasCompletedOnboardingKey)
+        // Force show onboarding if launch argument is present
+        if CommandLine.arguments.contains("Show-Onboarding") {
+            return false
+        }
+        
+        // Skip onboarding if launch argument is present
+        if CommandLine.arguments.contains("Skip-Onboarding") {
+            return true
+        }
+        
+        return UserDefaults.standard.bool(forKey: hasCompletedOnboardingKey)
     }
     
     func moveToNext() {
@@ -55,12 +75,5 @@ class OnboardingManager: ObservableObject {
                 currentStep = OnboardingStep.allCases[currentIndex - 1]
             }
         }
-    }
-    
-    var transition: AnyTransition {
-        .asymmetric(
-            insertion: .move(edge: isMovingForward ? .trailing : .leading),
-            removal: .move(edge: isMovingForward ? .leading : .trailing)
-        )
     }
 }

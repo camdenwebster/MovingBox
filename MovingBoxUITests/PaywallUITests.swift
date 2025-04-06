@@ -15,6 +15,7 @@ final class PaywallUITests: XCTestCase {
         
         // Add launch argument to reset UserDefaults in the main app
         app.launchArguments = ["reset-paywall-state"]
+        app.setLaunchArgument(skipOnboarding: true)
         
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
@@ -23,6 +24,8 @@ final class PaywallUITests: XCTestCase {
         photoReviewScreen = PhotoReviewScreen(app: app)
         paywallScreen = PaywallScreen(app: app)
         tabBar = TabBar(app: app)
+        
+        app.launch()
     }
     
     override func tearDownWithError() throws {

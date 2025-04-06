@@ -80,7 +80,7 @@ struct PhotoReviewView: View {
                                 
                                 Button(action: {
                                     guard let displayImage = localImage else { return }
-                                    let needsAnalysis = settings.isPro || isOnboarding
+                                    let needsAnalysis = true
                                     if needsAnalysis {
                                         isAnalyzing = true
                                     }

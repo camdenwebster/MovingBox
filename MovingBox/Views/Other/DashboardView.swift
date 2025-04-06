@@ -71,25 +71,23 @@ struct DashboardView: View {
                 Group {
                     if let uiImage = home.photo {
                         ZStack(alignment: .bottom) {
-                            Rectangle()
-                                .fill(Color.clear)
-                                .overlay(
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
+                            GeometryReader { geometry in
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: geometry.size.width, height: max(UIScreen.main.bounds.height / 3, geometry.frame(in: .global).minY + UIScreen.main.bounds.height / 3))
+                                    .clipped()
+                                    .offset(y: -geometry.frame(in: .global).minY)
+                            }
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .overlay(alignment: .bottom) {
+                                LinearGradient(
+                                    gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
+                                    startPoint: .bottom,
+                                    endPoint: .center
                                 )
-                                .clipped()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: UIScreen.main.bounds.height / 3)
-                                .ignoresSafeArea(edges: .top)
-                                .overlay(alignment: .bottom) {
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
-                                        startPoint: .bottom,
-                                        endPoint: .center
-                                    )
-                                    .frame(height: 100)
-                                }
+                                .frame(height: 100)
+                            }
                             
                             HStack {
                                 Text(home.name != "" ? home.name : "Dashboard")
@@ -115,17 +113,18 @@ struct DashboardView: View {
                         Button {
                             showPhotoSourceAlert = true
                         } label: {
+
                             VStack {
-                                Image(systemName: "photo")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 150, maxHeight: 150)
-                                    .foregroundStyle(.secondary)
-                                Text("Tap to add a photo")
+                                Spacer()
+                                    .frame(height: 100)
+                                AddPhotoButton()
+                                    .padding()
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(.ultraThinMaterial)
+                                    }
+
                             }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .foregroundStyle(.secondary)
                         }
                     }
                 }

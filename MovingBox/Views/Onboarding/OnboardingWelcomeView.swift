@@ -38,6 +38,7 @@ struct OnboardingWelcomeView: View {
                     OnboardingContinueButton(action: {
                         manager.moveToNext()
                     }, title: "Get Started")
+                    .accessibilityIdentifier("onboarding-welcome-continue-button")
                 }
             }
         }

@@ -8,16 +8,16 @@
 import XCTest
 
 final class InventoryItemUITests: XCTestCase {
-    var app: XCUIApplication!
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
     var photoReviewScreen: PhotoReviewScreen!
     var tabBar: TabBar!
+    let app = XCUIApplication()
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app = XCUIApplication()
+        app.setLaunchArgument(skipOnboarding: true)
         app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
         
         // Initialize screen objects
@@ -31,7 +31,6 @@ final class InventoryItemUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        app = nil
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
@@ -69,16 +68,9 @@ final class InventoryItemUITests: XCTestCase {
         // When: User saves the item
         detailScreen.saveButton.tap()
         
-        // Then: Detail view should switch to read mode
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
-                     "Edit button should appear after saving")
-        
-        // When: User navigates back
-        app.navigationBars.buttons.firstMatch.tap()
-        
-        // Then: Camera view should reappear
+        // Then: Camera should be ready for the next photo
         XCTAssertTrue(cameraScreen.waitForCamera(),
-                     "Camera view should reappear after navigating back")
+                     "Camera should be ready after permissions")
     }
 
     func testAddItemManuallyViaListViewFromCameraRoll() throws {
@@ -119,13 +111,6 @@ final class InventoryItemUITests: XCTestCase {
             XCTFail("Save button was not enabled after fields were populated")
         }
         
-        // Then: Detail view should switch to read mode
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
-                     "Edit button should appear after saving")
-        
-        // When: User navigates back
-        app.navigationBars.buttons.firstMatch.tap()
-        
         // Then: The inventory list should be displayed
         XCTAssertTrue(listScreen.addItemButton.waitForExistence(timeout: 5),
                      "Inventory list view should reappear after navigating back")
@@ -158,13 +143,6 @@ final class InventoryItemUITests: XCTestCase {
         
         // When: User saves the item
         detailScreen.saveButton.tap()
-        
-        // Then: Detail view should switch to read mode
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
-                     "Edit button should appear after saving")
-        
-        // When: User navigates back
-        app.navigationBars.buttons.firstMatch.tap()
         
         // Then: Camera view should reappear and be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),

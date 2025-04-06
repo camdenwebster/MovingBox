@@ -52,6 +52,7 @@ struct OnboardingCompletionView: View {
                 Spacer()
                 
                 OnboardingContinueButton(action: completeOnboarding, title: "Get Started")
+                    .accessibilityIdentifier("onboarding-completion-continue-button")
             }
         }
         .onboardingBackground()
