@@ -17,8 +17,7 @@ final class InventoryItemUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app.setLaunchArgument(skipOnboarding: true)
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments = ["UI-Testing", "UI-Testing-Pro", "Skip-Onboarding"]
         
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)

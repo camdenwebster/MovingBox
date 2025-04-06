@@ -15,8 +15,8 @@ final class PaywallUITests: XCTestCase {
         
         // Add launch argument to reset UserDefaults in the main app
         app.launchArguments = ["reset-paywall-state"]
-        app.setLaunchArgument(skipOnboarding: true)
-        
+        app.launchArguments = ["Skip-Onboarding"]
+
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)

@@ -8,7 +8,7 @@ final class OnboardingUITests: XCTestCase {
     
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app.setLaunchArgument(skipOnboarding: false)
+        app.launchArguments = ["Show-Onboarding"]
         cameraScreen = CameraScreen(app: app, testCase: self)
         photoReviewScreen = PhotoReviewScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
