@@ -5,6 +5,7 @@ import SwiftData
 struct OnboardingLocationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var manager: OnboardingManager
+    @EnvironmentObject private var settings: SettingsManager
     
     @State private var locationName = ""
     @State private var locationDesc = ""
@@ -103,12 +104,12 @@ struct OnboardingLocationView: View {
                 }
             }
         }
-        .sheet(isPresented: $showCamera) {
-            CameraView { image, needsAIAnalysis, completion in
-                tempUIImage = image
-                completion()
+        .fullScreenCover(isPresented: $showCamera) {
+            NavigationStack {
+                PhotoCaptureFlow { image in
+                    tempUIImage = image
+                }
             }
-            .onboardingCamera()
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .alert("Missing Details", isPresented: $showValidationAlert) {

@@ -4,8 +4,8 @@ struct OnboardingCompletionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var manager: OnboardingManager
     
-    // TODO: Replace with actual subscription check
-    @State private var isProSubscriber = false
+    @StateObject private var settingsManager = SettingsManager()
+    @State private var showCheckmark = false
     
     var body: some View {
         OnboardingContainer {
@@ -13,12 +13,11 @@ struct OnboardingCompletionView: View {
                 ScrollView {
                     VStack {
                         // Success Icon
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 80))
+                        Image(systemName: showCheckmark ? "checkmark.circle" : "circle" )
+                            .font(.system(size: 100))
                             .foregroundStyle(.green)
                             .padding()
-                            .symbolEffect(.bounce.up.byLayer, options: .nonRepeating)
-                        
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
                         OnboardingHeaderText(text: "Great Job!")
                         
                         VStack(spacing: 16) {
@@ -56,10 +55,13 @@ struct OnboardingCompletionView: View {
             }
         }
         .onboardingBackground()
+        .onAppear {
+            showCheckmark = true
+        }
     }
     
     private func completeOnboarding() {
-        if isProSubscriber {
+        if settingsManager.isPro {
             manager.markOnboardingComplete()
             dismiss()
         } else {

@@ -11,16 +11,22 @@ struct OnboardingView: View {
                 switch manager.currentStep {
                 case .welcome:
                     OnboardingWelcomeView()
+                        .transition(manager.transition)
                 case .homeDetails:
                     OnboardingHomeView()
+                        .transition(manager.transition)
                 case .location:
                     OnboardingLocationView()
+                        .transition(manager.transition)
                 case .item:
                     OnboardingItemView()
+                        .transition(manager.transition)
                 case .completion:
                     OnboardingCompletionView()
+                        .transition(manager.transition)
                 case .paywall:
                     MovingBoxPaywallView()
+                        .transition(manager.transition)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -34,7 +40,7 @@ struct OnboardingView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if manager.currentStep != .paywall {
+                    if shouldShowSkipButton {
                         Button("Skip") {
                             manager.moveToNext()
                         }
@@ -44,6 +50,15 @@ struct OnboardingView: View {
         }
         .environmentObject(manager)
         .tint(Color.customPrimary)
+    }
+    
+    private var shouldShowSkipButton: Bool {
+        switch manager.currentStep {
+        case .welcome, .homeDetails, .location, .item:
+            return true
+        case .completion, .paywall:
+            return false
+        }
     }
 }
 

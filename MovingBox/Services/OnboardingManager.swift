@@ -5,6 +5,7 @@ class OnboardingManager: ObservableObject {
     @Published var currentStep: OnboardingStep = .welcome
     @Published var showAlert = false
     @Published var alertMessage = ""
+    @Published private var isMovingForward = true
     
     static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
     
@@ -39,14 +40,27 @@ class OnboardingManager: ObservableObject {
     func moveToNext() {
         if let currentIndex = OnboardingStep.allCases.firstIndex(of: currentStep),
            currentIndex + 1 < OnboardingStep.allCases.count {
-            currentStep = OnboardingStep.allCases[currentIndex + 1]
+            isMovingForward = true
+            withAnimation(.easeInOut) {
+                currentStep = OnboardingStep.allCases[currentIndex + 1]
+            }
         }
     }
     
     func moveToPrevious() {
         if let currentIndex = OnboardingStep.allCases.firstIndex(of: currentStep),
            currentIndex > 0 {
-            currentStep = OnboardingStep.allCases[currentIndex - 1]
+            isMovingForward = false
+            withAnimation(.easeInOut) {
+                currentStep = OnboardingStep.allCases[currentIndex - 1]
+            }
         }
+    }
+    
+    var transition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: isMovingForward ? .trailing : .leading),
+            removal: .move(edge: isMovingForward ? .leading : .trailing)
+        )
     }
 }

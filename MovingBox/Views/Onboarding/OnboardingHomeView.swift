@@ -5,6 +5,7 @@ import SwiftData
 struct OnboardingHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var manager: OnboardingManager
+    @EnvironmentObject private var settings: SettingsManager
     
     @State private var homeName = ""
     @State private var selectedPhoto: PhotosPickerItem?
@@ -48,17 +49,12 @@ struct OnboardingHomeView: View {
                                 Button {
                                     showPhotoSourceAlert = true
                                 } label: {
-                                    VStack {
-                                        Image(systemName: "photo.circle")
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(maxWidth: 100, maxHeight: 100)
-                                            .foregroundStyle(.secondary)
-                                        Text("Tap to add a photo")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: UIScreen.main.bounds.height / 5)
-                                    .foregroundStyle(.secondary)
+                                    AddPhotoButton()
+                                }
+                                .padding()
+                                .background {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(.ultraThinMaterial)
                                 }
                             }
                         }
@@ -101,12 +97,12 @@ struct OnboardingHomeView: View {
                 }
             }
         }
-        .sheet(isPresented: $showCamera) {
-            CameraView { image, needsAIAnalysis, completion in
-                tempUIImage = image
-                completion()
+        .fullScreenCover(isPresented: $showCamera) {
+            NavigationStack {
+                PhotoCaptureFlow { image in
+                    tempUIImage = image
+                }
             }
-            .onboardingCamera()
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .alert("Missing Details", isPresented: $showValidationAlert) {

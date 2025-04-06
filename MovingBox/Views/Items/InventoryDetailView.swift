@@ -287,7 +287,7 @@ struct InventoryDetailView: View {
         .navigationBarBackButtonHidden(isEditing)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                if isEditing {
+                if isEditing && OnboardingManager.hasCompletedOnboarding() {
                     Button("Back") {
                         if modelContext.hasChanges {
                             showUnsavedChangesAlert = true
