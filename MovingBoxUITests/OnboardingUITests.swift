@@ -2,24 +2,43 @@ import XCTest
 
 final class OnboardingUITests: XCTestCase {
     let app = XCUIApplication()
+    var cameraScreen: CameraScreen!
+    var detailScreen: InventoryDetailScreen!
+    var photoReviewScreen: PhotoReviewScreen!
     
     override func setUpWithError() throws {
         continueAfterFailure = false
+        app.setLaunchArgument(skipOnboarding: false)
+        cameraScreen = CameraScreen(app: app, testCase: self)
+        photoReviewScreen = PhotoReviewScreen(app: app)
+        detailScreen = InventoryDetailScreen(app: app)
         app.launch()
     }
     
     func testOnboardingHappyPath() throws {
+        
         // Welcome View
-        XCTAssertTrue(app.buttons["onboarding-welcome-continue-button"].exists)
+        XCTAssertTrue(app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 5))
         app.buttons["onboarding-welcome-continue-button"].tap()
         
         // Home View
         let homeAddPhotoButton = app.buttons["onboarding-home-add-photo-button"]
-        XCTAssertTrue(homeAddPhotoButton.exists)
+        XCTAssertTrue(homeAddPhotoButton.waitForExistence(timeout: 5))
         homeAddPhotoButton.tap()
         
-        allowCameraAccess()
-        simulatePhotoCapture()
+        app.sheets.buttons["takePhoto"].tap()
+        
+        // Then: Camera should be ready
+        XCTAssertTrue(cameraScreen.waitForCamera(),
+                     "Camera should be ready after permissions")
+        
+        // When: User takes a photo
+        cameraScreen.takePhoto()
+        
+        // Then: User accepts the photo in review
+        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
+                     "Use photo button should be visible")
+        photoReviewScreen.acceptPhoto()
         
         let homeNameField = app.textFields["onboarding-home-name-field"]
         XCTAssertTrue(homeNameField.exists)
@@ -32,10 +51,22 @@ final class OnboardingUITests: XCTestCase {
         
         // Location View
         let locationAddPhotoButton = app.buttons["onboarding-location-add-photo-button"]
-        XCTAssertTrue(locationAddPhotoButton.exists)
+        XCTAssertTrue(locationAddPhotoButton.waitForExistence(timeout: 5))
         locationAddPhotoButton.tap()
         
-        simulatePhotoCapture()
+        app.sheets.buttons["takePhoto"].tap()
+        
+        // Then: Camera should be ready
+        XCTAssertTrue(cameraScreen.waitForCamera(),
+                     "Camera should be ready after permissions")
+        
+        // When: User takes a photo
+        cameraScreen.takePhoto()
+        
+        // Then: User accepts the photo in review
+        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
+                     "Use photo button should be visible")
+        photoReviewScreen.acceptPhoto()
         
         let locationNameField = app.textFields["onboarding-location-name-field"]
         XCTAssertTrue(locationNameField.exists)
@@ -53,7 +84,7 @@ final class OnboardingUITests: XCTestCase {
         
         // Item View
         let itemTakePhotoButton = app.buttons["onboarding-item-take-photo-button"]
-        XCTAssertTrue(itemTakePhotoButton.exists)
+        XCTAssertTrue(itemTakePhotoButton.waitForExistence(timeout: 5))
         itemTakePhotoButton.tap()
         
         // Handle privacy notice alert
@@ -61,51 +92,43 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(alertContinueButton.waitForExistence(timeout: 5))
         alertContinueButton.tap()
         
-        simulatePhotoCapture()
+        // Then: Camera should be ready
+        XCTAssertTrue(cameraScreen.waitForCamera(),
+                     "Camera should be ready after permissions")
+        
+        // When: User takes a photo
+        cameraScreen.takePhoto()
+        
+        // Then: User accepts the photo in review
+        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
+                     "Use photo button should be visible")
+        photoReviewScreen.acceptPhoto()
         
         // Wait for AI processing and save item
-        let saveItemButton = app.buttons["save-item-button"] // Make sure to add this identifier to your item detail view
-        XCTAssertTrue(saveItemButton.waitForExistence(timeout: 10))
-        saveItemButton.tap()
+        XCTAssertTrue(detailScreen.saveButton.waitForExistence(timeout: 10))
+        detailScreen.saveButton.tap()
         
         // Completion View
         let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
-        XCTAssertTrue(completionContinueButton.exists)
+        XCTAssertTrue(completionContinueButton.waitForExistence(timeout: 5))
         completionContinueButton.tap()
         
         // Paywall
-        let paywallCloseButton = app.buttons["paywall-close-button"] // Make sure to add this identifier to your paywall view
+        let paywallCloseButton = app.buttons["dismissPaywall"]
         XCTAssertTrue(paywallCloseButton.waitForExistence(timeout: 5))
         paywallCloseButton.tap()
         
         // Verify we're on the dashboard
-        XCTAssertTrue(app.navigationBars["Dashboard"].waitForExistence(timeout: 5))
-    }
-    
-    private func allowCameraAccess() {
-        addUIInterruptionMonitor(withDescription: "Camera Permission Alert") { alert in
-            alert.buttons["Allow"].tap()
-            return true
-        }
-        // Trigger the interruption handler
-        app.tap()
-    }
-    
-    private func simulatePhotoCapture() {
-        let takePhotoButton = app.buttons["camera-shutter-button"] // Make sure to add this identifier to your camera view
-        XCTAssertTrue(takePhotoButton.waitForExistence(timeout: 5))
-        takePhotoButton.tap()
-        
-        let usePhotoButton = app.buttons["use-photo-button"] // Make sure to add this identifier to your photo review view
-        XCTAssertTrue(usePhotoButton.waitForExistence(timeout: 5))
-        usePhotoButton.tap()
+        XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
     }
 }
 
 extension XCUIApplication {
     func setLaunchArgument(skipOnboarding: Bool) {
         if skipOnboarding {
-            launchArguments.append("--Skip-Onboarding")
+            launchArguments.append("Skip-Onboarding")
+        } else {
+            launchArguments.append("Show-Onboarding")
         }
     }
 }
