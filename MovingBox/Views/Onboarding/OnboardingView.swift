@@ -2,8 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @StateObject private var manager = OnboardingManager()
-    @Environment(\.dismiss) private var dismiss
-    @State private var isProSubscriber = false
+    @Binding var isPresented: Bool
     
     var body: some View {
         NavigationStack {
@@ -22,10 +21,10 @@ struct OnboardingView: View {
                     OnboardingItemView()
                         .transition(manager.transition)
                 case .completion:
-                    OnboardingCompletionView()
+                    OnboardingCompletionView(isPresented: $isPresented)
                         .transition(manager.transition)
                 case .paywall:
-                    MovingBoxPaywallView()
+                    MovingBoxPaywallView(isPresented: $isPresented)
                         .transition(manager.transition)
                 }
             }
@@ -63,5 +62,5 @@ struct OnboardingView: View {
 }
 
 #Preview {
-    OnboardingView()
+    OnboardingView(isPresented: .constant(true))
 }

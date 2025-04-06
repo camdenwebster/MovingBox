@@ -105,7 +105,7 @@ final class PaywallUITests: XCTestCase {
     }
     
     func testAIAnalysisShowsPaywall() throws {
-        // Given: User has added an item with photo
+        // Given: User has added an item with photo and is now over the free tier limit
         app.launchArguments = ["UI-Testing"]
         app.launch()
         
@@ -125,7 +125,7 @@ final class PaywallUITests: XCTestCase {
     }
     
     func testItemLimitShowsAlertFromTabBarCamera() throws {
-        // Given: User has reached item limit
+        // Given: User has reached free tier limit
         app.launchArguments = ["UI-Testing"]
         app.launch()
         

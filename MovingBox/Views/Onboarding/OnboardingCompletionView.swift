@@ -3,7 +3,7 @@ import SwiftUI
 struct OnboardingCompletionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var manager: OnboardingManager
-    
+    @Binding var isPresented: Bool
     @StateObject private var settingsManager = SettingsManager()
     @State private var showCheckmark = false
     
@@ -63,7 +63,7 @@ struct OnboardingCompletionView: View {
     private func completeOnboarding() {
         if settingsManager.isPro {
             manager.markOnboardingComplete()
-            dismiss()
+            isPresented = false
         } else {
             manager.currentStep = .paywall
         }
@@ -86,6 +86,6 @@ struct TipRow: View {
 }
 
 #Preview {
-    OnboardingCompletionView()
+    OnboardingCompletionView(isPresented: .constant(true))
         .environmentObject(OnboardingManager())
 }

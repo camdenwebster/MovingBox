@@ -4,7 +4,13 @@ struct MovingBoxPaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settingsManager: SettingsManager
     @EnvironmentObject private var onboardingManager: OnboardingManager
+    @Binding var isPresented: Bool
     @EnvironmentObject var router: Router
+    
+    // New initializer to handle both onboarding and standard cases
+    init(isPresented: Binding<Bool> = .constant(true)) {
+        _isPresented = isPresented
+    }
     
     var body: some View {
         NavigationView {
@@ -65,13 +71,14 @@ struct MovingBoxPaywallView: View {
     }
     
     private func handleDismiss() {
-        // If we're in onboarding, mark it complete and dismiss the entire flow
-        if OnboardingManager.hasCompletedOnboarding() == false {
+        if OnboardingManager.hasCompletedOnboarding() {
+            // Standard presentation - use dismiss()
+            dismiss()
+        } else {
+            // Onboarding presentation - mark complete and dismiss fullScreenCover
             onboardingManager.markOnboardingComplete()
-            router.selectedTab = .dashboard
-            router.navigate(to: .dashboardView)
+            isPresented = false
         }
-        dismiss()
     }
 }
 
