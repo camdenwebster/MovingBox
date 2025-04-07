@@ -3,6 +3,14 @@ import SwiftUI
 struct MovingBoxPaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settingsManager: SettingsManager
+    @EnvironmentObject private var onboardingManager: OnboardingManager
+    @Binding var isPresented: Bool
+    @EnvironmentObject var router: Router
+    
+    // New initializer to handle both onboarding and standard cases
+    init(isPresented: Binding<Bool> = .constant(true)) {
+        _isPresented = isPresented
+    }
     
     var body: some View {
         NavigationView {
@@ -27,7 +35,7 @@ struct MovingBoxPaywallView: View {
                 Button(action: {
                     // TODO: Implement purchase flow
                     settingsManager.isPro = true
-                    dismiss()
+                    handleDismiss()
                 }) {
                     Text("Upgrade Now - $4.99")
                         .font(.headline)
@@ -50,7 +58,7 @@ struct MovingBoxPaywallView: View {
             .navigationBarItems(
                 trailing: Button(action: {
                     settingsManager.hasSeenPaywall = true
-                    dismiss()
+                    handleDismiss()
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
@@ -60,6 +68,17 @@ struct MovingBoxPaywallView: View {
             )
         }
         .accessibilityIdentifier("paywallView")
+    }
+    
+    private func handleDismiss() {
+        if OnboardingManager.hasCompletedOnboarding() {
+            // Standard presentation - use dismiss()
+            dismiss()
+        } else {
+            // Onboarding presentation - mark complete and dismiss fullScreenCover
+            onboardingManager.markOnboardingComplete()
+            isPresented = false
+        }
     }
 }
 
@@ -81,4 +100,5 @@ private struct FeatureRow: View {
 #Preview {
     MovingBoxPaywallView()
         .environmentObject(SettingsManager())
+        .environmentObject(OnboardingManager())
 }

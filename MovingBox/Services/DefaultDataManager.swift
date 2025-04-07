@@ -48,7 +48,7 @@ class DefaultDataManager {
     }
     
     static func populateDefaultData(modelContext: ModelContext) async {
-        if !ProcessInfo.processInfo.arguments.contains("UI-Testing") {
+        if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
             let homesFetch = try? modelContext.fetch(FetchDescriptor<Home>())
             if homesFetch?.isEmpty ?? true {
                 let defaultHome = Home()

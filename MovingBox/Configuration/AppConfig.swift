@@ -33,10 +33,10 @@ struct AppConfig {
         
         // Pro features enabled for:
         // 1. All beta builds
-        // 2. When "UI-Testing-Pro" launch argument is present (DEBUG only)
+        // 2. When "Is-Pro" launch argument is present (DEBUG only)
         isPro = buildType == .beta
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("UI-Testing-Pro") {
+        if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             isPro = true
             // Set UserDefaults for isPro
             UserDefaults.standard.set(true, forKey: "isPro")

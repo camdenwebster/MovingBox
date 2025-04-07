@@ -15,7 +15,10 @@ import RevenueCat
 struct MovingBoxApp: App {
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
+    @StateObject private var onboardingManager = OnboardingManager()
+    @State private var showOnboarding = false
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
+    @Query private var homes: [Home]
     
     enum TabDestination: Hashable {
         case dashboard
@@ -52,11 +55,11 @@ struct MovingBoxApp: App {
             Home.self
         ])
         
-        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-Testing")
+        let disablePersistence = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
         
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: isUITesting
+            isStoredInMemoryOnly: disablePersistence
         )
         
         do {
@@ -87,16 +90,17 @@ struct MovingBoxApp: App {
         switch destination {
         case .dashboardView:
             DashboardView()
-                .presentPaywallIfNeeded(
-                    requiredEntitlementIdentifier: "Pro",
-                    purchaseCompleted: { customerInfo in
-                        print("Purchase completed: \(customerInfo.entitlements)")
-                    },
-                    restoreCompleted: { customerInfo in
-                        // Paywall will be dismissed automatically if "pro" is now active.
-                        print("Purchases restored: \(customerInfo.entitlements)")
-                    }
-                )
+            // TODO: Perhaps call RevenueCat paywall here instead of onboarding
+//                .presentPaywallIfNeeded(
+//                    requiredEntitlementIdentifier: "Pro",
+//                    purchaseCompleted: { customerInfo in
+//                        print("Purchase completed: \(customerInfo.entitlements)")
+//                    },
+//                    restoreCompleted: { customerInfo in
+//                        // Paywall will be dismissed automatically if "pro" is now active.
+//                        print("Purchases restored: \(customerInfo.entitlements)")
+//                    }
+//                )
         case .locationsListView:
             LocationsListView()
         case .settingsView:
@@ -191,14 +195,7 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
-                // Reset paywall state if testing
-                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    let defaults = UserDefaults.standard
-                    defaults.removeObject(forKey: "hasSeenPaywall")
-                    defaults.synchronize()
-                }
-
-                if ProcessInfo.processInfo.arguments.contains("UI-Testing") {
+                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: container.mainContext)
                         settings.hasLaunched = true
@@ -209,12 +206,26 @@ struct MovingBoxApp: App {
                         settings.hasLaunched = true
                     }
                 }
-                
+
+                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
+                    let defaults = UserDefaults.standard
+                    defaults.removeObject(forKey: "hasSeenPaywall")
+                    defaults.synchronize()
+                }
+
+                if !OnboardingManager.hasCompletedOnboarding() {
+                    showOnboarding = true
+                }
+
                 TelemetryDeck.signal("appLaunched")
             }
+            .fullScreenCover(isPresented: $showOnboarding) {
+                OnboardingView(isPresented: $showOnboarding)
+            }
+            .modelContainer(container)
+            .environmentObject(router)
+            .environmentObject(settings)
+            .environmentObject(onboardingManager)
         }
-        .modelContainer(container)
-        .environmentObject(router)
-        .environmentObject(settings)
     }
 }

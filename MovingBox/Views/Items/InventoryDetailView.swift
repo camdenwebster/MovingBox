@@ -14,6 +14,7 @@ struct InventoryDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject private var onboardingManager: OnboardingManager
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -89,24 +90,14 @@ struct InventoryDetailView: View {
                             .accessibilityIdentifier("changePhoto")
                         }
                     } else {
-                        Button {
-                            showPhotoSourceAlert = true
-                        } label: {
-                            VStack {
-                                Image(systemName: "photo")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 150, maxHeight: 150)
-                                Text(isEditing ? "Tap to add a photo" : "No photo available")
-                            }
+                        if isEditing {
+                            AddPhotoButton(action: {
+                                showPhotoSourceAlert = true
+                            })
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
-                            .background(Color(.systemBackground))
                         }
-                        .buttonStyle(.automatic)
-                        .disabled(!isEditing)
-                        .accessibilityIdentifier("tapToAddPhoto")
                     }
                 }
                 .ignoresSafeArea(edges: .top)
@@ -117,11 +108,6 @@ struct InventoryDetailView: View {
             if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
                 Section {
                     Button {
-                        if settings.shouldShowPaywallForAI() {
-                            showingPaywall = true
-                            return
-                        }
-                        
                         guard !isLoadingOpenAiResults else { return }
                         Task {
                             do {
@@ -168,7 +154,7 @@ struct InventoryDetailView: View {
             // Details Section
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
-                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
+                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Desktop Computer")
                         .focused($focusedField, equals: .title)
                         .disabled(!isEditing)
                         .accessibilityIdentifier("titleField")
@@ -286,7 +272,7 @@ struct InventoryDetailView: View {
         .navigationBarBackButtonHidden(isEditing)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                if isEditing {
+                if isEditing && OnboardingManager.hasCompletedOnboarding() {
                     Button("Back") {
                         if modelContext.hasChanges {
                             showUnsavedChangesAlert = true
@@ -326,10 +312,11 @@ struct InventoryDetailView: View {
                             }
                             try? modelContext.save()
                             isEditing = false
+                            dismiss()
                         }
-                    .fontWeight(.bold)
-                    .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
-                    .accessibilityIdentifier("save")
+                        .fontWeight(.bold)
+                        .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+                        .accessibilityIdentifier("save")
                     } else {
                         Button("Edit") {
                             isEditing = true
@@ -350,7 +337,10 @@ struct InventoryDetailView: View {
             }
         }
         .sheet(isPresented: $showingCamera) {
-            CameraView { image, needsAIAnalysis, completion in
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, needsAIAnalysis, completion in
                 if let originalData = image.jpegData(compressionQuality: 1.0) {  // Save at full quality
                     Task { @MainActor in
                         inventoryItemToDisplay.data = originalData
@@ -484,12 +474,16 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.desc = imageDetails.description
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
-        inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
-        inventoryItemToDisplay.hasUsedAI = true  // Add this line to mark AI usage
+        
+        // CHANGE: Only update location if one isn't already set
+        if inventoryItemToDisplay.location == nil {
+            inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
+        }
         
         // Convert price string to Decimal
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
         inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+        inventoryItemToDisplay.hasUsedAI = true
         
         // Explicitly save changes
         try? modelContext.save()
@@ -521,8 +515,6 @@ struct InventoryDetailView: View {
     
     func addLabel() {
         let label = InventoryLabel()
-        modelContext.insert(label)
-        TelemetryManager.shared.trackLabelCreated(name: label.name)
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
     }
@@ -535,6 +527,7 @@ struct InventoryDetailView: View {
             .modelContainer(previewer.container)
             .environmentObject(Router())
             .environmentObject(SettingsManager())
+            .environmentObject(OnboardingManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

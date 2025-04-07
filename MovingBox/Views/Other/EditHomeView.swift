@@ -19,6 +19,9 @@ struct EditHomeView: View {
     @State private var state = ""
     @State private var zip = ""
     @State private var isEditing = false
+    @State private var showPhotoSourceAlert = false
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
     var home: Home?
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
@@ -46,14 +49,33 @@ struct EditHomeView: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
                         .frame(height: UIScreen.main.bounds.height / 3)
                         .clipped()
                         .listRowInsets(EdgeInsets())
-                }
-                if isEditingEnabled {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label("Select Image", systemImage: "photo")
+                        .overlay(alignment: .bottomTrailing) {
+                            if isEditingEnabled {
+                                Button {
+                                    showPhotoSourceAlert = true
+                                } label: {
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Circle().fill(.black.opacity(0.6)))
+                                        .padding(8)
+                                }
+                            }
+                        }
+                } else {
+                    if isEditingEnabled {
+                        AddPhotoButton(action: {
+                            showPhotoSourceAlert = true
+                        })
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
+                        
                     }
                 }
             }
@@ -111,6 +133,39 @@ struct EditHomeView: View {
         .navigationTitle(isNewHome ? "New Home" : "\(home?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if tempUIImage != nil || home?.photo != nil {
+                Button("Remove Photo", role: .destructive) {
+                    if let home = home {
+                        home.data = nil
+                    } else {
+                        tempUIImage = nil
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion in
+                if let home = home {
+                    if let imageData = image.jpegData(compressionQuality: 0.8) {
+                        home.data = imageData
+                    }
+                } else {
+                    tempUIImage = image
+                }
+                completion()
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .onAppear {
             if let existingHome = home {
                 // Initialize editing fields with existing values
@@ -119,7 +174,7 @@ struct EditHomeView: View {
                 homeAddress2 = existingHome.address2
                 city = existingHome.city
                 state = existingHome.state
-                zip = existingHome.zip  
+                zip = existingHome.zip
                 country = existingHome.country.isEmpty ? Locale.current.region?.identifier ?? "US" : existingHome.country
             }
         }
@@ -132,7 +187,7 @@ struct EditHomeView: View {
                         home?.address2 = homeAddress2
                         home?.city = city
                         home?.state = state
-                        home?.zip = zip  
+                        home?.zip = zip
                         home?.country = country
                         isEditing = false
                     } else {
@@ -147,7 +202,7 @@ struct EditHomeView: View {
                         address2: homeAddress2,
                         city: city,
                         state: state,
-                        zip: zip,  
+                        zip: zip,
                         country: country
                     )
                     if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {

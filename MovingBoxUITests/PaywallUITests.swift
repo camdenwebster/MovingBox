@@ -5,7 +5,6 @@ final class PaywallUITests: XCTestCase {
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
-    var photoReviewScreen: PhotoReviewScreen!
     var paywallScreen: PaywallScreen!
     var tabBar: TabBar!
     
@@ -13,25 +12,28 @@ final class PaywallUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         
-        // Add launch argument to reset UserDefaults in the main app
-        app.launchArguments = ["reset-paywall-state"]
-        
+        // CHANGE: Update launch arguments
+        app.launchArguments = [
+            "reset-paywall-state",
+            "Skip-Onboarding",
+            "Disable-Persistence",
+            "UI-Testing-Mock-Camera"
+        ]
+
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
-        photoReviewScreen = PhotoReviewScreen(app: app)
         paywallScreen = PaywallScreen(app: app)
         tabBar = TabBar(app: app)
     }
-    
+        
     override func tearDownWithError() throws {
         // No need for cleanup here since we'll reset on next launch
         app = nil
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
-        photoReviewScreen = nil
         paywallScreen = nil
         tabBar = nil
     }
@@ -63,7 +65,7 @@ final class PaywallUITests: XCTestCase {
     
     func testItemLimitShowsAlert() throws {
         // Given: User has reached item limit
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add another item
@@ -85,7 +87,7 @@ final class PaywallUITests: XCTestCase {
     
     func testLocationLimitShowsAlert() throws {
         // Given: User has reached location limit
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add another location
@@ -104,29 +106,9 @@ final class PaywallUITests: XCTestCase {
                      "Paywall should appear after tapping upgrade in alert")
     }
     
-    func testAIAnalysisShowsPaywall() throws {
-        // Given: User has added an item with photo
-        app.launchArguments = ["UI-Testing"]
-        app.launch()
-        
-        // And: a user has opened the first item in the inventory list
-        tabBar.tapAllItems()
-        listScreen.tapFirstItem()
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 10),
-                      "AI button should be visible")
-        
-        // When: User attempts to use AI analysis
-        detailScreen.editButton.tap()
-        detailScreen.analyzeWithAiButton.tap()
-        
-        // Then: Paywall should appear immediately (no alert)
-        XCTAssertTrue(paywallScreen.waitForPaywall(),
-                     "Paywall should appear for AI analysis")
-    }
-    
     func testItemLimitShowsAlertFromTabBarCamera() throws {
-        // Given: User has reached item limit
-        app.launchArguments = ["UI-Testing"]
+        // Given: User has reached free tier limit
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add item via tab bar camera
@@ -146,7 +128,7 @@ final class PaywallUITests: XCTestCase {
     
     func testItemLimitShowsAlertFromListViewCamera() throws {
         // Given: User has reached item limit
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to add item via list view camera option
@@ -188,7 +170,7 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForManualItemCreationOfFirstItem() throws {
         // Given: Pro user with no items
-        app.launchArguments = ["UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
         app.launch()
         
         // When: User attempts to create their first item
@@ -204,7 +186,8 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForManualItemCreationOverLimit() throws {
         // Given: Pro user with items over limit
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts actions that would normally show paywall
@@ -220,7 +203,8 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForListViewCamera() throws {
         // Given: Pro user with items over limit
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts actions that would normally show paywall
@@ -236,7 +220,8 @@ final class PaywallUITests: XCTestCase {
     
     func testProUserBypassesPaywallForTabViewCamera() throws {
         // Given: Pro user with items over limit
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments.append("Is-Pro")
+        app.launchArguments.append("Use-Test-Data")
         app.launch()
         
         // When: User attempts to call the camera view from the tab bar

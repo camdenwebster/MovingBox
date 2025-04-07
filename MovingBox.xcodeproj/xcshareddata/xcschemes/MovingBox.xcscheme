@@ -76,11 +76,23 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "UI-Testing-Pro"
+            argument = "Use-Test-Data"
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "UI-Testing"
+            argument = "Show-Onboarding"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "Is-Pro"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "Disable-Persistence"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "Skip-Onboarding"
             isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>

@@ -8,34 +8,35 @@
 import XCTest
 
 final class InventoryItemUITests: XCTestCase {
-    var app: XCUIApplication!
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
-    var photoReviewScreen: PhotoReviewScreen!
     var tabBar: TabBar!
+    let app = XCUIApplication()
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launchArguments = ["UI-Testing", "UI-Testing-Pro"]
+        app.launchArguments = [
+            "Use-Test-Data",
+            "Is-Pro",
+            "Skip-Onboarding",
+            "Disable-Persistence",
+            "UI-Testing-Mock-Camera"
+        ]
         
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
-        photoReviewScreen = PhotoReviewScreen(app: app)
         tabBar = TabBar(app: app)
         
         app.launch()
     }
 
     override func tearDownWithError() throws {
-        app = nil
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
-        photoReviewScreen = nil
         tabBar = nil
     }
 
@@ -54,11 +55,6 @@ final class InventoryItemUITests: XCTestCase {
         // When: User takes a photo
         cameraScreen.takePhoto()
         
-        // Then: User accepts the photo in review
-        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
-                     "Use photo button should be visible")
-        photoReviewScreen.acceptPhoto()
-        
         // Then: Detail view should appear after AI analysis completes
         XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 10),
                      "Detail view should appear after AI analysis")
@@ -69,16 +65,9 @@ final class InventoryItemUITests: XCTestCase {
         // When: User saves the item
         detailScreen.saveButton.tap()
         
-        // Then: Detail view should switch to read mode
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
-                     "Edit button should appear after saving")
-        
-        // When: User navigates back
-        app.navigationBars.buttons.firstMatch.tap()
-        
-        // Then: Camera view should reappear
+        // Then: Camera should be ready for the next photo
         XCTAssertTrue(cameraScreen.waitForCamera(),
-                     "Camera view should reappear after navigating back")
+                     "Camera should be ready after permissions")
     }
 
     func testAddItemManuallyViaListViewFromCameraRoll() throws {
@@ -119,13 +108,6 @@ final class InventoryItemUITests: XCTestCase {
             XCTFail("Save button was not enabled after fields were populated")
         }
         
-        // Then: Detail view should switch to read mode
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
-                     "Edit button should appear after saving")
-        
-        // When: User navigates back
-        app.navigationBars.buttons.firstMatch.tap()
-        
         // Then: The inventory list should be displayed
         XCTAssertTrue(listScreen.addItemButton.waitForExistence(timeout: 5),
                      "Inventory list view should reappear after navigating back")
@@ -144,11 +126,6 @@ final class InventoryItemUITests: XCTestCase {
         // When: User takes a photo
         cameraScreen.takePhoto()
         
-        // And: User accepts the photo in review
-        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
-                     "Use photo button should be visible")
-        photoReviewScreen.acceptPhoto()
-        
         // Then: Detail view should appear after AI analysis completes
         XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 10),
                      "Detail view should appear after AI analysis")
@@ -158,13 +135,6 @@ final class InventoryItemUITests: XCTestCase {
         
         // When: User saves the item
         detailScreen.saveButton.tap()
-        
-        // Then: Detail view should switch to read mode
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
-                     "Edit button should appear after saving")
-        
-        // When: User navigates back
-        app.navigationBars.buttons.firstMatch.tap()
         
         // Then: Camera view should reappear and be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),

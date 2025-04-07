@@ -109,6 +109,8 @@ final class SnapshotTests {
             .preferredColorScheme(isDarkMode ? .dark : .light)
             .background(Color(.systemBackground))
             .environment(\.colorScheme, isDarkMode ? .dark : .light)
+            .environment(\.isSnapshotTesting, true)
+            .environment(\.disableAnimations, true)
             .environmentObject(SettingsManager())
             .environmentObject(Router())
     }
@@ -452,15 +454,16 @@ extension SnapshotTests {
         await cleanup()
     }
     
-    @Test("Camera View Layout")
-    func cameraViewSnapshot() async throws {
+    @Test("Onboarding Welcome View Layout")
+    func onboardingWelcomeViewSnapshot() async throws {
         let container = try await createTestContainer()
+        let manager = OnboardingManager()
+        manager.currentStep = .welcome
         
         let view = configureViewForSnapshot(
-            CameraView { image, needsAIAnalysis, completion in
-                completion()
-            }
+            OnboardingWelcomeView()
                 .modelContainer(container)
+                .environmentObject(manager)
         )
         
         try await Task.sleep(for: .seconds(1))
@@ -468,32 +471,23 @@ extension SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "camera_view\(snapshotSuffix)",
+            named: "onboarding_welcome_view\(snapshotSuffix)",
             file: filePath
         )
         
         await cleanup()
     }
     
-    @Test("Photo Review View Layout")
-    func photoReviewViewSnapshot() async throws {
+    @Test("Onboarding Home View Layout")
+    func onboardingHomeViewSnapshot() async throws {
         let container = try await createTestContainer()
-        
-        let descriptor = FetchDescriptor<InventoryItem>(
-            predicate: #Predicate<InventoryItem> { item in
-                item.title == "MacBook Pro" && item.make == "Apple"
-            }
-        )
-        let items = try container.mainContext.fetch(descriptor)
-        let item = items.first ?? InventoryItem()
+        let manager = OnboardingManager()
+        manager.currentStep = .homeDetails
         
         let view = configureViewForSnapshot(
-            PhotoReviewView(
-                image: item.photo ?? UIImage(),
-                onAccept: { _, _, completion in completion() },
-                onRetake: { }
-            )
+            OnboardingHomeView()
                 .modelContainer(container)
+                .environmentObject(manager)
         )
         
         try await Task.sleep(for: .seconds(1))
@@ -501,7 +495,100 @@ extension SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "photo_review_view\(snapshotSuffix)",
+            named: "onboarding_home_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Onboarding Location View Layout")
+    func onboardingLocationViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        let manager = OnboardingManager()
+        manager.currentStep = .location
+        
+        let view = configureViewForSnapshot(
+            OnboardingLocationView()
+                .modelContainer(container)
+                .environmentObject(manager)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "onboarding_location_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Onboarding Item View Layout")
+    func onboardingItemViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        let manager = OnboardingManager()
+        manager.currentStep = .item
+        
+        let view = configureViewForSnapshot(
+            OnboardingItemView()
+                .modelContainer(container)
+                .environmentObject(manager)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "onboarding_item_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Onboarding Completion View Layout")
+    func onboardingCompletionViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        let manager = OnboardingManager()
+        manager.currentStep = .completion
+        
+        let view = configureViewForSnapshot(
+            OnboardingCompletionView(isPresented: .constant(true))
+                .modelContainer(container)
+                .environmentObject(manager)
+        )
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "onboarding_completion_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Full Onboarding Flow Layout")
+    func onboardingFlowViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        let manager = OnboardingManager()
+        
+        let view = configureViewForSnapshot(
+            OnboardingView(isPresented: .constant(true))
+                .modelContainer(container)
+                .environmentObject(manager)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "onboarding_flow_view\(snapshotSuffix)",
             file: filePath
         )
         

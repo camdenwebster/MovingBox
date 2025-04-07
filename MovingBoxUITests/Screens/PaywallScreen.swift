@@ -19,15 +19,34 @@ class PaywallScreen {
         app.buttons["dismissPaywall"]
     }
     
-    func waitForPaywall() -> Bool {
-        paywallView.waitForExistence(timeout: 5)
+    func waitForPaywall(timeout: TimeInterval = 5) -> Bool {
+        let viewExists = paywallView.waitForExistence(timeout: timeout)
+        let upgradeExists = upgradeButton.waitForExistence(timeout: timeout)
+        
+        return viewExists && upgradeExists
     }
     
-    func upgrade() {
+    func upgrade(timeout: TimeInterval = 5) {
+        guard waitForPaywall(timeout: timeout) else {
+            XCTFail("Paywall not visible")
+            return
+        }
         upgradeButton.tap()
     }
     
-    func dismiss() {
+    func dismiss(timeout: TimeInterval = 5) {
+        guard dismissButton.waitForExistence(timeout: timeout) else {
+            XCTFail("Dismiss button not found")
+            return
+        }
         dismissButton.tap()
+        
+        let expectation = XCTestExpectation(description: "Paywall dismissed")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            if !self.paywallView.exists {
+                expectation.fulfill()
+            }
+        }
+        _ = XCTWaiter.wait(for: [expectation], timeout: timeout)
     }
 }

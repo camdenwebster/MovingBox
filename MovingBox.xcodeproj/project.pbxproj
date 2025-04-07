@@ -27,6 +27,7 @@
 		1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */; };
 		1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */; };
 		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
+		19750C382DA07FF40056F0FC /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19750C372DA07FF40056F0FC /* OnboardingManager.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
 		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
@@ -76,6 +77,7 @@
 		1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxStoreKit.storekit; path = MovingBox/MovingBoxStoreKit.storekit; sourceTree = "<group>"; };
 		1961C6FB2D9EBB5F004CF387 /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
 		1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotTests.swift; path = MovingBoxTests/SnapshotTests.swift; sourceTree = "<group>"; };
+		19750C372DA07FF40056F0FC /* OnboardingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		198958AC2BF8FAC700C52CAE /* TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestData.swift; path = MovingBox/Services/TestData.swift; sourceTree = SOURCE_ROOT; };
 		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
@@ -229,6 +231,7 @@
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				19750C372DA07FF40056F0FC /* OnboardingManager.swift */,
 				19C01D5D2D93088300773DA4 /* JWTManager.swift */,
 				1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */,
 				1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */,
@@ -419,6 +422,7 @@
 				1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */,
 				1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */,
 				190DFBA42D6FC2170062D079 /* CurrencyFormatter.swift in Sources */,
+				19750C382DA07FF40056F0FC /* OnboardingManager.swift in Sources */,
 				19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */,
 				191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */,
 				19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */,

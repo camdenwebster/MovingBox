@@ -159,11 +159,23 @@ struct TestData {
     
     // Helper method to load test data into SwiftData
     static func loadTestData(context: ModelContext) async {
-        // Create home
-        let home = Home()
+        // Check for existing home
+        let descriptor = FetchDescriptor<Home>()
+        let existingHomes = try? context.fetch(descriptor)
+        let home: Home
+        
+        if let firstHome = existingHomes?.first {
+            // Update existing home
+            home = firstHome
+        } else {
+            // Create new home if none exists
+            home = Home()
+            context.insert(home)
+        }
+        
+        // Update home properties
         home.address1 = homes[0].address1
         home.data = loadTestImage(category: "homes", filename: homes[0].imageName)
-        context.insert(home)
         
         // Create locations
         let inventoryLocations = locations.map { locationData -> InventoryLocation in

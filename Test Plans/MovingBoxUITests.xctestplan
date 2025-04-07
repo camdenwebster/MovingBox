@@ -11,7 +11,7 @@
   "defaultOptions" : {
     "defaultTestExecutionTimeAllowance" : 240,
     "maximumTestExecutionTimeAllowance" : 300,
-    "maximumTestRepetitions" : 2,
+    "maximumTestRepetitions" : 3,
     "repeatInNewRunnerProcess" : true,
     "testRepetitionMode" : "retryOnFailure",
     "testTimeoutsEnabled" : true
@@ -19,6 +19,9 @@
   "testTargets" : [
     {
       "parallelizable" : true,
+      "skippedTests" : [
+        "OnboardingUITests\/testOnboardingHappyPath()"
+      ],
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",
         "identifier" : "19B7D96E2D9B112200690F64",

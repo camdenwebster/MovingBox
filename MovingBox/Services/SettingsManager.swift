@@ -71,7 +71,7 @@ class SettingsManager: ObservableObject {
         // Configure for testing
         #if DEBUG
         // For UI testing, we just need to check the launch argument
-        if ProcessInfo.processInfo.arguments.contains("UI-Testing-Pro") {
+        if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             print("⚠️ Running with UI-Testing-Pro flag enabled - All Pro features enabled")
             isPro = true
         }
@@ -172,7 +172,7 @@ class SettingsManager: ObservableObject {
         isPro = false
         
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("UI-Testing-Pro") {
+        if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             isPro = true
         }
         #endif

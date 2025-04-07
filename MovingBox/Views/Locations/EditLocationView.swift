@@ -24,7 +24,9 @@ struct EditLocationView: View {
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
-    
+    @State private var showingImageAnalysis = false
+    @State private var analyzingImage: UIImage?
+
     // Computed properties
     private var isNewLocation: Bool {
         location == nil
@@ -61,21 +63,13 @@ struct EditLocationView: View {
                         }
                 } else {
                     if isEditingEnabled {
-                        Button {
+                        AddPhotoButton(action: {
                             showPhotoSourceAlert = true
-                        } label: {
-                            VStack {
-                                Image(systemName: "photo")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 150, maxHeight: 150)
-                                    .foregroundStyle(.secondary)
-                                Text("Tap to add a photo")
-                            }
+                        })
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
-                        }
+                        
                     }
                 }
             }
@@ -112,7 +106,10 @@ struct EditLocationView: View {
             }
         }
         .sheet(isPresented: $showCamera) {
-            CameraView { image, needsAIAnalysis, completion in
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion in
                 if let location = location {
                     if let imageData = image.jpegData(compressionQuality: 0.8) {
                         location.data = imageData
