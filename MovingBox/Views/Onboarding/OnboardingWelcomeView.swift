@@ -3,6 +3,7 @@ import SwiftUI
 struct OnboardingWelcomeView: View {
     @EnvironmentObject private var manager: OnboardingManager
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.disableAnimations) private var disableAnimations
     @State private var imageOpacity = 0.0
     @State private var welcomeOpacity = 0.0
     @State private var titleOpacity = 0.0
@@ -61,23 +62,25 @@ struct OnboardingWelcomeView: View {
         }
         .onboardingBackground()
         .onAppear {
-            withAnimation(.easeOut(duration: 0.8)) {
+            let animation: Animation? = disableAnimations ? nil : .easeOut(duration: 0.6)
+            
+            withAnimation(animation?.delay(0)) {
                 imageOpacity = 1
             }
             
-            withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
+            withAnimation(animation?.delay(0.3)) {
                 welcomeOpacity = 1
             }
             
-            withAnimation(.easeOut(duration: 0.8).delay(0.6)) {
+            withAnimation(animation?.delay(0.6)) {
                 titleOpacity = 1
             }
             
-            withAnimation(.easeOut(duration: 0.8).delay(0.9)) {
+            withAnimation(animation?.delay(0.9)) {
                 descriptionOpacity = 1
             }
             
-            withAnimation(.easeOut(duration: 0.8).delay(1.2)) {
+            withAnimation(animation?.delay(1.2)) {
                 buttonOpacity = 1
             }
         }

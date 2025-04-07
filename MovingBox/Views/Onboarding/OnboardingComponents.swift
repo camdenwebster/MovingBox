@@ -112,14 +112,27 @@ struct AnimatedMeshGradient: View {
 // MARK: - View Modifier
 
 struct OnboardingBackgroundModifier: ViewModifier {
+    @Environment(\.isSnapshotTesting) private var isSnapshotTesting
+    
     func body(content: Content) -> some View {
-        ZStack {
-            AnimatedMeshGradient()
-                .opacity(0.7)
-                .ignoresSafeArea()
-            
-            content
-        }
+        content
+            .background {
+                if isSnapshotTesting {
+                    // Use static gradient for snapshots
+                    LinearGradient(
+                        colors: [.blue, .purple],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .opacity(0.2)
+                    .ignoresSafeArea()
+                } else {
+                    // Use animated mesh gradient for normal use
+                    AnimatedMeshGradient()
+                        .opacity(0.7)
+                        .ignoresSafeArea()
+                }
+            }
     }
 }
 

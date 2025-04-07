@@ -10,3 +10,27 @@ extension EnvironmentValues {
         set { self[IsOnboardingKey.self] = newValue }
     }
 }
+
+// ADD: New environment key for snapshot testing
+private struct IsSnapshotTestingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var isSnapshotTesting: Bool {
+        get { self[IsSnapshotTestingKey.self] }
+        set { self[IsSnapshotTestingKey.self] = newValue }
+    }
+}
+
+// ADD: New environment key for disabling animations
+private struct DisableAnimationsKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var disableAnimations: Bool {
+        get { self[DisableAnimationsKey.self] }
+        set { self[DisableAnimationsKey.self] = newValue }
+    }
+}
