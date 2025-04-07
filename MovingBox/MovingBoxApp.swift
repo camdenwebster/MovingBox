@@ -16,6 +16,7 @@ struct MovingBoxApp: App {
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
+    @StateObject private var containerManager = ModelContainerManager.shared
     @State private var showOnboarding = false
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
     @Query private var homes: [Home]
@@ -44,35 +45,9 @@ struct MovingBoxApp: App {
         UIColorValueTransformer.register()
     }
     
-    let container: ModelContainer = {
+    init() {
         Self.registerTransformers()
         
-        let schema = Schema([
-            InventoryLabel.self,
-            InventoryItem.self,
-            InventoryLocation.self,
-            InsurancePolicy.self,
-            Home.self
-        ])
-        
-        let disablePersistence = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
-        
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: disablePersistence,
-            allowsSave: true,
-            cloudKitDatabase: ModelConfiguration.CloudKitDatabase.automatic
-        )
-        
-        do {
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            return container
-        } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
-        }
-    }()
-    
-    init() {
         // Configure TelemetryDeck
         let telemetryConfig = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
         telemetryConfig.defaultSignalPrefix = "App."
@@ -196,20 +171,21 @@ struct MovingBoxApp: App {
                 }()
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
+            .onChange(of: settings.isPro) { oldValue, newValue in
+                containerManager.updateContainer(isPro: newValue)
+            }
             .onAppear {
-                // Setup iCloud sync if user is Pro
-                if settings.isPro {
-                    ICloudSyncManager.shared.setupSync(modelContainer: container)
-                }
+                // Initialize container with current Pro status
+                containerManager.updateContainer(isPro: settings.isPro)
                 
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
-                        await DefaultDataManager.populateTestData(modelContext: container.mainContext)
+                        await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
                         settings.hasLaunched = true
                     }
                 } else if !settings.hasLaunched {
                     Task {
-                        await DefaultDataManager.populateDefaultData(modelContext: container.mainContext)
+                        await DefaultDataManager.populateDefaultData(modelContext: containerManager.container.mainContext)
                         settings.hasLaunched = true
                     }
                 }
@@ -229,7 +205,7 @@ struct MovingBoxApp: App {
             .fullScreenCover(isPresented: $showOnboarding) {
                 OnboardingView(isPresented: $showOnboarding)
             }
-            .modelContainer(container)
+            .modelContainer(containerManager.container)
             .environmentObject(router)
             .environmentObject(settings)
             .environmentObject(onboardingManager)
