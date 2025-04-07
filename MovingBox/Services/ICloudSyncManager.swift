@@ -4,25 +4,26 @@ import CloudKit
 
 @MainActor
 class ICloudSyncManager: ObservableObject {
-    static let shared = ICloudSyncManager()
+    static let shared = ICloudSyncManager(settingsManager: nil)
     
     @Published private(set) var isSyncing = false
     @Published private(set) var lastSyncDate: Date? {
         didSet {
             if let date = lastSyncDate {
+                print("Setting last sync date in UserDefaults: \(date)")
                 UserDefaults.standard.set(date, forKey: "LastiCloudSyncDate")
             }
         }
     }
     
     private var modelContainer: ModelContainer?
-    private weak var settingsManager: SettingsManager?
+    private var settingsManager: SettingsManager?
     private var subscription: NSObjectProtocol?
     
-    init(settingsManager: SettingsManager? = nil) {
+    init(settingsManager: SettingsManager?) {
         self.settingsManager = settingsManager
-        // Load last sync date from UserDefaults
         self.lastSyncDate = UserDefaults.standard.object(forKey: "LastiCloudSyncDate") as? Date
+        print("ICloudSyncManager initialized with last sync date: \(String(describing: lastSyncDate))")
     }
     
     func checkICloudStatus() {
@@ -37,42 +38,66 @@ class ICloudSyncManager: ObservableObject {
         }
     }
     
+    func setSettingsManager(_ manager: SettingsManager) {
+        self.settingsManager = manager
+    }
+    
     func setupSync(modelContainer: ModelContainer) {
+        print("Setting up sync with model container")
         self.modelContainer = modelContainer
         setupContextObserver()
     }
     
     func setupContextObserver() {
         guard subscription == nil else { return }
+        print("Setting up context observer")
         
-        subscription = NotificationCenter.default.addObserver(
+        let newSubscription = NotificationCenter.default.addObserver(
             forName: .NSManagedObjectContextDidSave,
-            object: modelContainer?.mainContext,
+            object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                print("SwiftData context saved, updating sync date")
+                print("Context did save notification received")
                 await self?.updateLastSyncDate()
             }
         }
+        
+        subscription = newSubscription
     }
     
-    func removeCloudKitSubscription() {
-        if let subscription = subscription {
-            NotificationCenter.default.removeObserver(subscription)
-            self.subscription = nil
+    func removeSubscription() {
+        if let sub = subscription {
+            NotificationCenter.default.removeObserver(sub)
+            subscription = nil
         }
     }
     
     func syncNow() async {
-        guard settingsManager?.isPro == true else { return }
+        print("syncNow called")
+        guard let settingsManager = settingsManager else {
+            print("Sync cancelled - no settings manager available")
+            return
+        }
+        
+        print("Pro status: \(settingsManager.isPro)") // Debug print
+        guard settingsManager.isPro else {
+            print("Sync cancelled - user is not Pro")
+            return
+        }
         
         isSyncing = true
         defer { isSyncing = false }
         
         do {
-            try modelContainer?.mainContext.save()
-            print("Manual sync completed, updating sync date")
+            guard let context = modelContainer?.mainContext else {
+                print("No model context available")
+                return
+            }
+            
+            print("Attempting to save context")
+            try context.save()
+            print("Context saved successfully")
             await updateLastSyncDate()
         } catch {
             print("Error synchronizing with iCloud: \(error)")
@@ -80,8 +105,15 @@ class ICloudSyncManager: ObservableObject {
     }
     
     private func updateLastSyncDate() async {
+        print("Updating last sync date")
         let now = Date()
         lastSyncDate = now
         print("Updated last sync date to: \(now)")
+    }
+    
+    deinit {
+        if let sub = subscription {
+            NotificationCenter.default.removeObserver(sub)
+        }
     }
 }

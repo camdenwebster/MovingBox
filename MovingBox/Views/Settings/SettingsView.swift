@@ -483,6 +483,7 @@ struct ICloudSettingsView: View {
                 
                 Button(action: {
                     Task {
+                        print("Sync Now button tapped") // Debug print
                         await iCloudManager.syncNow()
                     }
                 }) {
@@ -500,8 +501,14 @@ struct ICloudSettingsView: View {
             }
         }
         .navigationTitle("iCloud Settings")
-        .onAppear {
-            iCloudManager.checkICloudStatus()
+        .task {
+            print("ICloudSettingsView appeared") // Debug print
+            await MainActor.run {
+                iCloudManager.setSettingsManager(settingsManager)
+                iCloudManager.checkICloudStatus()
+                print("Setting up sync with ModelContainer") // Debug print
+                iCloudManager.setupSync(modelContainer: modelContext.container)
+            }
         }
     }
 }
