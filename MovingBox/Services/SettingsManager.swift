@@ -11,7 +11,6 @@ class SettingsManager: ObservableObject {
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
-        static let iCloudSyncEnabled = "iCloudSyncEnabled"
         static let lastSyncDate = "lastSyncDate"
     }
     
@@ -52,15 +51,9 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    @Published var iCloudSyncEnabled: Bool {
+    @Published var lastiCloudSync: Date {
         didSet {
-            UserDefaults.standard.set(hasLaunched, forKey: Keys.hasLaunched)
-        }
-    }
-    
-    @Published var lastSyncDate: Date {
-        didSet {
-            UserDefaults.standard.set(lastSyncDate, forKey: Keys.lastSyncDate)
+            UserDefaults.standard.set(lastiCloudSync, forKey: Keys.lastSyncDate)
         }
     }
     
@@ -106,8 +99,9 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
-        self.iCloudSyncEnabled = UserDefaults.standard.bool(forKey: Keys.iCloudSyncEnabled)
-        self.lastSyncDate = UserDefaults.standard.object(forKey: Keys.lastSyncDate) as? Date ?? Date.distantPast
+        
+        // Initialize last sync date
+        self.lastiCloudSync = UserDefaults.standard.object(forKey: Keys.lastSyncDate) as? Date ?? Date.distantPast
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
@@ -163,6 +157,10 @@ class SettingsManager: ObservableObject {
         isPro || currentCount < SettingsManager.maxFreePhotosPerItem
     }
     
+    func canAccessICloudSync() -> Bool {
+        return isPro
+    }
+    
     // MARK: - Purchase Flow
     
     // TODO: Implement RevenueCat purchase flow
@@ -186,12 +184,18 @@ class SettingsManager: ObservableObject {
         hasLaunched = hasLaunchedDefault
         hasSeenPaywall = false
         isPro = false
-        lastSyncDate = Date.distantPast
+        lastiCloudSync = Date.distantPast
         
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             isPro = true
         }
         #endif
+    }
+}
+
+extension UserDefaults {
+    func contains(key: String) -> Bool {
+        return object(forKey: key) != nil
     }
 }

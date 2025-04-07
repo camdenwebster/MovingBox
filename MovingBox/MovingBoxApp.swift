@@ -58,21 +58,20 @@ struct MovingBoxApp: App {
         let disablePersistence = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
         
         let modelConfiguration = ModelConfiguration(
-            cloudKitDatabase: .private,
             schema: schema,
             isStoredInMemoryOnly: disablePersistence,
-            cloudIdentifier: "iCloud.com.mothersound.movingbox"
+            allowsSave: true,
+            cloudKitDatabase: ModelConfiguration.CloudKitDatabase.automatic
         )
         
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            SyncManager.shared.setContainer(container)
             return container
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }()
-
+    
     init() {
         // Configure TelemetryDeck
         let telemetryConfig = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
@@ -198,6 +197,11 @@ struct MovingBoxApp: App {
                 TelemetryManager.shared.trackTabSelected(tab: tabName)
             }
             .onAppear {
+                // Setup iCloud sync if user is Pro
+                if settings.isPro {
+                    ICloudSyncManager.shared.setupSync(modelContainer: container)
+                }
+                
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: container.mainContext)

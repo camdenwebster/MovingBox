@@ -33,6 +33,7 @@ struct SettingsView: View {
     @State private var showingICloudAlert = false
     @Query private var homes: [Home]
     private var home: Home { homes.first ?? Home() }
+    @StateObject private var iCloudManager = ICloudSyncManager.shared
     
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -114,12 +115,14 @@ struct SettingsView: View {
                 
                 Section("Sync & Backup") {
                     if settingsManager.isPro {
-                        NavigationLink(value: "icloud") {
+                        NavigationLink {
+                            ICloudSettingsView(settingsManager: settingsManager)
+                        } label: {
                             Label("iCloud Settings", systemImage: "icloud")
                         }
                     } else {
                         Button {
-                            showingICloudAlert = true
+                            showingPaywall = true
                         } label: {
                             HStack {
                                 Label("iCloud Settings", systemImage: "icloud")
@@ -459,74 +462,46 @@ struct AboutView: View {
 }
 
 struct ICloudSettingsView: View {
+    @StateObject private var iCloudManager = ICloudSyncManager.shared
     @ObservedObject var settingsManager: SettingsManager
-    @State private var syncManager: ICloudSyncManager
-    @State private var showingSyncToggleAlert = false
     @Environment(\.modelContext) private var modelContext
-    
-    init(settingsManager: SettingsManager) {
-        self.settingsManager = settingsManager
-        self._syncManager = State(initialValue: SyncManager(settingsManager: settingsManager))
-    }
     
     var body: some View {
         Form {
             Section {
-                Toggle("Sync with iCloud", isOn: $syncManager.isSyncEnabled)
-                    .onChange(of: syncManager.isSyncEnabled) { oldValue, newValue in
-                        print("iCloud sync toggle changed from \(oldValue) to \(newValue)")
-                        
-                        if !settingsManager.isPro {
-                            print("User is not Pro, showing alert")
-                            showingSyncToggleAlert = true
-                            syncManager.isSyncEnabled = false
-                            return
-                        }
-                        
-                        print("User is Pro, updating sync state")
-                    }
-                
-                if syncManager.isSyncEnabled {
-                    HStack {
-                        Text("Sync Status")
-                        Spacer()
-                        Text(syncManager.lastSyncDate?.formatted() ?? "Never")
+                HStack {
+                    Text("Last Sync")
+                    Spacer()
+                    if let lastSync = iCloudManager.lastSyncDate {
+                        Text(lastSync.formatted(date: .numeric, time: .shortened))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Never")
                             .foregroundStyle(.secondary)
                     }
-                    
-                    Button(action: {
-                        print("Manual sync requested")
-                        Task { @MainActor in
-                            await syncManager.syncNow()
-                        }
-                    }) {
-                        HStack {
-                            Text("Sync Now")
-                            if syncManager.isSyncing {
-                                Spacer()
-                                ProgressView()
-                            }
+                }
+                
+                Button(action: {
+                    Task {
+                        await iCloudManager.syncNow()
+                    }
+                }) {
+                    HStack {
+                        Text("Sync Now")
+                        if iCloudManager.isSyncing {
+                            Spacer()
+                            ProgressView()
                         }
                     }
-                    .disabled(syncManager.isSyncing)
                 }
+                .disabled(iCloudManager.isSyncing)
             } footer: {
-                if syncManager.isSyncEnabled {
-                    Text("Your data will automatically sync with iCloud when changes are made.")
-                }
+                Text("Your data automatically syncs with iCloud when changes are made.")
             }
         }
         .navigationTitle("iCloud Settings")
-        .alert("Pro Feature", isPresented: $showingSyncToggleAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("iCloud sync is available exclusively to Pro subscribers.")
-        }
         .onAppear {
-            print("ICloudSettingsView appeared, setting up sync")
-            print("isPro: \(settingsManager.isPro)")
-            syncManager.setupSync(modelContainer: modelContext.container)
-            print("Sync enabled: \(syncManager.isSyncEnabled)")
+            iCloudManager.checkICloudStatus()
         }
     }
 }
