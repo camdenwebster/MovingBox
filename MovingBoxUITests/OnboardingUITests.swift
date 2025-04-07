@@ -4,13 +4,15 @@ final class OnboardingUITests: XCTestCase {
     let app = XCUIApplication()
     var cameraScreen: CameraScreen!
     var detailScreen: InventoryDetailScreen!
-    var photoReviewScreen: PhotoReviewScreen!
     
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app.launchArguments = ["Show-Onboarding", "Disable-Persistence"]
+        app.launchArguments = [
+            "Show-Onboarding",
+            "Disable-Persistence",
+            "UI-Testing-Mock-Camera"
+        ]
         cameraScreen = CameraScreen(app: app, testCase: self)
-        photoReviewScreen = PhotoReviewScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         app.launch()
     }
@@ -35,11 +37,6 @@ final class OnboardingUITests: XCTestCase {
         // When: User takes a photo
         cameraScreen.takePhoto()
         
-        // Then: User accepts the photo in review
-        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
-                     "Use photo button should be visible")
-        photoReviewScreen.acceptPhoto()
-        
         let homeNameField = app.textFields["onboarding-home-name-field"]
         XCTAssertTrue(homeNameField.exists)
         homeNameField.tap()
@@ -62,11 +59,6 @@ final class OnboardingUITests: XCTestCase {
         
         // When: User takes a photo
         cameraScreen.takePhoto()
-        
-        // Then: User accepts the photo in review
-        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
-                     "Use photo button should be visible")
-        photoReviewScreen.acceptPhoto()
         
         let locationNameField = app.textFields["onboarding-location-name-field"]
         XCTAssertTrue(locationNameField.exists)
@@ -98,11 +90,6 @@ final class OnboardingUITests: XCTestCase {
         
         // When: User takes a photo
         cameraScreen.takePhoto()
-        
-        // Then: User accepts the photo in review
-        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
-                     "Use photo button should be visible")
-        photoReviewScreen.acceptPhoto()
         
         // Wait for AI processing and save item
         XCTAssertTrue(detailScreen.saveButton.waitForExistence(timeout: 10))

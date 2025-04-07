@@ -14,7 +14,7 @@ struct OnboardingLocationView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
     @State private var showPhotoSourceAlert = false
-    @State private var showCamera = false
+    @State private var showingCamera = false
     @State private var showPhotoPicker = false
     @State private var showValidationAlert = false
     
@@ -33,65 +33,68 @@ struct OnboardingLocationView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 20) {
-                        OnboardingHeaderText(text: "Add Your First Location")
-                        
-                        OnboardingDescriptionText(text: "A Location is a room in your home. If you're at home, start with the room you're currently in. Otherwise, start with any room that has valuable possessions.")
-                        
-                        // Photo Section
-                        Group {
-                            if let uiImage = tempUIImage {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                                    .frame(height: UIScreen.main.bounds.height / 3)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(alignment: .bottomTrailing) {
-                                        Button {
-                                            showPhotoSourceAlert = true
-                                        } label: {
-                                            Image(systemName: "photo")
-                                                .font(.title2)
-                                                .foregroundColor(.white)
-                                                .padding(8)
-                                                .background(Circle().fill(.black.opacity(0.6)))
-                                                .padding(8)
+                        VStack(spacing: 20) {
+                            OnboardingHeaderText(text: "Add Your First Location")
+                            
+                            OnboardingDescriptionText(text: "A Location is a room in your home. If you're at home, start with the room you're currently in. Otherwise, start with any room that has valuable possessions.")
+                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                            
+                            // Photo Section
+                            Group {
+                                if let uiImage = tempUIImage {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                        .frame(height: UIScreen.main.bounds.height / 3)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .overlay(alignment: .bottomTrailing) {
+                                            Button {
+                                                showPhotoSourceAlert = true
+                                            } label: {
+                                                Image(systemName: "photo")
+                                                    .font(.title2)
+                                                    .foregroundColor(.white)
+                                                    .padding(8)
+                                                    .background(Circle().fill(.black.opacity(0.6)))
+                                                    .padding(8)
+                                            }
+                                            .accessibilityIdentifier("onboarding-location-change-photo-button")
                                         }
-                                        .accessibilityIdentifier("onboarding-location-change-photo-button")
+                                } else {
+                                    AddPhotoButton(action: {
+                                        showPhotoSourceAlert = true
+                                    })
+                                    .accessibilityIdentifier("onboarding-location-add-photo-button")
+                                    .padding()
+                                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(.ultraThinMaterial)
                                     }
-                            } else {
-                                AddPhotoButton(action: {
-                                    showPhotoSourceAlert = true
-                                })
-                                .accessibilityIdentifier("onboarding-location-add-photo-button")
-                                .padding()
-                                .background {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(.ultraThinMaterial)
                                 }
                             }
+                            
+                            // Text Fields
+                            VStack(spacing: 16) {
+                                TextField("Location Name", text: $locationName)
+                                    .accessibilityIdentifier("onboarding-location-name-field")
+                                    .textFieldStyle(.roundedBorder)
+                                
+                                TextField("Description", text: $locationDesc, axis: .vertical)
+                                    .accessibilityIdentifier("onboarding-location-description-field")
+                                    .textFieldStyle(.roundedBorder)
+                                    .lineLimit(3...)
+                            }
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
+                        .frame(maxWidth: .infinity)
                         
-                        // Name Field
-                        TextField("Location Name", text: $locationName)
-                            .accessibilityIdentifier("onboarding-location-name-field")
-                            .textFieldStyle(.roundedBorder)
-                            .padding(.horizontal)
-                        
-                        // Optional Description
-                        TextField("Description", text: $locationDesc, axis: .vertical)
-                            .accessibilityIdentifier("onboarding-location-description-field")
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(3...)
-                            .padding(.horizontal)
-                        
-                        // Add some bottom padding to ensure content doesn't get hidden behind the button
                         Spacer()
                             .frame(height: 100)
                     }
                 }
                 
-                // Continue button in its own VStack outside of ScrollView
                 VStack {
                     OnboardingContinueButton {
                         if locationName.isEmpty {
@@ -101,7 +104,9 @@ struct OnboardingLocationView: View {
                         }
                     }
                     .accessibilityIdentifier("onboarding-location-continue-button")
+                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                 }
+                .frame(maxWidth: .infinity)
             }
         }
         .onboardingBackground()
@@ -109,7 +114,7 @@ struct OnboardingLocationView: View {
         .onAppear(perform: loadExistingData)
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
-                showCamera = true
+                showingCamera = true
             }
             .accessibilityIdentifier("takePhoto")
             Button("Choose from Library") {
@@ -123,11 +128,13 @@ struct OnboardingLocationView: View {
                 .accessibilityIdentifier("removePhoto")
             }
         }
-        .fullScreenCover(isPresented: $showCamera) {
-            NavigationStack {
-                PhotoCaptureFlow { image in
-                    tempUIImage = image
-                }
+        .sheet(isPresented: $showingCamera, onDismiss: nil) {
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion in
+                tempUIImage = image
+                completion()
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)

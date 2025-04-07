@@ -11,6 +11,8 @@ struct AddInventoryItemView: View {
     @State private var showingPermissionDenied = false
     @State private var showingPaywall = false
     @State private var showLimitAlert = false
+    @State private var showingImageAnalysis = false
+    @State private var analyzingImage: UIImage?
     @Query private var allItems: [InventoryItem]
     
     let location: InventoryLocation?
@@ -45,7 +47,10 @@ struct AddInventoryItemView: View {
             }
         }
         .sheet(isPresented: $showingCamera) {
-            CameraView { image, needsAnalysis, completion in
+            CameraView(
+                showingImageAnalysis: $showingImageAnalysis,
+                analyzingImage: $analyzingImage
+            ) { image, needsAnalysis, completion in
                 let newItem = InventoryItem(
                     title: "",
                     quantityString: "1",
@@ -101,6 +106,14 @@ struct AddInventoryItemView: View {
                         completion()
                         router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
                     }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showingImageAnalysis) {
+            if let image = analyzingImage {
+                ImageAnalysisView(image: image) {
+                    showingImageAnalysis = false
+                    analyzingImage = nil
                 }
             }
         }

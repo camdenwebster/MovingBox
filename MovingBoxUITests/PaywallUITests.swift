@@ -5,7 +5,6 @@ final class PaywallUITests: XCTestCase {
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
-    var photoReviewScreen: PhotoReviewScreen!
     var paywallScreen: PaywallScreen!
     var tabBar: TabBar!
     
@@ -13,18 +12,18 @@ final class PaywallUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         
-        // CHANGE: Add UI-Testing-Skip-Onboarding flag
+        // CHANGE: Update launch arguments
         app.launchArguments = [
             "reset-paywall-state",
             "Skip-Onboarding",
-            "Disable-Persistence"
+            "Disable-Persistence",
+            "UI-Testing-Mock-Camera"
         ]
 
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
-        photoReviewScreen = PhotoReviewScreen(app: app)
         paywallScreen = PaywallScreen(app: app)
         tabBar = TabBar(app: app)
     }
@@ -35,7 +34,6 @@ final class PaywallUITests: XCTestCase {
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
-        photoReviewScreen = nil
         paywallScreen = nil
         tabBar = nil
     }

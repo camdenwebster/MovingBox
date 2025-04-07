@@ -90,24 +90,14 @@ struct InventoryDetailView: View {
                             .accessibilityIdentifier("changePhoto")
                         }
                     } else {
-                        Button {
-                            showPhotoSourceAlert = true
-                        } label: {
-                            VStack {
-                                Image(systemName: "photo")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 150, maxHeight: 150)
-                                Text(isEditing ? "Tap to add a photo" : "No photo available")
-                            }
+                        if isEditing {
+                            AddPhotoButton(action: {
+                                showPhotoSourceAlert = true
+                            })
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
-                            .background(Color(.systemBackground))
                         }
-                        .buttonStyle(.automatic)
-                        .disabled(!isEditing)
-                        .accessibilityIdentifier("tapToAddPhoto")
                     }
                 }
                 .ignoresSafeArea(edges: .top)
@@ -164,7 +154,7 @@ struct InventoryDetailView: View {
             // Details Section
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
-                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Lamp")
+                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Desktop Computer")
                         .focused($focusedField, equals: .title)
                         .disabled(!isEditing)
                         .accessibilityIdentifier("titleField")
@@ -347,7 +337,10 @@ struct InventoryDetailView: View {
             }
         }
         .sheet(isPresented: $showingCamera) {
-            CameraView { image, needsAIAnalysis, completion in
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, needsAIAnalysis, completion in
                 if let originalData = image.jpegData(compressionQuality: 1.0) {  // Save at full quality
                     Task { @MainActor in
                         inventoryItemToDisplay.data = originalData
@@ -522,8 +515,6 @@ struct InventoryDetailView: View {
     
     func addLabel() {
         let label = InventoryLabel()
-        modelContext.insert(label)
-        TelemetryManager.shared.trackLabelCreated(name: label.name)
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
     }

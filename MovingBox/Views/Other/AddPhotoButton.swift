@@ -30,5 +30,6 @@ struct AddPhotoButton: View {
                 Text("Tap to add a photo")
             }
         }
+        .accessibilityIdentifier("tapToAddPhoto")
     }
 }

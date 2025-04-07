@@ -14,7 +14,7 @@ class CameraScreen {
         self.testCase = testCase
         
         // Initialize camera controls
-        self.captureButton = app.buttons["capturePhoto"]
+        self.captureButton = app.buttons["takePhotoButton"]
         self.switchCameraButton = app.buttons["switchCamera"]
         self.dismissButton = app.buttons["dismissCamera"]
         
@@ -37,26 +37,32 @@ class CameraScreen {
         }
     }
     
-    func waitForCamera() -> Bool {
-        // Trigger the permission dialog if needed
+    func waitForCamera(timeout: TimeInterval = 5) -> Bool {
         app.tap()
+        let captureButtonExists = captureButton.waitForExistence(timeout: timeout)
         
-        // Wait for capture button to be available
-        return captureButton.waitForExistence(timeout: 5)
+        return captureButtonExists
     }
     
-    func takePhoto() {
-        guard waitForCamera() else {
-            print("❌ Camera not ready")
+    func takePhoto(timeout: TimeInterval = 5) {
+        guard waitForCamera(timeout: timeout) else {
+            XCTFail("❌ Camera not ready")
             return
         }
         print("📸 Taking photo")
         captureButton.tap()
+        
+        let expectation = testCase.expectation(
+            for: NSPredicate(format: "exists == false"),
+            evaluatedWith: captureButton,
+            handler: nil
+        )
+        _ = XCTWaiter.wait(for: [expectation], timeout: timeout)
     }
     
-    func switchCamera() {
-        guard waitForCamera() else {
-            print("❌ Camera not ready")
+    func switchCamera(timeout: TimeInterval = 5) {
+        guard waitForCamera(timeout: timeout) else {
+            XCTFail("❌ Camera not ready")
             return
         }
         print("🔄 Switching camera")
@@ -64,6 +70,8 @@ class CameraScreen {
     }
     
     func dismiss() {
-        dismissButton.tap()
+        if dismissButton.waitForExistence(timeout: 2) {
+            dismissButton.tap()
+        }
     }
 }

@@ -151,7 +151,10 @@ struct EditHomeView: View {
             }
         }
         .sheet(isPresented: $showCamera) {
-            CameraView { image, needsAIAnalysis, completion in
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion in
                 if let home = home {
                     if let imageData = image.jpegData(compressionQuality: 0.8) {
                         home.data = imageData
@@ -171,7 +174,7 @@ struct EditHomeView: View {
                 homeAddress2 = existingHome.address2
                 city = existingHome.city
                 state = existingHome.state
-                zip = existingHome.zip  
+                zip = existingHome.zip
                 country = existingHome.country.isEmpty ? Locale.current.region?.identifier ?? "US" : existingHome.country
             }
         }
@@ -184,7 +187,7 @@ struct EditHomeView: View {
                         home?.address2 = homeAddress2
                         home?.city = city
                         home?.state = state
-                        home?.zip = zip  
+                        home?.zip = zip
                         home?.country = country
                         isEditing = false
                     } else {
@@ -199,7 +202,7 @@ struct EditHomeView: View {
                         address2: homeAddress2,
                         city: city,
                         state: state,
-                        zip: zip,  
+                        zip: zip,
                         country: country
                     )
                     if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {

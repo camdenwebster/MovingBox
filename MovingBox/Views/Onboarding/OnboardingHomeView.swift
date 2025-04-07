@@ -13,7 +13,7 @@ struct OnboardingHomeView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
     @State private var showPhotoSourceAlert = false
-    @State private var showCamera = false
+    @State private var showingCamera = false
     @State private var showPhotoPicker = false
     @State private var showValidationAlert = false
     
@@ -31,57 +31,57 @@ struct OnboardingHomeView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 20) {
-                        OnboardingHeaderText(text: "Add Home Details")
-                        
-                        OnboardingDescriptionText(text: "Add some details about your home to customize your experience")
-                        
-                        // Photo Section
-                        Group {
-                            if let uiImage = tempUIImage {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                                    .frame(height: UIScreen.main.bounds.height / 3)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(alignment: .bottomTrailing) {
-                                        Button {
-                                            showPhotoSourceAlert = true
-                                        } label: {
-                                            Image(systemName: "photo")
-                                                .font(.title2)
-                                                .foregroundColor(.white)
-                                                .padding(8)
-                                                .background(Circle().fill(.black.opacity(0.6)))
-                                                .padding(8)
+                        VStack(spacing: 20) {
+                            OnboardingHeaderText(text: "Add Home Details")
+                            
+                            OnboardingDescriptionText(text: "Add some details about your home to customize your experience")
+                            
+                            Group {
+                                if let uiImage = tempUIImage {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                        .frame(height: UIScreen.main.bounds.height / 3)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .overlay(alignment: .bottomTrailing) {
+                                            Button {
+                                                showPhotoSourceAlert = true
+                                            } label: {
+                                                Image(systemName: "photo")
+                                                    .font(.title2)
+                                                    .foregroundColor(.white)
+                                                    .padding(8)
+                                                    .background(Circle().fill(.black.opacity(0.6)))
+                                                    .padding(8)
+                                            }
                                         }
+                                } else {
+                                    AddPhotoButton(action: {
+                                        showPhotoSourceAlert = true
+                                    })
+                                    .accessibilityIdentifier("onboarding-home-add-photo-button")
+                                    .padding()
+                                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(.ultraThinMaterial)
                                     }
-                            } else {
-                                AddPhotoButton(action: {
-                                    showPhotoSourceAlert = true
-                                })
-                                .accessibilityIdentifier("onboarding-home-add-photo-button")
-                                .padding()
-                                .background {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(.ultraThinMaterial)
                                 }
                             }
+                            
+                            TextField("Home Name", text: $homeName)
+                                .accessibilityIdentifier("onboarding-home-name-field")
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
+                        .frame(maxWidth: .infinity)
                         
-                        // Name Field
-                        TextField("Home Name", text: $homeName)
-                            .accessibilityIdentifier("onboarding-home-name-field")
-                            .textFieldStyle(.roundedBorder)
-                            .padding(.horizontal)
-                        
-                        // Add some bottom padding to ensure content doesn't get hidden behind the button
                         Spacer()
                             .frame(height: 100)
                     }
                 }
                 
-                // Continue button in its own VStack outside of ScrollView
                 VStack {
                     OnboardingContinueButton {
                         if homeName.isEmpty {
@@ -91,7 +91,9 @@ struct OnboardingHomeView: View {
                         }
                     }
                     .accessibilityIdentifier("onboarding-home-continue-button")
+                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                 }
+                .frame(maxWidth: .infinity)
             }
         }
         .onboardingBackground()
@@ -99,7 +101,7 @@ struct OnboardingHomeView: View {
         .onAppear(perform: loadExistingData)
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
-                showCamera = true
+                showingCamera = true
             }
             .accessibilityIdentifier("takePhoto")
             Button("Choose from Library") {
@@ -113,11 +115,13 @@ struct OnboardingHomeView: View {
                 .accessibilityIdentifier("removePhoto")
             }
         }
-        .fullScreenCover(isPresented: $showCamera) {
-            NavigationStack {
-                PhotoCaptureFlow { image in
-                    tempUIImage = image
-                }
+        .sheet(isPresented: $showingCamera, onDismiss: nil) {
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion in
+                tempUIImage = image
+                completion()
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)

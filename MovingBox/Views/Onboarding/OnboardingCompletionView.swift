@@ -13,41 +13,46 @@ struct OnboardingCompletionView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack {
-                        // Success Icon
-                        Image(systemName: showCheckmark ? "checkmark.circle" : "circle" )
-                            .font(.system(size: 100))
-                            .foregroundStyle(.green)
-                            .padding()
-                            .animation(.default, value: showCheckmark)
-                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
-                        OnboardingHeaderText(text: "Great Job!")
-                        
-                        VStack(spacing: 16) {
-                            OnboardingDescriptionText(text: "You've taken the first step in protecting what matters most.")
+                        VStack {
+                            // Success Icon
+                            Image(systemName: showCheckmark ? "checkmark.circle" : "circle" )
+                                .font(.system(size: 100))
+                                .foregroundStyle(.green)
+                                .padding()
+                                .animation(.default, value: showCheckmark)
+                                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
                             
-                            // Tips Section
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Tips for Success")
-                                    .font(.headline)
-                                    .padding(.bottom, 4)
+                            OnboardingHeaderText(text: "Great Job!")
+                            
+                            VStack(spacing: 16) {
+                                OnboardingDescriptionText(text: "You've taken the first step in protecting what matters most.")
                                 
-                                TipRow(icon: "tortoise.fill",
-                                      text: "Take it at your own pace")
-                                
-                                TipRow(icon: "clock.fill",
-                                      text: "Add a few items each day")
-                                
-                                TipRow(icon: "house.fill",
-                                      text: "Go room by room to stay organized")
+                                // Tips Section
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Tips for Success")
+                                        .font(.headline)
+                                        .padding(.bottom, 4)
+                                    
+                                    TipRow(icon: "tortoise.fill",
+                                          text: "Take it at your own pace")
+                                    
+                                    TipRow(icon: "clock.fill",
+                                          text: "Add a few items each day")
+                                    
+                                    TipRow(icon: "house.fill",
+                                          text: "Go room by room to stay organized")
+                                }
+                                .padding()
+                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
+                                .background {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(.ultraThinMaterial)
+                                }
+                                .padding(.bottom, 32)
                             }
-                            .padding()
-                            .background {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.ultraThinMaterial)
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 32)
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
                         }
+                        .frame(maxWidth: .infinity) // Center the content
                     }
                 }
                 
@@ -55,6 +60,8 @@ struct OnboardingCompletionView: View {
                 
                 OnboardingContinueButton(action: completeOnboarding, title: "Get Started")
                     .accessibilityIdentifier("onboarding-completion-continue-button")
+                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
+                    .frame(maxWidth: .infinity) // Center the button
             }
         }
         .onboardingBackground()

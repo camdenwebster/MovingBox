@@ -24,7 +24,9 @@ struct EditLocationView: View {
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
-    
+    @State private var showingImageAnalysis = false
+    @State private var analyzingImage: UIImage?
+
     // Computed properties
     private var isNewLocation: Bool {
         location == nil
@@ -104,7 +106,10 @@ struct EditLocationView: View {
             }
         }
         .sheet(isPresented: $showCamera) {
-            CameraView { image, needsAIAnalysis, completion in
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion in
                 if let location = location {
                     if let imageData = image.jpegData(compressionQuality: 0.8) {
                         location.data = imageData

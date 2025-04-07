@@ -21,6 +21,8 @@ struct InventoryListView: View {
     @State private var searchText = ""
     @State private var showingPaywall = false
     @State private var showLimitAlert = false
+    @State private var showingImageAnalysis = false
+    @State private var analyzingImage: UIImage?
     
     @Query private var allItems: [InventoryItem]
     
@@ -90,6 +92,14 @@ struct InventoryListView: View {
             .sheet(isPresented: $showingPaywall) {
                 MovingBoxPaywallView()
             }
+            .fullScreenCover(isPresented: $showingImageAnalysis) {
+                if let image = analyzingImage {
+                    ImageAnalysisView(image: image) {
+                        showingImageAnalysis = false
+                        analyzingImage = nil
+                    }
+                }
+            }
             .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
                 Button("Upgrade") {
                     showingPaywall = true
@@ -98,6 +108,11 @@ struct InventoryListView: View {
             } message: {
                 Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
             }
+    }
+    
+    func handlePhotoCaptured(_ image: UIImage) {
+        analyzingImage = image
+        showingImageAnalysis = true
     }
 }
 

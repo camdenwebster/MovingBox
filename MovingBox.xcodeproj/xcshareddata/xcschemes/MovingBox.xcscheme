@@ -77,6 +77,10 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "Use-Test-Data"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "Show-Onboarding"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
@@ -85,7 +89,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Disable-Persistence"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Skip-Onboarding"

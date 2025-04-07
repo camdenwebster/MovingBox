@@ -18,7 +18,7 @@ struct OnboardingWelcomeView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(minHeight: 200, maxHeight: 400)
-                            .padding(.horizontal, 32)
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                             .padding(.vertical)
                             .opacity(imageOpacity)
                             .offset(y: imageOpacity == 0 ? -20 : 0)
@@ -27,7 +27,6 @@ struct OnboardingWelcomeView: View {
                             Text("Welcome to")
                                 .fontWeight(.bold)
                                 .multilineTextAlignment(.center)
-                                .padding(.horizontal)
                                 .opacity(welcomeOpacity)
                                 .offset(y: welcomeOpacity == 0 ? -20 : 0)
                             
@@ -35,15 +34,17 @@ struct OnboardingWelcomeView: View {
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
                                 .multilineTextAlignment(.center)
-                                .padding(.horizontal)
                                 .opacity(titleOpacity)
                                 .offset(y: titleOpacity == 0 ? -20 : 0)
                         }
+                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         
                         OnboardingDescriptionText(text: "Your personal home inventory assistant. We'll help you catalog and protect your valuable possessions using the power of AI.")
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                             .opacity(descriptionOpacity)
                             .offset(y: descriptionOpacity == 0 ? -20 : 0)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 
                 VStack {
@@ -51,9 +52,11 @@ struct OnboardingWelcomeView: View {
                         manager.moveToNext()
                     }, title: "Get Started")
                     .accessibilityIdentifier("onboarding-welcome-continue-button")
+                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                     .opacity(buttonOpacity)
                     .offset(y: buttonOpacity == 0 ? -20 : 0)
                 }
+                .frame(maxWidth: .infinity)
             }
         }
         .onboardingBackground()

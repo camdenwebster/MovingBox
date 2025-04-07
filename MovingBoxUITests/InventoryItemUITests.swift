@@ -11,22 +11,23 @@ final class InventoryItemUITests: XCTestCase {
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
-    var photoReviewScreen: PhotoReviewScreen!
     var tabBar: TabBar!
     let app = XCUIApplication()
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app.launchArguments = ["Use-Test-Data",
-                               "Is-Pro",
-                               "Skip-Onboarding",
-                               "Disable-Persistence"]
+        app.launchArguments = [
+            "Use-Test-Data",
+            "Is-Pro",
+            "Skip-Onboarding",
+            "Disable-Persistence",
+            "UI-Testing-Mock-Camera"
+        ]
         
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
-        photoReviewScreen = PhotoReviewScreen(app: app)
         tabBar = TabBar(app: app)
         
         app.launch()
@@ -36,7 +37,6 @@ final class InventoryItemUITests: XCTestCase {
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
-        photoReviewScreen = nil
         tabBar = nil
     }
 
@@ -54,11 +54,6 @@ final class InventoryItemUITests: XCTestCase {
         
         // When: User takes a photo
         cameraScreen.takePhoto()
-        
-        // Then: User accepts the photo in review
-        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
-                     "Use photo button should be visible")
-        photoReviewScreen.acceptPhoto()
         
         // Then: Detail view should appear after AI analysis completes
         XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 10),
@@ -130,11 +125,6 @@ final class InventoryItemUITests: XCTestCase {
         
         // When: User takes a photo
         cameraScreen.takePhoto()
-        
-        // And: User accepts the photo in review
-        XCTAssertTrue(photoReviewScreen.usePhotoButton.waitForExistence(timeout: 5),
-                     "Use photo button should be visible")
-        photoReviewScreen.acceptPhoto()
         
         // Then: Detail view should appear after AI analysis completes
         XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 10),

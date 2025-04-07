@@ -186,7 +186,10 @@ struct DashboardView: View {
             }
         }
         .sheet(isPresented: $showCamera) {
-            CameraView { image, needsAIAnalysis, completion in
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion in
                 if let imageData = image.jpegData(compressionQuality: 0.8) {
                     home.data = imageData
                 }
