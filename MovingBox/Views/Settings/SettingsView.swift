@@ -30,6 +30,7 @@ struct SettingsView: View {
     @State private var showingSafariView = false
     @State private var selectedURL: URL?
     @State private var showingPaywall = false
+    @State private var showingICloudAlert = false
     @Query private var homes: [Home]
     private var home: Home { homes.first ?? Home() }
     
@@ -111,6 +112,29 @@ struct SettingsView: View {
                     }
                 }
                 
+                Section("Sync & Backup") {
+                    if settingsManager.isPro {
+                        NavigationLink(value: "icloud") {
+                            Label("iCloud Settings", systemImage: "icloud")
+                        }
+                    } else {
+                        Button {
+                            showingICloudAlert = true
+                        } label: {
+                            HStack {
+                                Label("iCloud Settings", systemImage: "icloud")
+                                Spacer()
+                                Text("PRO")
+                                    .font(.caption2)
+                                    .padding(4)
+                                    .background(Color.yellow.opacity(0.2))
+                                    .foregroundColor(.yellow)
+                                    .cornerRadius(4)
+                            }
+                        }
+                    }
+                }
+                
                 Section("Community & Support") {
                     externalLinkButton(for: externalLinks["knowledgeBase"]!)
                     externalLinkButton(for: externalLinks["support"]!)
@@ -161,6 +185,8 @@ struct SettingsView: View {
                     LabelSettingsView()
                 case "home":
                     EditHomeView(home: home)
+                case "icloud":
+                    ICloudSettingsView(settingsManager: settingsManager)
                 default:
                     EmptyView()
                 }
@@ -182,6 +208,14 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingPaywall) {
                 MovingBoxPaywallView()
+            }
+            .alert("Pro Feature", isPresented: $showingICloudAlert) {
+                Button("Not Now", role: .cancel) { }
+                Button("Upgrade to Pro") {
+                    showingPaywall = true
+                }
+            } message: {
+                Text("iCloud sync is available exclusively to Pro subscribers.")
             }
         }
     }
@@ -421,6 +455,79 @@ struct AboutView: View {
     var body: some View {
         Text("About MovingBox")
             .navigationTitle("About")
+    }
+}
+
+struct ICloudSettingsView: View {
+    @ObservedObject var settingsManager: SettingsManager
+    @State private var syncManager: ICloudSyncManager
+    @State private var showingSyncToggleAlert = false
+    @Environment(\.modelContext) private var modelContext
+    
+    init(settingsManager: SettingsManager) {
+        self.settingsManager = settingsManager
+        self._syncManager = State(initialValue: SyncManager(settingsManager: settingsManager))
+    }
+    
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Sync with iCloud", isOn: $syncManager.isSyncEnabled)
+                    .onChange(of: syncManager.isSyncEnabled) { oldValue, newValue in
+                        print("iCloud sync toggle changed from \(oldValue) to \(newValue)")
+                        
+                        if !settingsManager.isPro {
+                            print("User is not Pro, showing alert")
+                            showingSyncToggleAlert = true
+                            syncManager.isSyncEnabled = false
+                            return
+                        }
+                        
+                        print("User is Pro, updating sync state")
+                    }
+                
+                if syncManager.isSyncEnabled {
+                    HStack {
+                        Text("Sync Status")
+                        Spacer()
+                        Text(syncManager.lastSyncDate?.formatted() ?? "Never")
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Button(action: {
+                        print("Manual sync requested")
+                        Task { @MainActor in
+                            await syncManager.syncNow()
+                        }
+                    }) {
+                        HStack {
+                            Text("Sync Now")
+                            if syncManager.isSyncing {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(syncManager.isSyncing)
+                }
+            } footer: {
+                if syncManager.isSyncEnabled {
+                    Text("Your data will automatically sync with iCloud when changes are made.")
+                }
+            }
+        }
+        .navigationTitle("iCloud Settings")
+        .alert("Pro Feature", isPresented: $showingSyncToggleAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("iCloud sync is available exclusively to Pro subscribers.")
+        }
+        .onAppear {
+            print("ICloudSettingsView appeared, setting up sync")
+            print("isPro: \(settingsManager.isPro)")
+            syncManager.setupSync(modelContainer: modelContext.container)
+            print("Sync enabled: \(syncManager.isSyncEnabled)")
+        }
     }
 }
 

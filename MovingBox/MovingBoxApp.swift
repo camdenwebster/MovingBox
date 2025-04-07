@@ -58,12 +58,15 @@ struct MovingBoxApp: App {
         let disablePersistence = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
         
         let modelConfiguration = ModelConfiguration(
+            cloudKitDatabase: .private,
             schema: schema,
-            isStoredInMemoryOnly: disablePersistence
+            isStoredInMemoryOnly: disablePersistence,
+            cloudIdentifier: "iCloud.com.mothersound.movingbox"
         )
         
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            SyncManager.shared.setContainer(container)
             return container
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
