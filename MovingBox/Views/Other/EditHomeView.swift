@@ -150,6 +150,19 @@ struct EditHomeView: View {
                 }
             }
         }
+        .sheet(isPresented: $showCamera) {
+            CameraView { image, needsAIAnalysis, completion in
+                if let home = home {
+                    if let imageData = image.jpegData(compressionQuality: 0.8) {
+                        home.data = imageData
+                    }
+                } else {
+                    tempUIImage = image
+                }
+                completion()
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .onAppear {
             if let existingHome = home {
                 // Initialize editing fields with existing values

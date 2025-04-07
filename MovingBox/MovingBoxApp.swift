@@ -18,6 +18,7 @@ struct MovingBoxApp: App {
     @StateObject private var onboardingManager = OnboardingManager()
     @State private var showOnboarding = false
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
+    @Query private var homes: [Home]
     
     enum TabDestination: Hashable {
         case dashboard
