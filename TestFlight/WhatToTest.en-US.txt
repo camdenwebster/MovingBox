@@ -7,6 +7,12 @@ We are excited to prepare for our 1.0 launch, and we will greatly appreciate any
 - Testing on a wide variety of iPhone models
 
 What's New?
+0.7.0
+- Implemented an onboarding flow to help users get started with their home inventory journey
+- Replaced the custom camera view with the native iOS camera view
+- Enhanced support for iPad
+- Fixed an issue in which the location property on an item would be overwritten during AI image analysis
+
 0.6.0
 - Implemented a control for camera flash on the Camera view
 - Minor UI enhancements
