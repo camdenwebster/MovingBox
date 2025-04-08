@@ -60,22 +60,22 @@ struct OnboardingHomeView: View {
                                                     .background(Circle().fill(.black.opacity(0.6)))
                                                     .padding(8)
                                             }
-//                                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-//                                                Button("Take Photo") {
-//                                                    showingCamera = true
-//                                                }
-//                                                .accessibilityIdentifier("takePhoto")
-//                                                Button("Choose from Library") {
-//                                                    showPhotoPicker = true
-//                                                }
-//                                                .accessibilityIdentifier("chooseFromLibrary")
-//                                                if tempUIImage != nil {
-//                                                    Button("Remove Photo", role: .destructive) {
-//                                                        tempUIImage = nil
-//                                                    }
-//                                                    .accessibilityIdentifier("removePhoto")
-//                                                }
-//                                            }
+                                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                                Button("Take Photo") {
+                                                    showingCamera = true
+                                                }
+                                                .accessibilityIdentifier("takePhoto")
+                                                Button("Choose from Library") {
+                                                    showPhotoPicker = true
+                                                }
+                                                .accessibilityIdentifier("chooseFromLibrary")
+                                                if tempUIImage != nil {
+                                                    Button("Remove Photo", role: .destructive) {
+                                                        tempUIImage = nil
+                                                    }
+                                                    .accessibilityIdentifier("removePhoto")
+                                                }
+                                            }
                                         }
                                 } else {
                                     AddPhotoButton(action: {
