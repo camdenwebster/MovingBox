@@ -131,4 +131,82 @@ import Foundation
         #expect(manager.shouldShowFirstTimePaywall(itemCount: 0) == false)
         #expect(manager.shouldShowFirstLocationPaywall(locationCount: 0) == false)
     }
+    
+    @Test("Test last sync date persistence")
+    func testLastSyncDatePersistence() async throws {
+        // Given
+        let manager = createTestManager()
+        let testDate = Date()
+        
+        // When
+        manager.lastiCloudSync = testDate
+        
+        // Wait for UserDefaults to sync
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Then
+        #expect(manager.lastiCloudSync.timeIntervalSince1970 == testDate.timeIntervalSince1970)
+        #expect(UserDefaults.standard.object(forKey: "lastSyncDate") as? Date != nil)
+    }
+    
+    @Test("Test API key validation")
+    func testAPIKeyValidation() {
+        // Given
+        let manager = createTestManager()
+        
+        // When - Set empty key
+        manager.apiKey = ""
+        #expect(manager.apiKey.isEmpty)
+        
+        // When - Set valid key
+        manager.apiKey = "sk-1234567890"
+        #expect(manager.apiKey == "sk-1234567890")
+    }
+    
+    @Test("Test Pro feature access with UI testing flag")
+    func testProFeatureUITestingFlag() {
+        // Given
+        let manager = createTestManager()
+        
+        // When - Simulate UI testing environment
+        let arguments = ["Is-Pro"]
+        #if DEBUG
+        if arguments.contains("Is-Pro") {
+            manager.isPro = true
+        }
+        #endif
+        
+        // Then
+        #expect(manager.isPro == true, "Pro status should be true")
+        #expect(manager.canAccessICloudSync() == true, "Should have iCloud access")
+        #expect(manager.canAddMorePhotos(currentCount: 10) == true, "Should be able to add more photos")
+        
+        // Cleanup
+        manager.resetToDefaults()
+    }
+    
+    @Test("Test edge cases for first-time paywall")
+    func testFirstTimePaywallEdgeCases() {
+        // Given
+        let manager = createTestManager()
+        
+        // When/Then - Free user, first time
+        #expect(manager.shouldShowFirstTimePaywall(itemCount: 0) == true)
+        #expect(manager.shouldShowFirstLocationPaywall(locationCount: 0) == true)
+        
+        // When - User has seen paywall
+        manager.hasSeenPaywall = true
+        #expect(manager.shouldShowFirstTimePaywall(itemCount: 0) == false)
+        #expect(manager.shouldShowFirstLocationPaywall(locationCount: 0) == false)
+        
+        // When - User is Pro
+        manager.isPro = true
+        #expect(manager.shouldShowFirstTimePaywall(itemCount: 0) == false)
+        #expect(manager.shouldShowFirstLocationPaywall(locationCount: 0) == false)
+        
+        // When - Has items but not Pro
+        manager.isPro = false
+        #expect(manager.shouldShowFirstTimePaywall(itemCount: 1) == false)
+        #expect(manager.shouldShowFirstLocationPaywall(locationCount: 1) == false)
+    }
 }
