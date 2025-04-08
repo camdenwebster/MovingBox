@@ -5,9 +5,8 @@
 //  Created by Camden Webster on 6/4/24.
 //
 
-import RevenueCatUI
-import SwiftData
 import SwiftUI
+import SwiftData
 import SafariServices
 
 enum SettingsSection: Hashable {
@@ -110,6 +109,16 @@ struct SettingsView: View {
                     }
                     NavigationLink(value: "labels") {
                         Label("Label Settings", systemImage: "tag")
+                    }
+                }
+                
+                if settingsManager.isPro {
+                    Section("Subscription Status") {
+                        NavigationLink {
+                            SubscriptionSettingsView()
+                        } label: {
+                            Label("Subscription Details", systemImage: "creditcard")
+                        }
                     }
                 }
                 

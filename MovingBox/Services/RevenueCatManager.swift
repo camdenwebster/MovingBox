@@ -21,6 +21,14 @@ class RevenueCatManager: NSObject, ObservableObject {
     var onPaywallDismissed: (() -> Void)?
     var onPurchaseCompleted: (() -> Void)?
     
+    struct SubscriptionInfo {
+        let status: String
+        let planType: String
+        let willRenew: Bool
+        let expirationDate: Date?
+        let managementURL: URL?
+    }
+    
     private override init() {
         super.init()
         print("📱 RevenueCatManager - Initializing...")
@@ -98,6 +106,19 @@ class RevenueCatManager: NSObject, ObservableObject {
                 userInfo: ["isProActive": false]
             )
         }
+    }
+    
+    func getSubscriptionInfo() async throws -> SubscriptionInfo {
+        let customerInfo = try await Purchases.shared.customerInfo()
+        let proEntitlement = customerInfo.entitlements["Pro"]
+        
+        return SubscriptionInfo(
+            status: proEntitlement?.isActive == true ? "Active" : "Inactive",
+            planType: proEntitlement?.productIdentifier == "mb_rc_699_1m_1w0" ? "Monthly" : "Annual",
+            willRenew: proEntitlement?.willRenew ?? false,
+            expirationDate: proEntitlement?.expirationDate,
+            managementURL: customerInfo.managementURL
+        )
     }
     
     func presentPaywall(isPresented: Binding<Bool>, onCompletion: (() -> Void)? = nil, onDismiss: (() -> Void)? = nil) -> some View {
@@ -184,6 +205,11 @@ class RevenueCatManager: NSObject, ObservableObject {
         let customerInfo = try await Purchases.shared.syncPurchases()
         handleCustomerInfoUpdate(customerInfo)
     }
+    
+    func getCustomerInfo() async throws -> RevenueCat.CustomerInfo {
+        return try await Purchases.shared.customerInfo()
+    }
+
 }
 
 // MARK: - PurchasesDelegate
