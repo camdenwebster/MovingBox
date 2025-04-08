@@ -10,7 +10,6 @@ class ICloudSyncManager: ObservableObject {
     @Published private(set) var lastSyncDate: Date? {
         didSet {
             if let date = lastSyncDate {
-                print("Setting last sync date in UserDefaults: \(date)")
                 UserDefaults.standard.set(date, forKey: "LastiCloudSyncDate")
             }
         }
@@ -18,19 +17,49 @@ class ICloudSyncManager: ObservableObject {
     
     private var modelContainer: ModelContainer?
     private var settingsManager: SettingsManager?
-    private var subscription: NSObjectProtocol?
+    
+    nonisolated private let cleanupQueue = DispatchQueue(label: "com.movingbox.cleanup")
+    nonisolated private let cleanupLock = NSLock()
+    
+    private actor SyncState {
+        var subscription: NSObjectProtocol?
+        var syncDebounceTimer: Timer?
+        
+        func cleanup() {
+            if let sub = subscription {
+                NotificationCenter.default.removeObserver(sub)
+                subscription = nil
+            }
+            syncDebounceTimer?.invalidate()
+            syncDebounceTimer = nil
+        }
+        
+        func setSubscription(_ sub: NSObjectProtocol?) {
+            subscription = sub
+        }
+        
+        func setTimer(_ timer: Timer?) {
+            syncDebounceTimer?.invalidate()
+            syncDebounceTimer = timer
+        }
+    }
+    
+    private let syncState = SyncState()
+    private var pendingChanges = false
     
     init(settingsManager: SettingsManager?) {
         self.settingsManager = settingsManager
         self.lastSyncDate = UserDefaults.standard.object(forKey: "LastiCloudSyncDate") as? Date
-        print("ICloudSyncManager initialized with last sync date: \(String(describing: lastSyncDate))")
     }
     
     func checkICloudStatus() {
-        CKContainer.default().accountStatus { status, error in
+        CKContainer.default().accountStatus { [weak self] status, error in
+            guard let self = self else { return }
+            
             Task { @MainActor in
                 if status == .available {
                     print("iCloud is available")
+                    await self.syncNow()
                 } else {
                     print("iCloud is not available: \(status.rawValue)")
                 }
@@ -48,29 +77,63 @@ class ICloudSyncManager: ObservableObject {
         setupContextObserver()
     }
     
-    func setupContextObserver() {
-        guard subscription == nil else { return }
-        print("Setting up context observer")
-        
-        let newSubscription = NotificationCenter.default.addObserver(
-            forName: .NSManagedObjectContextDidSave,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                print("Context did save notification received")
-                await self?.updateLastSyncDate()
+    private func setupContextObserver() {
+        Task {
+            guard await syncState.subscription == nil else { return }
+            print("Setting up context observer")
+            
+            let newSubscription = NotificationCenter.default.addObserver(
+                forName: .NSManagedObjectContextDidSave,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self = self else { return }
+                
+                Task { @MainActor in
+                    print("Context did save notification received")
+                    self.handleContextChange()
+                }
             }
+            
+            await syncState.setSubscription(newSubscription)
         }
-        
-        subscription = newSubscription
     }
     
-    func removeSubscription() {
-        if let sub = subscription {
-            NotificationCenter.default.removeObserver(sub)
-            subscription = nil
+    func disableSync() {
+        Task {
+            await syncState.cleanup()
+            modelContainer = nil
+            print("iCloud sync disabled")
         }
+    }
+    
+    private func handleContextChange() {
+        guard let settingsManager = settingsManager,
+              settingsManager.isPro && settingsManager.iCloudEnabled else {
+            return
+        }
+        
+        pendingChanges = true
+        
+        Task {
+            await syncState.setTimer(nil)
+            
+            let newTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
+                guard let self = self else { return }
+                
+                Task { @MainActor in
+                    await self.performDebouncedSync()
+                }
+            }
+            
+            await syncState.setTimer(newTimer)
+        }
+    }
+    
+    private func performDebouncedSync() async {
+        guard pendingChanges else { return }
+        pendingChanges = false
+        await syncNow()
     }
     
     func syncNow() async {
@@ -80,9 +143,13 @@ class ICloudSyncManager: ObservableObject {
             return
         }
         
-        print("Pro status: \(settingsManager.isPro)") // Debug print
-        guard settingsManager.isPro else {
-            print("Sync cancelled - user is not Pro")
+        guard settingsManager.isPro && settingsManager.iCloudEnabled else {
+            print("Sync cancelled - user is not Pro or iCloud is disabled")
+            return
+        }
+        
+        guard !isSyncing else {
+            print("Sync already in progress")
             return
         }
         
@@ -105,25 +172,28 @@ class ICloudSyncManager: ObservableObject {
     }
     
     func waitForSync() async throws -> Bool {
-        // First check if iCloud is even available
         return await withCheckedContinuation { continuation in
-            CKContainer.default().accountStatus { status, error in
+            CKContainer.default().accountStatus { [weak self] status, error in
+                guard let self = self else {
+                    continuation.resume(returning: true)
+                    return
+                }
+                
                 Task { @MainActor in
                     if status == .available {
-                        // Only attempt sync for Pro users with iCloud enabled
-                        if let settingsManager = self.settingsManager, settingsManager.isPro {
+                        if let settingsManager = self.settingsManager,
+                           settingsManager.isPro && settingsManager.iCloudEnabled {
                             await self.syncNow()
                         }
                         continuation.resume(returning: true)
                     } else {
-                        // iCloud not available, that's ok - just continue
                         continuation.resume(returning: true)
                     }
                 }
             }
         }
     }
-
+    
     private func updateLastSyncDate() async {
         print("Updating last sync date")
         let now = Date()
@@ -132,8 +202,16 @@ class ICloudSyncManager: ObservableObject {
     }
     
     deinit {
-        if let sub = subscription {
-            NotificationCenter.default.removeObserver(sub)
+        let semaphore = DispatchSemaphore(value: 0)
+        let state = syncState // Capture syncState before self is deinitialized
+        
+        cleanupQueue.async {
+            Task { @MainActor in
+                await state.cleanup()
+                semaphore.signal()
+            }
         }
+        
+        _ = semaphore.wait(timeout: .now() + 5.0)
     }
 }

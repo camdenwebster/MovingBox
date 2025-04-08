@@ -54,7 +54,7 @@ class ModelContainerManager: ObservableObject {
             if isPro && iCloudEnabled {
                 ICloudSyncManager.shared.setupSync(modelContainer: newContainer)
             } else {
-                ICloudSyncManager.shared.removeSubscription()
+                ICloudSyncManager.shared.disableSync()
             }
         } catch {
             print("Error updating container: \(error)")
