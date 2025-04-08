@@ -17,6 +17,12 @@
       "skippedTests" : {
         "suites" : [
           {
+            "name" : "ICloudSyncManagerTests",
+            "testFunctions" : [
+              "testContextObserverSetup()"
+            ]
+          },
+          {
             "name" : "OnboardingManagerTests",
             "testFunctions" : [
               "testOnboardingStateCheck()",

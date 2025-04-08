@@ -1,3 +1,4 @@
+import RevenueCatUI
 import SwiftUI
 
 struct OnboardingCompletionView: View {
@@ -7,6 +8,7 @@ struct OnboardingCompletionView: View {
     @StateObject private var settingsManager = SettingsManager()
     @State private var showCheckmark = false
     @State private var showTransition = false
+    @State private var showingPaywall = false
     
     var body: some View {
         OnboardingContainer {
@@ -43,16 +45,16 @@ struct OnboardingCompletionView: View {
                                           text: "Go room by room to stay organized")
                                 }
                                 .padding()
-                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
+                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                                 .background {
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(.ultraThinMaterial)
                                 }
                                 .padding(.bottom, 32)
                             }
-                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
-                        .frame(maxWidth: .infinity) // Center the content
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 
@@ -60,13 +62,15 @@ struct OnboardingCompletionView: View {
                 
                 OnboardingContinueButton(action: completeOnboarding, title: "Get Started")
                     .accessibilityIdentifier("onboarding-completion-continue-button")
-                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
-                    .frame(maxWidth: .infinity) // Center the button
+                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                    .frame(maxWidth: .infinity)
             }
+        }
+        .sheet(isPresented: $showingPaywall, onDismiss: handlePaywallDismiss) {
+            PaywallView()
         }
         .onboardingBackground()
         .onAppear {
-            // Delay the checkmark animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showCheckmark = true
             }
@@ -75,11 +79,20 @@ struct OnboardingCompletionView: View {
     
     private func completeOnboarding() {
         if settingsManager.isPro {
-            manager.markOnboardingComplete()
-            isPresented = false
+            finishOnboarding()
         } else {
-            manager.currentStep = .paywall
+            showingPaywall = true
         }
+    }
+    
+    private func handlePaywallDismiss() {
+        // Complete onboarding regardless of Pro status
+        finishOnboarding()
+    }
+    
+    private func finishOnboarding() {
+        manager.markOnboardingComplete()
+        isPresented = false
     }
 }
 

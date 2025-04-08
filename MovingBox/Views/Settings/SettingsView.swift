@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/4/24.
 //
 
+import RevenueCatUI
 import SwiftData
 import SwiftUI
 import SafariServices
@@ -193,7 +194,7 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showingPaywall) {
-                MovingBoxPaywallView()
+                PaywallView()
             }
             .alert("Pro Feature", isPresented: $showingICloudAlert) {
                 Button("Not Now", role: .cancel) { }

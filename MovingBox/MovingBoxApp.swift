@@ -17,6 +17,7 @@ struct MovingBoxApp: App {
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
     @StateObject private var containerManager = ModelContainerManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var showOnboarding = false
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
     @Query private var homes: [Home]
@@ -195,6 +196,7 @@ struct MovingBoxApp: App {
             .environmentObject(settings)
             .environmentObject(containerManager)
             .environmentObject(onboardingManager)
+            .environmentObject(revenueCatManager)
         }
     }
 }

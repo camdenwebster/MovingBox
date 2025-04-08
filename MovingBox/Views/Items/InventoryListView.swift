@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import RevenueCatUI
 import SwiftData
 import SwiftUI
 
@@ -90,7 +91,7 @@ struct InventoryListView: View {
             }
             .searchable(text: $searchText)
             .sheet(isPresented: $showingPaywall) {
-                MovingBoxPaywallView()
+                PaywallView()
             }
             .fullScreenCover(isPresented: $showingImageAnalysis) {
                 if let image = analyzingImage {

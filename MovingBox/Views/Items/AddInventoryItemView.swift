@@ -1,3 +1,4 @@
+import RevenueCatUI
 import SwiftUI
 import SwiftData
 import AVFoundation
@@ -118,7 +119,7 @@ struct AddInventoryItemView: View {
             }
         }
         .sheet(isPresented: $showingPaywall) {
-            MovingBoxPaywallView()
+            PaywallView()
         }
         .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
             Button("Upgrade") {

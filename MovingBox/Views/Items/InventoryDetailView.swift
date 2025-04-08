@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 5/16/24.
 //
 
+import RevenueCatUI
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -390,7 +391,7 @@ struct InventoryDetailView: View {
             }
         }
         .sheet(isPresented: $showingPaywall) {
-            MovingBoxPaywallView()
+            PaywallView()
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }

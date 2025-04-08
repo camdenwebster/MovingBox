@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import RevenueCatUI
 import SwiftUI
 import SwiftData
 
@@ -74,7 +75,7 @@ struct LocationsListView: View {
             .accessibilityIdentifier("addLocation")
         }
         .sheet(isPresented: $showingPaywall) {
-            MovingBoxPaywallView()
+            PaywallView()
         }
         .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
             Button("Upgrade") {

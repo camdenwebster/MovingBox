@@ -6,6 +6,7 @@ struct OnboardingView: View {
     @Binding var isPresented: Bool
     @State private var hasCheckedOnboarding = false
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var settings: SettingsManager
     
     var body: some View {
         NavigationStack {
@@ -19,10 +20,12 @@ struct OnboardingView: View {
                             try? await Task.sleep(nanoseconds: 1_000_000_000)
                             hasCheckedOnboarding = true
                             
-                            // Let data sync happen in background, but don't auto-dismiss
-                            // Dismissal will be handled by the welcome view's "Get Started" button
+                            // Check for existing homes and complete onboarding if found
                             do {
-                                _ = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
+                                let hasExistingData = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
+                                if hasExistingData {
+                                    manager.markOnboardingComplete()
+                                }
                             } catch {
                                 manager.showError(message: "Unable to check onboarding status. Please try again.")
                             }
@@ -39,9 +42,7 @@ struct OnboardingView: View {
                 case .completion:
                     OnboardingCompletionView(isPresented: $isPresented)
                         .transition(manager.transition)
-                case .paywall:
-                    MovingBoxPaywallView(isPresented: $isPresented)
-                        .transition(manager.transition)
+
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -64,9 +65,11 @@ struct OnboardingView: View {
             }
         }
         .environmentObject(manager)
+        .environmentObject(settings)
         .tint(Color.customPrimary)
         .onChange(of: manager.hasCompleted) { _, completed in
             if completed {
+                settings.hasLaunched = true
                 isPresented = false
             }
         }
@@ -74,12 +77,10 @@ struct OnboardingView: View {
     
     private var shouldShowSkipButton: Bool {
         switch manager.currentStep {
-        case .welcome:
+        case .welcome, .completion:
             return false
         case .homeDetails, .location, .item:
             return true
-        case .completion, .paywall:
-            return false
         }
     }
 }

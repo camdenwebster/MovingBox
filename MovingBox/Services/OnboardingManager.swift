@@ -9,17 +9,13 @@ class OnboardingManager: ObservableObject {
     @Published var hasCompleted = false
     @Published private var isMovingForward = true
     
-    static let hasCompletedOnboardingKey = "hasCompletedOnboardingKey"
-    static let hasLaunchedKey = "hasLaunchedKey"
-    
     enum OnboardingStep: Int, CaseIterable {
         case welcome
         case homeDetails
         case location
         case item
         case completion
-        case paywall
-        
+
         var title: String {
             switch self {
             case .welcome: return "Welcome"
@@ -27,7 +23,6 @@ class OnboardingManager: ObservableObject {
             case .location: return "Add Location"
             case .item: return "Add Item"
             case .completion: return "Great Job!"
-            case .paywall: return "MovingBox Pro"
             }
         }
     }
@@ -48,13 +43,13 @@ class OnboardingManager: ObservableObject {
     
     func markOnboardingComplete() {
         print("⚡️ Marking onboarding as complete")
-        UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
+        UserDefaults.standard.set(true, forKey: "hasCompletedOnboardingKey")
         hasCompleted = true
     }
     
     static func shouldShowWelcome() -> Bool {
         // Add debugging
-        let hasLaunched = UserDefaults.standard.bool(forKey: hasLaunchedKey)
+        let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunched")
         print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
         
         if ProcessInfo.processInfo.arguments.contains("Show-Onboarding") {
@@ -77,7 +72,7 @@ class OnboardingManager: ObservableObject {
             return true
         }
         
-        return UserDefaults.standard.bool(forKey: hasCompletedOnboardingKey)
+        return UserDefaults.standard.bool(forKey: "hasCompletedOnboardingKey")
     }
     
     @MainActor
@@ -89,8 +84,12 @@ class OnboardingManager: ObservableObject {
                 let homes = try modelContext.fetch(descriptor)
                 print("⚡️ Checking for existing homes: \(homes.count) found")
                 
-                // If we found homes, we should complete onboarding
-                return !homes.isEmpty
+                // If we found homes, mark onboarding as complete
+                if !homes.isEmpty {
+                    UserDefaults.standard.set(true, forKey: "hasCompletedOnboardingKey")
+                    return true
+                }
+                return false
             } catch {
                 print("❌ Error checking for homes: \(error)")
                 throw OnboardingError.homeCheckFailed(error)
