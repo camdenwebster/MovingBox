@@ -18,9 +18,11 @@ struct StatCard: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("statCardLabel")
             Text(value)
                 .font(.title2)
                 .fontWeight(.medium)
+                .accessibilityIdentifier("statCardValue")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -30,21 +32,21 @@ struct StatCard: View {
     }
 }
 
+@MainActor
 struct DashboardView: View {
     @Environment(\.modelContext) var modelContext
-    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) var locations: [InventoryLocation]
     @Query private var items: [InventoryItem]
-    @State private var selectedPhoto: PhotosPickerItem? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     
-    @State private var showPhotoSourceAlert = false
-    @State private var showCamera = false
-    @State private var showPhotoPicker = false
+    @State private var loadedImage: UIImage?
+    @State private var loadingError: Error?
+    @State private var isLoading = false
     
     private var home: Home? {
-        homes.first
+        homes.last
     }
     
     private var totalReplacementCost: Decimal {
@@ -62,87 +64,72 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: 24) {
                 Group {
-                    if let uiImage = home?.photo {
-                        ZStack(alignment: .bottom) {
-                            GeometryReader { geometry in
+                    if let uiImage = loadedImage {
+                        GeometryReader { proxy in
+                            let scrollY = proxy.frame(in: .global).minY
+                            let headerHeight = UIScreen.main.bounds.height / 3
+                            
+                            ZStack(alignment: .bottom) {
                                 Image(uiImage: uiImage)
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(maxWidth: .infinity)
-                                    .frame(width: UIScreen.main.bounds.width, height: max(UIScreen.main.bounds.height / 3, geometry.frame(in: .global).minY + UIScreen.main.bounds.height / 3))
+                                    .frame(width: proxy.size.width, height: headerHeight + (scrollY > 0 ? scrollY : 0))
                                     .clipped()
-                                    .offset(y: -geometry.frame(in: .global).minY)
-                            }
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .overlay(alignment: .bottom) {
+                                    .offset(y: scrollY > 0 ? -scrollY : 0)
+                                
                                 LinearGradient(
                                     gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
                                     startPoint: .bottom,
                                     endPoint: .center
                                 )
                                 .frame(height: 100)
-                            }
-                            
-                            HStack {
-                                Text(home?.name != "" ? home?.name ?? "Dashboard" : "Dashboard")
-                                    .font(.largeTitle)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Button {
-                                    showPhotoSourceAlert = true
-                                } label: {
-                                    Image(systemName: "photo")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .padding(8)
-                                        .background(Circle().fill(.black.opacity(0.6)))
-                                        .padding(8)
+                                
+                                VStack {
+                                    Spacer()
+                                    dashboardHeader
                                 }
-                                .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                    Button("Take Photo") {
-                                        showCamera = true
-                                    }
-                                    Button("Choose from Library") {
-                                        showPhotoPicker = true
-                                    }
-                                    if home?.photo != nil {
-                                        Button("Remove Photo", role: .destructive) {
-                                            home?.data = nil
-                                        }
-                                    }
-                                }
+                                .frame(maxWidth: .infinity)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 16)
+                            .overlay(alignment: .bottomTrailing) {
+                                PhotoPickerView(
+                                    model: Binding(
+                                        get: { home ?? Home() },
+                                        set: { if home == nil { modelContext.insert($0) }}
+                                    ),
+                                    loadedImage: $loadedImage,
+                                    isLoading: $isLoading
+                                )
+                            }
                         }
-                        .ignoresSafeArea(edges: .horizontal)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                    } else if isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 100)
                     } else {
                         VStack {
                             Spacer()
                                 .frame(height: 100)
-                            AddPhotoButton(action: {
-                                showPhotoSourceAlert = true
-                            })
-                            .padding()
-                            .background {
+                            PhotoPickerView(
+                                model: Binding(
+                                    get: { home ?? Home() },
+                                    set: { if home == nil { modelContext.insert($0) }}
+                                ),
+                                loadedImage: $loadedImage,
+                                isLoading: $isLoading
+                            ) { isPresented in
+                                AddPhotoButton {
+                                    isPresented.wrappedValue = true
+                                }
+                                .padding()
+                                .background {
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(.ultraThinMaterial)
-                            }
-                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                Button("Take Photo") {
-                                    showCamera = true
-                                }
-                                Button("Choose from Library") {
-                                    showPhotoPicker = true
-                                }
-                                if home?.photo != nil {
-                                    Button("Remove Photo", role: .destructive) {
-                                        home?.data = nil
-                                    }
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
                     }
                 }
                 
@@ -180,58 +167,36 @@ struct DashboardView: View {
                 }
                 .padding(.horizontal)
             }
+            .frame(maxWidth: .infinity)
         }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
-        .onChange(of: selectedPhoto) { oldValue, newValue in
-            Task {
-                if let photo = newValue {
-                    await loadPhoto(from: photo)
-                    selectedPhoto = nil
-                }
+        .task(id: home?.imageURL) {
+            guard let home = home else { return }
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                loadedImage = try await home.photo
+            } catch {
+                loadingError = error
+                print("Failed to load image: \(error)")
             }
         }
-        .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion in
-                if let imageData = image.jpegData(compressionQuality: 0.8) {
-                    if home == nil {
-                        let newHome = Home()
-                        modelContext.insert(newHome)
-                        newHome.data = imageData
-                    } else {
-                        home?.data = imageData
-                    }
-                    try? modelContext.save()
-                }
-                completion()
-            }
-        }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
-//        .task {
-//            if home == nil {
-//                let newHome = Home()
-//                modelContext.insert(newHome)
-//                try? modelContext.save()
-//            }
-//        }
     }
     
-    private func loadPhoto(from item: PhotosPickerItem) async {
-        if let data = try? await item.loadTransferable(type: Data.self) {
-            await MainActor.run {
-                if home == nil {
-                    let newHome = Home()
-                    modelContext.insert(newHome)
-                    newHome.data = data
-                } else {
-                    home?.data = data
-                }
-                try? modelContext.save()
-            }
+    private var dashboardHeader: some View {
+        HStack {
+            Text(home?.name != "" ? home?.name ?? "Dashboard" : "Dashboard")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
     }
 }
 

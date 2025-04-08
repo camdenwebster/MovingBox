@@ -10,6 +10,8 @@ import SwiftUI
 struct LocationItemCard: View {
     var location: InventoryLocation
     var showCost: Bool = false
+    @State private var thumbnail: UIImage?
+    @State private var loadingError: Error?
     
     private var totalReplacementCost: Decimal {
         location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
@@ -19,8 +21,8 @@ struct LocationItemCard: View {
         VStack(spacing: 0) {
             // Photo section
             Group {
-                if let uiImage = location.photo {
-                    Image(uiImage: uiImage)
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(height: 120)
@@ -34,6 +36,14 @@ struct LocationItemCard: View {
                                 .font(.system(size: 40))
                                 .foregroundStyle(.secondary)
                         )
+                }
+            }
+            .task(id: location.imageURL) {
+                do {
+                    thumbnail = try await location.thumbnail
+                } catch {
+                    loadingError = error
+                    thumbnail = nil
                 }
             }
             

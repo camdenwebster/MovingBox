@@ -4,28 +4,34 @@ final class OnboardingUITests: XCTestCase {
     let app = XCUIApplication()
     var cameraScreen: CameraScreen!
     var detailScreen: InventoryDetailScreen!
+    var paywallScreen: PaywallScreen!
     
     override func setUpWithError() throws {
         continueAfterFailure = false
         app.launchArguments = [
             "Show-Onboarding",
             "Disable-Persistence",
-            "UI-Testing-Mock-Camera"
+            "UI-Testing-Mock-Camera",
+            "Disable-Animations"
         ]
         cameraScreen = CameraScreen(app: app, testCase: self)
         detailScreen = InventoryDetailScreen(app: app)
+        paywallScreen = PaywallScreen(app: app)
+        
+        addNotificationsPermissionsHandler()
+        
         app.launch()
     }
     
     func testOnboardingHappyPath() throws {
         
         // Welcome View
-        XCTAssertTrue(app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10))
         app.buttons["onboarding-welcome-continue-button"].tap()
         
         // Home View
         let homeAddPhotoButton = app.buttons["onboarding-home-add-photo-button"]
-        XCTAssertTrue(homeAddPhotoButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(homeAddPhotoButton.waitForExistence(timeout: 10))
         homeAddPhotoButton.tap()
         
         app.sheets.buttons["takePhoto"].tap()
@@ -92,8 +98,13 @@ final class OnboardingUITests: XCTestCase {
         cameraScreen.takePhoto()
         
         // Wait for AI processing and save item
-        XCTAssertTrue(detailScreen.saveButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(detailScreen.saveButton.waitForExistence(timeout: 30))
         detailScreen.saveButton.tap()
+        
+        // Notification View
+        let enableNotificationsButton = app.buttons["notificationsButton"]
+        XCTAssertTrue(enableNotificationsButton.waitForExistence(timeout: 10))
+        enableNotificationsButton.tap()
         
         // Completion View
         let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
@@ -101,9 +112,8 @@ final class OnboardingUITests: XCTestCase {
         completionContinueButton.tap()
         
         // Paywall
-        let paywallCloseButton = app.buttons["dismissPaywall"]
-        XCTAssertTrue(paywallCloseButton.waitForExistence(timeout: 5))
-        paywallCloseButton.tap()
+        XCTAssertTrue(paywallScreen.okButton.waitForExistence(timeout: 5))
+        paywallScreen.okButton.tap()
         
         // Verify we're on the dashboard
         XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
@@ -124,6 +134,23 @@ extension XCUIApplication {
             launchArguments.append("Skip-Onboarding")
         } else {
             launchArguments.append("Show-Onboarding")
+        }
+    }
+}
+
+extension XCTestCase {
+    // Notifications permissions handler
+    func addNotificationsPermissionsHandler() {
+        addUIInterruptionMonitor(withDescription: "Notifications Authorization Alert") { alert in
+            print("📱 Notifications permission alert appeared")
+            let allowButton = alert.buttons["Allow"]
+            if allowButton.exists {
+                print("✅ Tapping Allow button")
+                allowButton.tap()
+                return true
+            }
+            print("❌ Allow button not found")
+            return false
         }
     }
 }

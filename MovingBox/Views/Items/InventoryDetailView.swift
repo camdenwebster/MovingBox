@@ -5,10 +5,12 @@
 //  Created by Camden Webster on 5/16/24.
 //
 
+import RevenueCatUI
 import PhotosUI
 import SwiftData
 import SwiftUI
 
+@MainActor
 struct InventoryDetailView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -23,32 +25,42 @@ struct InventoryDetailView: View {
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
     @FocusState private var isPriceFieldFocused: Bool
-    @State private var priceString = ""
+    @State private var displayPriceString: String = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "")
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
-    @State private var showPhotoSourceAlert = false
-    @State private var showPhotoPicker = false
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults = false
     @State private var isEditing: Bool
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
-    @State private var showingCamera = false
-    @State private var selectedPhoto: PhotosPickerItem? = nil
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
     @State private var showingPaywall = false
+    @State private var tempUIImage: UIImage?
+    @State private var loadedImage: UIImage?
+    @State private var isLoading = false
+    @State private var loadingError: Error?
     
     var showSparklesButton = false
 
-    init(inventoryItemToDisplay: InventoryItem, navigationPath: Binding<NavigationPath>, showSparklesButton: Bool = false, isEditing: Bool = false) {
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
+
+    var onSave: (() -> Void)?
+
+    init(inventoryItemToDisplay: InventoryItem,
+         navigationPath: Binding<NavigationPath>,
+         showSparklesButton: Bool = false,
+         isEditing: Bool = false,
+         onSave: (() -> Void)? = nil) {
         self.inventoryItemToDisplay = inventoryItemToDisplay
         self._navigationPath = navigationPath
         self.showSparklesButton = showSparklesButton
         self._isEditing = State(initialValue: isEditing)
+        self._displayPriceString = State(initialValue: formatInitialPrice(inventoryItemToDisplay.price))
+        self.onSave = onSave
     }
 
     @FocusState private var focusedField: Field?
@@ -65,83 +77,53 @@ struct InventoryDetailView: View {
     var body: some View {
         Form {
             Section {
-                // Photo Section
-                ZStack(alignment: .bottomTrailing) {
-                    if let uiImage = inventoryItemToDisplay.photo {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: UIScreen.main.bounds.width - 32)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .clipped()
-                        
-                        if isEditing {
-                            Button {
-                                showPhotoSourceAlert = true
-                            } label: {
-                                Image(systemName: "photo")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .padding(8)
-                                    .background(Circle().fill(.black.opacity(0.6)))
-                                    .padding(8)
-                            }
-                            .buttonStyle(.automatic)
-                            .accessibilityIdentifier("changePhoto")
-                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                Button("Take Photo") {
-                                    showingCamera = true
-                                }
-                                .accessibilityIdentifier("takePhoto")
-                                
-                                Button("Choose from Library") {
-                                    showPhotoPicker = true
-                                }
-                                .accessibilityIdentifier("chooseFromLibrary")
-                                
-                                if inventoryItemToDisplay.photo != nil {
-                                    Button("Remove Photo", role: .destructive) {
-                                        inventoryItemToDisplay.data = nil
-                                    }
-                                    .accessibilityIdentifier("removePhoto")
-                                }
+                if let uiImage = tempUIImage ?? loadedImage {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .clipped()
+                        .listRowInsets(EdgeInsets())
+                        .overlay(alignment: .bottomTrailing) {
+                            if isEditing {
+                                PhotoPickerView(
+                                    model: Binding(
+                                        get: { self.inventoryItemToDisplay },
+                                        set: { _ in }
+                                    ),
+                                    loadedImage: $loadedImage,
+                                    isLoading: $isLoading
+                                )
                             }
                         }
-                    } else {
-                        if isEditing {
-                            AddPhotoButton(action: {
-                                showPhotoSourceAlert = true
-                            })
+                } else if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                } else {
+                    if isEditing {
+                        PhotoPickerView(
+                            model: Binding(
+                                get: { self.inventoryItemToDisplay },
+                                set: { _ in }
+                            ),
+                            loadedImage: $loadedImage,
+                            isLoading: $isLoading
+                        ) { showPhotoSourceAlert in
+                            AddPhotoButton {
+                                showPhotoSourceAlert.wrappedValue = true
+                            }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
-                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                Button("Take Photo") {
-                                    showingCamera = true
-                                }
-                                .accessibilityIdentifier("takePhoto")
-                                
-                                Button("Choose from Library") {
-                                    showPhotoPicker = true
-                                }
-                                .accessibilityIdentifier("chooseFromLibrary")
-                                
-                                if inventoryItemToDisplay.photo != nil {
-                                    Button("Remove Photo", role: .destructive) {
-                                        inventoryItemToDisplay.data = nil
-                                    }
-                                    .accessibilityIdentifier("removePhoto")
-                                }
-                            }
                         }
                     }
                 }
-                .ignoresSafeArea(edges: .top)
-                .listRowInsets(EdgeInsets())
             }
-
+            
             // AI Button Section
-            if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
+            if isEditing && !inventoryItemToDisplay.hasUsedAI && inventoryItemToDisplay.imageURL != nil {
                 Section {
                     Button {
                         guard !isLoadingOpenAiResults else { return }
@@ -190,27 +172,23 @@ struct InventoryDetailView: View {
             // Details Section
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
-                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Desktop Computer")
+                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, isEditing: $isEditing, placeholder: "Desktop Computer")
                         .focused($focusedField, equals: .title)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("titleField")
                 }
                 if isEditing || !inventoryItemToDisplay.serial.isEmpty {
-                    FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
+                    FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, isEditing: $isEditing, placeholder: "SN-12345")
                         .focused($focusedField, equals: .serial)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("serialField")
                 }
                 if isEditing || !inventoryItemToDisplay.make.isEmpty {
-                    FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
+                    FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, isEditing: $isEditing, placeholder: "Apple")
                         .focused($focusedField, equals: .make)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("makeField")
                 }
                 if isEditing || !inventoryItemToDisplay.model.isEmpty {
-                    FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
+                    FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, isEditing: $isEditing, placeholder: "Mac Mini")
                         .focused($focusedField, equals: .model)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("modelField")
                 }
             }
@@ -227,12 +205,18 @@ struct InventoryDetailView: View {
                         .frame(height: 60)
                         .disabled(!isEditing)
                         .accessibilityIdentifier("descriptionField")
+                        .foregroundColor(isEditing ? .primary : .secondary)
                 }
             }
             Section("Purchase Price") {
-                PriceFieldRow(priceString: $priceString, priceDecimal: $inventoryItemToDisplay.price)
-                    .disabled(!isEditing)
-                    .accessibilityIdentifier("priceField")
+                PriceFieldRow(
+                    priceString: $displayPriceString,
+                    priceDecimal: $inventoryItemToDisplay.price,
+                    isEditing: $isEditing
+                )
+                .disabled(!isEditing)
+                .accessibilityIdentifier("priceField")
+                .foregroundColor(isEditing ? .primary : .secondary)
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
@@ -288,10 +272,11 @@ struct InventoryDetailView: View {
             if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                 Section("Notes") {
                     TextEditor(text: $inventoryItemToDisplay.notes)
-                .focused($focusedField, equals: .notes)
-                .frame(height: 100)
-                .disabled(!isEditing)
-                .accessibilityIdentifier("notesField")
+                        .foregroundColor(isEditing ? .primary : .secondary)
+                        .focused($focusedField, equals: .notes)
+                        .frame(height: 100)
+                        .disabled(!isEditing)
+                        .accessibilityIdentifier("notesField")
                 }
             }
             if isEditing {
@@ -303,8 +288,8 @@ struct InventoryDetailView: View {
                 }
             }
         }
+        .navigationTitle(inventoryItemToDisplay.title.isEmpty ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarBackButtonHidden(isEditing)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -348,6 +333,7 @@ struct InventoryDetailView: View {
                             }
                             try? modelContext.save()
                             isEditing = false
+                            onSave?()
                             dismiss()
                         }
                         .fontWeight(.bold)
@@ -362,35 +348,34 @@ struct InventoryDetailView: View {
                 }
             }
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
-        .onChange(of: selectedPhoto) { oldValue, newValue in
-            Task {
-                if let photo = newValue {
-                    await loadPhoto(from: photo)
-                    // Clear the selection after processing
-                    selectedPhoto = nil
-                }
-            }
-        }
-        .sheet(isPresented: $showingCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, needsAIAnalysis, completion in
-                if let originalData = image.jpegData(compressionQuality: 1.0) {  // Save at full quality
-                    Task { @MainActor in
-                        inventoryItemToDisplay.data = originalData
-                        inventoryItemToDisplay.hasUsedAI = false
-                        try? modelContext.save()
-                        completion()
-                    }
-                } else {
-                    completion()
-                }
-            }
-        }
         .sheet(isPresented: $showingPaywall) {
-            MovingBoxPaywallView()
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settings.isPro = true
+                    // Add any specific post-purchase actions here
+                },
+                onDismiss: nil
+            )
+        }
+        .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
+            Button("Analyze Image", role: .none) {
+                Task {
+                    do {
+                        let imageDetails = try await callOpenAI()
+                        updateUIWithImageDetails(imageDetails)
+                    } catch let error as OpenAIError {
+                        errorMessage = error.userFriendlyMessage
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                        showingErrorAlert = true
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
@@ -420,72 +405,43 @@ struct InventoryDetailView: View {
         } message: {
             Text("Do you want to save your changes before going back?")
         }
-        .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
-            Button("Analyze Image", role: .none) {
-                Task {
-                    do {
-                        let imageDetails = try await callOpenAI()
-                        updateUIWithImageDetails(imageDetails)
-                    } catch let error as OpenAIError {
-                        errorMessage = error.userFriendlyMessage
-                        showingErrorAlert = true
-                    } catch {
-                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                        showingErrorAlert = true
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
-        }
-    }
-    
-    private struct TouchDownButtonStyle: ButtonStyle {
-        func makeBody(configuration: Configuration) -> some View {
-            configuration.label
-                .contentShape(Rectangle())
-        }
-    }
-    
-    private func loadPhoto(from item: PhotosPickerItem) async {
-        if let data = try? await item.loadTransferable(type: Data.self) {
-            await MainActor.run {
-                inventoryItemToDisplay.data = data  // Save original data directly
-                inventoryItemToDisplay.hasUsedAI = false
-                try? modelContext.save()
+        .task(id: inventoryItemToDisplay.imageURL) {
+            guard inventoryItemToDisplay.modelContext != nil else { return }
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                loadedImage = try await inventoryItemToDisplay.photo
+            } catch {
+                print("Failed to load image: \(error)")
             }
         }
     }
-    
-    func callOpenAI() async throws -> ImageDetails {
+
+    private func callOpenAI() async throws -> ImageDetails {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
         
-        guard let photo = inventoryItemToDisplay.photo else {
-            print("❌ No photo available for analysis")
+        guard let photo = try await inventoryItemToDisplay.photo else {
             throw OpenAIError.invalidData
         }
         
-        guard let imageBase64 = PhotoManager.loadCompressedPhotoForAI(from: photo) else {
-            print("❌ Failed to encode image to base64")
+        guard let imageBase64 = OptimizedImageManager.shared.prepareImageForAI(from: photo) else {
             throw OpenAIError.invalidData
         }
         
         let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
         
         TelemetryManager.shared.trackCameraAnalysisUsed()
-        print("🔍 Starting image analysis")
         
         return try await openAi.getImageDetails()
     }
     
-    func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
+    private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
         if inventoryItemToDisplay.modelContext == nil {
             modelContext.insert(inventoryItemToDisplay)
         }
         
-        // Update properties
         inventoryItemToDisplay.title = imageDetails.title
         inventoryItemToDisplay.quantityString = imageDetails.quantity
         inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
@@ -493,25 +449,22 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
         
-        // CHANGE: Only update location if one isn't already set
         if inventoryItemToDisplay.location == nil {
             inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
         }
         
-        // Convert price string to Decimal
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+        if let price = Decimal(string: priceString) {
+            inventoryItemToDisplay.price = price
+            displayPriceString = formatInitialPrice(price)
+        }
+        
         inventoryItemToDisplay.hasUsedAI = true
         
-        // Explicitly save changes
         try? modelContext.save()
     }
     
-    func selectImage() {
-        print("Image selection button tapped")
-    }
-    
-    func clearFields() {
+    private func clearFields() {
         print("Clear fields button tapped")
         inventoryItemToDisplay.title = ""
         inventoryItemToDisplay.label = nil
@@ -523,7 +476,7 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.notes = ""
     }
     
-    func addLocation() {
+    private func addLocation() {
         let location = InventoryLocation()
         modelContext.insert(location)
         TelemetryManager.shared.trackLocationCreated(name: location.name)
@@ -531,10 +484,18 @@ struct InventoryDetailView: View {
         router.navigate(to: .editLocationView(location: location))
     }
     
-    func addLabel() {
+    private func addLabel() {
         let label = InventoryLabel()
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
+    }
+    
+    private func formatInitialPrice(_ price: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: price)) ?? "0.00"
     }
 }
 

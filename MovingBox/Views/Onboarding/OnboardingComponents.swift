@@ -42,6 +42,31 @@ struct OnboardingHeaderText: View {
     }
 }
 
+struct OnboardingFeatureRow: View {
+    let icon: String
+    var iconColor: Color = .customPrimary
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(iconColor)
+                .frame(width: 30)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 struct OnboardingDescriptionText: View {
     let text: String
     

@@ -10,7 +10,7 @@ import SwiftData
 import SwiftUI
 
 @Model
-class InventoryItem: ObservableObject {
+final class InventoryItem: ObservableObject, PhotoManageable {
     var title: String = ""
     var quantityString: String = "1"
     var quantityInt: Int = 1
@@ -24,28 +24,36 @@ class InventoryItem: ObservableObject {
     var insured: Bool = false
     var assetId: String = ""
     var notes: String = ""
+    var imageURL: URL?
+    
+    var showInvalidQuantityAlert: Bool = false
+    var hasUsedAI: Bool = false
+    
     @Attribute(.externalStorage) var data: Data?
-    var photo: UIImage? {
-        get {
-            if let data = data {
-                return UIImage(data: data)
-            }
-            return nil
+    
+    func migrateImageIfNeeded() async throws {
+        guard let legacyData = data,
+              let image = UIImage(data: legacyData),
+              imageURL == nil else {
+            return
+        }
+        
+        let imageId = UUID().uuidString
+        
+        imageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId)
+        
+        data = nil
+        
+        print("📸 InventoryItem - Successfully migrated image for item: \(title)")
+    }
+    
+    init() {
+        Task {
+            try? await migrateImageIfNeeded()
         }
     }
     
-    var showInvalidQuantityAlert: Bool = false
-    
-    var isInteger: Bool {
-            return Int(quantityString) != nil
-        }
-    
-    var hasUsedAI: Bool = false
-    
-    init() {}
-    
     init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
-
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt
@@ -61,6 +69,14 @@ class InventoryItem: ObservableObject {
         self.notes = notes
         self.showInvalidQuantityAlert = showInvalidQuantityAlert
         self.hasUsedAI = false
+        
+        Task {
+            try? await migrateImageIfNeeded()
+        }
+    }
+    
+    var isInteger: Bool {
+        return Int(quantityString) != nil
     }
     
     func validateQuantityInput() {
@@ -71,5 +87,4 @@ class InventoryItem: ObservableObject {
             showInvalidQuantityAlert = false
         }
     }
-    
 }

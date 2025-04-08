@@ -5,8 +5,8 @@
 //  Created by Camden Webster on 6/4/24.
 //
 
-import SwiftData
 import SwiftUI
+import SwiftData
 import SafariServices
 
 enum SettingsSection: Hashable {
@@ -24,6 +24,7 @@ struct ExternalLink {
 // MARK: - Main Settings Body
 struct SettingsView: View {
     @StateObject private var settingsManager = SettingsManager()
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
     @State private var selectedSection: SettingsSection? = .categories // Default selection
@@ -31,10 +32,7 @@ struct SettingsView: View {
     @State private var selectedURL: URL?
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
-    @Query private var homes: [Home]
-    private var home: Home { homes.first ?? Home() }
-    @StateObject private var iCloudManager = ICloudSyncManager.shared
-    
+
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
             title: "Knowledge Base",
@@ -82,7 +80,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                if !settingsManager.isPro {
+                if !revenueCatManager.isProSubscriptionActive {
                     Section {
                         Button(action: {
                             showingPaywall = true
@@ -95,6 +93,7 @@ struct SettingsView: View {
                                 .background(Color.accentColor)
                                 .cornerRadius(10)
                         }
+                        .foregroundColor(.customPrimary)
                         .listRowInsets(EdgeInsets())
                     }
                 }
@@ -111,29 +110,19 @@ struct SettingsView: View {
                     }
                 }
                 
-                Section("Sync & Backup") {
-                    if settingsManager.isPro {
+                if revenueCatManager.isProSubscriptionActive {
+                    Section("Subscription Status") {
                         NavigationLink {
-                            ICloudSettingsView(settingsManager: settingsManager)
+                            SubscriptionSettingsView()
                         } label: {
-                            Label("iCloud Settings", systemImage: "icloud")
-                        }
-                    } else {
-                        Button {
-                            showingPaywall = true
-                        } label: {
-                            HStack {
-                                Label("iCloud Settings", systemImage: "icloud")
-                                Spacer()
-                                Text("PRO")
-                                    .font(.caption2)
-                                    .padding(4)
-                                    .background(Color.yellow.opacity(0.2))
-                                    .foregroundColor(.yellow)
-                                    .cornerRadius(4)
-                            }
+                            Label("Subscription Details", systemImage: "creditcard")
                         }
                     }
+                }
+                
+                Section("Sync & Backup") {
+                    Text("Your data is automatically synced across all your devices using iCloud")
+                        .foregroundStyle(.secondary)
                 }
                 
                 Section("Community & Support") {
@@ -171,8 +160,6 @@ struct SettingsView: View {
                     LabelSettingsView()
                 case "home":
                     EditHomeView()
-                case "icloud":
-                    ICloudSettingsView(settingsManager: settingsManager)
                 default:
                     EmptyView()
                 }
@@ -193,15 +180,14 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showingPaywall) {
-                MovingBoxPaywallView()
-            }
-            .alert("Pro Feature", isPresented: $showingICloudAlert) {
-                Button("Not Now", role: .cancel) { }
-                Button("Upgrade to Pro") {
-                    showingPaywall = true
-                }
-            } message: {
-                Text("iCloud sync is available exclusively to Pro subscribers.")
+                revenueCatManager.presentPaywall(
+                    isPresented: $showingPaywall,
+                    onCompletion: {
+                        // Update settings manager when purchase completes
+                        settingsManager.isPro = true
+                    },
+                    onDismiss: nil
+                )
             }
         }
     }
@@ -341,8 +327,11 @@ struct AISettingsView: View {
 
 
 struct LocationSettingsView: View {
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
+    @State private var showingPaywall = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -368,19 +357,39 @@ struct LocationSettingsView: View {
         }
         .navigationTitle("Location Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingPaywall) {
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settings.isPro = true
+                    // Continue with attempted action after successful purchase
+                    if settings.canAddMoreLocations(currentCount: locations.count) {
+                        router.navigate(to: .editLocationView(location: nil))
+                    }
+                },
+                onDismiss: nil
+            )
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    router.navigate(to: .editLocationView(location: nil))
-                } label: {
-                    Label("Add Location", systemImage: "plus")
+                Button("Add Location", systemImage: "plus") {
+                    if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                        showingPaywall = true
+                    } else {
+                        addLocation()
+                    }
                 }
+                .accessibilityIdentifier("addLocation")
             }
 
         }
+    }
+    
+    func addLocation() {
+        router.navigate(to: .editLocationView(location: nil))
     }
     
     func deleteLocations(at offsets: IndexSet) {
@@ -441,75 +450,6 @@ struct AboutView: View {
     var body: some View {
         Text("About MovingBox")
             .navigationTitle("About")
-    }
-}
-
-struct ICloudSettingsView: View {
-    @StateObject private var iCloudManager = ICloudSyncManager.shared
-    @ObservedObject var settingsManager: SettingsManager
-    @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var containerManager: ModelContainerManager
-    
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Enable iCloud Sync", isOn: $settingsManager.iCloudEnabled)
-                    .onChange(of: settingsManager.iCloudEnabled) { oldValue, newValue in
-                        containerManager.updateContainer(
-                            isPro: settingsManager.isPro,
-                            iCloudEnabled: newValue
-                        )
-                    }
-                
-                if settingsManager.iCloudEnabled {
-                    HStack {
-                        Text("Last Sync")
-                        Spacer()
-                        if let lastSync = iCloudManager.lastSyncDate {
-                            Text(lastSync.formatted(date: .numeric, time: .shortened))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("Never")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    
-                    Button(action: {
-                        Task {
-                            print("Sync Now button tapped")
-                            await iCloudManager.syncNow()
-                        }
-                    }) {
-                        HStack {
-                            Text("Sync Now")
-                            if iCloudManager.isSyncing {
-                                Spacer()
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(iCloudManager.isSyncing)
-                }
-            } footer: {
-                if settingsManager.iCloudEnabled {
-                    Text("Your data automatically syncs with iCloud when changes are made.")
-                } else {
-                    Text("When disabled, your data will only be stored locally on this device.")
-                }
-            }
-        }
-        .navigationTitle("iCloud Settings")
-        .task {
-            print("ICloudSettingsView appeared")
-            await MainActor.run {
-                iCloudManager.setSettingsManager(settingsManager)
-                iCloudManager.checkICloudStatus()
-                if settingsManager.iCloudEnabled {
-                    print("Setting up sync with ModelContainer")
-                    iCloudManager.setupSync(modelContainer: modelContext.container)
-                }
-            }
-        }
     }
 }
 
@@ -575,6 +515,7 @@ struct SafariView: UIViewControllerRepresentable {
             SettingsView()
                 .modelContainer(container)
                 .environmentObject(Router())
+                .environmentObject(RevenueCatManager.shared)
         }
     } catch {
         return Text("Failed to set up preview")

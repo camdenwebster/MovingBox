@@ -37,7 +37,6 @@ struct AppConfig {
         isPro = buildType == .beta
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
-            isPro = true
             // Set UserDefaults for isPro
             UserDefaults.standard.set(true, forKey: "isPro")
         }

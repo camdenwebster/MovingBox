@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import RevenueCatUI
 import SwiftUI
 import SwiftData
 
@@ -16,41 +17,82 @@ struct LocationsListView: View {
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @State private var showingPaywall = false
-    @State private var showLimitAlert = false
+    @State private var showingCamera = false
+    @State private var showingImageAnalysis = false
+    @State private var analyzingImage: UIImage?
+    
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
     
-    // CHANGE: Make grid layout adaptive
     private var columns: [GridItem] {
-        // Card width + padding on each side
         let minimumCardWidth: CGFloat = 160
-        
-        // Use more columns on larger devices
         let columnCount = horizontalSizeClass == .regular ? 4 : 2
-        
         return Array(repeating: GridItem(.adaptive(minimum: minimumCardWidth), spacing: 16), count: columnCount)
     }
     
     var body: some View {
-        ScrollView {
+        Group {
             if locations.isEmpty {
                 ContentUnavailableView(
                     "No Locations",
                     systemImage: "map",
                     description: Text("Add locations to organize your items by room or area.")
                 )
-            } else {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(locations) { location in
-                        NavigationLink(value: location) {
-                            LocationItemCard(location: location)
-                                .frame(maxWidth: 180)
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button {
+                            if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                                showingPaywall = true
+                            } else {
+                                addLocation()
+                            }
+                        } label: {
+                            Label("Add Location", systemImage: "plus")
+                        }
+                        .accessibilityIdentifier("addLocation")
+                        
+                        Button {
+                            router.navigate(to: .locationsSettingsView)
+                        } label: {
+                            Text("Edit")
                         }
                     }
                 }
-                .padding()
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(locations) { location in
+                            NavigationLink(value: location) {
+                                LocationItemCard(location: location)
+                                    .frame(maxWidth: 180)
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button {
+                            if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                                showingPaywall = true
+                            } else {
+                                addLocation()
+                            }
+                        } label: {
+                            Label("Add Location", systemImage: "plus")
+                        }
+                        .accessibilityIdentifier("addLocation")
+                        
+                        Button {
+                            router.navigate(to: .locationsSettingsView)
+                        } label: {
+                            Text("Edit")
+                        }
+                    }
+                }
             }
         }
         .navigationDestination(for: InventoryLocation.self) { location in
@@ -58,31 +100,17 @@ struct LocationsListView: View {
         }
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            Button("Edit") {
-                router.navigate(to: .locationsSettingsView)
-            }
-            Button("Add Location", systemImage: "plus") {
-                if settings.shouldShowFirstLocationPaywall(locationCount: locations.count) {
-                    showingPaywall = true
-                } else if settings.hasReachedLocationLimit(currentCount: locations.count) {
-                    showLimitAlert = true
-                } else {
-                    addLocation()
-                }
-            }
-            .accessibilityIdentifier("addLocation")
-        }
         .sheet(isPresented: $showingPaywall) {
-            MovingBoxPaywallView()
-        }
-        .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
-            Button("Upgrade") {
-                showingPaywall = true
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("You've reached the maximum number of locations (\(SettingsManager.maxFreeLocations)) for free users. Upgrade to Pro for unlimited locations!")
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settings.isPro = true
+                    if settings.canAddMoreLocations(currentCount: locations.count) {
+                        router.navigate(to: .editLocationView(location: nil))
+                    }
+                },
+                onDismiss: nil
+            )
         }
         .background(Color(.systemGroupedBackground))
         .onAppear {
@@ -90,8 +118,18 @@ struct LocationsListView: View {
         }
     }
     
-    func addLocation() {
+    private func addLocation() {
         router.navigate(to: .editLocationView(location: nil))
+    }
+    
+    private func deleteLocations(at offsets: IndexSet) {
+        Task {
+            for index in offsets {
+                let location = locations[index]
+                modelContext.delete(location)
+            }
+            try? modelContext.save()
+        }
     }
 }
 

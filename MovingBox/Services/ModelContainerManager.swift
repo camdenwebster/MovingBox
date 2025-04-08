@@ -1,11 +1,13 @@
 import SwiftData
 import Foundation
+import UIKit
 
 @MainActor
 class ModelContainerManager: ObservableObject {
     static let shared = ModelContainerManager()
     
     @Published private(set) var container: ModelContainer
+    @Published private(set) var isLoading = true
     
     private let schema = Schema([
         InventoryLabel.self,
@@ -16,48 +18,100 @@ class ModelContainerManager: ObservableObject {
     ])
     
     private init() {
-        // Initialize container with a default configuration (no iCloud)
-        let modelConfiguration = ModelConfiguration(
+        let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
             allowsSave: true,
-            cloudKitDatabase: .none
+            cloudKitDatabase: .automatic
         )
         
         do {
-            self.container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            self.container = try ModelContainer(for: schema, configurations: [configuration])
+            print("📦 ModelContainerManager - Created container with CloudKit enabled")
         } catch {
+            print("📦 ModelContainerManager - Fatal error creating container: \(error)")
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }
     
-    func createContainer(isPro: Bool, iCloudEnabled: Bool) throws -> ModelContainer {
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
-            allowsSave: true,
-            cloudKitDatabase: (isPro && iCloudEnabled) ? .automatic : .none
-        )
-        
-        return try ModelContainer(for: schema, configurations: [modelConfiguration])
+    init(testContainer: ModelContainer) {
+        self.container = testContainer
+        self.isLoading = false
     }
     
-    func updateContainer(isPro: Bool, iCloudEnabled: Bool) {
+    func initialize() async {
         do {
-            // Create new container with updated configuration
-            let newContainer = try createContainer(isPro: isPro, iCloudEnabled: iCloudEnabled)
+            // Migrate all models before completing initialization
+            try await migrateHomes()
+            try await migrateLocations()
+            try await migrateInventoryItems()
             
-            // Update the published container
-            self.container = newContainer
-            
-            // Update iCloud sync manager if needed
-            if isPro && iCloudEnabled {
-                ICloudSyncManager.shared.setupSync(modelContainer: newContainer)
-            } else {
-                ICloudSyncManager.shared.disableSync()
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            await MainActor.run {
+                self.isLoading = false
             }
         } catch {
-            print("Error updating container: \(error)")
+            print("Error during initialization: \(error)")
+            await MainActor.run {
+                self.isLoading = false
+            }
         }
+    }
+    
+    internal func migrateHomes() async throws {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<Home>()
+        
+        let homes = try context.fetch(descriptor)
+        print("📦 ModelContainerManager - Beginning migration for \(homes.count) homes")
+        
+        for home in homes {
+            do {
+                try await home.migrateImageIfNeeded()
+                try context.save()
+            } catch {
+                print("📦 ModelContainerManager - Failed to migrate home \(home.name): \(error)")
+            }
+        }
+        
+        print("📦 ModelContainerManager - Completed home migrations")
+    }
+    
+    internal func migrateLocations() async throws {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<InventoryLocation>()
+        
+        let locations = try context.fetch(descriptor)
+        print("📦 ModelContainerManager - Beginning migration for \(locations.count) locations")
+        
+        for location in locations {
+            do {
+                try await location.migrateImageIfNeeded()
+                try context.save()
+            } catch {
+                print("📦 ModelContainerManager - Failed to migrate location \(location.name): \(error)")
+            }
+        }
+        
+        print("📦 ModelContainerManager - Completed location migrations")
+    }
+    
+    internal func migrateInventoryItems() async throws {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<InventoryItem>()
+        
+        let items = try context.fetch(descriptor)
+        print("📦 ModelContainerManager - Beginning migration for \(items.count) inventory items")
+        
+        for item in items {
+            do {
+                try await item.migrateImageIfNeeded()
+                try context.save()
+            } catch {
+                print("📦 ModelContainerManager - Failed to migrate inventory item \(item.title): \(error)")
+            }
+        }
+        
+        print("📦 ModelContainerManager - Completed inventory item migrations")
     }
 }

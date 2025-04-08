@@ -11,30 +11,32 @@ import SwiftUI
 struct InventoryListSubView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
-    
     @State private var items: [InventoryItem] = []
+    @State private var isLoading = false
     
     let location: InventoryLocation?
     let searchString: String
     let sortOrder: [SortDescriptor<InventoryItem>]
     
     var body: some View {
-        List {
-            if items.isEmpty {
-                ContentUnavailableView(
-                    "No Items",
-                    systemImage: "list.bullet",
-                    description: Text("Start by adding items to your inventory.")
-                )
-            } else {
-                Section {
-                    ForEach(items) { inventoryItem in
-                        NavigationLink(value: inventoryItem) {
-                            InventoryItemRow(item: inventoryItem)
-                                .listRowInsets(EdgeInsets())
+        Group {
+            List {
+                if items.isEmpty {
+                    ContentUnavailableView(
+                        "No Items",
+                        systemImage: "list.bullet",
+                        description: Text("Start by adding items to your inventory.")
+                    )
+                } else {
+                    Section {
+                        ForEach(items) { inventoryItem in
+                            NavigationLink(value: inventoryItem) {
+                                InventoryItemRow(item: inventoryItem)
+                                    .listRowInsets(EdgeInsets())
+                            }
                         }
+                        .onDelete(perform: deleteItems)
                     }
-                    .onDelete(perform: deleteItems)
                 }
             }
         }
@@ -55,32 +57,21 @@ struct InventoryListSubView: View {
     }
     
     private func loadItems() async {
-        // Guard against running during teardown
-        guard !Task.isCancelled else {
-            print("LoadItems cancelled - context might be invalidated")
-            return
+        await MainActor.run {
+            isLoading = true
         }
         
-        print("Starting to load items...")
-        let descriptor = FetchDescriptor<InventoryItem>(sortBy: sortOrder)
-        
         do {
-            print("Fetching items from context...")
+            let descriptor = FetchDescriptor<InventoryItem>(sortBy: sortOrder)
             var allItems = try modelContext.fetch(descriptor)
-            print("Fetched \(allItems.count) items")
             
-            // Filter by location if specified
             if let location = location {
-                print("Filtering by location: \(location.name)")
                 allItems = allItems.filter { item in
                     item.location?.persistentModelID == location.persistentModelID
                 }
-                print("After location filter: \(allItems.count) items")
             }
             
-            // Apply search filter if specified
             if !searchString.isEmpty {
-                print("Applying search filter: \(searchString)")
                 allItems = allItems.filter { item in
                     let searchTerm = searchString.lowercased()
                     return item.title.localizedStandardContains(searchTerm) ||
@@ -90,42 +81,46 @@ struct InventoryListSubView: View {
                            item.model.localizedStandardContains(searchTerm) ||
                            item.serial.localizedStandardContains(searchTerm)
                 }
-                print("After search filter: \(allItems.count) items")
             }
             
             await MainActor.run {
                 self.items = allItems
-                print("Items set on MainActor: \(self.items.count)")
+                self.isLoading = false
             }
         } catch {
-            print("Failed to fetch items: \(error)")
-            print("Error details: \(String(describing: error))")
-            print("Model Context state: \(String(describing: modelContext))")
+            print("Error loading items: \(error)")
+            await MainActor.run {
+                self.isLoading = false
+            }
         }
     }
-
+    
     func deleteItems(at offsets: IndexSet) {
         for index in offsets {
             let itemToDelete = items[index]
             modelContext.delete(itemToDelete)
-            print("Deleting item: \(itemToDelete.title)")
         }
+        try? modelContext.save()
         
-        // Reload items after deletion
         Task {
             await loadItems()
         }
     }
 }
 
-#Preview {
-    do {
-        let previewer = try Previewer()
-        return InventoryListSubView(location: previewer.location)
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-    } catch {
-        return Text("Failed to create preview")
-            .foregroundColor(.red)
-    }
-}
+//#Preview {
+//    Group {
+//        do {
+//            let previewer = try Previewer()
+//            InventoryListSubView(location: previewer.location)
+//                .modelContainer(previewer.container)
+//                .environmentObject(Router())
+//        } catch {
+//            ContentUnavailableView(
+//                "Preview Error",
+//                systemImage: "exclamationmark.triangle",
+//                description: Text(error.localizedDescription)
+//            )
+//        }
+//    }
+//}

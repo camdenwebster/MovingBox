@@ -17,16 +17,22 @@
       "skippedTests" : {
         "suites" : [
           {
-            "name" : "ICloudSyncManagerTests",
+            "name" : "HomeMigrationTests",
             "testFunctions" : [
-              "testContextObserverSetup()"
+              "testSkipMigrationWhenURLExists()",
+              "testSuccessfulMigration()"
             ]
           },
           {
-            "name" : "OnboardingManagerTests",
+            "name" : "OptimizedImageManagerTests",
             "testFunctions" : [
-              "testOnboardingStateCheck()",
-              "testWelcomeScreenConditions()"
+              "imageDataIntegrity()"
+            ]
+          },
+          {
+            "name" : "SettingsManagerTests",
+            "testFunctions" : [
+              "testLastSyncDatePersistence()"
             ]
           },
           {

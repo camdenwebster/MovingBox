@@ -6,6 +6,8 @@ struct OnboardingView: View {
     @Binding var isPresented: Bool
     @State private var hasCheckedOnboarding = false
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var settings: SettingsManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     
     var body: some View {
         NavigationStack {
@@ -14,19 +16,21 @@ struct OnboardingView: View {
                 case .welcome:
                     OnboardingWelcomeView()
                         .transition(manager.transition)
-                        .task {
-                            // Wait briefly for SwiftData sync
-                            try? await Task.sleep(nanoseconds: 1_000_000_000)
-                            hasCheckedOnboarding = true
-                            
-                            // Let data sync happen in background, but don't auto-dismiss
-                            // Dismissal will be handled by the welcome view's "Get Started" button
-                            do {
-                                _ = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
-                            } catch {
-                                manager.showError(message: "Unable to check onboarding status. Please try again.")
-                            }
-                        }
+//                        .task {
+//                            // Wait briefly for SwiftData sync
+//                            try? await Task.sleep(nanoseconds: 1_000_000_000)
+//                            hasCheckedOnboarding = true
+//                            
+//                            // Check for existing homes and complete onboarding if found
+//                            do {
+//                                let hasExistingData = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
+//                                if hasExistingData {
+//                                    manager.markOnboardingComplete()
+//                                }
+//                            } catch {
+//                                manager.showError(message: "Unable to check onboarding status. Please try again.")
+//                            }
+//                        }
                 case .homeDetails:
                     OnboardingHomeView()
                         .transition(manager.transition)
@@ -36,12 +40,13 @@ struct OnboardingView: View {
                 case .item:
                     OnboardingItemView()
                         .transition(manager.transition)
+                case .notifications:
+                    OnboardingNotificationsView()
+                        .transition(manager.transition)
                 case .completion:
                     OnboardingCompletionView(isPresented: $isPresented)
                         .transition(manager.transition)
-                case .paywall:
-                    MovingBoxPaywallView(isPresented: $isPresented)
-                        .transition(manager.transition)
+
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -64,9 +69,11 @@ struct OnboardingView: View {
             }
         }
         .environmentObject(manager)
+        .environmentObject(settings)
         .tint(Color.customPrimary)
         .onChange(of: manager.hasCompleted) { _, completed in
             if completed {
+                settings.hasLaunched = true
                 isPresented = false
             }
         }
@@ -74,12 +81,10 @@ struct OnboardingView: View {
     
     private var shouldShowSkipButton: Bool {
         switch manager.currentStep {
-        case .welcome:
+        case .welcome, .completion:
             return false
-        case .homeDetails, .location, .item:
+        case .homeDetails, .location, .item, .notifications:
             return true
-        case .completion, .paywall:
-            return false
         }
     }
 }

@@ -5,33 +5,30 @@ struct ImageAnalysisView: View {
     let onComplete: () -> Void
     
     @State private var scannerOffset: CGFloat = -100
+    @State private var optimizedImage: UIImage?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
     
     var body: some View {
         NavigationStack {
             ZStack {
-                if isOnboarding {
-                    Color(.systemBackground).edgesIgnoringSafeArea(.all)
-                } else {
-                    Color.black.edgesIgnoringSafeArea(.all)
-                }
-                
+                Color(.systemBackground).edgesIgnoringSafeArea(.all)
+
                 GeometryReader { geometry in
                     VStack(spacing: 0) {
                         Spacer()
                         
-                        // Center the image with proper scaling
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: min(geometry.size.width, geometry.size.height))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical)
+                        Group {
+                            Image(uiImage: optimizedImage ?? image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: min(geometry.size.width, geometry.size.height))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical)
+                        }
                         
                         Spacer()
                         
-                        // Analysis overlay at bottom
                         VStack(spacing: 16) {
                             ProgressView()
                                 .scaleEffect(2.0)
@@ -52,7 +49,6 @@ struct ImageAnalysisView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     
-                    // Scanner animation
                     Rectangle()
                         .fill(.blue.opacity(0.8))
                         .frame(height: 2)
@@ -66,11 +62,16 @@ struct ImageAnalysisView: View {
                 }
             }
             .navigationTitle("Analyzing Photo")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(isOnboarding ? .hidden : .visible)
+            .toolbar(.hidden, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .interactiveDismissDisabled(true)
+            .task {
+                print("ImageAnalysisView appeared with image size: \(image.size)")
+                optimizedImage = OptimizedImageManager.shared.optimizeImage(image)
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                onComplete()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

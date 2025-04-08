@@ -9,26 +9,40 @@ import SwiftData
 import SwiftUI
 import PhotosUI
 
+private struct CurrencyField: View {
+    let title: String
+    @Binding var value: Decimal
+    let isEnabled: Bool
+    
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if isEnabled {
+                TextField("Amount", value: $value, format: .currency(code: "USD"))
+                    .multilineTextAlignment(.trailing)
+                    .keyboardType(.decimalPad)
+            } else {
+                Text(value, format: .currency(code: "USD"))
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+@MainActor
 struct EditHomeView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
-    @State private var homeNickName = ""
-    @State private var homeAddress1 = ""
-    @State private var homeAddress2 = ""
-    @State private var city = ""
-    @State private var state = ""
-    @State private var zip = ""
     @State private var isEditing = false
-    @State private var showPhotoSourceAlert = false
-    @State private var showCamera = false
-    @State private var showPhotoPicker = false
-    @State private var selectedPhoto: PhotosPickerItem?
-    @State private var tempUIImage: UIImage?
-    @State private var country = Locale.current.region?.identifier ?? "US"
-    private let countries = Locale.Region.isoRegions.map({ $0.identifier }).sorted()
+    @State private var loadedImage: UIImage?
+    @State private var loadingError: Error?
+    @State private var isLoading = false
     
-    // Computed properties
+    @State private var tempHome = Home()
+    @State private var tempPolicy = InsurancePolicy()
+    
     private var isNewHome: Bool {
         homes.isEmpty
     }
@@ -38,7 +52,7 @@ struct EditHomeView: View {
     }
     
     private var activeHome: Home? {
-        homes.first
+        homes.last
     }
     
     private func countryName(for code: String) -> String {
@@ -48,95 +62,94 @@ struct EditHomeView: View {
     
     var body: some View {
         Form {
-            Section {
-                if let uiImage = tempUIImage ?? activeHome?.photo {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .clipped()
-                        .listRowInsets(EdgeInsets())
-                        .overlay(alignment: .bottomTrailing) {
-                            if isEditingEnabled {
-                                Button {
-                                    showPhotoSourceAlert = true
-                                } label: {
-                                    Image(systemName: "photo")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .padding(8)
-                                        .background(Circle().fill(.black.opacity(0.6)))
-                                        .padding(8)
+            if isEditingEnabled || loadedImage != nil {
+                Section {
+                    if let uiImage = loadedImage {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .clipped()
+                            .listRowInsets(EdgeInsets())
+                            .overlay(alignment: .bottomTrailing) {
+                                if isEditingEnabled {
+                                    PhotoPickerView(
+                                        model: Binding(
+                                            get: { activeHome ?? tempHome },
+                                            set: { newValue in
+                                                tempHome = newValue
+                                            }
+                                        ),
+                                        loadedImage: $loadedImage,
+                                        isLoading: $isLoading
+                                    )
                                 }
                             }
-                        }
-                } else {
-                    if isEditingEnabled {
-                        AddPhotoButton(action: {
-                            showPhotoSourceAlert = true
-                        })
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .foregroundStyle(.secondary)
-                        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                            Button("Take Photo") {
-                                showCamera = true
-                            }
-                            Button("Choose from Library") {
-                                showPhotoPicker = true
-                            }
-                            if tempUIImage != nil || activeHome?.photo != nil {
-                                Button("Remove Photo", role: .destructive) {
-                                    if let home = activeHome {
-                                        home.data = nil
-                                    } else {
-                                        tempUIImage = nil
-                                    }
+                    } else if isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                    } else if isEditingEnabled {
+                        PhotoPickerView(
+                            model: Binding(
+                                get: { activeHome ?? tempHome },
+                                set: { newValue in
+                                    tempHome = newValue
                                 }
+                            ),
+                            loadedImage: $loadedImage,
+                            isLoading: $isLoading
+                        ) { isPresented in
+                            AddPhotoButton {
+                                isPresented.wrappedValue = true
                             }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
                         }
-                        
                     }
                 }
             }
-            if isEditingEnabled || !homeNickName.isEmpty {
+            
+            if isEditingEnabled || !tempHome.name.isEmpty {
                 Section("Home Nickname") {
-                    TextField("Enter a nickname", text: $homeNickName)
+                    TextField("Enter a nickname", text: $tempHome.name)
                         .disabled(!isEditingEnabled)
                         .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 }
             }
+            
             Section("Home Address") {
-                TextField("Street Address", text: $homeAddress1)
+                TextField("Street Address", text: $tempHome.address1)
                     .textContentType(.streetAddressLine1)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 
-                TextField("Apt, Suite, Unit", text: $homeAddress2)
+                TextField("Apt, Suite, Unit", text: $tempHome.address2)
                     .textContentType(.streetAddressLine2)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 
-                TextField("City", text: $city)
+                TextField("City", text: $tempHome.city)
                     .textContentType(.addressCity)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 
-                TextField("State/Province", text: $state)
+                TextField("State/Province", text: $tempHome.state)
                     .textContentType(.addressState)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 
-                TextField("ZIP/Postal Code", text: $zip)
+                TextField("ZIP/Postal Code", text: $tempHome.zip)
                     .textContentType(.postalCode)
                     .keyboardType(.numberPad)
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 
                 if isEditingEnabled {
-                    Picker("Country", selection: $country) {
-                        ForEach(countries, id: \.self) { code in
+                    Picker("Country", selection: $tempHome.country) {
+                        ForEach(Locale.Region.isoRegions.map({ $0.identifier }).sorted(), id: \.self) { code in
                             Text(countryName(for: code))
                                 .tag(code)
                         }
@@ -145,41 +158,93 @@ struct EditHomeView: View {
                     HStack {
                         Text("Country")
                         Spacer()
-                        Text(countryName(for: country))
+                        Text(countryName(for: tempHome.country))
                             .foregroundColor(.secondary)
                     }
                 }
             }
-        }
-        .navigationTitle(isNewHome ? "New Home" : "\(activeHome?.name ?? "") Details")
-        .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto, loadPhoto)
-        .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion in
-                if let home = activeHome {
-                    if let imageData = image.jpegData(compressionQuality: 0.8) {
-                        home.data = imageData
-                    }
+            
+            Section("Insurance Policy") {
+                FormTextFieldRow(label: "Insurance Provider", text: $tempPolicy.providerName, isEditing: $isEditing, placeholder: "Name")
+                FormTextFieldRow(label: "Policy Number", text: $tempPolicy.policyNumber, isEditing: $isEditing, placeholder: "Number")
+                
+                if isEditingEnabled {
+                    DatePicker("Start Date", selection: $tempPolicy.startDate, displayedComponents: .date)
+                    DatePicker("End Date", selection: $tempPolicy.endDate, in: tempPolicy.startDate..., displayedComponents: .date)
                 } else {
-                    tempUIImage = image
+                    HStack {
+                        Text("Start Date")
+                        Spacer()
+                        Text(tempPolicy.startDate.formatted(date: .abbreviated, time: .omitted))
+                            .foregroundColor(.secondary)
+                    }
+                    HStack {
+                        Text("End Date")
+                        Spacer()
+                        Text(tempPolicy.endDate.formatted(date: .abbreviated, time: .omitted))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                completion()
+            }
+            
+            Section("Coverage Details") {
+                CurrencyField(
+                    title: "Deductible",
+                    value: $tempPolicy.deductibleAmount,
+                    isEnabled: isEditingEnabled
+                )
+                
+                CurrencyField(
+                    title: "Dwelling Coverage",
+                    value: $tempPolicy.dwellingCoverageAmount,
+                    isEnabled: isEditingEnabled
+                )
+                
+                CurrencyField(
+                    title: "Personal Property",
+                    value: $tempPolicy.personalPropertyCoverageAmount,
+                    isEnabled: isEditingEnabled
+                )
+                
+                CurrencyField(
+                    title: "Loss of Use",
+                    value: $tempPolicy.lossOfUseCoverageAmount,
+                    isEnabled: isEditingEnabled
+                )
+                
+                CurrencyField(
+                    title: "Liability",
+                    value: $tempPolicy.liabilityCoverageAmount,
+                    isEnabled: isEditingEnabled
+                )
+                
+                CurrencyField(
+                    title: "Medical Payments",
+                    value: $tempPolicy.medicalPaymentsCoverageAmount,
+                    isEnabled: isEditingEnabled
+                )
             }
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .task(id: activeHome?.imageURL) {
+            guard let home = activeHome else { return }
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                loadedImage = try await home.photo
+            } catch {
+                loadingError = error
+                print("Failed to load image: \(error)")
+            }
+        }
         .onAppear {
             if let existingHome = activeHome {
-                // Initialize editing fields with existing values
-                homeNickName = existingHome.name
-                homeAddress1 = existingHome.address1
-                homeAddress2 = existingHome.address2
-                city = existingHome.city
-                state = existingHome.state
-                zip = existingHome.zip
-                country = existingHome.country.isEmpty ? Locale.current.region?.identifier ?? "US" : existingHome.country
+                tempHome = existingHome
+                if let policy = existingHome.insurancePolicy {
+                    tempPolicy = policy
+                }
+            } else {
+                tempHome.country = Locale.current.region?.identifier ?? "US"
             }
         }
         .toolbar {
@@ -187,13 +252,18 @@ struct EditHomeView: View {
                 Button(isEditing ? "Save" : "Edit") {
                     if isEditing {
                         if let home = activeHome {
-                            home.name = homeNickName
-                            home.address1 = homeAddress1
-                            home.address2 = homeAddress2
-                            home.city = city
-                            home.state = state
-                            home.zip = zip
-                            home.country = country
+                            home.name = tempHome.name
+                            home.address1 = tempHome.address1
+                            home.address2 = tempHome.address2
+                            home.city = tempHome.city
+                            home.state = tempHome.state
+                            home.zip = tempHome.zip
+                            home.country = tempHome.country
+                            
+                            if home.insurancePolicy == nil {
+                                tempPolicy.insuredHome = home
+                                home.insurancePolicy = tempPolicy
+                            }
                         }
                         isEditing = false
                     } else {
@@ -202,42 +272,38 @@ struct EditHomeView: View {
                 }
             } else {
                 Button("Save") {
-                    let newHome = Home(
-                        name: homeNickName,
-                        address1: homeAddress1,
-                        address2: homeAddress2,
-                        city: city,
-                        state: state,
-                        zip: zip,
-                        country: country
-                    )
-                    
-                    if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-                        newHome.data = imageData
-                    }
-                    
-                    modelContext.insert(newHome)
-                    TelemetryManager.shared.trackLocationCreated(name: newHome.address1)
-                    print("EditHomeView: Created new home - \(newHome.name)")
-                    router.navigateBack()
-                }
-                .disabled(homeAddress1.isEmpty)
-            }
-        }
-    }
-    
-    private func loadPhoto() {
-        Task {
-            if let data = try? await selectedPhoto?.loadTransferable(type: Data.self) {
-                if let uiImage = UIImage(data: data) {
-                    await MainActor.run {
-                        if let home = activeHome {
-                            home.data = data
-                        } else {
-                            tempUIImage = uiImage
+                    Task {
+                        do {
+                            if isNewHome {
+                                let home = try await DefaultDataManager.getOrCreateHome(modelContext: modelContext)
+                                
+                                home.name = tempHome.name
+                                home.address1 = tempHome.address1
+                                home.address2 = tempHome.address2
+                                home.city = tempHome.city
+                                home.state = tempHome.state
+                                home.zip = tempHome.zip
+                                home.country = tempHome.country
+                                home.purchaseDate = Date()
+                                home.imageURL = tempHome.imageURL
+                                
+                                if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
+                                    tempPolicy.insuredHome = home
+                                    home.insurancePolicy = tempPolicy
+                                }
+                                
+                                TelemetryManager.shared.trackLocationCreated(name: home.address1)
+                                print("EditHomeView: Updated home - \(home.name)")
+                            }
+                            
+                            try modelContext.save()
+                            router.navigateBack()
+                        } catch {
+                            print("❌ Error saving home: \(error)")
                         }
                     }
                 }
+                .disabled(tempHome.address1.isEmpty)
             }
         }
     }
