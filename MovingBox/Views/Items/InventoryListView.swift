@@ -17,7 +17,7 @@ struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @EnvironmentObject private var revenueCatManager: RevenueCatManager
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
@@ -92,7 +92,32 @@ struct InventoryListView: View {
             }
             .searchable(text: $searchText)
             .sheet(isPresented: $showingPaywall) {
-                revenueCatManager.presentPaywall(isPresented: $showingPaywall)
+                revenueCatManager.presentPaywall(
+                    isPresented: $showingPaywall,
+                    onCompletion: {
+                        settings.isPro = true
+                        if settings.canAddMoreItems(currentCount: allItems.count) {
+                            let newItem = InventoryItem(
+                                title: "",
+                                quantityString: "1",
+                                quantityInt: 1,
+                                desc: "",
+                                serial: "",
+                                model: "",
+                                make: "",
+                                location: location,
+                                label: nil,
+                                price: Decimal.zero,
+                                insured: false,
+                                assetId: "",
+                                notes: "",
+                                showInvalidQuantityAlert: false
+                            )
+                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                        }
+                    },
+                    onDismiss: nil
+                )
             }
             .fullScreenCover(isPresented: $showingImageAnalysis) {
                 if let image = analyzingImage {

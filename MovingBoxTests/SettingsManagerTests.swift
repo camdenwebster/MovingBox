@@ -1,8 +1,8 @@
 import Testing
 import Foundation
-
 @testable import MovingBox
 
+@MainActor
 @Suite struct SettingsManagerTests {
     
     // Helper function to create clean instance
@@ -54,7 +54,7 @@ import Foundation
         manager.iCloudEnabled = false
         
         // Wait for UserDefaults to sync
-        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        try await Task.sleep(for: .milliseconds(100))
         
         // Then verify the values were saved
         #expect(manager.aiModel == "test-model")
@@ -142,7 +142,7 @@ import Foundation
         manager.lastiCloudSync = testDate
         
         // Wait for UserDefaults to sync
-        try await Task.sleep(nanoseconds: 100_000_000)
+        try await Task.sleep(for: .milliseconds(100))
         
         // Then
         #expect(manager.lastiCloudSync.timeIntervalSince1970 == testDate.timeIntervalSince1970)

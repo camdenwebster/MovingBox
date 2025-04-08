@@ -8,7 +8,7 @@ struct AddInventoryItemView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @EnvironmentObject private var revenueCatManager: RevenueCatManager
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
     @State private var showingPaywall = false
@@ -120,7 +120,14 @@ struct AddInventoryItemView: View {
             }
         }
         .sheet(isPresented: $showingPaywall) {
-            revenueCatManager.presentPaywall(isPresented: $showingPaywall)
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settings.isPro = true
+                    // Add any specific post-purchase actions here
+                },
+                onDismiss: nil
+            )
         }
         .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
             Button("Upgrade") {

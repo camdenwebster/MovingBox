@@ -23,6 +23,9 @@ struct LocationsListView: View {
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
     
+    // ADD: RevenueCat manager
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
+    
     // CHANGE: Make grid layout adaptive
     private var columns: [GridItem] {
         // Card width + padding on each side
@@ -75,7 +78,17 @@ struct LocationsListView: View {
             .accessibilityIdentifier("addLocation")
         }
         .sheet(isPresented: $showingPaywall) {
-            PaywallView()
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settings.isPro = true
+                    // Continue with attempted action after successful purchase
+                    if settings.canAddMoreLocations(currentCount: locations.count) {
+                        router.navigate(to: .editLocationView(location: nil))
+                    }
+                },
+                onDismiss: nil
+            )
         }
         .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
             Button("Upgrade") {

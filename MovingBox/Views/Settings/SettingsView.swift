@@ -24,9 +24,9 @@ struct ExternalLink {
 // MARK: - Main Settings Body
 struct SettingsView: View {
     @StateObject private var settingsManager = SettingsManager()
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @State private var selectedSection: SettingsSection? = .categories // Default selection
     @State private var showingSafariView = false
     @State private var selectedURL: URL?
@@ -83,7 +83,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                if !settingsManager.isPro {
+                if !revenueCatManager.isProSubscriptionActive {
                     Section {
                         Button(action: {
                             showingPaywall = true
@@ -112,7 +112,7 @@ struct SettingsView: View {
                     }
                 }
                 
-                if settingsManager.isPro {
+                if revenueCatManager.isProSubscriptionActive {
                     Section("Subscription Status") {
                         NavigationLink {
                             SubscriptionSettingsView()
@@ -123,7 +123,7 @@ struct SettingsView: View {
                 }
                 
                 Section("Sync & Backup") {
-                    if settingsManager.isPro {
+                    if revenueCatManager.isProSubscriptionActive {
                         NavigationLink {
                             ICloudSettingsView(settingsManager: settingsManager)
                         } label: {
@@ -204,7 +204,14 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showingPaywall) {
-                revenueCatManager.presentPaywall(isPresented: $showingPaywall)
+                revenueCatManager.presentPaywall(
+                    isPresented: $showingPaywall,
+                    onCompletion: {
+                        // Update settings manager when purchase completes
+                        settingsManager.isPro = true
+                    },
+                    onDismiss: nil
+                )
             }
             .alert("Pro Feature", isPresented: $showingICloudAlert) {
                 Button("Not Now", role: .cancel) { }

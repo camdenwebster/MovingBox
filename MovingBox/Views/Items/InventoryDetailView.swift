@@ -45,6 +45,8 @@ struct InventoryDetailView: View {
     
     var showSparklesButton = false
 
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
+
     init(inventoryItemToDisplay: InventoryItem, navigationPath: Binding<NavigationPath>, showSparklesButton: Bool = false, isEditing: Bool = false) {
         self.inventoryItemToDisplay = inventoryItemToDisplay
         self._navigationPath = navigationPath
@@ -391,7 +393,14 @@ struct InventoryDetailView: View {
             }
         }
         .sheet(isPresented: $showingPaywall) {
-            PaywallView()
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settings.isPro = true
+                    // Add any specific post-purchase actions here
+                },
+                onDismiss: nil
+            )
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }

@@ -8,10 +8,16 @@ import Combine
 class RevenueCatManager: NSObject, ObservableObject {
     static let shared = RevenueCatManager()
     
-    @Published private(set) var isProSubscriptionActive = false {
+    @Published public private(set) var isProSubscriptionActive = false {
         didSet {
             print("📱 RevenueCatManager - Pro status changed: \(isProSubscriptionActive)")
             UserDefaults.standard.set(isProSubscriptionActive, forKey: "isPro")
+            // Post notification when status changes
+            NotificationCenter.default.post(
+                name: .subscriptionStatusChanged,
+                object: nil,
+                userInfo: ["isProActive": isProSubscriptionActive]
+            )
         }
     }
     @Published private(set) var currentOffering: Offering?
