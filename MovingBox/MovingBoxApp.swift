@@ -167,6 +167,15 @@ struct MovingBoxApp: App {
                 // Initialize container with current Pro status and iCloud preference
                 containerManager.updateContainer(isPro: settings.isPro, iCloudEnabled: settings.iCloudEnabled)
                 
+                // Check RevenueCat subscription status on launch
+                Task {
+                    do {
+                        try await revenueCatManager.updateCustomerInfo()
+                    } catch {
+                        print("⚠️ MovingBoxApp - Error checking initial RevenueCat status: \(error)")
+                    }
+                }
+                
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)

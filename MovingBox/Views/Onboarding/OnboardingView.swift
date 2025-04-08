@@ -7,6 +7,7 @@ struct OnboardingView: View {
     @State private var hasCheckedOnboarding = false
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var settings: SettingsManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     
     var body: some View {
         NavigationStack {

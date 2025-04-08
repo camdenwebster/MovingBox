@@ -178,6 +178,12 @@ class RevenueCatManager: NSObject, ObservableObject {
             throw error
         }
     }
+    
+    func syncPurchases() async throws {
+        print("📱 RevenueCatManager - Syncing purchases...")
+        let customerInfo = try await Purchases.shared.syncPurchases()
+        handleCustomerInfoUpdate(customerInfo)
+    }
 }
 
 // MARK: - PurchasesDelegate

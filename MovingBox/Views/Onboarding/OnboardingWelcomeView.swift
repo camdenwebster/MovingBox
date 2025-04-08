@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingWelcomeView: View {
     @EnvironmentObject private var manager: OnboardingManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.disableAnimations) private var disableAnimations
     @Environment(\.modelContext) private var modelContext
@@ -59,7 +60,11 @@ struct OnboardingWelcomeView: View {
                         
                         Task {
                             do {
-                                // First wait for any pending iCloud sync
+                                // First check RevenueCat status and sync purchases
+                                try await revenueCatManager.updateCustomerInfo()
+                                try await revenueCatManager.syncPurchases()
+                                
+                                // Then wait for any pending iCloud sync
                                 _ = try await iCloudManager.waitForSync()
                                 
                                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
