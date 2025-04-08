@@ -12,6 +12,7 @@ import PhotosUI
 struct EditHomeView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
     @State private var homeNickName = ""
     @State private var homeAddress1 = ""
     @State private var homeAddress2 = ""
@@ -22,7 +23,6 @@ struct EditHomeView: View {
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
-    var home: Home?
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
     @State private var country = Locale.current.region?.identifier ?? "US"
@@ -30,11 +30,15 @@ struct EditHomeView: View {
     
     // Computed properties
     private var isNewHome: Bool {
-        home == nil
+        homes.isEmpty
     }
     
     private var isEditingEnabled: Bool {
         isNewHome || isEditing
+    }
+    
+    private var activeHome: Home? {
+        homes.first
     }
     
     private func countryName(for code: String) -> String {
@@ -45,7 +49,7 @@ struct EditHomeView: View {
     var body: some View {
         Form {
             Section {
-                if let uiImage = tempUIImage ?? home?.photo {
+                if let uiImage = tempUIImage ?? activeHome?.photo {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
@@ -72,9 +76,26 @@ struct EditHomeView: View {
                         AddPhotoButton(action: {
                             showPhotoSourceAlert = true
                         })
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .foregroundStyle(.secondary)
+                        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                            Button("Take Photo") {
+                                showCamera = true
+                            }
+                            Button("Choose from Library") {
+                                showPhotoPicker = true
+                            }
+                            if tempUIImage != nil || activeHome?.photo != nil {
+                                Button("Remove Photo", role: .destructive) {
+                                    if let home = activeHome {
+                                        home.data = nil
+                                    } else {
+                                        tempUIImage = nil
+                                    }
+                                }
+                            }
+                        }
                         
                     }
                 }
@@ -130,32 +151,15 @@ struct EditHomeView: View {
                 }
             }
         }
-        .navigationTitle(isNewHome ? "New Home" : "\(home?.name ?? "") Details")
+        .navigationTitle(isNewHome ? "New Home" : "\(activeHome?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showCamera = true
-            }
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            if tempUIImage != nil || home?.photo != nil {
-                Button("Remove Photo", role: .destructive) {
-                    if let home = home {
-                        home.data = nil
-                    } else {
-                        tempUIImage = nil
-                    }
-                }
-            }
-        }
         .sheet(isPresented: $showCamera) {
             CameraView(
                 showingImageAnalysis: .constant(false),
                 analyzingImage: .constant(nil)
             ) { image, _, completion in
-                if let home = home {
+                if let home = activeHome {
                     if let imageData = image.jpegData(compressionQuality: 0.8) {
                         home.data = imageData
                     }
@@ -167,7 +171,7 @@ struct EditHomeView: View {
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .onAppear {
-            if let existingHome = home {
+            if let existingHome = activeHome {
                 // Initialize editing fields with existing values
                 homeNickName = existingHome.name
                 homeAddress1 = existingHome.address1
@@ -182,13 +186,15 @@ struct EditHomeView: View {
             if !isNewHome {
                 Button(isEditing ? "Save" : "Edit") {
                     if isEditing {
-                        home?.name = homeNickName
-                        home?.address1 = homeAddress1
-                        home?.address2 = homeAddress2
-                        home?.city = city
-                        home?.state = state
-                        home?.zip = zip
-                        home?.country = country
+                        if let home = activeHome {
+                            home.name = homeNickName
+                            home.address1 = homeAddress1
+                            home.address2 = homeAddress2
+                            home.city = city
+                            home.state = state
+                            home.zip = zip
+                            home.country = country
+                        }
                         isEditing = false
                     } else {
                         isEditing = true
@@ -205,9 +211,11 @@ struct EditHomeView: View {
                         zip: zip,
                         country: country
                     )
+                    
                     if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
                         newHome.data = imageData
                     }
+                    
                     modelContext.insert(newHome)
                     TelemetryManager.shared.trackLocationCreated(name: newHome.address1)
                     print("EditHomeView: Created new home - \(newHome.name)")
@@ -223,11 +231,9 @@ struct EditHomeView: View {
             if let data = try? await selectedPhoto?.loadTransferable(type: Data.self) {
                 if let uiImage = UIImage(data: data) {
                     await MainActor.run {
-                        if let home = home {
-                            // Existing home
+                        if let home = activeHome {
                             home.data = data
                         } else {
-                            // New home
                             tempUIImage = uiImage
                         }
                     }
@@ -241,7 +247,7 @@ struct EditHomeView: View {
 //    do {
 //        let previewer = try Previewer()
 //
-//        return EditHomeView(home: previewer.home)
+//        return EditHomeView()
 //            .modelContainer(previewer.container)
 //    } catch {
 //        return Text("Failed to create preview: \(error.localizedDescription)")

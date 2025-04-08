@@ -1,13 +1,16 @@
 import Foundation
 import SwiftUI
+import SwiftData
 
 class OnboardingManager: ObservableObject {
     @Published var currentStep: OnboardingStep = .welcome
     @Published var showAlert = false
     @Published var alertMessage = ""
+    @Published var hasCompleted = false
     @Published private var isMovingForward = true
     
-    static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
+    static let hasCompletedOnboardingKey = "hasCompletedOnboardingKey"
+    static let hasLaunchedKey = "hasLaunchedKey"
     
     enum OnboardingStep: Int, CaseIterable {
         case welcome
@@ -39,8 +42,26 @@ class OnboardingManager: ObservableObject {
         }
     }
     
+    init() {
+        print("⚡️ OnboardingManager initialized")
+    }
+    
     func markOnboardingComplete() {
+        print("⚡️ Marking onboarding as complete")
         UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
+        hasCompleted = true
+    }
+    
+    static func shouldShowWelcome() -> Bool {
+        if ProcessInfo.processInfo.arguments.contains("Show-Onboarding") {
+            return true
+        }
+        
+        if ProcessInfo.processInfo.arguments.contains("Skip-Onboarding") {
+            return false
+        }
+        
+        return !UserDefaults.standard.bool(forKey: hasLaunchedKey)
     }
     
     static func hasCompletedOnboarding() -> Bool {
@@ -55,7 +76,45 @@ class OnboardingManager: ObservableObject {
         return UserDefaults.standard.bool(forKey: hasCompletedOnboardingKey)
     }
     
+    @MainActor
+    static func checkAndUpdateOnboardingState(modelContext: ModelContext) async throws -> Bool {
+        // Only check homes if onboarding hasn't been completed yet
+        if !hasCompletedOnboarding() {
+            do {
+                let descriptor = FetchDescriptor<Home>()
+                let homes = try modelContext.fetch(descriptor)
+                print("⚡️ Checking for existing homes: \(homes.count) found")
+                
+                // If we found homes, we should complete onboarding
+                return !homes.isEmpty
+            } catch {
+                print("❌ Error checking for homes: \(error)")
+                throw OnboardingError.homeCheckFailed(error)
+            }
+        }
+        return false
+    }
+    
+    enum OnboardingError: LocalizedError {
+        case homeCheckFailed(Error)
+        
+        var errorDescription: String? {
+            switch self {
+            case .homeCheckFailed(let error):
+                return "Failed to check for existing homes: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    @MainActor
+    func showError(message: String) {
+        alertMessage = message
+        showAlert = true
+    }
+    
     func moveToNext() {
+        print("⚡️ Moving to next step from: \(currentStep)")
+        
         if let currentIndex = OnboardingStep.allCases.firstIndex(of: currentStep),
            currentIndex + 1 < OnboardingStep.allCases.count {
             isMovingForward = true
@@ -66,6 +125,8 @@ class OnboardingManager: ObservableObject {
     }
     
     func moveToPrevious() {
+        print("⚡️ Moving to previous step from: \(currentStep)")
+        
         if let currentIndex = OnboardingStep.allCases.firstIndex(of: currentStep),
            currentIndex > 0 {
             isMovingForward = false

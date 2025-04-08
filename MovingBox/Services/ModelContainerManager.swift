@@ -31,27 +31,27 @@ class ModelContainerManager: ObservableObject {
         }
     }
     
-    func createContainer(isPro: Bool) throws -> ModelContainer {
+    func createContainer(isPro: Bool, iCloudEnabled: Bool) throws -> ModelContainer {
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
             allowsSave: true,
-            cloudKitDatabase: isPro ? .automatic : .none
+            cloudKitDatabase: (isPro && iCloudEnabled) ? .automatic : .none
         )
         
         return try ModelContainer(for: schema, configurations: [modelConfiguration])
     }
     
-    func updateContainer(isPro: Bool) {
+    func updateContainer(isPro: Bool, iCloudEnabled: Bool) {
         do {
             // Create new container with updated configuration
-            let newContainer = try createContainer(isPro: isPro)
+            let newContainer = try createContainer(isPro: isPro, iCloudEnabled: iCloudEnabled)
             
             // Update the published container
             self.container = newContainer
             
             // Update iCloud sync manager if needed
-            if isPro {
+            if isPro && iCloudEnabled {
                 ICloudSyncManager.shared.setupSync(modelContainer: newContainer)
             } else {
                 ICloudSyncManager.shared.removeSubscription()

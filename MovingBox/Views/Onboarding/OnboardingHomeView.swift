@@ -7,7 +7,7 @@ struct OnboardingHomeView: View {
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
     
-    @Query private var homes: [Home]
+    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
     
     @State private var homeName = ""
     @State private var selectedPhoto: PhotosPickerItem?
@@ -17,8 +17,12 @@ struct OnboardingHomeView: View {
     @State private var showPhotoPicker = false
     @State private var showValidationAlert = false
     
+    private var activeHome: Home? {
+        homes.first
+    }
+    
     private func loadExistingData() {
-        if let existingHome = homes.first {
+        if let existingHome = activeHome {
             homeName = existingHome.name
             if let imageData = existingHome.data {
                 tempUIImage = UIImage(data: imageData)
@@ -32,6 +36,7 @@ struct OnboardingHomeView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         VStack(spacing: 20) {
+
                             OnboardingHeaderText(text: "Add Home Details")
                             
                             OnboardingDescriptionText(text: "Add some details about your home to customize your experience")
@@ -55,6 +60,22 @@ struct OnboardingHomeView: View {
                                                     .background(Circle().fill(.black.opacity(0.6)))
                                                     .padding(8)
                                             }
+//                                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+//                                                Button("Take Photo") {
+//                                                    showingCamera = true
+//                                                }
+//                                                .accessibilityIdentifier("takePhoto")
+//                                                Button("Choose from Library") {
+//                                                    showPhotoPicker = true
+//                                                }
+//                                                .accessibilityIdentifier("chooseFromLibrary")
+//                                                if tempUIImage != nil {
+//                                                    Button("Remove Photo", role: .destructive) {
+//                                                        tempUIImage = nil
+//                                                    }
+//                                                    .accessibilityIdentifier("removePhoto")
+//                                                }
+//                                            }
                                         }
                                 } else {
                                     AddPhotoButton(action: {
@@ -66,6 +87,22 @@ struct OnboardingHomeView: View {
                                     .background {
                                         RoundedRectangle(cornerRadius: 12)
                                             .fill(.ultraThinMaterial)
+                                    }
+                                    .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                        Button("Take Photo") {
+                                            showingCamera = true
+                                        }
+                                        .accessibilityIdentifier("takePhoto")
+                                        Button("Choose from Library") {
+                                            showPhotoPicker = true
+                                        }
+                                        .accessibilityIdentifier("chooseFromLibrary")
+                                        if tempUIImage != nil {
+                                            Button("Remove Photo", role: .destructive) {
+                                                tempUIImage = nil
+                                            }
+                                            .accessibilityIdentifier("removePhoto")
+                                        }
                                     }
                                 }
                             }
@@ -84,11 +121,7 @@ struct OnboardingHomeView: View {
                 
                 VStack {
                     OnboardingContinueButton {
-                        if homeName.isEmpty {
-                            showValidationAlert = true
-                        } else {
-                            saveHomeAndContinue()
-                        }
+                        handleContinueButton()
                     }
                     .accessibilityIdentifier("onboarding-home-continue-button")
                     .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
@@ -99,22 +132,6 @@ struct OnboardingHomeView: View {
         .onboardingBackground()
         .onChange(of: selectedPhoto, loadPhoto)
         .onAppear(perform: loadExistingData)
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showingCamera = true
-            }
-            .accessibilityIdentifier("takePhoto")
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            .accessibilityIdentifier("chooseFromLibrary")
-            if tempUIImage != nil {
-                Button("Remove Photo", role: .destructive) {
-                    tempUIImage = nil
-                }
-                .accessibilityIdentifier("removePhoto")
-            }
-        }
         .sheet(isPresented: $showingCamera, onDismiss: nil) {
             CameraView(
                 showingImageAnalysis: .constant(false),
@@ -128,7 +145,8 @@ struct OnboardingHomeView: View {
         .alert("Missing Details", isPresented: $showValidationAlert) {
             Button("Go Back") { }
             Button("Continue Anyway") {
-                saveHomeAndContinue()
+                saveHomeAndContinue()                
+                manager.moveToNext()
             }
         } message: {
             Text("Some details haven't been filled out. Would you like to go back and complete them or continue anyway?")
@@ -147,8 +165,18 @@ struct OnboardingHomeView: View {
         }
     }
     
+    private func handleContinueButton() {
+        if homeName.isEmpty {
+            showValidationAlert = true
+        } else {
+            saveHomeAndContinue()
+            
+            manager.moveToNext()
+        }
+    }
+    
     private func saveHomeAndContinue() {
-        if let existingHome = homes.first {
+        if let existingHome = activeHome {
             existingHome.name = homeName
             if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
                 existingHome.data = imageData
@@ -161,7 +189,6 @@ struct OnboardingHomeView: View {
             }
             modelContext.insert(home)
         }
-        manager.moveToNext()
     }
 }
 

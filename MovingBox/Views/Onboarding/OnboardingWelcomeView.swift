@@ -4,11 +4,15 @@ struct OnboardingWelcomeView: View {
     @EnvironmentObject private var manager: OnboardingManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.disableAnimations) private var disableAnimations
+    @Environment(\.modelContext) private var modelContext
+    
     @State private var imageOpacity = 0.0
     @State private var welcomeOpacity = 0.0
     @State private var titleOpacity = 0.0
     @State private var descriptionOpacity = 0.0
     @State private var buttonOpacity = 0.0
+    @State private var isProcessing = false
+    @StateObject private var iCloudManager = ICloudSyncManager.shared
     
     var body: some View {
         OnboardingContainer {
@@ -50,8 +54,47 @@ struct OnboardingWelcomeView: View {
                 
                 VStack {
                     OnboardingContinueButton(action: {
-                        manager.moveToNext()
-                    }, title: "Get Started")
+                        guard !isProcessing else { return }
+                        isProcessing = true
+                        
+                        Task {
+                            do {
+                                // First wait for any pending iCloud sync
+                                _ = try await iCloudManager.waitForSync()
+                                
+                                let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
+                                
+                                await MainActor.run {
+                                    isProcessing = false
+                                    if shouldDismiss {
+                                        manager.markOnboardingComplete()
+                                    } else {
+                                        // Populate default data before moving to next step
+                                        Task {
+                                            await DefaultDataManager.populateDefaultData(modelContext: modelContext)
+                                            manager.moveToNext()
+                                        }
+                                    }
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    isProcessing = false
+                                    manager.showError(message: "Unable to check onboarding status. Please try again.")
+                                }
+                            }
+                        }
+                    }) {
+                        AnyView(
+                            ZStack {
+                                Text(isProcessing ? "" : "Get Started")
+                                if isProcessing {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                            }
+                        )
+                    }
+                    .disabled(isProcessing)
                     .accessibilityIdentifier("onboarding-welcome-continue-button")
                     .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                     .opacity(buttonOpacity)
@@ -61,6 +104,11 @@ struct OnboardingWelcomeView: View {
             }
         }
         .onboardingBackground()
+        .alert("Error", isPresented: $manager.showAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(manager.alertMessage)
+        }
         .onAppear {
             let animation: Animation? = disableAnimations ? nil : .easeOut(duration: 0.6)
             

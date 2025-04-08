@@ -159,33 +159,16 @@ struct MovingBoxApp: App {
             }
             .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
-            .onChange(of: router.selectedTab) { oldValue, newValue in
-                let tabName: String = {
-                    switch newValue {
-                    case .dashboard: return "dashboard"
-                    case .locations: return "locations"
-                    case .addItem: return "add_item"
-                    case .allItems: return "all_items"
-                    case .settings: return "settings"
-                    }
-                }()
-                TelemetryManager.shared.trackTabSelected(tab: tabName)
-            }
             .onChange(of: settings.isPro) { oldValue, newValue in
-                containerManager.updateContainer(isPro: newValue)
+                containerManager.updateContainer(isPro: newValue, iCloudEnabled: settings.iCloudEnabled)
             }
             .onAppear {
-                // Initialize container with current Pro status
-                containerManager.updateContainer(isPro: settings.isPro)
+                // Initialize container with current Pro status and iCloud preference
+                containerManager.updateContainer(isPro: settings.isPro, iCloudEnabled: settings.iCloudEnabled)
                 
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
-                        settings.hasLaunched = true
-                    }
-                } else if !settings.hasLaunched {
-                    Task {
-                        await DefaultDataManager.populateDefaultData(modelContext: containerManager.container.mainContext)
                         settings.hasLaunched = true
                     }
                 }
@@ -196,9 +179,12 @@ struct MovingBoxApp: App {
                     defaults.synchronize()
                 }
 
-                if !OnboardingManager.hasCompletedOnboarding() {
+                // Only check if we haven't launched before
+                if !settings.hasLaunched {
                     showOnboarding = true
                 }
+                
+                settings.hasLaunched = true
 
                 TelemetryDeck.signal("appLaunched")
             }
@@ -208,6 +194,7 @@ struct MovingBoxApp: App {
             .modelContainer(containerManager.container)
             .environmentObject(router)
             .environmentObject(settings)
+            .environmentObject(containerManager)
             .environmentObject(onboardingManager)
         }
     }

@@ -32,20 +32,9 @@ struct StatCard: View {
 
 struct DashboardView: View {
     @Environment(\.modelContext) var modelContext
-    @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
-    @Query(sort: [
-        SortDescriptor(\InventoryLocation.name)
-    ]) var locations: [InventoryLocation]
+    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
+    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) var locations: [InventoryLocation]
     @Query private var items: [InventoryItem]
-    @Query private var homes: [Home]
-    private var home: Home {
-        if let existingHome = homes.first {
-            return existingHome
-        }
-        let newHome = Home()
-        modelContext.insert(newHome)
-        return newHome
-    }
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
@@ -53,6 +42,10 @@ struct DashboardView: View {
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
+    
+    private var home: Home? {
+        homes.first
+    }
     
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + $1.price })
@@ -69,7 +62,7 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: 24) {
                 Group {
-                    if let uiImage = home.photo {
+                    if let uiImage = home?.photo {
                         ZStack(alignment: .bottom) {
                             GeometryReader { geometry in
                                 Image(uiImage: uiImage)
@@ -91,7 +84,7 @@ struct DashboardView: View {
                             }
                             
                             HStack {
-                                Text(home.name != "" ? home.name : "Dashboard")
+                                Text(home?.name != "" ? home?.name ?? "Dashboard" : "Dashboard")
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
@@ -106,6 +99,19 @@ struct DashboardView: View {
                                         .background(Circle().fill(.black.opacity(0.6)))
                                         .padding(8)
                                 }
+                                .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                    Button("Take Photo") {
+                                        showCamera = true
+                                    }
+                                    Button("Choose from Library") {
+                                        showPhotoPicker = true
+                                    }
+                                    if home?.photo != nil {
+                                        Button("Remove Photo", role: .destructive) {
+                                            home?.data = nil
+                                        }
+                                    }
+                                }
                             }
                             .padding(.horizontal, 16)
                             .padding(.bottom, 16)
@@ -117,12 +123,25 @@ struct DashboardView: View {
                                 .frame(height: 100)
                             AddPhotoButton(action: {
                                 showPhotoSourceAlert = true
-                            })                                    .padding()
-                                .background {
+                            })
+                            .padding()
+                            .background {
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(.ultraThinMaterial)
+                            }
+                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                Button("Take Photo") {
+                                    showCamera = true
                                 }
-                            
+                                Button("Choose from Library") {
+                                    showPhotoPicker = true
+                                }
+                                if home?.photo != nil {
+                                    Button("Remove Photo", role: .destructive) {
+                                        home?.data = nil
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -172,37 +191,44 @@ struct DashboardView: View {
                 }
             }
         }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showCamera = true
-            }
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            if home.photo != nil {
-                Button("Remove Photo", role: .destructive) {
-                    home.data = nil
-                }
-            }
-        }
         .sheet(isPresented: $showCamera) {
             CameraView(
                 showingImageAnalysis: .constant(false),
                 analyzingImage: .constant(nil)
             ) { image, _, completion in
                 if let imageData = image.jpegData(compressionQuality: 0.8) {
-                    home.data = imageData
+                    if home == nil {
+                        let newHome = Home()
+                        modelContext.insert(newHome)
+                        newHome.data = imageData
+                    } else {
+                        home?.data = imageData
+                    }
+                    try? modelContext.save()
                 }
                 completion()
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+//        .task {
+//            if home == nil {
+//                let newHome = Home()
+//                modelContext.insert(newHome)
+//                try? modelContext.save()
+//            }
+//        }
     }
     
     private func loadPhoto(from item: PhotosPickerItem) async {
         if let data = try? await item.loadTransferable(type: Data.self) {
             await MainActor.run {
-                home.data = data
+                if home == nil {
+                    let newHome = Home()
+                    modelContext.insert(newHome)
+                    newHome.data = data
+                } else {
+                    home?.data = data
+                }
                 try? modelContext.save()
             }
         }

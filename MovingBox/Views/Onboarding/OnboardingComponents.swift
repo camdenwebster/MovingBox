@@ -2,11 +2,21 @@ import SwiftUI
 
 struct OnboardingContinueButton: View {
     let action: () -> Void
-    var title: String = "Continue"
+    @ViewBuilder var content: () -> AnyView
+    
+    init(action: @escaping () -> Void, @ViewBuilder content: @escaping () -> AnyView) {
+        self.action = action
+        self.content = content
+    }
+    
+    init(action: @escaping () -> Void, title: String = "Continue") {
+        self.action = action
+        self.content = { AnyView(Text(title)) }
+    }
     
     var body: some View {
         Button(action: action) {
-            Text(title)
+            content()
                 .font(.headline)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)

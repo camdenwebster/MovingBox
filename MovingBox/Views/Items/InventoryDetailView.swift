@@ -88,6 +88,24 @@ struct InventoryDetailView: View {
                             }
                             .buttonStyle(.automatic)
                             .accessibilityIdentifier("changePhoto")
+                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                Button("Take Photo") {
+                                    showingCamera = true
+                                }
+                                .accessibilityIdentifier("takePhoto")
+                                
+                                Button("Choose from Library") {
+                                    showPhotoPicker = true
+                                }
+                                .accessibilityIdentifier("chooseFromLibrary")
+                                
+                                if inventoryItemToDisplay.photo != nil {
+                                    Button("Remove Photo", role: .destructive) {
+                                        inventoryItemToDisplay.data = nil
+                                    }
+                                    .accessibilityIdentifier("removePhoto")
+                                }
+                            }
                         }
                     } else {
                         if isEditing {
@@ -97,6 +115,24 @@ struct InventoryDetailView: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
+                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                Button("Take Photo") {
+                                    showingCamera = true
+                                }
+                                .accessibilityIdentifier("takePhoto")
+                                
+                                Button("Choose from Library") {
+                                    showPhotoPicker = true
+                                }
+                                .accessibilityIdentifier("chooseFromLibrary")
+                                
+                                if inventoryItemToDisplay.photo != nil {
+                                    Button("Remove Photo", role: .destructive) {
+                                        inventoryItemToDisplay.data = nil
+                                    }
+                                    .accessibilityIdentifier("removePhoto")
+                                }
+                            }
                         }
                     }
                 }
@@ -355,24 +391,6 @@ struct InventoryDetailView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             MovingBoxPaywallView()
-        }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showingCamera = true
-            }
-            .accessibilityIdentifier("takePhoto")
-            
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            .accessibilityIdentifier("chooseFromLibrary")
-            
-            if inventoryItemToDisplay.photo != nil {
-                Button("Remove Photo", role: .destructive) {
-                    inventoryItemToDisplay.data = nil
-                }
-                .accessibilityIdentifier("removePhoto")
-            }
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }

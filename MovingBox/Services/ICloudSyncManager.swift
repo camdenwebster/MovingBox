@@ -104,6 +104,26 @@ class ICloudSyncManager: ObservableObject {
         }
     }
     
+    func waitForSync() async throws -> Bool {
+        // First check if iCloud is even available
+        return await withCheckedContinuation { continuation in
+            CKContainer.default().accountStatus { status, error in
+                Task { @MainActor in
+                    if status == .available {
+                        // Only attempt sync for Pro users with iCloud enabled
+                        if let settingsManager = self.settingsManager, settingsManager.isPro {
+                            await self.syncNow()
+                        }
+                        continuation.resume(returning: true)
+                    } else {
+                        // iCloud not available, that's ok - just continue
+                        continuation.resume(returning: true)
+                    }
+                }
+            }
+        }
+    }
+
     private func updateLastSyncDate() async {
         print("Updating last sync date")
         let now = Date()
