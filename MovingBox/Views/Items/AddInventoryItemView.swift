@@ -8,6 +8,7 @@ struct AddInventoryItemView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
     @State private var showingPaywall = false
@@ -119,7 +120,7 @@ struct AddInventoryItemView: View {
             }
         }
         .sheet(isPresented: $showingPaywall) {
-            PaywallView()
+            revenueCatManager.presentPaywall(isPresented: $showingPaywall)
         }
         .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
             Button("Upgrade") {
@@ -189,4 +190,12 @@ struct AddInventoryItemView: View {
         
         try? modelContext.save()
     }
+}
+
+#Preview {
+    AddInventoryItemView(location: nil)
+        .modelContainer(try! ModelContainer(for: InventoryLocation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
+        .environmentObject(RevenueCatManager.shared)
 }

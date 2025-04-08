@@ -17,6 +17,7 @@ struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
@@ -91,7 +92,7 @@ struct InventoryListView: View {
             }
             .searchable(text: $searchText)
             .sheet(isPresented: $showingPaywall) {
-                PaywallView()
+                revenueCatManager.presentPaywall(isPresented: $showingPaywall)
             }
             .fullScreenCover(isPresented: $showingImageAnalysis) {
                 if let image = analyzingImage {
@@ -124,6 +125,7 @@ struct InventoryListView: View {
             .modelContainer(previewer.container)
             .environmentObject(Router())
             .environmentObject(SettingsManager())
+            .environmentObject(RevenueCatManager.shared)
     } catch {
         return Text("Preview Error: \(error.localizedDescription)")
     }

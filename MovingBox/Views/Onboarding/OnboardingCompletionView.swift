@@ -4,6 +4,7 @@ import SwiftUI
 struct OnboardingCompletionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var manager: OnboardingManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Binding var isPresented: Bool
     @StateObject private var settingsManager = SettingsManager()
     @State private var showCheckmark = false
@@ -66,8 +67,21 @@ struct OnboardingCompletionView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .sheet(isPresented: $showingPaywall, onDismiss: handlePaywallDismiss) {
-            PaywallView()
+        .sheet(isPresented: $showingPaywall, onDismiss: {
+            print("📱 OnboardingCompletionView - Paywall sheet dismissed")
+            finishOnboarding()
+        }) {
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    print("📱 OnboardingCompletionView - Purchase completed")
+                    finishOnboarding()
+                },
+                onDismiss: {
+                    print("📱 OnboardingCompletionView - Paywall dismissed via close button")
+                    finishOnboarding()
+                }
+            )
         }
         .onboardingBackground()
         .onAppear {
@@ -78,6 +92,7 @@ struct OnboardingCompletionView: View {
     }
     
     private func completeOnboarding() {
+        print("📱 OnboardingCompletionView - completeOnboarding called")
         if settingsManager.isPro {
             finishOnboarding()
         } else {
@@ -85,14 +100,12 @@ struct OnboardingCompletionView: View {
         }
     }
     
-    private func handlePaywallDismiss() {
-        // Complete onboarding regardless of Pro status
-        finishOnboarding()
-    }
-    
     private func finishOnboarding() {
-        manager.markOnboardingComplete()
-        isPresented = false
+        print("📱 OnboardingCompletionView - finishOnboarding called")
+        withAnimation {
+            manager.markOnboardingComplete()
+            isPresented = false
+        }
     }
 }
 
@@ -121,4 +134,5 @@ struct AnyViewModifier: ViewModifier {
 #Preview {
     OnboardingCompletionView(isPresented: .constant(true))
         .environmentObject(OnboardingManager())
+        .environmentObject(RevenueCatManager.shared)
 }

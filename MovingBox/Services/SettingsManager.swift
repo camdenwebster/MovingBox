@@ -167,9 +167,20 @@ class SettingsManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            guard let self = self else { return }
+            
             if let isPro = notification.userInfo?["isProActive"] as? Bool {
                 print("📱 SettingsManager - Received subscription status change: isPro = \(isPro)")
-                self?.isPro = isPro
+                
+                // Handle actor-isolated property on main actor
+                Task { @MainActor in
+                    self.isPro = isPro
+                    
+                    // Post notification for successful purchase
+                    if isPro {
+                        NotificationCenter.default.post(name: .purchaseCompleted, object: nil)
+                    }
+                }
             }
         }
     }
@@ -260,6 +271,10 @@ class SettingsManager: ObservableObject {
         }
         #endif
     }
+}
+
+extension Notification.Name {
+    static let purchaseCompleted = Notification.Name("PurchaseCompletedNotification")
 }
 
 extension UserDefaults {

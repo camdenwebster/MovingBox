@@ -27,6 +27,7 @@ struct SettingsView: View {
     @StateObject private var settingsManager = SettingsManager()
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @State private var selectedSection: SettingsSection? = .categories // Default selection
     @State private var showingSafariView = false
     @State private var selectedURL: URL?
@@ -194,7 +195,7 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showingPaywall) {
-                PaywallView()
+                revenueCatManager.presentPaywall(isPresented: $showingPaywall)
             }
             .alert("Pro Feature", isPresented: $showingICloudAlert) {
                 Button("Not Now", role: .cancel) { }
@@ -576,6 +577,7 @@ struct SafariView: UIViewControllerRepresentable {
             SettingsView()
                 .modelContainer(container)
                 .environmentObject(Router())
+                .environmentObject(RevenueCatManager.shared)
         }
     } catch {
         return Text("Failed to set up preview")

@@ -1,5 +1,7 @@
 import Foundation
 import RevenueCat
+import RevenueCatUI
+import SwiftUI
 import Combine
 
 @MainActor
@@ -15,6 +17,10 @@ class RevenueCatManager: NSObject, ObservableObject {
     @Published private(set) var currentOffering: Offering?
     private var cancellables = Set<AnyCancellable>()
     
+    // ADD: New closure for handling dismissal
+    var onPaywallDismissed: (() -> Void)?
+    var onPurchaseCompleted: (() -> Void)?
+    
     private override init() {
         super.init()
         print("📱 RevenueCatManager - Initializing...")
@@ -22,7 +28,11 @@ class RevenueCatManager: NSObject, ObservableObject {
         
         // Initial fetch of customer info
         Task {
-            await updateCustomerInfo()
+            do {
+                try await updateCustomerInfo()
+            } catch {
+                print("⚠️ RevenueCatManager - Error during initial customer info fetch: \(error)")
+            }
         }
     }
     
@@ -42,19 +52,31 @@ class RevenueCatManager: NSObject, ObservableObject {
         }
     }
     
-    func updateCustomerInfo() async {
+    func updateCustomerInfo() async throws {
         print("📱 RevenueCatManager - Updating customer info...")
-        do {
-            let customerInfo = try await Purchases.shared.customerInfo()
-            handleCustomerInfoUpdate(customerInfo)
-        } catch {
-            print("⚠️ RevenueCatManager - Error updating customer info: \(error)")
-        }
+        let customerInfo = try await Purchases.shared.customerInfo()
+        handleCustomerInfoUpdate(customerInfo)
     }
     
     @MainActor
     private func handleCustomerInfoUpdate(_ customerInfo: CustomerInfo) {
         print("📱 RevenueCatManager - Processing customer info update...")
+        print("📱 RevenueCatManager - All entitlements:")
+        
+        // DEBUG: Print raw entitlements for verification
+        print("📱 RevenueCatManager - Raw entitlements:")
+        print(customerInfo.entitlements.all)
+        
+        customerInfo.entitlements.all.forEach { entitlement in
+            print("📱 Entitlement: \(entitlement.key)")
+            print("  - Identifier: \(entitlement.value.identifier)")
+            print("  - Is active: \(entitlement.value.isActive)")
+            print("  - Will renew: \(String(describing: entitlement.value.willRenew))")
+            print("  - Product identifier: \(entitlement.value.productIdentifier)")
+            if let expirationDate = entitlement.value.expirationDate {
+                print("  - Expires: \(expirationDate)")
+            }
+        }
         
         // Check for "Pro" entitlement (case-sensitive)
         if let proEntitlement = customerInfo.entitlements["Pro"] {
@@ -65,22 +87,9 @@ class RevenueCatManager: NSObject, ObservableObject {
             print("  - Product identifier: \(proEntitlement.productIdentifier)")
             self.isProSubscriptionActive = isPro
             print("📱 RevenueCatManager - Updated Pro status: \(isPro)")
-            
-            // Save to UserDefaults directly as backup
-            UserDefaults.standard.set(isPro, forKey: "isPro")
-            
-            // Notify SettingsManager
-            NotificationCenter.default.post(
-                name: .subscriptionStatusChanged,
-                object: nil,
-                userInfo: ["isProActive": isPro]
-            )
         } else {
             print("⚠️ RevenueCatManager - Pro entitlement not found in customerInfo")
             self.isProSubscriptionActive = false
-            
-            // Save to UserDefaults directly as backup
-            UserDefaults.standard.set(false, forKey: "isPro")
             
             // Notify SettingsManager
             NotificationCenter.default.post(
@@ -89,6 +98,26 @@ class RevenueCatManager: NSObject, ObservableObject {
                 userInfo: ["isProActive": false]
             )
         }
+    }
+    
+    func presentPaywall(isPresented: Binding<Bool>, onCompletion: (() -> Void)? = nil, onDismiss: (() -> Void)? = nil) -> some View {
+        self.onPurchaseCompleted = onCompletion
+        self.onPaywallDismissed = onDismiss
+        
+        return PaywallView()
+            .onChange(of: isProSubscriptionActive) { [self] oldValue, newValue in
+                if newValue {
+                    print("📱 RevenueCatManager - Pro subscription activated")
+                    isPresented.wrappedValue = false
+                    self.onPurchaseCompleted?()
+                }
+            }
+            .onChange(of: isPresented.wrappedValue) { [self] oldValue, newValue in
+                if !newValue {
+                    print("📱 RevenueCatManager - Paywall view dismissed")
+                    self.onPaywallDismissed?()
+                }
+            }
     }
     
     func purchasePro() async throws {
@@ -139,6 +168,11 @@ class RevenueCatManager: NSObject, ObservableObject {
             let finalCheck = try await Purchases.shared.customerInfo()
             print("📱 RevenueCatManager - Final verification after restore:")
             handleCustomerInfoUpdate(finalCheck)
+            
+            // If Pro is active after restore, ensure paywall is dismissed
+            if finalCheck.entitlements["Pro"]?.isActive == true {
+                print("📱 RevenueCatManager - Pro is active after restore")
+            }
         } catch {
             print("⚠️ RevenueCatManager - Restore failed: \(error)")
             throw error
@@ -162,7 +196,11 @@ extension RevenueCatManager: PurchasesDelegate {
     nonisolated func purchases(_ purchases: Purchases, completedTransaction transaction: StoreTransaction) {
         print("📱 RevenueCatManager - Completed transaction: \(transaction.productIdentifier)")
         Task { @MainActor in
-            try? await updateCustomerInfo()
+            do {
+                try await updateCustomerInfo()
+            } catch {
+                print("⚠️ RevenueCatManager - Error updating customer info after transaction: \(error)")
+            }
         }
     }
     
