@@ -15,6 +15,8 @@ class SettingsManager: ObservableObject {
         static let hasLaunched = "hasLaunched"
         static let lastSyncDate = "lastSyncDate"
         static let iCloudEnabled = "iCloudEnabled"
+        static let isPro = "isPro"
+        static let hasSeenPaywall = "hasSeenPaywall"
     }
     
     // Published properties that will update the UI
@@ -68,13 +70,14 @@ class SettingsManager: ObservableObject {
     
     @Published var isPro: Bool {
         didSet {
-            UserDefaults.standard.set(isPro, forKey: "isPro")
+            print("📱 SettingsManager - Saving Pro status: \(isPro)")
+            UserDefaults.standard.set(isPro, forKey: Keys.isPro)
         }
     }
     
     @Published var hasSeenPaywall: Bool {
         didSet {
-            UserDefaults.standard.set(hasSeenPaywall, forKey: "hasSeenPaywall")
+            UserDefaults.standard.set(hasSeenPaywall, forKey: Keys.hasSeenPaywall)
         }
     }
     
@@ -121,8 +124,8 @@ class SettingsManager: ObservableObject {
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
         self.iCloudEnabled = UserDefaults.standard.bool(forKey: Keys.iCloudEnabled)
-        self.isPro = UserDefaults.standard.bool(forKey: "isPro")
-        self.hasSeenPaywall = UserDefaults.standard.bool(forKey: "hasSeenPaywall")
+        self.isPro = UserDefaults.standard.bool(forKey: Keys.isPro)
+        self.hasSeenPaywall = UserDefaults.standard.bool(forKey: Keys.hasSeenPaywall)
         self.lastiCloudSync = UserDefaults.standard.object(forKey: Keys.lastSyncDate) as? Date ?? Date.distantPast
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
@@ -134,12 +137,16 @@ class SettingsManager: ObservableObject {
         
         // Check RevenueCat status immediately
         do {
+            print("📱 SettingsManager - Checking RevenueCat status on launch")
             let customerInfo = try await Purchases.shared.customerInfo()
-            self.isPro = customerInfo.entitlements["pro"]?.isActive == true
+            let isPro = customerInfo.entitlements["Pro"]?.isActive == true
+            print("📱 SettingsManager - RevenueCat status check complete - isPro: \(isPro)")
+            self.isPro = isPro
         } catch {
-            print("⚠️ Error fetching initial customer info: \(error)")
+            print("⚠️ SettingsManager - Error fetching initial customer info: \(error)")
             // Fallback to saved value
-            self.isPro = UserDefaults.standard.bool(forKey: "isPro")
+            self.isPro = UserDefaults.standard.bool(forKey: Keys.isPro)
+            print("📱 SettingsManager - Using saved Pro status: \(self.isPro)")
         }
         
         // Setup subscription monitoring

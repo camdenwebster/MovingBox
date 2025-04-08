@@ -6,7 +6,12 @@ import Combine
 class RevenueCatManager: NSObject, ObservableObject {
     static let shared = RevenueCatManager()
     
-    @Published private(set) var isProSubscriptionActive = false
+    @Published private(set) var isProSubscriptionActive = false {
+        didSet {
+            print("📱 RevenueCatManager - Pro status changed: \(isProSubscriptionActive)")
+            UserDefaults.standard.set(isProSubscriptionActive, forKey: "isPro")
+        }
+    }
     @Published private(set) var currentOffering: Offering?
     private var cancellables = Set<AnyCancellable>()
     
@@ -51,54 +56,39 @@ class RevenueCatManager: NSObject, ObservableObject {
     private func handleCustomerInfoUpdate(_ customerInfo: CustomerInfo) {
         print("📱 RevenueCatManager - Processing customer info update...")
         
-        // Log all available entitlements for debugging
-        print("📱 RevenueCatManager - All entitlements:")
-        customerInfo.entitlements.all.forEach { entitlement in
-            print("📱 Entitlement: \(entitlement.key)")
-            print("  - Identifier: \(entitlement.value.identifier)")
-            print("  - Is active: \(entitlement.value.isActive)")
-            print("  - Will renew: \(String(describing: entitlement.value.willRenew))")
-            print("  - Period type: \(String(describing: entitlement.value.periodType))")
-            print("  - Product identifier: \(String(describing: entitlement.value.productIdentifier))")
-            if let expirationDate = entitlement.value.expirationDate {
-                print("  - Expiration date: \(expirationDate)")
-            }
-        }
-        
-        // CHANGE: Check for "Pro" entitlement (case-sensitive)
+        // Check for "Pro" entitlement (case-sensitive)
         if let proEntitlement = customerInfo.entitlements["Pro"] {
             let isPro = proEntitlement.isActive
             print("📱 RevenueCatManager - Found Pro entitlement:")
             print("  - Is active: \(isPro)")
             print("  - Identifier: \(proEntitlement.identifier)")
             print("  - Product identifier: \(proEntitlement.productIdentifier)")
-            print("  - Will renew: \(String(describing: proEntitlement.willRenew))")
-            if let expirationDate = proEntitlement.expirationDate {
-                print("  - Expires: \(expirationDate)")
-            }
             self.isProSubscriptionActive = isPro
             print("📱 RevenueCatManager - Updated Pro status: \(isPro)")
+            
+            // Save to UserDefaults directly as backup
+            UserDefaults.standard.set(isPro, forKey: "isPro")
+            
+            // Notify SettingsManager
+            NotificationCenter.default.post(
+                name: .subscriptionStatusChanged,
+                object: nil,
+                userInfo: ["isProActive": isPro]
+            )
         } else {
             print("⚠️ RevenueCatManager - Pro entitlement not found in customerInfo")
             self.isProSubscriptionActive = false
+            
+            // Save to UserDefaults directly as backup
+            UserDefaults.standard.set(false, forKey: "isPro")
+            
+            // Notify SettingsManager
+            NotificationCenter.default.post(
+                name: .subscriptionStatusChanged,
+                object: nil,
+                userInfo: ["isProActive": false]
+            )
         }
-        
-        // Post notification for other parts of the app
-        NotificationCenter.default.post(
-            name: .subscriptionStatusChanged,
-            object: nil,
-            userInfo: ["isProActive": self.isProSubscriptionActive]
-        )
-        
-        // DEBUG: Print all available entitlement identifiers
-        print("📱 RevenueCatManager - Available entitlement identifiers:")
-        customerInfo.entitlements.all.keys.forEach { key in
-            print("  - \(key)")
-        }
-        
-        // DEBUG: Print raw entitlements for verification
-        print("📱 RevenueCatManager - Raw entitlements:")
-        print(customerInfo.entitlements.all)
     }
     
     func purchasePro() async throws {
@@ -134,8 +124,21 @@ class RevenueCatManager: NSObject, ObservableObject {
     func restorePurchases() async throws {
         print("📱 RevenueCatManager - Starting restore purchases flow")
         do {
+            // First try to get current customer info
+            let currentInfo = try await Purchases.shared.customerInfo()
+            print("📱 RevenueCatManager - Current customer info before restore:")
+            handleCustomerInfoUpdate(currentInfo)
+            
+            // Perform the restore
+            print("📱 RevenueCatManager - Calling restorePurchases...")
             let customerInfo = try await Purchases.shared.restorePurchases()
+            print("📱 RevenueCatManager - Restore completed, processing results...")
             handleCustomerInfoUpdate(customerInfo)
+            
+            // Double-check the status after restore
+            let finalCheck = try await Purchases.shared.customerInfo()
+            print("📱 RevenueCatManager - Final verification after restore:")
+            handleCustomerInfoUpdate(finalCheck)
         } catch {
             print("⚠️ RevenueCatManager - Restore failed: \(error)")
             throw error
@@ -152,13 +155,15 @@ extension RevenueCatManager: PurchasesDelegate {
         }
     }
     
-    // Add more delegate methods for comprehensive monitoring
     nonisolated func purchases(_ purchases: Purchases, readyForPromotePaywall readyForPromote: Bool) {
         print("📱 RevenueCatManager - Ready for promote paywall: \(readyForPromote)")
     }
     
     nonisolated func purchases(_ purchases: Purchases, completedTransaction transaction: StoreTransaction) {
         print("📱 RevenueCatManager - Completed transaction: \(transaction.productIdentifier)")
+        Task { @MainActor in
+            try? await updateCustomerInfo()
+        }
     }
     
     nonisolated func purchases(_ purchases: Purchases, failedTransaction transaction: StoreTransaction) {
