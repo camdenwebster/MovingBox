@@ -609,6 +609,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -648,6 +649,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -753,6 +755,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -902,6 +905,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import CloudKit
+import UIKit
 
 @MainActor
 class ICloudSyncManager: ObservableObject {
@@ -17,6 +18,7 @@ class ICloudSyncManager: ObservableObject {
     
     private var modelContainer: ModelContainer?
     private var settingsManager: SettingsManager?
+    private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     
     nonisolated private let cleanupQueue = DispatchQueue(label: "com.movingbox.cleanup")
     nonisolated private let cleanupLock = NSLock()
@@ -75,6 +77,7 @@ class ICloudSyncManager: ObservableObject {
         print("Setting up sync with model container")
         self.modelContainer = modelContainer
         setupContextObserver()
+        setupBackgroundSync()
     }
     
     private func setupContextObserver() {
@@ -96,6 +99,50 @@ class ICloudSyncManager: ObservableObject {
             }
             
             await syncState.setSubscription(newSubscription)
+        }
+    }
+    
+    private func setupBackgroundSync() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppTransition),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppTransition),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleAppTransition() {
+        Task {
+            await performBackgroundSync()
+        }
+    }
+    
+    private func performBackgroundSync() async {
+        // Start background task before sync
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask { [weak self] in
+            self?.endBackgroundTask()
+        }
+        
+        // Perform sync
+        await syncNow()
+        
+        // End background task after sync
+        endBackgroundTask()
+    }
+    
+    private nonisolated func endBackgroundTask() {
+        Task { @MainActor in
+            if backgroundTaskID != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                backgroundTaskID = .invalid
+            }
         }
     }
     
@@ -154,7 +201,10 @@ class ICloudSyncManager: ObservableObject {
         }
         
         isSyncing = true
-        defer { isSyncing = false }
+        defer {
+            isSyncing = false
+            print("Sync completed at: \(Date())")
+        }
         
         do {
             guard let context = modelContainer?.mainContext else {
@@ -202,8 +252,11 @@ class ICloudSyncManager: ObservableObject {
     }
     
     deinit {
+        NotificationCenter.default.removeObserver(self)
+        endBackgroundTask()
+        
         let semaphore = DispatchSemaphore(value: 0)
-        let state = syncState // Capture syncState before self is deinitialized
+        let state = syncState
         
         cleanupQueue.async {
             Task { @MainActor in
