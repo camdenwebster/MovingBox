@@ -13,8 +13,7 @@ import Foundation
     
     // Helper to reset UserDefaults state
     func resetUserDefaults() {
-        UserDefaults.standard.removeObject(forKey: OnboardingManager.hasCompletedOnboardingKey)
-        UserDefaults.standard.removeObject(forKey: OnboardingManager.hasLaunchedKey)
+        UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier ?? "")
         UserDefaults.standard.synchronize()
     }
     
@@ -57,8 +56,8 @@ import Foundation
     
     @Test("Test completion marking")
     func testCompletionMarking() async throws {
-        resetUserDefaults()
         // Given
+        resetUserDefaults()
         let manager = createTestManager()
         let defaults = UserDefaults.standard
         
@@ -69,28 +68,36 @@ import Foundation
         manager.markOnboardingComplete()
         
         // Then - Should be completed
-        #expect(manager.hasCompleted == true, "Manager should be marked as completed")
+        #expect(manager.hasCompleted, "Manager should be marked as completed")
     }
     
     @Test("Test welcome screen conditions")
-    func testWelcomeScreenConditions() {
+    func testWelcomeScreenConditions() async throws {
+        // Given - Reset state
         resetUserDefaults()
-        // Given
-        let defaults = UserDefaults.standard
         
-        // First clear any existing values
-        defaults.removeObject(forKey: OnboardingManager.hasLaunchedKey)
-        defaults.synchronize()
+        // Then - Verify initial state
+        let initialShouldShow = OnboardingManager.shouldShowWelcome()
+        let initialHasLaunched = UserDefaults.standard.bool(forKey: OnboardingManager.hasLaunchedKey)
+        #expect(initialShouldShow == true, "Should show welcome initially")
+        #expect(initialHasLaunched == false, "Should start with no launch flag")
         
-        // Then - Should show welcome on first launch
-        #expect(OnboardingManager.shouldShowWelcome() == true, "Should show welcome on first launch")
+        // When - Set launch flag
+        UserDefaults.standard.set(true, forKey: OnboardingManager.hasLaunchedKey)
+        UserDefaults.standard.synchronize()
         
-        // When - Set has launched
-        defaults.set(true, forKey: OnboardingManager.hasLaunchedKey)
-        defaults.synchronize()
+        // Wait for state to propagate
+        try await Task.sleep(nanoseconds: 100_000_000)
         
-        // Then - Should not show welcome after launch
-        #expect(defaults.bool(forKey: OnboardingManager.hasLaunchedKey), "Has launched flag should be set")
+        // Force UserDefaults reload
+        UserDefaults.standard.synchronize()
+        
+        // Then - Verify final state
+        let finalHasLaunched = UserDefaults.standard.bool(forKey: OnboardingManager.hasLaunchedKey)
+        #expect(finalHasLaunched == true, "Launch flag should be set")
+        
+        let finalShouldShow = OnboardingManager.shouldShowWelcome()
+        #expect(finalShouldShow == false, "Should not show welcome after launch")
     }
     
     @Test("Test error handling")
