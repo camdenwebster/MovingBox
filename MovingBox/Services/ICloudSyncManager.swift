@@ -71,6 +71,11 @@ class ICloudSyncManager: ObservableObject {
     
     func setSettingsManager(_ manager: SettingsManager) {
         self.settingsManager = manager
+        
+        // If settings change indicates sync should be enabled, check iCloud status
+        if manager.isPro && manager.iCloudEnabled {
+            checkICloudStatus()
+        }
     }
     
     func setupSync(modelContainer: ModelContainer) {
@@ -148,7 +153,13 @@ class ICloudSyncManager: ObservableObject {
     
     func disableSync() {
         Task {
+            // First remove all observers
+            NotificationCenter.default.removeObserver(self)
+            
+            // Then cleanup sync state
             await syncState.cleanup()
+            
+            // Finally clear the model container
             modelContainer = nil
             print("iCloud sync disabled")
         }
@@ -197,6 +208,11 @@ class ICloudSyncManager: ObservableObject {
         
         guard !isSyncing else {
             print("Sync already in progress")
+            return
+        }
+        
+        guard modelContainer != nil else {
+            print("Sync cancelled - no model container available")
             return
         }
         

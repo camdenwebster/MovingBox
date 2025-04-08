@@ -107,6 +107,14 @@ final class OnboardingUITests: XCTestCase {
         
         // Verify we're on the dashboard
         XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
+        
+        // When the user closes and re-opens the app
+        app.terminate()
+        app.launch()
+        
+        // The user should be brought straight to the dashboard
+        XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
+
     }
 }
 

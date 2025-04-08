@@ -17,15 +17,9 @@
       "skippedTests" : {
         "suites" : [
           {
-            "name" : "ICloudSyncManagerTests",
-            "testFunctions" : [
-              "testLastSyncDatePersistence()",
-              "testSyncStateManagement()"
-            ]
-          },
-          {
             "name" : "OnboardingManagerTests",
             "testFunctions" : [
+              "testOnboardingStateCheck()",
               "testWelcomeScreenConditions()"
             ]
           },

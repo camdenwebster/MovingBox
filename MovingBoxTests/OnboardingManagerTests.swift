@@ -73,31 +73,38 @@ import Foundation
     
     @Test("Test welcome screen conditions")
     func testWelcomeScreenConditions() async throws {
-        // Given - Reset state
+        // Given - Reset state thoroughly
         resetUserDefaults()
         
-        // Then - Verify initial state
+        // Explicitly set initial state
+        UserDefaults.standard.set(false, forKey: OnboardingManager.hasLaunchedKey)
+        UserDefaults.standard.set(false, forKey: OnboardingManager.hasCompletedOnboardingKey)
+        UserDefaults.standard.synchronize()
+        
+        // Verify initial state
         let initialShouldShow = OnboardingManager.shouldShowWelcome()
-        let initialHasLaunched = UserDefaults.standard.bool(forKey: OnboardingManager.hasLaunchedKey)
         #expect(initialShouldShow == true, "Should show welcome initially")
-        #expect(initialHasLaunched == false, "Should start with no launch flag")
+        #expect(UserDefaults.standard.bool(forKey: OnboardingManager.hasLaunchedKey) == false, "Should start with no launch flag")
         
-        // When - Set launch flag
-        UserDefaults.standard.set(true, forKey: OnboardingManager.hasLaunchedKey)
+        // Create manager after setting initial state
+        let onboardingManager = OnboardingManager()
+        onboardingManager.markOnboardingComplete()
+        
+        // Force synchronization
         UserDefaults.standard.synchronize()
         
-        // Wait for state to propagate
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // Create new UserDefaults instance to force a fresh read
+        let defaults = UserDefaults.standard
+        defaults.synchronize()
         
-        // Force UserDefaults reload
-        UserDefaults.standard.synchronize()
-        
-        // Then - Verify final state
-        let finalHasLaunched = UserDefaults.standard.bool(forKey: OnboardingManager.hasLaunchedKey)
+        let finalHasLaunched = defaults.bool(forKey: OnboardingManager.hasLaunchedKey)
         #expect(finalHasLaunched == true, "Launch flag should be set")
         
         let finalShouldShow = OnboardingManager.shouldShowWelcome()
         #expect(finalShouldShow == false, "Should not show welcome after launch")
+        
+        // Additional verification
+        #expect(defaults.bool(forKey: OnboardingManager.hasCompletedOnboardingKey) == true, "Completion flag should be set")
     }
     
     @Test("Test error handling")
@@ -117,6 +124,7 @@ import Foundation
     @Test("Test onboarding state check")
     func testOnboardingStateCheck() async throws {
         resetUserDefaults()
+        
         // Given
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Home.self, configurations: config)
@@ -124,6 +132,7 @@ import Foundation
         
         // First clear any existing values
         UserDefaults.standard.removeObject(forKey: OnboardingManager.hasCompletedOnboardingKey)
+        UserDefaults.standard.synchronize()
         
         // When - No homes
         let initialState = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: context)
@@ -134,9 +143,22 @@ import Foundation
         context.insert(home)
         try context.save()
         
+        // Function to verify home exists
+        func verifyHomeExists() throws -> Bool {
+            let descriptor = FetchDescriptor<Home>()
+            return try context.fetch(descriptor).count > 0
+        }
+        
+        // Wait for the save with verification
+        for _ in 0...10 {
+            if try verifyHomeExists() {
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        }
+        
         // Verify the home was saved
-        let descriptor = FetchDescriptor<Home>()
-        let homes = try context.fetch(descriptor)
+        let homes = try context.fetch(FetchDescriptor<Home>())
         #expect(homes.count == 1, "Should have one home")
         
         // Then - Should complete onboarding

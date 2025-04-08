@@ -53,6 +53,9 @@ class OnboardingManager: ObservableObject {
     }
     
     static func shouldShowWelcome() -> Bool {
+        let hasLaunched = UserDefaults.standard.bool(forKey: hasLaunchedKey)
+        print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
+        
         if ProcessInfo.processInfo.arguments.contains("Show-Onboarding") {
             return true
         }
@@ -61,7 +64,7 @@ class OnboardingManager: ObservableObject {
             return false
         }
         
-        return !UserDefaults.standard.bool(forKey: hasLaunchedKey)
+        return !hasLaunched
     }
     
     static func hasCompletedOnboarding() -> Bool {
