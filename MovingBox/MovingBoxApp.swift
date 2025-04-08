@@ -174,13 +174,12 @@ struct MovingBoxApp: App {
                 }
 
                 if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    let defaults = UserDefaults.standard
-                    defaults.removeObject(forKey: "hasSeenPaywall")
-                    defaults.synchronize()
+                    settings.hasSeenPaywall = false
                 }
 
                 // Only check if we haven't launched before
-                if !settings.hasLaunched {
+                let shouldShowWelcome = OnboardingManager.shouldShowWelcome()
+                if shouldShowWelcome {
                     showOnboarding = true
                 }
                 

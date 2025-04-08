@@ -53,6 +53,7 @@ class OnboardingManager: ObservableObject {
     }
     
     static func shouldShowWelcome() -> Bool {
+        // Add debugging
         let hasLaunched = UserDefaults.standard.bool(forKey: hasLaunchedKey)
         print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
         
