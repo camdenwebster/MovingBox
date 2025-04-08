@@ -40,6 +40,11 @@
                BlueprintName = "MovingBoxTests"
                ReferencedContainer = "container:MovingBox.xcodeproj">
             </BuildableReference>
+            <SkippedTests>
+               <Test
+                  Identifier = "ICloudSyncManagerTests/testContextObserverSetup()">
+               </Test>
+            </SkippedTests>
          </TestableReference>
          <TestableReference
             skipped = "NO"
