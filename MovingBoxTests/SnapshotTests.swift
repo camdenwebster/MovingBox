@@ -323,10 +323,9 @@ extension SnapshotTests {
         
         let descriptor = FetchDescriptor<Home>()
         let homes = try container.mainContext.fetch(descriptor)
-        let home = homes.first ?? Home()
         
         let view = configureViewForSnapshot(
-            EditHomeView(home: home)
+            EditHomeView()
                 .modelContainer(container)
         )
         
@@ -348,10 +347,9 @@ extension SnapshotTests {
         
         let descriptor = FetchDescriptor<Home>()
         let homes = try container.mainContext.fetch(descriptor)
-        let home = homes.first ?? Home()
         
         let view = configureViewForSnapshot(
-            EditHomeView(home: home)
+            EditHomeView()
                 .modelContainer(container)
         )
         

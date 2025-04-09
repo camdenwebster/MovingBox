@@ -60,6 +60,22 @@ struct OnboardingLocationView: View {
                                                     .padding(8)
                                             }
                                             .accessibilityIdentifier("onboarding-location-change-photo-button")
+                                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                                Button("Take Photo") {
+                                                    showingCamera = true
+                                                }
+                                                .accessibilityIdentifier("takePhoto")
+                                                Button("Choose from Library") {
+                                                    showPhotoPicker = true
+                                                }
+                                                .accessibilityIdentifier("chooseFromLibrary")
+                                                if tempUIImage != nil {
+                                                    Button("Remove Photo", role: .destructive) {
+                                                        tempUIImage = nil
+                                                    }
+                                                    .accessibilityIdentifier("removePhoto")
+                                                }
+                                            }
                                         }
                                 } else {
                                     AddPhotoButton(action: {
@@ -71,6 +87,22 @@ struct OnboardingLocationView: View {
                                     .background {
                                         RoundedRectangle(cornerRadius: 12)
                                             .fill(.ultraThinMaterial)
+                                    }
+                                    .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                        Button("Take Photo") {
+                                            showingCamera = true
+                                        }
+                                        .accessibilityIdentifier("takePhoto")
+                                        Button("Choose from Library") {
+                                            showPhotoPicker = true
+                                        }
+                                        .accessibilityIdentifier("chooseFromLibrary")
+                                        if tempUIImage != nil {
+                                            Button("Remove Photo", role: .destructive) {
+                                                tempUIImage = nil
+                                            }
+                                            .accessibilityIdentifier("removePhoto")
+                                        }
                                     }
                                 }
                             }
@@ -112,22 +144,6 @@ struct OnboardingLocationView: View {
         .onboardingBackground()
         .onChange(of: selectedPhoto, loadPhoto)
         .onAppear(perform: loadExistingData)
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showingCamera = true
-            }
-            .accessibilityIdentifier("takePhoto")
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            .accessibilityIdentifier("chooseFromLibrary")
-            if tempUIImage != nil {
-                Button("Remove Photo", role: .destructive) {
-                    tempUIImage = nil
-                }
-                .accessibilityIdentifier("removePhoto")
-            }
-        }
         .sheet(isPresented: $showingCamera, onDismiss: nil) {
             CameraView(
                 showingImageAnalysis: .constant(false),

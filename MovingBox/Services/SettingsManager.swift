@@ -11,6 +11,8 @@ class SettingsManager: ObservableObject {
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
+        static let lastSyncDate = "lastSyncDate"
+        static let iCloudEnabled = "iCloudEnabled"
     }
     
     // Published properties that will update the UI
@@ -47,6 +49,18 @@ class SettingsManager: ObservableObject {
     @Published var hasLaunched: Bool {
         didSet {
             UserDefaults.standard.set(hasLaunched, forKey: Keys.hasLaunched)
+        }
+    }
+    
+    @Published var lastiCloudSync: Date {
+        didSet {
+            UserDefaults.standard.set(lastiCloudSync, forKey: Keys.lastSyncDate)
+        }
+    }
+    
+    @Published var iCloudEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(iCloudEnabled, forKey: Keys.iCloudEnabled)
         }
     }
     
@@ -92,9 +106,18 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
+        self.iCloudEnabled = UserDefaults.standard.bool(forKey: Keys.iCloudEnabled)
+        
+        // Initialize last sync date
+        self.lastiCloudSync = UserDefaults.standard.object(forKey: Keys.lastSyncDate) as? Date ?? Date.distantPast
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
+        
+        // Set default value for iCloud if not set
+        if !UserDefaults.standard.contains(key: Keys.iCloudEnabled) {
+            self.iCloudEnabled = true  // Enable by default for Pro users
+        }
         
         #if BETA
         if AppConfig.shared.configuration == .debug {
@@ -147,6 +170,10 @@ class SettingsManager: ObservableObject {
         isPro || currentCount < SettingsManager.maxFreePhotosPerItem
     }
     
+    func canAccessICloudSync() -> Bool {
+        return isPro
+    }
+    
     // MARK: - Purchase Flow
     
     // TODO: Implement RevenueCat purchase flow
@@ -170,11 +197,19 @@ class SettingsManager: ObservableObject {
         hasLaunched = hasLaunchedDefault
         hasSeenPaywall = false
         isPro = false
+        lastiCloudSync = Date.distantPast
+        iCloudEnabled = true
         
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             isPro = true
         }
         #endif
+    }
+}
+
+extension UserDefaults {
+    func contains(key: String) -> Bool {
+        return object(forKey: key) != nil
     }
 }

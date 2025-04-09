@@ -44,6 +44,8 @@ final class PaywallUITests: XCTestCase {
         // Given: Fresh install (no items)
         app.launch()
         
+        // And the user is not Pro
+        
         // When: User attempts to create first item
         tabBar.tapAllItems()
         listScreen.tapAddItem()

@@ -30,8 +30,10 @@ struct SettingsView: View {
     @State private var showingSafariView = false
     @State private var selectedURL: URL?
     @State private var showingPaywall = false
+    @State private var showingICloudAlert = false
     @Query private var homes: [Home]
     private var home: Home { homes.first ?? Home() }
+    @StateObject private var iCloudManager = ICloudSyncManager.shared
     
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -82,8 +84,6 @@ struct SettingsView: View {
             List {
                 if !settingsManager.isPro {
                     Section {
-
-                            
                         Button(action: {
                             showingPaywall = true
                         }) {
@@ -111,6 +111,31 @@ struct SettingsView: View {
                     }
                 }
                 
+                Section("Sync & Backup") {
+                    if settingsManager.isPro {
+                        NavigationLink {
+                            ICloudSettingsView(settingsManager: settingsManager)
+                        } label: {
+                            Label("iCloud Settings", systemImage: "icloud")
+                        }
+                    } else {
+                        Button {
+                            showingPaywall = true
+                        } label: {
+                            HStack {
+                                Label("iCloud Settings", systemImage: "icloud")
+                                Spacer()
+                                Text("PRO")
+                                    .font(.caption2)
+                                    .padding(4)
+                                    .background(Color.yellow.opacity(0.2))
+                                    .foregroundColor(.yellow)
+                                    .cornerRadius(4)
+                            }
+                        }
+                    }
+                }
+                
                 Section("Community & Support") {
                     externalLinkButton(for: externalLinks["knowledgeBase"]!)
                     externalLinkButton(for: externalLinks["support"]!)
@@ -130,21 +155,6 @@ struct SettingsView: View {
                     externalLinkButton(for: externalLinks["privacyPolicy"]!)
                     externalLinkButton(for: externalLinks["termsOfService"]!)
                 }
-                
-                Section {
-                    if !settingsManager.isPro {
-                        Button(action: {
-                            showingPaywall = true
-                        }) {
-                            HStack {
-                                Text("Upgrade to Pro")
-                                Spacer()
-                                Image(systemName: "star.circle.fill")
-                                    .foregroundColor(.yellow)
-                            }
-                        }
-                    }
-                }
             }
             .navigationTitle("Settings")
             .navigationDestination(for: String.self) { destination in
@@ -160,7 +170,9 @@ struct SettingsView: View {
                 case "labels":
                     LabelSettingsView()
                 case "home":
-                    EditHomeView(home: home)
+                    EditHomeView()
+                case "icloud":
+                    ICloudSettingsView(settingsManager: settingsManager)
                 default:
                     EmptyView()
                 }
@@ -182,6 +194,14 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingPaywall) {
                 MovingBoxPaywallView()
+            }
+            .alert("Pro Feature", isPresented: $showingICloudAlert) {
+                Button("Not Now", role: .cancel) { }
+                Button("Upgrade to Pro") {
+                    showingPaywall = true
+                }
+            } message: {
+                Text("iCloud sync is available exclusively to Pro subscribers.")
             }
         }
     }
@@ -421,6 +441,75 @@ struct AboutView: View {
     var body: some View {
         Text("About MovingBox")
             .navigationTitle("About")
+    }
+}
+
+struct ICloudSettingsView: View {
+    @StateObject private var iCloudManager = ICloudSyncManager.shared
+    @ObservedObject var settingsManager: SettingsManager
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var containerManager: ModelContainerManager
+    
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Enable iCloud Sync", isOn: $settingsManager.iCloudEnabled)
+                    .onChange(of: settingsManager.iCloudEnabled) { oldValue, newValue in
+                        containerManager.updateContainer(
+                            isPro: settingsManager.isPro,
+                            iCloudEnabled: newValue
+                        )
+                    }
+                
+                if settingsManager.iCloudEnabled {
+                    HStack {
+                        Text("Last Sync")
+                        Spacer()
+                        if let lastSync = iCloudManager.lastSyncDate {
+                            Text(lastSync.formatted(date: .numeric, time: .shortened))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Never")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Button(action: {
+                        Task {
+                            print("Sync Now button tapped")
+                            await iCloudManager.syncNow()
+                        }
+                    }) {
+                        HStack {
+                            Text("Sync Now")
+                            if iCloudManager.isSyncing {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(iCloudManager.isSyncing)
+                }
+            } footer: {
+                if settingsManager.iCloudEnabled {
+                    Text("Your data automatically syncs with iCloud when changes are made.")
+                } else {
+                    Text("When disabled, your data will only be stored locally on this device.")
+                }
+            }
+        }
+        .navigationTitle("iCloud Settings")
+        .task {
+            print("ICloudSettingsView appeared")
+            await MainActor.run {
+                iCloudManager.setSettingsManager(settingsManager)
+                iCloudManager.checkICloudStatus()
+                if settingsManager.iCloudEnabled {
+                    print("Setting up sync with ModelContainer")
+                    iCloudManager.setupSync(modelContainer: modelContext.container)
+                }
+            }
+        }
     }
 }
 

@@ -19,9 +19,6 @@
   "testTargets" : [
     {
       "parallelizable" : true,
-      "skippedTests" : [
-        "OnboardingUITests\/testOnboardingHappyPath()"
-      ],
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",
         "identifier" : "19B7D96E2D9B112200690F64",

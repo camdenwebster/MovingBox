@@ -16,6 +16,7 @@ struct MovingBoxApp: App {
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
+    @StateObject private var containerManager = ModelContainerManager.shared
     @State private var showOnboarding = false
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
     @Query private var homes: [Home]
@@ -44,33 +45,9 @@ struct MovingBoxApp: App {
         UIColorValueTransformer.register()
     }
     
-    let container: ModelContainer = {
+    init() {
         Self.registerTransformers()
         
-        let schema = Schema([
-            InventoryLabel.self,
-            InventoryItem.self,
-            InventoryLocation.self,
-            InsurancePolicy.self,
-            Home.self
-        ])
-        
-        let disablePersistence = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
-        
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: disablePersistence
-        )
-        
-        do {
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            return container
-        } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
-        }
-    }()
-
-    init() {
         // Configure TelemetryDeck
         let telemetryConfig = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
         telemetryConfig.defaultSignalPrefix = "App."
@@ -182,49 +159,41 @@ struct MovingBoxApp: App {
             }
             .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
-            .onChange(of: router.selectedTab) { oldValue, newValue in
-                let tabName: String = {
-                    switch newValue {
-                    case .dashboard: return "dashboard"
-                    case .locations: return "locations"
-                    case .addItem: return "add_item"
-                    case .allItems: return "all_items"
-                    case .settings: return "settings"
-                    }
-                }()
-                TelemetryManager.shared.trackTabSelected(tab: tabName)
+            .onChange(of: settings.isPro) { oldValue, newValue in
+                containerManager.updateContainer(isPro: newValue, iCloudEnabled: settings.iCloudEnabled)
             }
             .onAppear {
+                // Initialize container with current Pro status and iCloud preference
+                containerManager.updateContainer(isPro: settings.isPro, iCloudEnabled: settings.iCloudEnabled)
+                
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
-                        await DefaultDataManager.populateTestData(modelContext: container.mainContext)
-                        settings.hasLaunched = true
-                    }
-                } else if !settings.hasLaunched {
-                    Task {
-                        await DefaultDataManager.populateDefaultData(modelContext: container.mainContext)
+                        await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
                         settings.hasLaunched = true
                     }
                 }
 
                 if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    let defaults = UserDefaults.standard
-                    defaults.removeObject(forKey: "hasSeenPaywall")
-                    defaults.synchronize()
+                    settings.hasSeenPaywall = false
                 }
 
-                if !OnboardingManager.hasCompletedOnboarding() {
+                // Only check if we haven't launched before
+                let shouldShowWelcome = OnboardingManager.shouldShowWelcome()
+                if shouldShowWelcome {
                     showOnboarding = true
                 }
+                
+                settings.hasLaunched = true
 
                 TelemetryDeck.signal("appLaunched")
             }
             .fullScreenCover(isPresented: $showOnboarding) {
                 OnboardingView(isPresented: $showOnboarding)
             }
-            .modelContainer(container)
+            .modelContainer(containerManager.container)
             .environmentObject(router)
             .environmentObject(settings)
+            .environmentObject(containerManager)
             .environmentObject(onboardingManager)
         }
     }

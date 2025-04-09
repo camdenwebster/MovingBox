@@ -15,6 +15,8 @@
 		1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF92D8B1FEF00BEFD9D /* download_images.py */; };
 		1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */; };
 		1927DE722D8B56AF00BEFD9D /* PhotoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */; };
+		194195642DA440FD008CABAA /* ICloudSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195632DA440FD008CABAA /* ICloudSyncManager.swift */; };
+		194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195652DA4805B008CABAA /* ModelContainerManager.swift */; };
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
 		1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC812BF391CF00734AF4 /* Assets.xcassets */; };
 		1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */; };
@@ -66,6 +68,8 @@
 		1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
 		1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoManager.swift; sourceTree = "<group>"; };
 		1937AABB2D938FBD00C68797 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
+		194195632DA440FD008CABAA /* ICloudSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudSyncManager.swift; sourceTree = "<group>"; };
+		194195652DA4805B008CABAA /* ModelContainerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContainerManager.swift; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -231,6 +235,8 @@
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				194195652DA4805B008CABAA /* ModelContainerManager.swift */,
+				194195632DA440FD008CABAA /* ICloudSyncManager.swift */,
 				19750C372DA07FF40056F0FC /* OnboardingManager.swift */,
 				19C01D5D2D93088300773DA4 /* JWTManager.swift */,
 				1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */,
@@ -412,8 +418,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				194195642DA440FD008CABAA /* ICloudSyncManager.swift in Sources */,
 				1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */,
 				1927DE722D8B56AF00BEFD9D /* PhotoManager.swift in Sources */,
+				194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
 				196109F52D764D9100A76504 /* ColorExtension.swift in Sources */,
@@ -601,6 +609,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -640,6 +649,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -745,6 +755,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -894,6 +905,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

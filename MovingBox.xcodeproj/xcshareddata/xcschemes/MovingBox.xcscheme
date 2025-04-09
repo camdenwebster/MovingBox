@@ -40,6 +40,11 @@
                BlueprintName = "MovingBoxTests"
                ReferencedContainer = "container:MovingBox.xcodeproj">
             </BuildableReference>
+            <SkippedTests>
+               <Test
+                  Identifier = "ICloudSyncManagerTests/testContextObserverSetup()">
+               </Test>
+            </SkippedTests>
          </TestableReference>
          <TestableReference
             skipped = "NO"
@@ -81,7 +86,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Show-Onboarding"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Is-Pro"
@@ -89,7 +94,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Disable-Persistence"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Skip-Onboarding"

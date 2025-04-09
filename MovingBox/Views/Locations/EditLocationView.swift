@@ -59,6 +59,23 @@ struct EditLocationView: View {
                                         .background(Circle().fill(.black.opacity(0.6)))
                                         .padding(8)
                                 }
+                                .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                    Button("Take Photo") {
+                                        showCamera = true
+                                    }
+                                    Button("Choose from Library") {
+                                        showPhotoPicker = true
+                                    }
+                                    if tempUIImage != nil || location?.photo != nil {
+                                        Button("Remove Photo", role: .destructive) {
+                                            if let location = location {
+                                                location.data = nil
+                                            } else {
+                                                tempUIImage = nil
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                 } else {
@@ -69,7 +86,23 @@ struct EditLocationView: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
-                        
+                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                                Button("Take Photo") {
+                                    showCamera = true
+                                }
+                                Button("Choose from Library") {
+                                    showPhotoPicker = true
+                                }
+                                if tempUIImage != nil || location?.photo != nil {
+                                    Button("Remove Photo", role: .destructive) {
+                                        if let location = location {
+                                            location.data = nil
+                                        } else {
+                                            tempUIImage = nil
+                                        }
+                                    }
+                                }
+                            }
                     }
                 }
             }
@@ -88,23 +121,6 @@ struct EditLocationView: View {
         .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showCamera = true
-            }
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            if tempUIImage != nil || location?.photo != nil {
-                Button("Remove Photo", role: .destructive) {
-                    if let location = location {
-                        location.data = nil
-                    } else {
-                        tempUIImage = nil
-                    }
-                }
-            }
-        }
         .sheet(isPresented: $showCamera) {
             CameraView(
                 showingImageAnalysis: .constant(false),

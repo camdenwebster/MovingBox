@@ -1,7 +1,9 @@
+import SwiftData
 import SwiftUI
 
 struct MovingBoxPaywallView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var settingsManager: SettingsManager
     @EnvironmentObject private var onboardingManager: OnboardingManager
     @Binding var isPresented: Bool
@@ -71,7 +73,7 @@ struct MovingBoxPaywallView: View {
     }
     
     private func handleDismiss() {
-        if OnboardingManager.hasCompletedOnboarding() {
+        if OnboardingManager.hasCompletedOnboarding() {  
             // Standard presentation - use dismiss()
             dismiss()
         } else {
