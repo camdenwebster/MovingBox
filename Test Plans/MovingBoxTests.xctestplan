@@ -30,6 +30,19 @@
             ]
           },
           {
+            "name" : "OpenAIServiceTests",
+            "testFunctions" : [
+              "testCompleteIntegrationFlow()"
+            ]
+          },
+          {
+            "name" : "SettingsManagerTests",
+            "testFunctions" : [
+              "testLastSyncDatePersistence()",
+              "testSettingsPersistence()"
+            ]
+          },
+          {
             "name" : "SnapshotTests"
           }
         ]

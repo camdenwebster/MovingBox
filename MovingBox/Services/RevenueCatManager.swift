@@ -8,18 +8,14 @@ import Combine
 class RevenueCatManager: NSObject, ObservableObject {
     static let shared = RevenueCatManager()
     
-    @Published public private(set) var isProSubscriptionActive = false {
-        didSet {
-            print("📱 RevenueCatManager - Pro status changed: \(isProSubscriptionActive)")
-            UserDefaults.standard.set(isProSubscriptionActive, forKey: "isPro")
-            // Post notification when status changes
-            NotificationCenter.default.post(
-                name: .subscriptionStatusChanged,
-                object: nil,
-                userInfo: ["isProActive": isProSubscriptionActive]
-            )
-        }
+    // Private storage
+    @Published private var _isProSubscriptionActive = false
+    
+    // Public getter
+    public var isProSubscriptionActive: Bool {
+        ProcessInfo.processInfo.arguments.contains("Is-Pro") ? true : _isProSubscriptionActive
     }
+    
     @Published private(set) var currentOffering: Offering?
     private var cancellables = Set<AnyCancellable>()
     
@@ -36,17 +32,26 @@ class RevenueCatManager: NSObject, ObservableObject {
     }
     
     private override init() {
+        // CHANGE: Check for Is-Pro before setting initial value
+        let isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
+        print("📱 RevenueCatManager - Initializing with Is-Pro: \(isPro)")
+        self._isProSubscriptionActive = isPro
         super.init()
-        print("📱 RevenueCatManager - Initializing...")
-        setupPurchasesUpdates()
         
-        // Initial fetch of customer info
-        Task {
-            do {
-                try await updateCustomerInfo()
-            } catch {
-                print("⚠️ RevenueCatManager - Error during initial customer info fetch: \(error)")
+        // Only setup purchases if Is-Pro is not present
+        if !isPro {
+            print("📱 RevenueCatManager - Setting up purchases updates")
+            setupPurchasesUpdates()
+            
+            Task {
+                do {
+                    try await updateCustomerInfo()
+                } catch {
+                    print("⚠️ RevenueCatManager - Error during initial customer info fetch: \(error)")
+                }
             }
+        } else {
+            print("📱 RevenueCatManager - Skipping RevenueCat setup due to Is-Pro argument")
         }
     }
     
@@ -99,13 +104,22 @@ class RevenueCatManager: NSObject, ObservableObject {
             print("  - Is active: \(isPro)")
             print("  - Identifier: \(proEntitlement.identifier)")
             print("  - Product identifier: \(proEntitlement.productIdentifier)")
-            self.isProSubscriptionActive = isPro
+            self._isProSubscriptionActive = isPro
+            UserDefaults.standard.set(isPro, forKey: "isPro")
             print("📱 RevenueCatManager - Updated Pro status: \(isPro)")
+            
+            // Notify observers
+            NotificationCenter.default.post(
+                name: .subscriptionStatusChanged,
+                object: nil,
+                userInfo: ["isProActive": isPro]
+            )
         } else {
             print("⚠️ RevenueCatManager - Pro entitlement not found in customerInfo")
-            self.isProSubscriptionActive = false
+            self._isProSubscriptionActive = false
+            UserDefaults.standard.set(false, forKey: "isPro")
             
-            // Notify SettingsManager
+            // Notify observers
             NotificationCenter.default.post(
                 name: .subscriptionStatusChanged,
                 object: nil,

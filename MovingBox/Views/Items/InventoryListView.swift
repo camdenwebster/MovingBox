@@ -47,11 +47,17 @@ struct InventoryListView: View {
                 }
                 Menu("Add Item", systemImage: "plus") {
                     Button(action: {
+                        print("📱 InventoryListView - Add Item button tapped")
+                        print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
+                        print("📱 InventoryListView - Items count: \(allItems.count)")
                         if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                            print("📱 InventoryListView - Showing first time paywall")
                             showingPaywall = true
                         } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                            print("📱 InventoryListView - Showing limit alert")
                             showLimitAlert = true
                         } else {
+                            print("📱 InventoryListView - Creating new item")
                             let newItem = InventoryItem(
                                 title: "",
                                 quantityString: "1",

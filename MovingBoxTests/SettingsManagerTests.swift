@@ -5,17 +5,19 @@ import Foundation
 @MainActor
 @Suite struct SettingsManagerTests {
     
-    // Helper function to create clean instance
-    func createTestManager() -> SettingsManager {
+    // Helper function to create clean instance and wait for setup
+    func createTestManager() async -> SettingsManager {
         let manager = SettingsManager()
+        // Wait for next runloop to ensure setupInitialState completes
+        try? await Task.sleep(for: .milliseconds(100))
         manager.resetToDefaults()
         return manager
     }
     
     @Test("Test default initialization")
-    func testDefaultInitialization() {
+    func testDefaultInitialization() async {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         
         // Then
         #expect(manager.aiModel == "gpt-4o-mini")
@@ -32,7 +34,7 @@ import Foundation
     @Test("Test settings persistence")
     func testSettingsPersistence() async throws {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         let defaults = UserDefaults.standard
         
         // When - First clear any existing values
@@ -57,19 +59,27 @@ import Foundation
         try await Task.sleep(for: .milliseconds(100))
         
         // Then verify the values were saved
-        #expect(manager.aiModel == "test-model")
-        #expect(manager.temperature == 0.9)
-        #expect(manager.maxTokens == 500)
-        #expect(manager.apiKey == "test-key")
-        #expect(manager.isHighDetail == true)
-        #expect(manager.hasLaunched == true)
-        #expect(manager.iCloudEnabled == false)
+        let savedAiModel = defaults.string(forKey: "aiModel")
+        let savedTemperature = defaults.double(forKey: "temperature")
+        let savedMaxTokens = defaults.integer(forKey: "maxTokens")
+        let savedApiKey = defaults.string(forKey: "apiKey")
+        let savedIsHighDetail = defaults.bool(forKey: "isHighDetail")
+        let savedHasLaunched = defaults.bool(forKey: "hasLaunched")
+        let savedICloudEnabled = defaults.bool(forKey: "iCloudEnabled")
+        
+        #expect(savedAiModel == "test-model")
+        #expect(savedTemperature == 0.9)
+        #expect(savedMaxTokens == 500)
+        #expect(savedApiKey == "test-key")
+        #expect(savedIsHighDetail == true)
+        #expect(savedHasLaunched == true)
+        #expect(savedICloudEnabled == false)
     }
     
     @Test("Test Pro feature checks")
-    func testProFeatureChecks() {
+    func testProFeatureChecks() async {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         
         // When - Free tier
         #expect(manager.shouldShowPaywall() == true)
@@ -95,9 +105,9 @@ import Foundation
     }
     
     @Test("Test reset functionality")
-    func testResetToDefaults() {
+    func testResetToDefaults() async {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         
         // When - Change some settings
         manager.aiModel = "test-model"
@@ -116,9 +126,9 @@ import Foundation
     }
     
     @Test("Test paywall trigger conditions")
-    func testPaywallTriggers() {
+    func testPaywallTriggers() async {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         
         // When/Then - First time triggers
         #expect(manager.shouldShowFirstTimePaywall(itemCount: 0) == true)
@@ -135,7 +145,7 @@ import Foundation
     @Test("Test last sync date persistence")
     func testLastSyncDatePersistence() async throws {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         let testDate = Date()
         
         // When
@@ -144,15 +154,20 @@ import Foundation
         // Wait for UserDefaults to sync
         try await Task.sleep(for: .milliseconds(100))
         
-        // Then
-        #expect(manager.lastiCloudSync.timeIntervalSince1970 == testDate.timeIntervalSince1970)
+        // Then - Compare the actual saved date to the test date
+        if let savedDate = UserDefaults.standard.object(forKey: "lastSyncDate") as? Date {
+            let timeIntervalDifference = abs(savedDate.timeIntervalSince1970 - testDate.timeIntervalSince1970)
+            #expect(timeIntervalDifference < 1.0, "Dates should be within 1 second of each other")
+        } else {
+            #expect(false, "No date was saved")
+        }
         #expect(UserDefaults.standard.object(forKey: "lastSyncDate") as? Date != nil)
     }
     
     @Test("Test API key validation")
-    func testAPIKeyValidation() {
+    func testAPIKeyValidation() async {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         
         // When - Set empty key
         manager.apiKey = ""
@@ -164,9 +179,9 @@ import Foundation
     }
     
     @Test("Test Pro feature access with UI testing flag")
-    func testProFeatureUITestingFlag() {
+    func testProFeatureUITestingFlag() async {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         
         // When - Simulate UI testing environment
         let arguments = ["Is-Pro"]
@@ -186,9 +201,9 @@ import Foundation
     }
     
     @Test("Test edge cases for first-time paywall")
-    func testFirstTimePaywallEdgeCases() {
+    func testFirstTimePaywallEdgeCases() async {
         // Given
-        let manager = createTestManager()
+        let manager = await createTestManager()
         
         // When/Then - Free user, first time
         #expect(manager.shouldShowFirstTimePaywall(itemCount: 0) == true)

@@ -60,12 +60,15 @@ struct OnboardingWelcomeView: View {
                         
                         Task {
                             do {
-                                // First check RevenueCat status and sync purchases
-                                try await revenueCatManager.updateCustomerInfo()
-                                try await revenueCatManager.syncPurchases()
-                                
-                                // Then wait for any pending iCloud sync
-                                _ = try await iCloudManager.waitForSync()
+                                let isUiTesting = ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
+                                if !isUiTesting {
+                                    // First check RevenueCat status and sync purchases
+                                    try await revenueCatManager.updateCustomerInfo()
+                                    try await revenueCatManager.syncPurchases()
+                                    
+                                    // Then wait for any pending iCloud sync
+                                    _ = try await iCloudManager.waitForSync()
+                                }
                                 
                                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
                                 

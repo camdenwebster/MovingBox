@@ -6,19 +6,23 @@ import SwiftData
 @testable import MovingBox
 
 @Suite struct OpenAIServiceTests {
-    // Helper function to create a test service
-    func createTestService() -> OpenAIService {
+    // CHANGE: Make helper function async and use MainActor.run
+    func createTestService() async throws -> OpenAIService {
         let testImage = UIImage(systemName: "photo")!
         let imageData = testImage.pngData()!
         let base64String = imageData.base64EncodedString()
-        let settings = SettingsManager()
-        settings.apiKey = "test_key_123"
-        settings.aiModel = "gpt-4o-mini"
-        settings.maxTokens = 150
-        settings.isHighDetail = false
+        
+        let settings = await MainActor.run {
+            let settings = SettingsManager()
+            settings.apiKey = "test_key_123"
+            settings.aiModel = "gpt-4o-mini"
+            settings.maxTokens = 150
+            settings.isHighDetail = false
+            return settings
+        }
         
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: InventoryItem.self, configurations: config)
+        let container = try ModelContainer(for: InventoryItem.self, configurations: config)
         let context = ModelContext(container)
         
         return OpenAIService(imageBase64: base64String, settings: settings, modelContext: context)
@@ -27,7 +31,7 @@ import SwiftData
     @Test("Test URL request generation")
     func testURLRequestGeneration() async throws {
         // Given
-        let service = createTestService()
+        let service = try await createTestService()
         
         // When
         let request = try await MainActor.run {
@@ -75,7 +79,7 @@ import SwiftData
     @Test("Test complete integration flow")
     func testCompleteIntegrationFlow() async throws {
         // Given
-        let service = createTestService()
+        let service = try await createTestService()
         let request = try await MainActor.run {
             try service.generateURLRequest(httpMethod: .post)
         }
@@ -150,7 +154,7 @@ import SwiftData
     @Test("Test image encoding in request")
     func testImageEncoding() async throws {
         // Given
-        let service = createTestService()
+        let service = try await createTestService()
         
         // When
         let request = try await MainActor.run {
@@ -177,8 +181,10 @@ import SwiftData
     @Test("Test high detail mode")
     func testHighDetailMode() async throws {
         // Given
-        let service = createTestService()
-        service.settings.isHighDetail = true
+        let service = try await createTestService()
+        await MainActor.run {
+            service.settings.isHighDetail = true
+        }
         
         // When
         let request = try await MainActor.run {

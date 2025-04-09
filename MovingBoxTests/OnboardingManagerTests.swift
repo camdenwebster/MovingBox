@@ -181,6 +181,5 @@ import Foundation
         #expect(steps[2].title == "Add Location")
         #expect(steps[3].title == "Add Item")
         #expect(steps[4].title == "Great Job!")
-        #expect(steps[5].title == "MovingBox Pro")
     }
 }

@@ -61,7 +61,7 @@ final class PaywallUITests: XCTestCase {
         // Then: Paywall should not appear for subsequent items
         listScreen.tapAddItem()
         listScreen.tapCreateManually()
-        XCTAssertFalse(paywallScreen.paywallView.exists,
+        XCTAssertFalse(paywallScreen.okButton.exists,
                       "Paywall should not appear after being dismissed")
     }
     

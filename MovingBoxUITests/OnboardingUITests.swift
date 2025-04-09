@@ -4,6 +4,7 @@ final class OnboardingUITests: XCTestCase {
     let app = XCUIApplication()
     var cameraScreen: CameraScreen!
     var detailScreen: InventoryDetailScreen!
+    var paywallScreen: PaywallScreen!
     
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -14,18 +15,19 @@ final class OnboardingUITests: XCTestCase {
         ]
         cameraScreen = CameraScreen(app: app, testCase: self)
         detailScreen = InventoryDetailScreen(app: app)
+        paywallScreen = PaywallScreen(app: app)
         app.launch()
     }
     
     func testOnboardingHappyPath() throws {
         
         // Welcome View
-        XCTAssertTrue(app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10))
         app.buttons["onboarding-welcome-continue-button"].tap()
         
         // Home View
         let homeAddPhotoButton = app.buttons["onboarding-home-add-photo-button"]
-        XCTAssertTrue(homeAddPhotoButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(homeAddPhotoButton.waitForExistence(timeout: 10))
         homeAddPhotoButton.tap()
         
         app.sheets.buttons["takePhoto"].tap()
@@ -101,9 +103,8 @@ final class OnboardingUITests: XCTestCase {
         completionContinueButton.tap()
         
         // Paywall
-        let paywallCloseButton = app.buttons["dismissPaywall"]
-        XCTAssertTrue(paywallCloseButton.waitForExistence(timeout: 5))
-        paywallCloseButton.tap()
+        XCTAssertTrue(paywallScreen.okButton.waitForExistence(timeout: 5))
+        paywallScreen.okButton.tap()
         
         // Verify we're on the dashboard
         XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))

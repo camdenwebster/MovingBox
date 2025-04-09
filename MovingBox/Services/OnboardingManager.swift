@@ -27,6 +27,10 @@ class OnboardingManager: ObservableObject {
         }
     }
     
+    // ADD: Static key constants
+    static let hasCompletedOnboardingKey = "hasCompletedOnboardingKey"
+    static let hasLaunchedKey = "hasLaunched"
+    
     var transition: AnyTransition {
         if isMovingForward {
             return .asymmetric(insertion: .move(edge: .trailing),
@@ -43,13 +47,14 @@ class OnboardingManager: ObservableObject {
     
     func markOnboardingComplete() {
         print("⚡️ Marking onboarding as complete")
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboardingKey")
+        // CHANGE: Use static key
+        UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
         hasCompleted = true
     }
     
     static func shouldShowWelcome() -> Bool {
-        // Add debugging
-        let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunched")
+        // CHANGE: Use static key
+        let hasLaunched = UserDefaults.standard.bool(forKey: Self.hasLaunchedKey)
         print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
         
         if ProcessInfo.processInfo.arguments.contains("Show-Onboarding") {
@@ -72,7 +77,8 @@ class OnboardingManager: ObservableObject {
             return true
         }
         
-        return UserDefaults.standard.bool(forKey: "hasCompletedOnboardingKey")
+        // CHANGE: Use static key
+        return UserDefaults.standard.bool(forKey: Self.hasCompletedOnboardingKey)
     }
     
     @MainActor
@@ -86,7 +92,8 @@ class OnboardingManager: ObservableObject {
                 
                 // If we found homes, mark onboarding as complete
                 if !homes.isEmpty {
-                    UserDefaults.standard.set(true, forKey: "hasCompletedOnboardingKey")
+                    // CHANGE: Use static key
+                    UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
                     return true
                 }
                 return false
