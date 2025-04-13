@@ -154,16 +154,25 @@ struct DashboardView: View {
             defer { isLoading = false }
             
             do {
-                if let imageURL = home.imageURL {
-                    loadedImage = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                    isShowingRemovePhotoButton = true
-                } else {
-                    loadedImage = nil
-                    isShowingRemovePhotoButton = false
-                }
+                loadedImage = try await home.photo
+                isShowingRemovePhotoButton = loadedImage != nil
             } catch {
                 loadingError = error
                 print("Failed to load image: \(error)")
+            }
+        }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhoto,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: selectedPhoto) { _, newValue in
+            Task {
+                if let photo = newValue {
+                    await loadPhoto(from: photo)
+                    selectedPhoto = nil
+                }
             }
         }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
@@ -181,7 +190,6 @@ struct DashboardView: View {
                 }
             }
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .sheet(isPresented: $showCamera) {
             CameraView(
                 showingImageAnalysis: .constant(false),
@@ -189,14 +197,6 @@ struct DashboardView: View {
             ) { image, _, completion async -> Void in
                 await handleNewImage(image)
                 await completion()
-            }
-        }
-        .onChange(of: selectedPhoto) { oldValue, newValue in
-            Task {
-                if let photo = newValue {
-                    await loadPhoto(from: photo)
-                    selectedPhoto = nil
-                }
             }
         }
     }
