@@ -97,6 +97,7 @@ struct AddInventoryItemView: View {
                     showItemFlow = false
                     router.navigate(to: .inventoryDetailView(item: item, isEditing: true))
                 }
+                .environment(\.isOnboarding, false)
             }
         }
         .sheet(isPresented: $showingPaywall) {

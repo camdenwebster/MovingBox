@@ -12,12 +12,8 @@ struct ImageAnalysisView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                if isOnboarding {
-                    Color(.systemBackground).edgesIgnoringSafeArea(.all)
-                } else {
-                    Color.black.edgesIgnoringSafeArea(.all)
-                }
-                
+                Color(.systemBackground).edgesIgnoringSafeArea(.all)
+
                 GeometryReader { geometry in
                     VStack(spacing: 0) {
                         Spacer()
@@ -67,10 +63,10 @@ struct ImageAnalysisView: View {
                 }
             }
             .navigationTitle("Analyzing Photo")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(isOnboarding ? .hidden : .visible)
+            .toolbar(.hidden, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+//            .onboardingBackground()
             .interactiveDismissDisabled(true)
             .task {
                 print("ImageAnalysisView appeared with image size: \(image.size)")

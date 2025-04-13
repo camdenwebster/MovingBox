@@ -133,25 +133,15 @@ struct OnboardingItemView: View {
         }
         // Analysis and Detail sheet
         .sheet(isPresented: $showItemFlow) {
-            Group {
-                if let image = capturedImage {
-                    ContentUnavailableView(
-                        "Image Not Available",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text("Unable to process the captured image.")
-                    )
-                } else {
-                    ContentUnavailableView(
-                        "Image Not Available",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text("Unable to process the captured image.")
-                    )
+            if let image = capturedImage, let item = selectedItem {
+                ItemAnalysisDetailView(
+                    item: item,
+                    image: image
+                ) {
+                    showItemFlow = false
+                    manager.moveToNext()
                 }
-            }
-            .onChange(of: showItemFlow) { _, isPresented in
-                if isPresented {
-                    print("ItemAnalysisDetailView presented with image: \(String(describing: capturedImage != nil))")
-                }
+                .environment(\.isOnboarding, true)
             }
         }
         .alert("Privacy Notice", isPresented: $showPrivacyAlert) {

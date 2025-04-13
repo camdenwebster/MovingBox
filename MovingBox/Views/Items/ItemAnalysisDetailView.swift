@@ -17,25 +17,51 @@ struct ItemAnalysisDetailView: View {
     @State private var errorMessage = ""
     
     var body: some View {
-        Group {
-            if isOnboarding {
-                // Only wrap in NavigationStack during onboarding
-                NavigationStack(path: $navigationPath) {
-                    analysisContent
-                        .navigationDestination(for: String.self) { route in
-                            if route == "detail", let currentItem = item {
-                                InventoryDetailView(
-                                    inventoryItemToDisplay: currentItem,
-                                    navigationPath: $navigationPath,
-                                    isEditing: true,
-                                    onSave: onSave
-                                )
+        if isOnboarding {
+            NavigationStack(path: $navigationPath) {
+                mainContent
+                    .navigationDestination(for: String.self) { route in
+                        if route == "detail", let currentItem = item {
+                            InventoryDetailView(
+                                inventoryItemToDisplay: currentItem,
+                                navigationPath: $navigationPath,
+                                isEditing: true,
+                                onSave: onSave
+                            )
+                        }
+                    }
+            }
+        } else {
+            mainContent
+        }
+    }
+    
+    private var mainContent: some View {
+        ZStack {
+            if showingImageAnalysis {
+                ImageAnalysisView(image: image) {
+                    Task {
+                        do {
+                            try await performAnalysis()
+                            showingImageAnalysis = false
+                            
+                            if isOnboarding {
+                                navigationPath.append("detail")
+                            } else {
+                                onSave()
+                            }
+                        } catch {
+                            await MainActor.run {
+                                errorMessage = error.localizedDescription
+                                showError = true
                             }
                         }
+                    }
                 }
-            } else {
-                // Direct analysis content without navigation
-                analysisContent
+                .environment(\.isOnboarding, isOnboarding)
+            } else if !isOnboarding {
+                // Show empty view when analysis is complete in non-onboarding flow
+                Color.clear
             }
         }
         .alert("Error", isPresented: $showError) {
@@ -47,36 +73,13 @@ struct ItemAnalysisDetailView: View {
         }
     }
     
-    private var analysisContent: some View {
-        ZStack {
-            if showingImageAnalysis {
-                ImageAnalysisView(image: image) {
-                    Task {
-                        await analyzeImage()
-                        showingImageAnalysis = false
-                        
-                        if isOnboarding {
-                            navigationPath.append("detail")
-                        } else {
-                            onSave()
-                        }
-                    }
-                }
-                .environment(\.isOnboarding, isOnboarding)
-            } else {
-                Color.clear
-            }
+    private func performAnalysis() async throws {
+        guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+            throw AnalysisError.imagePreparationFailed
         }
-    }
-    
-    private func analyzeImage() async {
-        guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image),
-              let _ = item else {
-            await MainActor.run {
-                errorMessage = "Unable to process the image"
-                showError = true
-            }
-            return
+        
+        guard let itemToUpdate = item else {
+            throw AnalysisError.itemNotFound
         }
         
         let openAi = OpenAIService(
@@ -85,23 +88,15 @@ struct ItemAnalysisDetailView: View {
             modelContext: modelContext
         )
         
-        do {
-            let imageDetails = try await openAi.getImageDetails()
-            await MainActor.run {
-                updateUIWithImageDetails(imageDetails)
-                TelemetryManager.shared.trackCameraAnalysisUsed()
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = "Error analyzing image: \(error.localizedDescription)"
-                showError = true
-            }
+        let imageDetails = try await openAi.getImageDetails()
+        
+        await MainActor.run {
+            updateUIWithImageDetails(imageDetails, for: itemToUpdate)
+            TelemetryManager.shared.trackCameraAnalysisUsed()
         }
     }
     
-    private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
-        guard let item = item else { return }
-        
+    private func updateUIWithImageDetails(_ imageDetails: ImageDetails, for item: InventoryItem) {
         let labelDescriptor = FetchDescriptor<InventoryLabel>()
         guard let labels: [InventoryLabel] = try? modelContext.fetch(labelDescriptor) else { return }
         
@@ -117,5 +112,19 @@ struct ItemAnalysisDetailView: View {
         item.price = Decimal(string: priceString) ?? 0
         
         try? modelContext.save()
+    }
+    
+    private enum AnalysisError: LocalizedError {
+        case imagePreparationFailed
+        case itemNotFound
+        
+        var errorDescription: String? {
+            switch self {
+            case .imagePreparationFailed:
+                return "Failed to prepare image for analysis"
+            case .itemNotFound:
+                return "Item not found"
+            }
+        }
     }
 }
