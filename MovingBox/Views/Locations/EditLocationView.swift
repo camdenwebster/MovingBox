@@ -14,8 +14,8 @@ struct EditLocationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
     var location: InventoryLocation?
-    @State private var locationName = ""
-    @State private var locationDesc = ""
+    @State private var locationName: String
+    @State private var locationDesc: String
     @State private var isEditing = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
@@ -30,6 +30,12 @@ struct EditLocationView: View {
     @State private var showPhotoPicker = false
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
+
+    init(location: InventoryLocation? = nil) {
+        self.location = location
+        _locationName = State(initialValue: location?.name ?? "")
+        _locationDesc = State(initialValue: location?.desc ?? "")
+    }
 
     // Computed properties
     private var isNewLocation: Bool {
@@ -89,21 +95,33 @@ struct EditLocationView: View {
                     }
                 }
             }
-            FormTextFieldRow(label: "Name", text: $locationName, isEditing: $isEditing, placeholder: "Kitchen")
+            FormTextFieldRow(label: "Name",
+                           text: $locationName,
+                           isEditing: .constant(isEditingEnabled),
+                           placeholder: "Kitchen")
                 .disabled(!isEditingEnabled)
-                .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                .onChange(of: locationName) { _, newValue in
+                    if let location = location {
+                        location.name = newValue
+                    }
+                }
             if isEditingEnabled || !locationDesc.isEmpty {
                 Section("Description") {
                     TextEditor(text: $locationDesc)
                         .disabled(!isEditingEnabled)
                         .foregroundColor(isEditingEnabled ? .primary : .secondary)
                         .frame(height: 100)
+                        .onChange(of: locationDesc) { _, newValue in
+                            if let location = location {
+                                location.desc = newValue
+                            }
+                        }
                 }
             }
         }
         .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto) { item in
+        .onChange(of: selectedPhoto) { _, item in
             Task {
                 await loadPhoto(from: item)
             }
@@ -129,8 +147,6 @@ struct EditLocationView: View {
             if !isNewLocation {
                 Button(isEditing ? "Save" : "Edit") {
                     if isEditing {
-                        location?.name = locationName
-                        location?.desc = locationDesc
                         isEditing = false
                     } else {
                         isEditing = true
