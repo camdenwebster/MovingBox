@@ -22,12 +22,15 @@ struct ImageAnalysisView: View {
                     VStack(spacing: 0) {
                         Spacer()
                         
-                        Image(uiImage: optimizedImage ?? image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: min(geometry.size.width, geometry.size.height))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical)
+                        Group {
+                            // Use optimizedImage if available, otherwise use the original image
+                            Image(uiImage: optimizedImage ?? image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: min(geometry.size.width, geometry.size.height))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical)
+                        }
                         
                         Spacer()
                         
@@ -70,9 +73,13 @@ struct ImageAnalysisView: View {
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .interactiveDismissDisabled(true)
             .task {
+                print("ImageAnalysisView appeared with image size: \(image.size)")
                 if let optimized = await OptimizedImageManager.shared.optimizeImage(image) {
                     optimizedImage = optimized
                 }
+                // Add a small delay to ensure the analysis animation is visible
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                onComplete()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

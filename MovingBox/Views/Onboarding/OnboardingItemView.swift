@@ -7,206 +7,275 @@ struct OnboardingItemView: View {
     @EnvironmentObject private var settings: SettingsManager
     @Environment(\.modelContext) var modelContext
     @Query private var locations: [InventoryLocation]
-    @State private var showCameraFlow = false
+    
     @State private var showPrivacyAlert = false
-    @State private var showingImageAnalysis = false
-    @State private var analyzingImage: UIImage?
+    @State private var showCamera = false
+    @State private var showItemFlow = false
     @State private var selectedItem: InventoryItem?
-    @State private var showingDetail = false
-
+    @State private var capturedImage: UIImage?
+    @State private var isProcessingImage = false
+    
     var body: some View {
         OnboardingContainer {
-            ZStack {
-                VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(spacing: 24) {
-                            Spacer()
-                            VStack(spacing: 16) {
-                                Image(systemName: "camera.viewfinder")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(.secondary)
-                                    .padding()
-                                    .symbolEffect(.bounce.up.byLayer, options: .nonRepeating)
-                                
-                                OnboardingHeaderText(text: "Add Your First Item")
-                                
-                                VStack(spacing: 16) {
-                                    OnboardingDescriptionText(text: "MovingBox uses artificial intelligence to automatically identify and catalog your items.")
-                                    
-
-                                    
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        OnboardingFeatureRow(
-                                            icon: "checkmark.shield",
-                                            iconColor: .green,
-                                            title: "Instant Analysis",
-                                            description: "Your photos are analyzed instantly"
-                                        )
-                                        
-                                        OnboardingFeatureRow(
-                                            icon: "xmark.shield",
-                                            iconColor: .red,
-                                            title: "Privacy First",
-                                            description: "We do not store your photos"
-                                        )
-                                        
-                                        OnboardingFeatureRow(
-                                            icon: "exclamationmark.triangle",
-                                            iconColor: .orange,
-                                            title: "AI Processing",
-                                            description: "OpenAI will process your photos"
-                                        )
-                                    }
-                                    .padding(20)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(.ultraThinMaterial)
-                                    }
-                                    
-                                    Button("Read OpenAI's Privacy Policy") {
-                                        if let url = URL(string: "https://openai.com/policies/privacy-policy") {
-                                            UIApplication.shared.open(url)
-                                        }
-                                    }
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                }
-                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                            }
-                            .frame(maxWidth: .infinity)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Image(systemName: "camera.viewfinder")
+                                .font(.system(size: 60))
+                                .foregroundStyle(.secondary)
+                                .padding()
+                                .symbolEffect(.bounce.up.byLayer, options: .nonRepeating)
                             
-                            Spacer()
-                                .frame(height: 100)
+                            OnboardingHeaderText(text: "Add Your First Item")
+                            
+                            VStack(spacing: 16) {
+                                OnboardingDescriptionText(text: "MovingBox uses artificial intelligence to automatically identify and catalog your items.")
+                                
+                                VStack(alignment: .leading, spacing: 12) {
+                                    OnboardingFeatureRow(
+                                        icon: "checkmark.shield",
+                                        iconColor: .green,
+                                        title: "Instant Analysis",
+                                        description: "Your photos are analyzed instantly"
+                                    )
+                                    
+                                    OnboardingFeatureRow(
+                                        icon: "xmark.shield",
+                                        iconColor: .red,
+                                        title: "Privacy First",
+                                        description: "We do not store your photos"
+                                    )
+                                    
+                                    OnboardingFeatureRow(
+                                        icon: "exclamationmark.triangle",
+                                        iconColor: .orange,
+                                        title: "AI Processing",
+                                        description: "OpenAI will process your photos"
+                                    )
+                                }
+                                .padding(20)
+                                .background {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(.ultraThinMaterial)
+                                }
+                                
+                                Button("Read OpenAI's Privacy Policy") {
+                                    if let url = URL(string: "https://openai.com/policies/privacy-policy") {
+                                        UIApplication.shared.open(url)
+                                    }
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
+                        .frame(maxWidth: .infinity)
+                        
+                        Spacer()
+                            .frame(height: 100)
                     }
-                    
-                    VStack {
-                        OnboardingContinueButton(action: {
-                            showPrivacyAlert = true
-                        }, title: "Take a Photo")
-                        .accessibilityIdentifier("onboarding-item-take-photo-button")
-                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                    }
-                    .frame(maxWidth: .infinity)
                 }
                 
-                if showingImageAnalysis, let image = analyzingImage {
-                    Color(.systemBackground)
-                        .edgesIgnoringSafeArea(.all)
-                    ImageAnalysisView(image: image) {
-                        showingImageAnalysis = false
-                        analyzingImage = nil
-                    }
-                    .environment(\.isOnboarding, true)
-                    .transition(.opacity)
+                VStack {
+                    OnboardingContinueButton(action: {
+                        showPrivacyAlert = true
+                    }, title: "Take a Photo")
+                    .accessibilityIdentifier("onboarding-item-take-photo-button")
+                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                 }
+                .frame(maxWidth: .infinity)
             }
-            .animation(.default, value: showingImageAnalysis)
         }
         .onboardingBackground()
-        .sheet(isPresented: $showCameraFlow) {
+        // Camera sheet
+        .sheet(isPresented: $showCamera) {
             NavigationStack {
                 CameraView(
-                    showingImageAnalysis: $showingImageAnalysis,
-                    analyzingImage: $analyzingImage
+                    showingImageAnalysis: .constant(false),
+                    analyzingImage: .constant(nil)
                 ) { image, needsAnalysis, completion async -> Void in
-                    let newItem = InventoryItem(
-                        title: "",
-                        quantityString: "1",
-                        quantityInt: 1,
-                        desc: "",
-                        serial: "",
-                        model: "",
-                        make: "",
-                        location: locations.first,
-                        label: nil,
-                        price: Decimal.zero,
-                        insured: false,
-                        assetId: "",
-                        notes: "",
-                        showInvalidQuantityAlert: false
-                    )
+                    isProcessingImage = true
+                    defer { isProcessingImage = false }
                     
-                    if let originalData = image.jpegData(compressionQuality: 1.0) {
+                    do {
+                        // Create the item first
+                        let newItem = createNewItem()
+                        selectedItem = newItem
+                        
+                        // Save the image
                         let id = UUID().uuidString
                         if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
                             newItem.imageURL = imageURL
-                            modelContext.insert(newItem)
                             try? modelContext.save()
                             
-                            if needsAnalysis {
-                                guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image) else {
-                                    await completion()
-                                    selectedItem = newItem
-                                    showCameraFlow = false
-                                    showingDetail = true
-                                    return
-                                }
+                            // Update UI state
+                            await MainActor.run {
+                                capturedImage = image
+                                showCamera = false
                                 
-                                let openAi = OpenAIService(
-                                    imageBase64: base64ForAI,
-                                    settings: settings,
-                                    modelContext: modelContext
-                                )
-                                
-                                do {
-                                    let imageDetails = try await openAi.getImageDetails()
-                                    await MainActor.run {
-                                        updateUIWithImageDetails(imageDetails, for: newItem)
-                                        TelemetryManager.shared.trackCameraAnalysisUsed()
-                                        Task {
-                                            await completion()
-                                        }
-                                        selectedItem = newItem
-                                        showCameraFlow = false
-                                        showingDetail = true
-                                    }
-                                } catch {
-                                    print("Error analyzing image: \(error)")
+                                // Complete the camera operation
+                                Task {
                                     await completion()
-                                    selectedItem = newItem
-                                    showCameraFlow = false
-                                    showingDetail = true
+                                    // Show the analysis view after everything is ready
+                                    showItemFlow = true
                                 }
-                            } else {
-                                await completion()
-                                selectedItem = newItem
-                                showCameraFlow = false
-                                showingDetail = true
                             }
                         }
+                    } catch {
+                        print("Error processing image: \(error)")
+                        await completion()
                     }
                 }
             }
+            .interactiveDismissDisabled(isProcessingImage)
         }
-        .sheet(isPresented: $showingDetail, onDismiss: {
-            if selectedItem?.modelContext != nil {
-                manager.moveToNext()
-            }
-        }) {
-            if let item = selectedItem {
-                NavigationStack {
-                    InventoryDetailView(
-                        inventoryItemToDisplay: item,
-                        navigationPath: .constant(NavigationPath()),
-                        isEditing: true
+        // Analysis and Detail sheet
+        .sheet(isPresented: $showItemFlow) {
+            Group {
+                if let image = capturedImage {
+                    ItemAnalysisDetailView(
+                        item: selectedItem,
+                        image: image,
+                        onSave: {
+                            showItemFlow = false
+                            manager.moveToNext()
+                        }
                     )
+                } else {
+                    ContentUnavailableView(
+                        "Image Not Available",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("Unable to process the captured image.")
+                    )
+                }
+            }
+            .onChange(of: showItemFlow) { _, isPresented in
+                if isPresented {
+                    print("ItemAnalysisDetailView presented with image: \(String(describing: capturedImage != nil))")
                 }
             }
         }
         .alert("Privacy Notice", isPresented: $showPrivacyAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Continue") {
-                showCameraFlow = true
+                showCamera = true
             }
         } message: {
             Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.")
         }
     }
     
-    private func updateUIWithImageDetails(_ imageDetails: ImageDetails, for item: InventoryItem) {
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+    private func createNewItem() -> InventoryItem {
+        let newItem = InventoryItem(
+            title: "",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: locations.first,
+            label: nil,
+            price: Decimal.zero,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false
+        )
+        modelContext.insert(newItem)
+        try? modelContext.save()
+        return newItem
+    }
+}
+
+// New view to handle analysis and detail flow
+struct ItemAnalysisDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var settings: SettingsManager
+    @Environment(\.dismiss) private var dismiss
+    
+    let item: InventoryItem?
+    let image: UIImage
+    let onSave: () -> Void
+    
+    @State private var showingImageAnalysis = true
+    @State private var navigationPath = NavigationPath()
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    var body: some View {
+        NavigationStack(path: $navigationPath) {
+            ZStack {
+                if showingImageAnalysis {
+                    ImageAnalysisView(image: image) {
+                        Task {
+                            await analyzeImage()
+                            showingImageAnalysis = false
+                            navigationPath.append("detail")
+                        }
+                    }
+                    .environment(\.isOnboarding, true)
+                } else {
+                    // Placeholder view while transitioning
+                    Color.clear
+                }
+            }
+            .navigationDestination(for: String.self) { route in
+                if route == "detail", let currentItem = item {
+                    InventoryDetailView(
+                        inventoryItemToDisplay: currentItem,
+                        navigationPath: $navigationPath,
+                        isEditing: true,
+                        onSave: onSave
+                    )
+                }
+            }
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK") {
+                dismiss()
+            }
+        } message: {
+            Text(errorMessage)
+        }
+    }
+    
+    private func analyzeImage() async {
+        guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image),
+              let _ = item else {
+            await MainActor.run {
+                errorMessage = "Unable to process the image"
+                showError = true
+            }
+            return
+        }
         
+        let openAi = OpenAIService(
+            imageBase64: base64ForAI,
+            settings: settings,
+            modelContext: modelContext
+        )
+        
+        do {
+            let imageDetails = try await openAi.getImageDetails()
+            await MainActor.run {
+                updateUIWithImageDetails(imageDetails)
+                TelemetryManager.shared.trackCameraAnalysisUsed()
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = "Error analyzing image: \(error.localizedDescription)"
+                showError = true
+            }
+        }
+    }
+    
+    private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
+        guard let item = item else { return }
+        
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
         guard let labels: [InventoryLabel] = try? modelContext.fetch(labelDescriptor) else { return }
         
         item.title = imageDetails.title
@@ -221,33 +290,6 @@ struct OnboardingItemView: View {
         item.price = Decimal(string: priceString) ?? 0
         
         try? modelContext.save()
-    }
-}
-
-struct PrivacyBulletPoint: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(iconColor)
-            Text(text)
-                .font(.subheadline)
-        }
-    }
-    
-    private var iconColor: Color {
-        switch icon {
-        case "checkmark.shield":
-            return .green
-        case "xmark.shield":
-            return .red
-        case "exclamationmark.triangle":
-            return .orange
-        default:
-            return .primary
-        }
     }
 }
 

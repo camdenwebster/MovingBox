@@ -30,14 +30,11 @@ struct InventoryDetailView: View {
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
-    @State private var showPhotoSourceAlert = false
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults = false
     @State private var isEditing: Bool
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
-    @State private var showingCamera = false
-    @State private var selectedPhoto: PhotosPickerItem? = nil
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
@@ -51,12 +48,19 @@ struct InventoryDetailView: View {
 
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
 
-    init(inventoryItemToDisplay: InventoryItem, navigationPath: Binding<NavigationPath>, showSparklesButton: Bool = false, isEditing: Bool = false) {
+    var onSave: (() -> Void)?
+
+    init(inventoryItemToDisplay: InventoryItem,
+         navigationPath: Binding<NavigationPath>,
+         showSparklesButton: Bool = false,
+         isEditing: Bool = false,
+         onSave: (() -> Void)? = nil) {
         self.inventoryItemToDisplay = inventoryItemToDisplay
         self._navigationPath = navigationPath
         self.showSparklesButton = showSparklesButton
         self._isEditing = State(initialValue: isEditing)
         self._displayPriceString = State(initialValue: formatInitialPrice(inventoryItemToDisplay.price))
+        self.onSave = onSave
     }
 
     @FocusState private var focusedField: Field?
@@ -83,14 +87,13 @@ struct InventoryDetailView: View {
                         .listRowInsets(EdgeInsets())
                         .overlay(alignment: .bottomTrailing) {
                             if isEditing {
-                                PhotoPickerView<InventoryItem>(
+                                PhotoPickerView(
                                     model: Binding(
                                         get: { self.inventoryItemToDisplay },
                                         set: { _ in }
                                     ),
                                     loadedImage: $loadedImage,
-                                    isLoading: $isLoading,
-                                    showRemoveButton: false
+                                    isLoading: $isLoading
                                 )
                             }
                         }
@@ -100,16 +103,25 @@ struct InventoryDetailView: View {
                         .frame(height: UIScreen.main.bounds.height / 3)
                 } else {
                     if isEditing {
-                        AddPhotoButton(action: {
-                            showPhotoSourceAlert = true
-                        })
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .foregroundStyle(.secondary)
+                        PhotoPickerView(
+                            model: Binding(
+                                get: { self.inventoryItemToDisplay },
+                                set: { _ in }
+                            ),
+                            loadedImage: $loadedImage,
+                            isLoading: $isLoading
+                        ) { showPhotoSourceAlert in
+                            AddPhotoButton {
+                                showPhotoSourceAlert.wrappedValue = true
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
-
+            
             // AI Button Section
             if isEditing && !inventoryItemToDisplay.hasUsedAI && inventoryItemToDisplay.imageURL != nil {
                 Section {
@@ -276,8 +288,8 @@ struct InventoryDetailView: View {
                 }
             }
         }
+        .navigationTitle(inventoryItemToDisplay.title.isEmpty ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarTitle(inventoryItemToDisplay.title == "" ? "New Item" : inventoryItemToDisplay.title)
         .navigationBarBackButtonHidden(isEditing)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -321,6 +333,7 @@ struct InventoryDetailView: View {
                             }
                             try? modelContext.save()
                             isEditing = false
+                            onSave?()
                             dismiss()
                         }
                         .fontWeight(.bold)
@@ -344,6 +357,25 @@ struct InventoryDetailView: View {
                 },
                 onDismiss: nil
             )
+        }
+        .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
+            Button("Analyze Image", role: .none) {
+                Task {
+                    do {
+                        let imageDetails = try await callOpenAI()
+                        updateUIWithImageDetails(imageDetails)
+                    } catch let error as OpenAIError {
+                        errorMessage = error.userFriendlyMessage
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                        showingErrorAlert = true
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
@@ -373,27 +405,19 @@ struct InventoryDetailView: View {
         } message: {
             Text("Do you want to save your changes before going back?")
         }
-        .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
-            Button("Analyze Image", role: .none) {
-                Task {
-                    do {
-                        let imageDetails = try await callOpenAI()
-                        updateUIWithImageDetails(imageDetails)
-                    } catch let error as OpenAIError {
-                        errorMessage = error.userFriendlyMessage
-                        showingErrorAlert = true
-                    } catch {
-                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                        showingErrorAlert = true
-                    }
-                }
+        .task(id: inventoryItemToDisplay.imageURL) {
+            guard inventoryItemToDisplay.modelContext != nil else { return }
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                loadedImage = try await inventoryItemToDisplay.photo
+            } catch {
+                print("Failed to load image: \(error)")
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
         }
     }
-    
+
     private func callOpenAI() async throws -> ImageDetails {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
