@@ -5,6 +5,7 @@ struct ImageAnalysisView: View {
     let onComplete: () -> Void
     
     @State private var scannerOffset: CGFloat = -100
+    @State private var optimizedImage: UIImage?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
     
@@ -21,8 +22,7 @@ struct ImageAnalysisView: View {
                     VStack(spacing: 0) {
                         Spacer()
                         
-                        // Center the image with proper scaling
-                        Image(uiImage: image)
+                        Image(uiImage: optimizedImage ?? image)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(maxWidth: min(geometry.size.width, geometry.size.height))
@@ -31,7 +31,6 @@ struct ImageAnalysisView: View {
                         
                         Spacer()
                         
-                        // Analysis overlay at bottom
                         VStack(spacing: 16) {
                             ProgressView()
                                 .scaleEffect(2.0)
@@ -52,7 +51,6 @@ struct ImageAnalysisView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     
-                    // Scanner animation
                     Rectangle()
                         .fill(.blue.opacity(0.8))
                         .frame(height: 2)
@@ -71,6 +69,11 @@ struct ImageAnalysisView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .interactiveDismissDisabled(true)
+            .task {
+                if let optimized = await OptimizedImageManager.shared.optimizeImage(image) {
+                    optimizedImage = optimized
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

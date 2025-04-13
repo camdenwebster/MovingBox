@@ -10,6 +10,7 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
+@MainActor
 struct InventoryDetailView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -42,6 +43,7 @@ struct InventoryDetailView: View {
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
     @State private var showingPaywall = false
+    @State private var displayedImage: UIImage?
     
     var showSparklesButton = false
 
@@ -71,8 +73,8 @@ struct InventoryDetailView: View {
             Section {
                 // Photo Section
                 ZStack(alignment: .bottomTrailing) {
-                    if let uiImage = inventoryItemToDisplay.photo {
-                        Image(uiImage: uiImage)
+                    if let image = displayedImage {
+                        Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
                             .frame(width: UIScreen.main.bounds.width - 32)
@@ -103,9 +105,10 @@ struct InventoryDetailView: View {
                                 }
                                 .accessibilityIdentifier("chooseFromLibrary")
                                 
-                                if inventoryItemToDisplay.photo != nil {
+                                if inventoryItemToDisplay.imageURL != nil {
                                     Button("Remove Photo", role: .destructive) {
-                                        inventoryItemToDisplay.data = nil
+                                        inventoryItemToDisplay.imageURL = nil
+                                        displayedImage = nil
                                     }
                                     .accessibilityIdentifier("removePhoto")
                                 }
@@ -129,13 +132,6 @@ struct InventoryDetailView: View {
                                     showPhotoPicker = true
                                 }
                                 .accessibilityIdentifier("chooseFromLibrary")
-                                
-                                if inventoryItemToDisplay.photo != nil {
-                                    Button("Remove Photo", role: .destructive) {
-                                        inventoryItemToDisplay.data = nil
-                                    }
-                                    .accessibilityIdentifier("removePhoto")
-                                }
                             }
                         }
                     }
@@ -145,7 +141,7 @@ struct InventoryDetailView: View {
             }
 
             // AI Button Section
-            if isEditing && !inventoryItemToDisplay.hasUsedAI && (inventoryItemToDisplay.photo != nil) {
+            if isEditing && !inventoryItemToDisplay.hasUsedAI && inventoryItemToDisplay.imageURL != nil {
                 Section {
                     Button {
                         guard !isLoadingOpenAiResults else { return }
@@ -369,28 +365,18 @@ struct InventoryDetailView: View {
                 }
             }
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
-        .task {
-            if let photo = selectedPhoto {
-                await loadPhoto(from: photo)
-                selectedPhoto = nil
-            }
-        }
         .sheet(isPresented: $showingCamera) {
             CameraView(
                 showingImageAnalysis: .constant(false),
                 analyzingImage: .constant(nil)
-            ) { image, needsAIAnalysis, completion in
-                if let originalData = image.jpegData(compressionQuality: 1.0) {  // Save at full quality
-                    Task { @MainActor in
-                        inventoryItemToDisplay.data = originalData
-                        inventoryItemToDisplay.hasUsedAI = false
-                        try? modelContext.save()
-                        completion()
-                    }
-                } else {
-                    completion()
+            ) { image, needsAIAnalysis, completion async -> Void in
+                let id = UUID().uuidString
+                if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
+                    inventoryItemToDisplay.imageURL = imageURL
+                    inventoryItemToDisplay.hasUsedAI = false
+                    try? modelContext.save()
                 }
+                await completion()
             }
         }
         .sheet(isPresented: $showingPaywall) {
@@ -402,6 +388,16 @@ struct InventoryDetailView: View {
                 },
                 onDismiss: nil
             )
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .task {
+            if let photo = selectedPhoto {
+                await loadPhoto(from: photo)
+                selectedPhoto = nil
+            }
+        }
+        .task {
+            await loadDisplayedImage()
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
@@ -461,15 +457,26 @@ struct InventoryDetailView: View {
     
     private func loadPhoto(from item: PhotosPickerItem) async {
         do {
-            if let data = try await item.loadTransferable(type: Data.self) {
-                inventoryItemToDisplay.data = data
-                inventoryItemToDisplay.hasUsedAI = false
-                try modelContext.save()
+            if let data = try await item.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: data) {
+                let id = UUID().uuidString
+                if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
+                    inventoryItemToDisplay.imageURL = imageURL
+                    inventoryItemToDisplay.hasUsedAI = false
+                    try? modelContext.save()
+                }
             }
         } catch {
-            // Handle error appropriately
             errorMessage = "Failed to load photo: \(error.localizedDescription)"
             showingErrorAlert = true
+        }
+    }
+    
+    private func loadDisplayedImage() async {
+        do {
+            displayedImage = try await inventoryItemToDisplay.loadPhoto()
+        } catch {
+            print("Error loading image: \(error)")
         }
     }
     
@@ -477,11 +484,11 @@ struct InventoryDetailView: View {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
         
-        guard let photo = inventoryItemToDisplay.photo else {
+        guard let photo = try await inventoryItemToDisplay.loadPhoto() else {
             throw OpenAIError.invalidData
         }
         
-        guard let imageBase64 = PhotoManager.loadCompressedPhotoForAI(from: photo) else {
+        guard let imageBase64 = OptimizedImageManager.shared.prepareImageForAI(from: photo) else {
             throw OpenAIError.invalidData
         }
         

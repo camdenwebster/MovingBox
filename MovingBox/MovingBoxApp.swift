@@ -166,6 +166,34 @@ struct MovingBoxApp: App {
                 } catch {
                     print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
                 }
+                
+                // Load Test Data if launch argument is set
+                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                    Task {
+                        await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
+                        settings.hasLaunched = true
+                    }
+                }
+
+                // Reset paywall state if launch agrument is set
+                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
+                    settings.hasSeenPaywall = false
+                }
+
+                // Determine if we should show the welcome screen
+                let shouldShowWelcome = OnboardingManager.shouldShowWelcome()
+                if shouldShowWelcome {
+                    showOnboarding = true
+                }
+                
+                // Record that we've launched
+                settings.hasLaunched = true
+
+                // Send launched signal to TD
+                TelemetryDeck.signal("appLaunched")
+            }
+            .fullScreenCover(isPresented: $showOnboarding) {
+                OnboardingView(isPresented: $showOnboarding)
             }
             .modelContainer(containerManager.container)
             .environmentObject(router)

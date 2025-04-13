@@ -109,7 +109,7 @@ struct OnboardingItemView: View {
                 CameraView(
                     showingImageAnalysis: $showingImageAnalysis,
                     analyzingImage: $analyzingImage
-                ) { image, needsAnalysis, completion in
+                ) { image, needsAnalysis, completion async -> Void in
                     let newItem = InventoryItem(
                         title: "",
                         quantityString: "1",
@@ -128,14 +128,15 @@ struct OnboardingItemView: View {
                     )
                     
                     if let originalData = image.jpegData(compressionQuality: 1.0) {
-                        newItem.data = originalData
-                        modelContext.insert(newItem)
-                        try? modelContext.save()
-                        
-                        if needsAnalysis {
-                            Task {
-                                guard let base64ForAI = PhotoManager.loadCompressedPhotoForAI(from: image) else {
-                                    completion()
+                        let id = UUID().uuidString
+                        if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
+                            newItem.imageURL = imageURL
+                            modelContext.insert(newItem)
+                            try? modelContext.save()
+                            
+                            if needsAnalysis {
+                                guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+                                    await completion()
                                     selectedItem = newItem
                                     showCameraFlow = false
                                     showingDetail = true
@@ -153,24 +154,26 @@ struct OnboardingItemView: View {
                                     await MainActor.run {
                                         updateUIWithImageDetails(imageDetails, for: newItem)
                                         TelemetryManager.shared.trackCameraAnalysisUsed()
-                                        completion()
+                                        Task {
+                                            await completion()
+                                        }
                                         selectedItem = newItem
                                         showCameraFlow = false
                                         showingDetail = true
                                     }
                                 } catch {
                                     print("Error analyzing image: \(error)")
-                                    completion()
+                                    await completion()
                                     selectedItem = newItem
                                     showCameraFlow = false
                                     showingDetail = true
                                 }
+                            } else {
+                                await completion()
+                                selectedItem = newItem
+                                showCameraFlow = false
+                                showingDetail = true
                             }
-                        } else {
-                            completion()
-                            selectedItem = newItem
-                            showCameraFlow = false
-                            showingDetail = true
                         }
                     }
                 }

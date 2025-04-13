@@ -30,6 +30,7 @@ struct StatCard: View {
     }
 }
 
+@MainActor
 struct DashboardView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
@@ -42,6 +43,11 @@ struct DashboardView: View {
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
+    
+    @State private var loadedImage: UIImage?
+    @State private var loadingError: Error?
+    @State private var isLoading = false
+    @State private var isShowingRemovePhotoButton = false
     
     private var home: Home? {
         homes.first
@@ -62,7 +68,7 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: 24) {
                 Group {
-                    if let uiImage = home?.photo {
+                    if let uiImage = loadedImage {
                         ZStack(alignment: .bottom) {
                             GeometryReader { geometry in
                                 Image(uiImage: uiImage)
@@ -83,40 +89,12 @@ struct DashboardView: View {
                                 .frame(height: 100)
                             }
                             
-                            HStack {
-                                Text(home?.name != "" ? home?.name ?? "Dashboard" : "Dashboard")
-                                    .font(.largeTitle)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Button {
-                                    showPhotoSourceAlert = true
-                                } label: {
-                                    Image(systemName: "photo")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .padding(8)
-                                        .background(Circle().fill(.black.opacity(0.6)))
-                                        .padding(8)
-                                }
-                                .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                    Button("Take Photo") {
-                                        showCamera = true
-                                    }
-                                    Button("Choose from Library") {
-                                        showPhotoPicker = true
-                                    }
-                                    if home?.photo != nil {
-                                        Button("Remove Photo", role: .destructive) {
-                                            home?.data = nil
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 16)
+                            dashboardHeader
                         }
                         .ignoresSafeArea(edges: .horizontal)
+                    } else if isLoading {
+                        ProgressView()
+                            .frame(height: 100)
                     } else {
                         VStack {
                             Spacer()
@@ -126,21 +104,8 @@ struct DashboardView: View {
                             })
                             .padding()
                             .background {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(.ultraThinMaterial)
-                            }
-                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                Button("Take Photo") {
-                                    showCamera = true
-                                }
-                                Button("Choose from Library") {
-                                    showPhotoPicker = true
-                                }
-                                if home?.photo != nil {
-                                    Button("Remove Photo", role: .destructive) {
-                                        home?.data = nil
-                                    }
-                                }
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(.ultraThinMaterial)
                             }
                         }
                     }
@@ -183,6 +148,49 @@ struct DashboardView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
+        .task(id: home?.imageURL) {
+            guard let home = home else { return }
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                if let imageURL = home.imageURL {
+                    loadedImage = try await OptimizedImageManager.shared.loadImage(url: imageURL)
+                    isShowingRemovePhotoButton = true
+                } else {
+                    loadedImage = nil
+                    isShowingRemovePhotoButton = false
+                }
+            } catch {
+                loadingError = error
+                print("Failed to load image: \(error)")
+            }
+        }
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if isShowingRemovePhotoButton {
+                Button("Remove Photo", role: .destructive) {
+                    home?.imageURL = nil
+                    loadedImage = nil
+                    isShowingRemovePhotoButton = false
+                }
+            }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .sheet(isPresented: $showCamera) {
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion async -> Void in
+                await handleNewImage(image)
+                await completion()
+            }
+        }
         .onChange(of: selectedPhoto) { oldValue, newValue in
             Task {
                 if let photo = newValue {
@@ -191,46 +199,65 @@ struct DashboardView: View {
                 }
             }
         }
-        .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion in
-                if let imageData = image.jpegData(compressionQuality: 0.8) {
-                    if home == nil {
-                        let newHome = Home()
-                        modelContext.insert(newHome)
-                        newHome.data = imageData
-                    } else {
-                        home?.data = imageData
-                    }
-                    try? modelContext.save()
-                }
-                completion()
+    }
+    
+    private var dashboardHeader: some View {
+        HStack {
+            Text(home?.name != "" ? home?.name ?? "Dashboard" : "Dashboard")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+            Spacer()
+            Button {
+                showPhotoSourceAlert = true
+            } label: {
+                Image(systemName: "photo")
+                    .font(.title2)
+                    .foregroundColor(.white)
+                    .padding(8)
+                    .background(Circle().fill(.black.opacity(0.6)))
+                    .padding(8)
             }
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
-//        .task {
-//            if home == nil {
-//                let newHome = Home()
-//                modelContext.insert(newHome)
-//                try? modelContext.save()
-//            }
-//        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+    }
+    
+    private func handleNewImage(_ image: UIImage) async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let id = UUID().uuidString
+            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
+            if home == nil {
+                let newHome = Home()
+                modelContext.insert(newHome)
+                newHome.imageURL = imageURL
+            } else {
+                home?.imageURL = imageURL
+            }
+            loadedImage = image
+            isShowingRemovePhotoButton = true
+            try? modelContext.save()
+        } catch {
+            loadingError = error
+            print("Failed to save image: \(error)")
+        }
     }
     
     private func loadPhoto(from item: PhotosPickerItem) async {
-        if let data = try? await item.loadTransferable(type: Data.self) {
-            await MainActor.run {
-                if home == nil {
-                    let newHome = Home()
-                    modelContext.insert(newHome)
-                    newHome.data = data
-                } else {
-                    home?.data = data
-                }
-                try? modelContext.save()
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            if let data = try await item.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: data) {
+                await handleNewImage(uiImage)
             }
+        } catch {
+            loadingError = error
+            print("Failed to load photo: \(error)")
         }
     }
 }

@@ -13,17 +13,26 @@ import SwiftUI
 class InventoryLocation {
     var name: String = ""
     var desc: String = ""
-    @Attribute(.externalStorage) var data: Data?
+    var imageURL: URL?
+    var inventoryItems: [InventoryItem]? = [InventoryItem]()
+    
+    // Efficient async computed properties for image loading
+    @MainActor
     var photo: UIImage? {
-        get {
-            if let data = data {
-                return UIImage(data: data)
-            }
-            return nil
+        get async throws {
+            guard let imageURL else { return nil }
+            return try await OptimizedImageManager.shared.loadImage(url: imageURL)
         }
     }
     
-    var inventoryItems: [InventoryItem]? = [InventoryItem]()
+    @MainActor
+    var thumbnail: UIImage? {
+        get async throws {
+            guard let imageURL else { return nil }
+            let id = imageURL.deletingPathExtension().lastPathComponent
+            return try await OptimizedImageManager.shared.loadThumbnail(id: id)
+        }
+    }
     
     init(name: String = "", desc: String = "") {
         self.name = name

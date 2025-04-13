@@ -10,24 +10,34 @@ import SwiftData
 import SwiftUI
 
 @Model
-class Home {
+@MainActor
+final class Home {
     var name: String = ""
     var address1: String = ""
     var address2: String = ""
     var city: String = ""
     var state: String = ""
-    var zip: String = ""  
+    var zip: String = ""
     var country: String = ""
     var purchaseDate: Date = Date()
     var purchasePrice: Decimal = 0.00
-    @Attribute(.externalStorage) var data: Data?
+    var imageURL: URL?
     var insurancePolicy: InsurancePolicy?
+    
+    @MainActor
     var photo: UIImage? {
-        get {
-            if let data = data {
-                return UIImage(data: data)
-            }
-            return nil
+        get async throws {
+            guard let imageURL else { return nil }
+            return try await OptimizedImageManager.shared.loadImage(url: imageURL)
+        }
+    }
+    
+    @MainActor
+    var thumbnail: UIImage? {
+        get async throws {
+            guard let imageURL else { return nil }
+            let id = imageURL.deletingPathExtension().lastPathComponent
+            return try await OptimizedImageManager.shared.loadThumbnail(id: id)
         }
     }
     
@@ -49,7 +59,7 @@ class Home {
         address2: String = "",
         city: String = "",
         state: String = "",
-        zip: String = "",  
+        zip: String = "",
         country: String = "",
         purchaseDate: Date = Date(),
         purchasePrice: Decimal = 0.00,

@@ -42,16 +42,23 @@ struct LocationsListView: View {
                     description: Text("Add locations to organize your items by room or area.")
                 )
                 .toolbar {
-                    Button("Add Location", systemImage: "plus") {
-                        if settings.hasReachedLocationLimit(currentCount: locations.count) {
-                            showingPaywall = true
-                        } else {
-                            addLocation()
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button {
+                            if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                                showingPaywall = true
+                            } else {
+                                addLocation()
+                            }
+                        } label: {
+                            Label("Add Location", systemImage: "plus")
                         }
-                    }
-                    .accessibilityIdentifier("addLocation")
-                    Button("Edit") {
-                        router.navigate(to: .locationsSettingsView)
+                        .accessibilityIdentifier("addLocation")
+                        
+                        Button {
+                            router.navigate(to: .locationsSettingsView)
+                        } label: {
+                            Text("Edit")
+                        }
                     }
                 }
             } else {
@@ -67,16 +74,23 @@ struct LocationsListView: View {
                     .padding()
                 }
                 .toolbar {
-                    Button("Add Location", systemImage: "plus") {
-                        if settings.hasReachedLocationLimit(currentCount: locations.count) {
-                            showingPaywall = true
-                        } else {
-                            addLocation()
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button {
+                            if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                                showingPaywall = true
+                            } else {
+                                addLocation()
+                            }
+                        } label: {
+                            Label("Add Location", systemImage: "plus")
                         }
-                    }
-                    .accessibilityIdentifier("addLocation")
-                    Button("Edit") {
-                        router.navigate(to: .locationsSettingsView)
+                        .accessibilityIdentifier("addLocation")
+                        
+                        Button {
+                            router.navigate(to: .locationsSettingsView)
+                        } label: {
+                            Text("Edit")
+                        }
                     }
                 }
             }
@@ -104,6 +118,10 @@ struct LocationsListView: View {
         }
     }
     
+    private func addLocation() {
+        router.navigate(to: .editLocationView(location: nil))
+    }
+    
     private func deleteLocations(at offsets: IndexSet) {
         Task {
             for index in offsets {
@@ -112,10 +130,6 @@ struct LocationsListView: View {
             }
             try? modelContext.save()
         }
-    }
-    
-    func addLocation() {
-        router.navigate(to: .editLocationView(location: nil))
     }
 }
 

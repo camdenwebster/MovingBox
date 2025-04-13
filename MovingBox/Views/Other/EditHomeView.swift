@@ -30,6 +30,7 @@ private struct CurrencyField: View {
     }
 }
 
+@MainActor
 struct EditHomeView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
@@ -40,6 +41,9 @@ struct EditHomeView: View {
     @State private var showPhotoPicker = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
+    @State private var loadedImage: UIImage?
+    @State private var loadingError: Error?
+    @State private var isLoading = false
     
     // Consolidate home-related properties into a temporary home
     @State private var tempHome = Home()
@@ -67,7 +71,7 @@ struct EditHomeView: View {
     var body: some View {
         Form {
             Section {
-                if let uiImage = tempUIImage ?? activeHome?.photo {
+                if let uiImage = tempUIImage ?? loadedImage {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
@@ -77,18 +81,13 @@ struct EditHomeView: View {
                         .listRowInsets(EdgeInsets())
                         .overlay(alignment: .bottomTrailing) {
                             if isEditingEnabled {
-                                Button {
-                                    showPhotoSourceAlert = true
-                                } label: {
-                                    Image(systemName: "photo")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .padding(8)
-                                        .background(Circle().fill(.black.opacity(0.6)))
-                                        .padding(8)
-                                }
+                                photoButton
                             }
                         }
+                } else if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
                 } else {
                     if isEditingEnabled {
                         AddPhotoButton(action: {
@@ -155,15 +154,7 @@ struct EditHomeView: View {
             
             Section("Insurance Policy") {
                 FormTextFieldRow(label: "Insurance Provider", text: $tempPolicy.providerName, isEditing: $isEditing, placeholder: "Name")
-//                TextField("Insurance Provider", text: $tempPolicy.providerName)
-//                    .textContentType(.organizationName)
-//                    .disabled(!isEditingEnabled)
-//                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 FormTextFieldRow(label: "Policy Number", text: $tempPolicy.policyNumber, isEditing: $isEditing, placeholder: "Number")
-//                TextField("Policy Number", text: $tempPolicy.policyNumber)
-//                    .textContentType(.none)
-//                    .disabled(!isEditingEnabled)
-//                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 
                 if isEditingEnabled {
                     DatePicker("Start Date", selection: $tempPolicy.startDate, displayedComponents: .date)
@@ -222,6 +213,18 @@ struct EditHomeView: View {
                 )
             }
         }
+        .task(id: activeHome?.imageURL) {
+            guard let home = activeHome else { return }
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                loadedImage = try await home.photo
+            } catch {
+                loadingError = error
+                print("Failed to load image: \(error)")
+            }
+        }
         .navigationTitle(isNewHome ? "New Home" : "\(activeHome?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhoto, loadPhoto)
@@ -229,15 +232,17 @@ struct EditHomeView: View {
             CameraView(
                 showingImageAnalysis: .constant(false),
                 analyzingImage: .constant(nil)
-            ) { image, _, completion in
-                if let home = activeHome {
-                    if let imageData = image.jpegData(compressionQuality: 0.8) {
-                        home.data = imageData
+            ) { image, _, completion async -> Void in
+                let id = UUID().uuidString
+                if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
+                    if let home = activeHome {
+                        home.imageURL = imageURL
+                        try? modelContext.save()
+                    } else {
+                        tempUIImage = image
                     }
-                } else {
-                    tempUIImage = image
                 }
-                completion()
+                await completion()
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
@@ -248,10 +253,11 @@ struct EditHomeView: View {
             Button("Choose from Library") {
                 showPhotoPicker = true
             }
-            if tempUIImage != nil || activeHome?.photo != nil {
+            if tempUIImage != nil || loadedImage != nil {
                 Button("Remove Photo", role: .destructive) {
                     if let home = activeHome {
-                        home.data = nil
+                        home.imageURL = nil
+                        loadedImage = nil
                     } else {
                         tempUIImage = nil
                     }
@@ -297,40 +303,80 @@ struct EditHomeView: View {
                 }
             } else {
                 Button("Save") {
-                    // Copy properties from tempHome
-                    tempHome.purchaseDate = Date()
-                    
-                    if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-                        tempHome.data = imageData
+                    Task {
+                        // Copy properties from tempHome
+                        tempHome.purchaseDate = Date()
+                        
+                        if let uiImage = tempUIImage {
+                            let id = UUID().uuidString
+                            if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
+                                tempHome.imageURL = imageURL
+                            }
+                        }
+                        
+                        // Create insurance policy if provider name or policy number is filled
+                        if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
+                            tempPolicy.insuredHome = tempHome
+                            tempHome.insurancePolicy = tempPolicy
+                        }
+                        
+                        modelContext.insert(tempHome)
+                        TelemetryManager.shared.trackLocationCreated(name: tempHome.address1)
+                        print("EditHomeView: Created new home - \(tempHome.name)")
+                        router.navigateBack()
                     }
-                    
-                    // Create insurance policy if provider name or policy number is filled
-                    if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
-                        tempPolicy.insuredHome = tempHome
-                        tempHome.insurancePolicy = tempPolicy
-                    }
-                    
-                    modelContext.insert(tempHome)
-                    TelemetryManager.shared.trackLocationCreated(name: tempHome.address1)
-                    print("EditHomeView: Created new home - \(tempHome.name)")
-                    router.navigateBack()
                 }
                 .disabled(tempHome.address1.isEmpty)
             }
         }
     }
     
+    private var photoButton: some View {
+        Button {
+            showPhotoSourceAlert = true
+        } label: {
+            Image(systemName: "photo")
+                .font(.title2)
+                .foregroundColor(.white)
+                .padding(8)
+                .background(Circle().fill(.black.opacity(0.6)))
+                .padding(8)
+        }
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            if tempUIImage != nil || loadedImage != nil {
+                Button("Remove Photo", role: .destructive) {
+                    if let home = activeHome {
+                        home.imageURL = nil
+                        loadedImage = nil
+                    } else {
+                        tempUIImage = nil
+                    }
+                }
+            }
+        }
+    }
+    
     private func loadPhoto() {
         Task {
-            if let data = try? await selectedPhoto?.loadTransferable(type: Data.self) {
-                if let uiImage = UIImage(data: data) {
-                    await MainActor.run {
-                        if let home = activeHome {
-                            home.data = data
-                        } else {
-                            tempUIImage = uiImage
-                        }
+            if let data = try? await selectedPhoto?.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: data) {
+                isLoading = true
+                defer { isLoading = false }
+                
+                let id = UUID().uuidString
+                if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
+                    if let home = activeHome {
+                        home.imageURL = imageURL
+                    } else {
+                        tempUIImage = uiImage
                     }
+                    try? modelContext.save()
                 }
             }
         }

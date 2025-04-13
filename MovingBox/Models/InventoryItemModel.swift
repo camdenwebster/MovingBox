@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 @Model
 final class InventoryItem: ObservableObject {
@@ -24,16 +25,19 @@ final class InventoryItem: ObservableObject {
     var insured: Bool = false
     var assetId: String = ""
     var notes: String = ""
-    @Attribute(.externalStorage) var data: Data?
-    var photo: UIImage? {
-        get {
-            guard let data = data else { return nil }
-            // Ensure we're on main thread and have valid context
-            guard Thread.isMainThread else {
-                return DispatchQueue.main.sync { UIImage(data: data) }
-            }
-            return UIImage(data: data)
-        }
+    var imageURL: URL?
+    
+    @MainActor
+    func loadPhoto() async throws -> UIImage? {
+        guard let imageURL else { return nil }
+        return try await OptimizedImageManager.shared.loadImage(url: imageURL)
+    }
+    
+    @MainActor
+    func loadThumbnail() async throws -> UIImage? {
+        guard let imageURL else { return nil }
+        let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
+        return try await OptimizedImageManager.shared.loadThumbnail(id: id)
     }
     
     var showInvalidQuantityAlert: Bool = false

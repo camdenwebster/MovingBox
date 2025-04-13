@@ -10,7 +10,7 @@ struct CameraView: View {
     @State private var capturedImage: UIImage?
     @State private var showingPermissionDenied = false
     
-    var onPhotoCapture: ((UIImage, Bool, @escaping () -> Void) -> Void)?
+    var onPhotoCapture: ((UIImage, Bool, @escaping () async -> Void) async -> Void)?
     
     private var isMockCamera: Bool {
         ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
@@ -46,17 +46,32 @@ struct CameraView: View {
     }
     
     private func handleCapturedImage(_ newImage: UIImage?) {
-        if let image = newImage {
-            analyzingImage = image
-            showingImageAnalysis = true
-            
-            onPhotoCapture?(image, true) {
-                DispatchQueue.main.async {
-                    showingImageAnalysis = false
-                    analyzingImage = nil
+        Task {
+            if let image = newImage {
+                analyzingImage = image
+                showingImageAnalysis = true
+                
+                let processedImage = await processImage(image)
+                await onPhotoCapture?(processedImage, true) {
+                    Task { @MainActor in
+                        showingImageAnalysis = false
+                        analyzingImage = nil
+                    }
                 }
             }
         }
+    }
+    
+    private func processImage(_ image: UIImage) async -> UIImage {
+        let shorterSide = min(image.size.width, image.size.height)
+        let xOffset = (image.size.width - shorterSide) / 2
+        let yOffset = (image.size.height - shorterSide) / 2
+        let cropRect = CGRect(x: xOffset, y: yOffset, width: shorterSide, height: shorterSide)
+        
+        if let cgImage = image.cgImage?.cropping(to: cropRect) {
+            return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+        }
+        return image
     }
     
     private func openSettings() {

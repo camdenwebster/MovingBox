@@ -9,22 +9,33 @@ import SwiftUI
 
 struct InventoryItemRow: View {
     var item: InventoryItem
+    @State private var thumbnail: UIImage?
+    
     var body: some View {
         HStack {
-            if let uiImage = item.photo {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: 80, maxHeight: 60)
-                    .clipped()
-                    .cornerRadius(8)
-            } else {
-                Image(systemName: "photo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: 80, maxHeight: 60)
-                    .clipped()
-                    .cornerRadius(8)
+            Group {
+                if let uiImage = thumbnail {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: 80, maxHeight: 60)
+                        .clipped()
+                        .cornerRadius(8)
+                } else {
+                    Image(systemName: "photo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: 80, maxHeight: 60)
+                        .clipped()
+                        .cornerRadius(8)
+                }
+            }
+            .task {
+                do {
+                    thumbnail = try await item.loadThumbnail()
+                } catch {
+                    print("Error loading thumbnail: \(error)")
+                }
             }
             VStack(alignment: .leading) {
                 Text(item.title)

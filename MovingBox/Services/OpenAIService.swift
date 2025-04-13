@@ -240,8 +240,6 @@ class OpenAIService {
             throw OpenAIError.invalidData
         }
     }
-    
-    // Rest of the implementation remains the same...
 }
 
 #if DEBUG

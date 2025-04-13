@@ -20,32 +20,22 @@ struct InventoryListSubView: View {
     
     var body: some View {
         Group {
-            if isLoading {
-                VStack {
-                    ProgressView()
-                        .controlSize(.large)
-                    Text("Loading items...")
-                        .foregroundStyle(.secondary)
-                        .padding(.top)
-                }
-            } else {
-                List {
-                    if items.isEmpty {
-                        ContentUnavailableView(
-                            "No Items",
-                            systemImage: "list.bullet",
-                            description: Text("Start by adding items to your inventory.")
-                        )
-                    } else {
-                        Section {
-                            ForEach(items) { inventoryItem in
-                                NavigationLink(value: inventoryItem) {
-                                    InventoryItemRow(item: inventoryItem)
-                                        .listRowInsets(EdgeInsets())
-                                }
+            List {
+                if items.isEmpty {
+                    ContentUnavailableView(
+                        "No Items",
+                        systemImage: "list.bullet",
+                        description: Text("Start by adding items to your inventory.")
+                    )
+                } else {
+                    Section {
+                        ForEach(items) { inventoryItem in
+                            NavigationLink(value: inventoryItem) {
+                                InventoryItemRow(item: inventoryItem)
+                                    .listRowInsets(EdgeInsets())
                             }
-                            .onDelete(perform: deleteItems)
                         }
+                        .onDelete(perform: deleteItems)
                     }
                 }
             }

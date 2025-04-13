@@ -11,7 +11,7 @@ import UIKit
 
 @MainActor
 struct TestData {
-    // Helper function to load test image from asset catalog
+    // Helper method to load test image from asset catalog
     private static func loadTestImage(category: String, filename: String) -> Data? {
         // Use bundle to load image directly from asset catalog
         guard let image = UIImage(named: filename) else {
@@ -26,6 +26,36 @@ struct TestData {
         
         print("✅ Successfully loaded image: \(filename)")
         return data
+    }
+    
+    // Helper method to set up image URL for test data
+    private static func setupImageURL(imageName: String, id: String) -> URL? {
+        guard let baseURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Images") else {
+            return nil
+        }
+        
+        // Create directory if it doesn't exist
+        if !FileManager.default.fileExists(atPath: baseURL.path) {
+            try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+        }
+        
+        let destinationURL = baseURL.appendingPathComponent("\(id).jpg")
+        
+        // Only copy if the file doesn't already exist
+        if !FileManager.default.fileExists(atPath: destinationURL.path),
+           let image = UIImage(named: imageName) {
+            if let data = image.jpegData(compressionQuality: 0.8) {
+                try? data.write(to: destinationURL)
+                // Generate thumbnail
+                Task {
+                    if let uiImage = UIImage(data: data) {
+                        try? await OptimizedImageManager.shared.saveImage(uiImage, id: id)
+                    }
+                }
+            }
+        }
+        
+        return destinationURL
     }
     
     // Sample home with local image path
@@ -165,24 +195,24 @@ struct TestData {
         let home: Home
         
         if let firstHome = existingHomes?.first {
-            // Update existing home
             home = firstHome
         } else {
-            // Create new home if none exists
             home = Home()
             context.insert(home)
         }
         
         // Update home properties
         home.address1 = homes[0].address1
-        home.data = loadTestImage(category: "homes", filename: homes[0].imageName)
+        let homeId = UUID().uuidString
+        home.imageURL = setupImageURL(imageName: homes[0].imageName, id: homeId)
         
         // Create locations
         let inventoryLocations = locations.map { locationData -> InventoryLocation in
             let location = InventoryLocation()
             location.name = locationData.name
             location.desc = locationData.desc
-            location.data = loadTestImage(category: "locations", filename: locationData.imageName)
+            let locationId = UUID().uuidString
+            location.imageURL = setupImageURL(imageName: locationData.imageName, id: locationId)
             context.insert(location)
             return location
         }
@@ -220,7 +250,8 @@ struct TestData {
                 showInvalidQuantityAlert: false
             )
             
-            item.data = loadTestImage(category: "items", filename: itemData.imageName)
+            let itemId = UUID().uuidString
+            item.imageURL = setupImageURL(imageName: itemData.imageName, id: itemId)
             context.insert(item)
         }
     }

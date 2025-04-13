@@ -47,7 +47,7 @@ struct AddInventoryItemView: View {
             CameraView(
                 showingImageAnalysis: $showingImageAnalysis,
                 analyzingImage: $analyzingImage
-            ) { image, needsAnalysis, completion in
+            ) { image, needsAnalysis, completion async -> Void in
                 let newItem = InventoryItem(
                     title: "",
                     quantityString: "1",
@@ -64,43 +64,44 @@ struct AddInventoryItemView: View {
                     notes: "",
                     showInvalidQuantityAlert: false
                 )
-                
-                if let originalData = image.jpegData(compressionQuality: 1.0) {
-                    newItem.data = originalData
+
+                let id = UUID().uuidString
+                if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
+                    newItem.imageURL = imageURL
                     modelContext.insert(newItem)
                     TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
                     try? modelContext.save()
                     
                     if needsAnalysis {
-                        Task {
-                            guard let base64ForAI = PhotoManager.loadCompressedPhotoForAI(from: image) else {
-                                completion()
-                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                                return
-                            }
-                            
-                            let openAi = OpenAIService(
-                                imageBase64: base64ForAI,
-                                settings: settings,
-                                modelContext: modelContext
-                            )
-                            
-                            do {
-                                let imageDetails = try await openAi.getImageDetails()
-                                await MainActor.run {
-                                    updateUIWithImageDetails(imageDetails, for: newItem)
-                                    TelemetryManager.shared.trackCameraAnalysisUsed()
-                                    completion()
-                                    router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
+                        guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+                            await completion()
+                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                            return
+                        }
+                        
+                        let openAi = OpenAIService(
+                            imageBase64: base64ForAI,
+                            settings: settings,
+                            modelContext: modelContext
+                        )
+                        
+                        do {
+                            let imageDetails = try await openAi.getImageDetails()
+                            await MainActor.run {
+                                updateUIWithImageDetails(imageDetails, for: newItem)
+                                TelemetryManager.shared.trackCameraAnalysisUsed()
+                                Task {
+                                    await completion()
                                 }
-                            } catch {
-                                print("Error analyzing image: \(error)")
-                                completion()
-                                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                                router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
                             }
+                        } catch {
+                            print("Error analyzing image: \(error)")
+                            await completion()
+                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
                         }
                     } else {
-                        completion()
+                        await completion()
                         router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
                     }
                 }

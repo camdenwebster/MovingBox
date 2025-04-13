@@ -16,16 +16,23 @@ struct OnboardingHomeView: View {
     @State private var showingCamera = false
     @State private var showPhotoPicker = false
     @State private var showValidationAlert = false
+    @State private var loadingError: Error?
     
     private var activeHome: Home? {
         homes.first
     }
     
-    private func loadExistingData() {
+    @MainActor
+    private func loadExistingData() async {
         if let existingHome = activeHome {
             homeName = existingHome.name
-            if let imageData = existingHome.data {
-                tempUIImage = UIImage(data: imageData)
+            do {
+                if let photo = try await existingHome.photo {
+                    tempUIImage = photo
+                }
+            } catch {
+                loadingError = error
+                print("Failed to load home photo: \(error)")
             }
         }
     }
@@ -121,7 +128,9 @@ struct OnboardingHomeView: View {
                 
                 VStack {
                     OnboardingContinueButton {
-                        handleContinueButton()
+                        Task {
+                            await handleContinueButton()
+                        }
                     }
                     .accessibilityIdentifier("onboarding-home-continue-button")
                     .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
@@ -131,63 +140,85 @@ struct OnboardingHomeView: View {
         }
         .onboardingBackground()
         .onChange(of: selectedPhoto, loadPhoto)
-        .onAppear(perform: loadExistingData)
+        .task {
+            await loadExistingData()
+        }
         .sheet(isPresented: $showingCamera, onDismiss: nil) {
             CameraView(
                 showingImageAnalysis: .constant(false),
                 analyzingImage: .constant(nil)
-            ) { image, _, completion in
+            ) { image, _, completion async -> Void in
                 tempUIImage = image
-                completion()
+                await completion()
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .alert("Missing Details", isPresented: $showValidationAlert) {
             Button("Go Back") { }
             Button("Continue Anyway") {
-                saveHomeAndContinue()                
-                manager.moveToNext()
+                Task {
+                    await saveHomeAndContinue()
+                    manager.moveToNext()
+                }
             }
         } message: {
             Text("Some details haven't been filled out. Would you like to go back and complete them or continue anyway?")
         }
     }
     
+    @MainActor
     private func loadPhoto() {
         Task {
-            if let data = try? await selectedPhoto?.loadTransferable(type: Data.self) {
-                if let uiImage = UIImage(data: data) {
-                    await MainActor.run {
-                        tempUIImage = uiImage
-                    }
+            do {
+                if let data = try await selectedPhoto?.loadTransferable(type: Data.self),
+                   let uiImage = UIImage(data: data) {
+                    tempUIImage = uiImage
                 }
+            } catch {
+                loadingError = error
+                print("Failed to load photo: \(error)")
             }
         }
     }
     
-    private func handleContinueButton() {
+    @MainActor
+    private func handleContinueButton() async {
         if homeName.isEmpty {
             showValidationAlert = true
         } else {
-            saveHomeAndContinue()
-            
-            manager.moveToNext()
+            do {
+                await saveHomeAndContinue()
+                manager.moveToNext()
+            } catch {
+                loadingError = error
+                print("Failed to save home: \(error)")
+            }
         }
     }
     
-    private func saveHomeAndContinue() {
-        if let existingHome = activeHome {
-            existingHome.name = homeName
-            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-                existingHome.data = imageData
+    @MainActor
+    private func saveHomeAndContinue() async {
+        do {
+            if let existingHome = activeHome {
+                existingHome.name = homeName
+                if let uiImage = tempUIImage {
+                    let id = UUID().uuidString
+                    let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id)
+                    existingHome.imageURL = imageURL
+                }
+            } else {
+                let home = Home()
+                home.name = homeName
+                if let uiImage = tempUIImage {
+                    let id = UUID().uuidString
+                    let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id)
+                    home.imageURL = imageURL
+                }
+                modelContext.insert(home)
             }
-        } else {
-            let home = Home()
-            home.name = homeName
-            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-                home.data = imageData
-            }
-            modelContext.insert(home)
+        } catch {
+            loadingError = error
+            print("Failed to save home photo: \(error)")
         }
     }
 }
