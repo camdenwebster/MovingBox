@@ -12,8 +12,9 @@ struct AddInventoryItemView: View {
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
     @State private var showingPaywall = false
-    @State private var showingImageAnalysis = false
+    @State private var showItemFlow = false
     @State private var analyzingImage: UIImage?
+    @State private var selectedItem: InventoryItem?
     @Query private var allItems: [InventoryItem]
     
     let location: InventoryLocation?
@@ -45,8 +46,8 @@ struct AddInventoryItemView: View {
         }
         .sheet(isPresented: $showingCamera) {
             CameraView(
-                showingImageAnalysis: $showingImageAnalysis,
-                analyzingImage: $analyzingImage
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
             ) { image, needsAnalysis, completion async -> Void in
                 let newItem = InventoryItem(
                     title: "",
@@ -64,7 +65,7 @@ struct AddInventoryItemView: View {
                     notes: "",
                     showInvalidQuantityAlert: false
                 )
-
+                
                 let id = UUID().uuidString
                 if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
                     newItem.imageURL = imageURL
@@ -72,46 +73,29 @@ struct AddInventoryItemView: View {
                     TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
                     try? modelContext.save()
                     
+                    await completion()
+                    showingCamera = false
+                    
                     if needsAnalysis {
-                        guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image) else {
-                            await completion()
-                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                            return
-                        }
-                        
-                        let openAi = OpenAIService(
-                            imageBase64: base64ForAI,
-                            settings: settings,
-                            modelContext: modelContext
-                        )
-                        
-                        do {
-                            let imageDetails = try await openAi.getImageDetails()
-                            await MainActor.run {
-                                updateUIWithImageDetails(imageDetails, for: newItem)
-                                TelemetryManager.shared.trackCameraAnalysisUsed()
-                                Task {
-                                    await completion()
-                                }
-                                router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
-                            }
-                        } catch {
-                            print("Error analyzing image: \(error)")
-                            await completion()
-                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                        analyzingImage = image
+                        selectedItem = newItem
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            showItemFlow = true
                         }
                     } else {
-                        await completion()
                         router.navigate(to: .inventoryDetailView(item: newItem, isEditing: true))
                     }
                 }
             }
         }
-        .fullScreenCover(isPresented: $showingImageAnalysis) {
-            if let image = analyzingImage {
-                ImageAnalysisView(image: image) {
-                    showingImageAnalysis = false
-                    analyzingImage = nil
+        .sheet(isPresented: $showItemFlow) {
+            if let image = analyzingImage, let item = selectedItem {
+                ItemAnalysisDetailView(
+                    item: item,
+                    image: image
+                ) {
+                    showItemFlow = false
+                    router.navigate(to: .inventoryDetailView(item: item, isEditing: true))
                 }
             }
         }
@@ -120,7 +104,6 @@ struct AddInventoryItemView: View {
                 isPresented: $showingPaywall,
                 onCompletion: {
                     settings.isPro = true
-                    // Add any specific post-purchase actions here
                 },
                 onDismiss: nil
             )
@@ -156,32 +139,6 @@ struct AddInventoryItemView: View {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
         }
-    }
-    
-    private func updateUIWithImageDetails(_ imageDetails: ImageDetails, for item: InventoryItem) {
-        let fetchDescriptor = FetchDescriptor<InventoryLabel>()
-        
-        guard let labels = try? modelContext.fetch(fetchDescriptor) else { return }
-        
-        item.title = imageDetails.title
-        item.quantityString = imageDetails.quantity
-        item.label = labels.first { $0.name == imageDetails.category }
-        item.desc = imageDetails.description
-        item.make = imageDetails.make
-        item.model = imageDetails.model
-        item.hasUsedAI = true
-        
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        guard let locations = try? modelContext.fetch(locationDescriptor) else { return }
-        
-        if location == nil && item.location == nil {
-            item.location = locations.first { $0.name == imageDetails.location }
-        }
-        
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        item.price = Decimal(string: priceString) ?? 0
-        
-        try? modelContext.save()
     }
 }
 

@@ -135,13 +135,10 @@ struct OnboardingItemView: View {
         .sheet(isPresented: $showItemFlow) {
             Group {
                 if let image = capturedImage {
-                    ItemAnalysisDetailView(
-                        item: selectedItem,
-                        image: image,
-                        onSave: {
-                            showItemFlow = false
-                            manager.moveToNext()
-                        }
+                    ContentUnavailableView(
+                        "Image Not Available",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("Unable to process the captured image.")
                     )
                 } else {
                     ContentUnavailableView(
@@ -187,109 +184,6 @@ struct OnboardingItemView: View {
         modelContext.insert(newItem)
         try? modelContext.save()
         return newItem
-    }
-}
-
-// New view to handle analysis and detail flow
-struct ItemAnalysisDetailView: View {
-    @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var settings: SettingsManager
-    @Environment(\.dismiss) private var dismiss
-    
-    let item: InventoryItem?
-    let image: UIImage
-    let onSave: () -> Void
-    
-    @State private var showingImageAnalysis = true
-    @State private var navigationPath = NavigationPath()
-    @State private var showError = false
-    @State private var errorMessage = ""
-    
-    var body: some View {
-        NavigationStack(path: $navigationPath) {
-            ZStack {
-                if showingImageAnalysis {
-                    ImageAnalysisView(image: image) {
-                        Task {
-                            await analyzeImage()
-                            showingImageAnalysis = false
-                            navigationPath.append("detail")
-                        }
-                    }
-                    .environment(\.isOnboarding, true)
-                } else {
-                    // Placeholder view while transitioning
-                    Color.clear
-                }
-            }
-            .navigationDestination(for: String.self) { route in
-                if route == "detail", let currentItem = item {
-                    InventoryDetailView(
-                        inventoryItemToDisplay: currentItem,
-                        navigationPath: $navigationPath,
-                        isEditing: true,
-                        onSave: onSave
-                    )
-                }
-            }
-        }
-        .alert("Error", isPresented: $showError) {
-            Button("OK") {
-                dismiss()
-            }
-        } message: {
-            Text(errorMessage)
-        }
-    }
-    
-    private func analyzeImage() async {
-        guard let base64ForAI = OptimizedImageManager.shared.prepareImageForAI(from: image),
-              let _ = item else {
-            await MainActor.run {
-                errorMessage = "Unable to process the image"
-                showError = true
-            }
-            return
-        }
-        
-        let openAi = OpenAIService(
-            imageBase64: base64ForAI,
-            settings: settings,
-            modelContext: modelContext
-        )
-        
-        do {
-            let imageDetails = try await openAi.getImageDetails()
-            await MainActor.run {
-                updateUIWithImageDetails(imageDetails)
-                TelemetryManager.shared.trackCameraAnalysisUsed()
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = "Error analyzing image: \(error.localizedDescription)"
-                showError = true
-            }
-        }
-    }
-    
-    private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
-        guard let item = item else { return }
-        
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        guard let labels: [InventoryLabel] = try? modelContext.fetch(labelDescriptor) else { return }
-        
-        item.title = imageDetails.title
-        item.quantityString = imageDetails.quantity
-        item.label = labels.first { $0.name == imageDetails.category }
-        item.desc = imageDetails.description
-        item.make = imageDetails.make
-        item.model = imageDetails.model
-        item.hasUsedAI = true
-        
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        item.price = Decimal(string: priceString) ?? 0
-        
-        try? modelContext.save()
     }
 }
 
