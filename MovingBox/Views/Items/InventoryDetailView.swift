@@ -43,7 +43,10 @@ struct InventoryDetailView: View {
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
     @State private var showingPaywall = false
-    @State private var displayedImage: UIImage?
+    @State private var tempUIImage: UIImage?
+    @State private var loadedImage: UIImage?
+    @State private var isLoading = false
+    @State private var loadingError: Error?
     
     var showSparklesButton = false
 
@@ -71,73 +74,53 @@ struct InventoryDetailView: View {
     var body: some View {
         Form {
             Section {
-                // Photo Section
-                ZStack(alignment: .bottomTrailing) {
-                    if let image = displayedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: UIScreen.main.bounds.width - 32)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .clipped()
-                        
-                        if isEditing {
-                            Button {
-                                showPhotoSourceAlert = true
-                            } label: {
-                                Image(systemName: "photo")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .padding(8)
-                                    .background(Circle().fill(.black.opacity(0.6)))
-                                    .padding(8)
-                            }
-                            .buttonStyle(.automatic)
-                            .accessibilityIdentifier("changePhoto")
-                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                Button("Take Photo") {
-                                    showingCamera = true
-                                }
-                                .accessibilityIdentifier("takePhoto")
-                                
-                                Button("Choose from Library") {
-                                    showPhotoPicker = true
-                                }
-                                .accessibilityIdentifier("chooseFromLibrary")
-                                
-                                if inventoryItemToDisplay.imageURL != nil {
-                                    Button("Remove Photo", role: .destructive) {
-                                        inventoryItemToDisplay.imageURL = nil
-                                        displayedImage = nil
-                                    }
-                                    .accessibilityIdentifier("removePhoto")
-                                }
+                if let uiImage = tempUIImage ?? loadedImage {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .clipped()
+                        .listRowInsets(EdgeInsets())
+                        .overlay(alignment: .bottomTrailing) {
+                            if isEditing {
+                                photoButton
                             }
                         }
-                    } else {
-                        if isEditing {
-                            AddPhotoButton(action: {
-                                showPhotoSourceAlert = true
-                            })
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .foregroundStyle(.secondary)
-                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                Button("Take Photo") {
-                                    showingCamera = true
+                } else if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                } else {
+                    if isEditing {
+                        AddPhotoButton(action: {
+                            showPhotoSourceAlert = true
+                        })
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .foregroundStyle(.secondary)
+                        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+                            Button("Take Photo") {
+                                showingCamera = true
+                            }
+                            .accessibilityIdentifier("takePhoto")
+                            
+                            Button("Choose from Library") {
+                                showPhotoPicker = true
+                            }
+                            .accessibilityIdentifier("chooseFromLibrary")
+                            
+                            if tempUIImage != nil || loadedImage != nil {
+                                Button("Remove Photo", role: .destructive) {
+                                    inventoryItemToDisplay.imageURL = nil
+                                    tempUIImage = nil
+                                    loadedImage = nil
                                 }
-                                .accessibilityIdentifier("takePhoto")
-                                
-                                Button("Choose from Library") {
-                                    showPhotoPicker = true
-                                }
-                                .accessibilityIdentifier("chooseFromLibrary")
+                                .accessibilityIdentifier("removePhoto")
                             }
                         }
                     }
                 }
-                .ignoresSafeArea(edges: .top)
-                .listRowInsets(EdgeInsets())
             }
 
             // AI Button Section
@@ -370,11 +353,14 @@ struct InventoryDetailView: View {
                 showingImageAnalysis: .constant(false),
                 analyzingImage: .constant(nil)
             ) { image, needsAIAnalysis, completion async -> Void in
-                let id = UUID().uuidString
-                if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
-                    inventoryItemToDisplay.imageURL = imageURL
-                    inventoryItemToDisplay.hasUsedAI = false
-                    try? modelContext.save()
+                if inventoryItemToDisplay.modelContext == nil {
+                    tempUIImage = image
+                } else {
+                    let id = UUID().uuidString
+                    if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
+                        inventoryItemToDisplay.imageURL = imageURL
+                        loadedImage = image
+                    }
                 }
                 await completion()
             }
@@ -390,14 +376,23 @@ struct InventoryDetailView: View {
             )
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .task(id: inventoryItemToDisplay.imageURL) {
+            guard inventoryItemToDisplay.modelContext != nil else { return }
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                loadedImage = try await inventoryItemToDisplay.loadPhoto()
+            } catch {
+                loadingError = error
+                print("Failed to load image: \(error)")
+            }
+        }
         .task {
             if let photo = selectedPhoto {
                 await loadPhoto(from: photo)
                 selectedPhoto = nil
             }
-        }
-        .task {
-            await loadDisplayedImage()
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
@@ -455,28 +450,61 @@ struct InventoryDetailView: View {
         }
     }
     
-    private func loadPhoto(from item: PhotosPickerItem) async {
+    private var photoButton: some View {
+        Button {
+            showPhotoSourceAlert = true
+        } label: {
+            Image(systemName: "photo")
+                .font(.title2)
+                .foregroundColor(.white)
+                .padding(8)
+                .background(Circle().fill(.black.opacity(0.6)))
+                .padding(8)
+        }
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showingCamera = true
+            }
+            .accessibilityIdentifier("takePhoto")
+            
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+            .accessibilityIdentifier("chooseFromLibrary")
+            
+            if tempUIImage != nil || loadedImage != nil {
+                Button("Remove Photo", role: .destructive) {
+                    inventoryItemToDisplay.imageURL = nil
+                    tempUIImage = nil
+                    loadedImage = nil
+                }
+                .accessibilityIdentifier("removePhoto")
+            }
+        }
+    }
+    
+    private func loadPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        isLoading = true
+        defer { isLoading = false }
+        
         do {
             if let data = try await item.loadTransferable(type: Data.self),
                let uiImage = UIImage(data: data) {
                 let id = UUID().uuidString
-                if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                    inventoryItemToDisplay.imageURL = imageURL
-                    inventoryItemToDisplay.hasUsedAI = false
-                    try? modelContext.save()
+                if inventoryItemToDisplay.modelContext == nil {
+                    tempUIImage = uiImage
+                } else {
+                    if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
+                        inventoryItemToDisplay.imageURL = imageURL
+                        loadedImage = uiImage
+                    }
                 }
+                try? modelContext.save()
             }
         } catch {
-            errorMessage = "Failed to load photo: \(error.localizedDescription)"
-            showingErrorAlert = true
-        }
-    }
-    
-    private func loadDisplayedImage() async {
-        do {
-            displayedImage = try await inventoryItemToDisplay.loadPhoto()
-        } catch {
-            print("Error loading image: \(error)")
+            loadingError = error
+            print("Failed to load photo: \(error)")
         }
     }
     
