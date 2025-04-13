@@ -37,8 +37,6 @@ struct EditHomeView: View {
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
     @State private var isEditing = false
     @State private var showPhotoSourceAlert = false
-    @State private var showCamera = false
-    @State private var showPhotoPicker = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
@@ -68,35 +66,6 @@ struct EditHomeView: View {
         return locale.localizedString(forIdentifier: code) ?? code
     }
     
-    private func loadPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                let id = UUID().uuidString
-                do {
-                    let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id)
-                    if let home = activeHome {
-                        home.imageURL = imageURL
-                        loadedImage = uiImage
-                    } else {
-                        tempUIImage = uiImage
-                    }
-                    try? modelContext.save()
-                } catch {
-                    print("Failed to save image: \(error)")
-                    loadingError = error
-                }
-            }
-        } catch {
-            loadingError = error
-            print("Failed to load photo: \(error)")
-        }
-    }
-
     var body: some View {
         Form {
             Section {
@@ -110,7 +79,14 @@ struct EditHomeView: View {
                         .listRowInsets(EdgeInsets())
                         .overlay(alignment: .bottomTrailing) {
                             if isEditingEnabled {
-                                photoButton
+                                PhotoPickerView(
+                                    model: Binding(
+                                        get: { activeHome ?? tempHome },
+                                        set: { if activeHome == nil { tempHome = $0 }}
+                                    ),
+                                    loadedImage: $loadedImage,
+                                    isLoading: $isLoading
+                                )
                             }
                         }
                 } else if isLoading {
@@ -254,25 +230,12 @@ struct EditHomeView: View {
                 print("Failed to load image: \(error)")
             }
         }
-        .photosPicker(
-            isPresented: $showPhotoPicker,
-            selection: $selectedPhoto,
-            matching: .images,
-            photoLibrary: .shared()
-        )
-        .onChange(of: selectedPhoto) { _, newValue in
-            guard let item = newValue else { return }
-            Task {
-                await loadPhoto(from: item)
-                selectedPhoto = nil
-            }
-        }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
-                showCamera = true
+                // Handle taking photo
             }
             Button("Choose from Library") {
-                showPhotoPicker = true
+                // Handle choosing from library
             }
             if tempUIImage != nil || loadedImage != nil {
                 Button("Remove Photo", role: .destructive) {
@@ -283,23 +246,6 @@ struct EditHomeView: View {
                         tempUIImage = nil
                     }
                 }
-            }
-        }
-        .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion async -> Void in
-                let id = UUID().uuidString
-                if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
-                    if let home = activeHome {
-                        home.imageURL = imageURL
-                        try? modelContext.save()
-                    } else {
-                        tempUIImage = image
-                    }
-                }
-                await completion()
             }
         }
         .onAppear {
@@ -365,37 +311,6 @@ struct EditHomeView: View {
                     }
                 }
                 .disabled(tempHome.address1.isEmpty)
-            }
-        }
-    }
-    
-    private var photoButton: some View {
-        Button {
-            showPhotoSourceAlert = true
-        } label: {
-            Image(systemName: "photo")
-                .font(.title2)
-                .foregroundColor(.white)
-                .padding(8)
-                .background(Circle().fill(.black.opacity(0.6)))
-                .padding(8)
-        }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showCamera = true
-            }
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            if tempUIImage != nil || loadedImage != nil {
-                Button("Remove Photo", role: .destructive) {
-                    if let home = activeHome {
-                        home.imageURL = nil
-                        loadedImage = nil
-                    } else {
-                        tempUIImage = nil
-                    }
-                }
             }
         }
     }

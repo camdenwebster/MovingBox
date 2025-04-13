@@ -69,6 +69,7 @@ struct FunctionDefinition: Codable {
     }
 }
 
+@MainActor
 class OpenAIService {
     var imageBase64: String
     var settings: SettingsManager
@@ -82,9 +83,6 @@ class OpenAIService {
         self.modelContext = modelContext
     }
     
-    let itemModel = InventoryItem(title: "", quantityString: "1", quantityInt: 1, desc: "", serial: "", model: "", make: "", location: nil, label: nil, price: Decimal.zero, insured: false, assetId: "", notes: "", showInvalidQuantityAlert: false)
-    
-    @MainActor
     internal func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
         guard let url = URL(string: "\(baseURL)/v1/chat/completions") else {
             throw OpenAIError.invalidURL

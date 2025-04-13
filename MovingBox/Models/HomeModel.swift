@@ -11,7 +11,7 @@ import SwiftUI
 
 @Model
 @MainActor
-final class Home {
+final class Home: PhotoManageable {
     var name: String = ""
     var address1: String = ""
     var address2: String = ""
@@ -23,42 +23,6 @@ final class Home {
     var purchasePrice: Decimal = 0.00
     var imageURL: URL?
     var insurancePolicy: InsurancePolicy?
-    
-    @MainActor
-    var photo: UIImage? {
-        get async throws {
-            guard let imageURL else { return nil }
-            
-            // First try to load from the URL directly
-            if FileManager.default.fileExists(atPath: imageURL.path) {
-                return try await OptimizedImageManager.shared.loadImage(url: imageURL)
-            }
-            
-            // If the file doesn't exist at the original path, try loading using the ID
-            let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
-            
-            // Reconstruct the URL using OptimizedImageManager's base path
-            if let baseURL = OptimizedImageManager.shared.baseURL {
-                let newURL = baseURL.appendingPathComponent("\(id).jpg")
-                if FileManager.default.fileExists(atPath: newURL.path) {
-                    // Update the stored URL to the correct path
-                    self.imageURL = newURL
-                    return try await OptimizedImageManager.shared.loadImage(url: newURL)
-                }
-            }
-            
-            return nil
-        }
-    }
-    
-    @MainActor
-    var thumbnail: UIImage? {
-        get async throws {
-            guard let imageURL else { return nil }
-            let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
-            return try await OptimizedImageManager.shared.loadThumbnail(id: id)
-        }
-    }
     
     /// Creates a new Home instance with the specified parameters.
     /// - Parameters:

@@ -91,6 +91,16 @@ struct DashboardView: View {
                             
                             dashboardHeader
                         }
+                        .overlay(alignment: .bottomTrailing) {
+                            PhotoPickerView(
+                                model: Binding(
+                                    get: { home ?? Home() },
+                                    set: { if home == nil { modelContext.insert($0) }}
+                                ),
+                                loadedImage: $loadedImage,
+                                isLoading: $isLoading
+                            )
+                        }
                         .ignoresSafeArea(edges: .horizontal)
                     } else if isLoading {
                         ProgressView()
@@ -161,20 +171,6 @@ struct DashboardView: View {
                 print("Failed to load image: \(error)")
             }
         }
-        .photosPicker(
-            isPresented: $showPhotoPicker,
-            selection: $selectedPhoto,
-            matching: .images,
-            photoLibrary: .shared()
-        )
-        .onChange(of: selectedPhoto) { _, newValue in
-            Task {
-                if let photo = newValue {
-                    await loadPhoto(from: photo)
-                    selectedPhoto = nil
-                }
-            }
-        }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showCamera = true
@@ -188,15 +184,6 @@ struct DashboardView: View {
                     loadedImage = nil
                     isShowingRemovePhotoButton = false
                 }
-            }
-        }
-        .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion async -> Void in
-                await handleNewImage(image)
-                await completion()
             }
         }
     }
@@ -221,44 +208,6 @@ struct DashboardView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
-    }
-    
-    private func handleNewImage(_ image: UIImage) async {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            let id = UUID().uuidString
-            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-            if home == nil {
-                let newHome = Home()
-                modelContext.insert(newHome)
-                newHome.imageURL = imageURL
-            } else {
-                home?.imageURL = imageURL
-            }
-            loadedImage = image
-            isShowingRemovePhotoButton = true
-            try? modelContext.save()
-        } catch {
-            loadingError = error
-            print("Failed to save image: \(error)")
-        }
-    }
-    
-    private func loadPhoto(from item: PhotosPickerItem) async {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                await handleNewImage(uiImage)
-            }
-        } catch {
-            loadingError = error
-            print("Failed to load photo: \(error)")
-        }
     }
 }
 

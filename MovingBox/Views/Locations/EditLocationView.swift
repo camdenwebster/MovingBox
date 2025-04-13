@@ -14,25 +14,24 @@ struct EditLocationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
     var location: InventoryLocation?
+    @State private var locationInstance = InventoryLocation()
     @State private var locationName: String
     @State private var locationDesc: String
     @State private var isEditing = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) private var locations: [InventoryLocation]
-    @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
-    @State private var loadingError: Error?
     @State private var isLoading = false
+    @State private var loadingError: Error?
     @State private var showPhotoSourceAlert = false
-    @State private var showCamera = false
-    @State private var showPhotoPicker = false
-    @State private var showingImageAnalysis = false
-    @State private var analyzingImage: UIImage?
 
     init(location: InventoryLocation? = nil) {
         self.location = location
+        if let location = location {
+            self._locationInstance = State(initialValue: location)
+        }
         _locationName = State(initialValue: location?.name ?? "")
         _locationDesc = State(initialValue: location?.desc ?? "")
     }
@@ -48,7 +47,7 @@ struct EditLocationView: View {
     
     var body: some View {
         Form {
-            Section {
+            Section(header: EmptyView()) {
                 if let uiImage = tempUIImage ?? loadedImage {
                     Image(uiImage: uiImage)
                         .resizable()
@@ -59,94 +58,71 @@ struct EditLocationView: View {
                         .listRowInsets(EdgeInsets())
                         .overlay(alignment: .bottomTrailing) {
                             if isEditingEnabled {
-                                photoButton
+                                PhotoPickerView(
+                                    model: $locationInstance,
+                                    loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
+                                    isLoading: $isLoading
+                                )
                             }
                         }
-                } else if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
                 } else {
-                    if isEditingEnabled {
-                        AddPhotoButton(action: {
-                            showPhotoSourceAlert = true
-                        })
+                    if isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                    } else if isEditingEnabled {
+                        PhotoPickerView(
+                            model: $locationInstance,
+                            loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
+                            isLoading: $isLoading
+                        ) { isPresented in
+                            AddPhotoButton {
+                                isPresented.wrappedValue = true
+                            }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
-                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                Button("Take Photo") {
-                                    showCamera = true
-                                }
-                                Button("Choose from Library") {
-                                    showPhotoPicker = true
-                                }
-                                if tempUIImage != nil || loadedImage != nil {
-                                    Button("Remove Photo", role: .destructive) {
-                                        if let location = location {
-                                            location.imageURL = nil
-                                            loadedImage = nil
-                                        } else {
-                                            tempUIImage = nil
-                                        }
-                                    }
-                                }
-                            }
+                        }
+                    } else {
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
                     }
                 }
             }
+            
             FormTextFieldRow(label: "Name",
                            text: $locationName,
                            isEditing: .constant(isEditingEnabled),
                            placeholder: "Kitchen")
                 .disabled(!isEditingEnabled)
                 .onChange(of: locationName) { _, newValue in
-                    if let location = location {
-                        location.name = newValue
-                    }
+                    locationInstance.name = newValue
                 }
             if isEditingEnabled || !locationDesc.isEmpty {
-                Section("Description") {
+                Section(header: Text("Description")) {
                     TextEditor(text: $locationDesc)
                         .disabled(!isEditingEnabled)
                         .foregroundColor(isEditingEnabled ? .primary : .secondary)
                         .frame(height: 100)
                         .onChange(of: locationDesc) { _, newValue in
-                            if let location = location {
-                                location.desc = newValue
-                            }
+                            locationInstance.desc = newValue
                         }
                 }
             }
         }
         .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto) { _, item in
-            Task {
-                await loadPhoto(from: item)
-            }
-        }
-        .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion async -> Void in
-                if let location = location {
-                    let id = UUID().uuidString
-                    if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
-                        location.imageURL = imageURL
-                    }
-                } else {
-                    tempUIImage = image
-                }
-                await completion()
-            }
-        }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .toolbar {
             if !isNewLocation {
                 Button(isEditing ? "Save" : "Edit") {
                     if isEditing {
+                        if let existingLocation = location {
+                            existingLocation.name = locationInstance.name
+                            existingLocation.desc = locationInstance.desc
+                            existingLocation.imageURL = locationInstance.imageURL
+                            try? modelContext.save()
+                        }
                         isEditing = false
                     } else {
                         isEditing = true
@@ -156,16 +132,15 @@ struct EditLocationView: View {
             } else {
                 Button("Save") {
                     Task {
-                        let newLocation = InventoryLocation(name: locationName, desc: locationDesc)
                         if let uiImage = tempUIImage {
                             let id = UUID().uuidString
                             if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                                newLocation.imageURL = imageURL
+                                locationInstance.imageURL = imageURL
                             }
                         }
-                        modelContext.insert(newLocation)
-                        TelemetryManager.shared.trackLocationCreated(name: newLocation.name)
-                        print("EditLocationView: Created new location - \(newLocation.name)")
+                        modelContext.insert(locationInstance)
+                        TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
+                        print("EditLocationView: Created new location - \(locationInstance.name)")
                         print("EditLocationView: Total number of locations after save: \(locations.count)")
                         router.navigateBack()
                     }
@@ -185,63 +160,6 @@ struct EditLocationView: View {
                 loadingError = error
                 print("Failed to load image: \(error)")
             }
-        }
-    }
-    
-    private var photoButton: some View {
-        Button {
-            showPhotoSourceAlert = true
-        } label: {
-            Image(systemName: "photo")
-                .font(.title2)
-                .foregroundColor(.white)
-                .padding(8)
-                .background(Circle().fill(.black.opacity(0.6)))
-                .padding(8)
-        }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showCamera = true
-            }
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            if tempUIImage != nil || loadedImage != nil {
-                Button("Remove Photo", role: .destructive) {
-                    if let location = location {
-                        location.imageURL = nil
-                        loadedImage = nil
-                    } else {
-                        tempUIImage = nil
-                    }
-                }
-            }
-        }
-    }
-    
-    private func loadPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                let id = UUID().uuidString
-                do {
-                    let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id)
-                    if let location = location {
-                        location.imageURL = imageURL
-                        loadedImage = uiImage
-                    } else {
-                        tempUIImage = uiImage
-                    }
-                    try? modelContext.save()
-                }
-            }
-        } catch {
-            loadingError = error
-            print("Failed to load photo: \(error.localizedDescription)")
         }
     }
 }

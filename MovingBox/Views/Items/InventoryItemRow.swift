@@ -32,7 +32,7 @@ struct InventoryItemRow: View {
             }
             .task {
                 do {
-                    thumbnail = try await item.loadThumbnail()
+                    thumbnail = try await item.thumbnail
                 } catch {
                     print("Error loading thumbnail: \(error)")
                 }
@@ -60,7 +60,6 @@ struct InventoryItemRow: View {
                     .padding(5)
                     .background(in: Capsule())
                     .backgroundStyle(Color(label.color ?? .blue))
-
             } else {
                 EmptyView()
             }

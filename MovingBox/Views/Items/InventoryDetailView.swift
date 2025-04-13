@@ -31,7 +31,6 @@ struct InventoryDetailView: View {
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
     @State private var showPhotoSourceAlert = false
-    @State private var showPhotoPicker = false
     @State private var showingClearAllAlert = false
     @State private var isLoadingOpenAiResults = false
     @State private var isEditing: Bool
@@ -84,7 +83,15 @@ struct InventoryDetailView: View {
                         .listRowInsets(EdgeInsets())
                         .overlay(alignment: .bottomTrailing) {
                             if isEditing {
-                                photoButton
+                                PhotoPickerView<InventoryItem>(
+                                    model: Binding(
+                                        get: { self.inventoryItemToDisplay },
+                                        set: { _ in }
+                                    ),
+                                    loadedImage: $loadedImage,
+                                    isLoading: $isLoading,
+                                    showRemoveButton: false
+                                )
                             }
                         }
                 } else if isLoading {
@@ -99,26 +106,6 @@ struct InventoryDetailView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: UIScreen.main.bounds.height / 3)
                         .foregroundStyle(.secondary)
-                        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                            Button("Take Photo") {
-                                showingCamera = true
-                            }
-                            .accessibilityIdentifier("takePhoto")
-                            
-                            Button("Choose from Library") {
-                                showPhotoPicker = true
-                            }
-                            .accessibilityIdentifier("chooseFromLibrary")
-                            
-                            if tempUIImage != nil || loadedImage != nil {
-                                Button("Remove Photo", role: .destructive) {
-                                    inventoryItemToDisplay.imageURL = nil
-                                    tempUIImage = nil
-                                    loadedImage = nil
-                                }
-                                .accessibilityIdentifier("removePhoto")
-                            }
-                        }
                     }
                 }
             }
@@ -348,23 +335,6 @@ struct InventoryDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, needsAIAnalysis, completion async -> Void in
-                if inventoryItemToDisplay.modelContext == nil {
-                    tempUIImage = image
-                } else {
-                    let id = UUID().uuidString
-                    if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
-                        inventoryItemToDisplay.imageURL = imageURL
-                        loadedImage = image
-                    }
-                }
-                await completion()
-            }
-        }
         .sheet(isPresented: $showingPaywall) {
             revenueCatManager.presentPaywall(
                 isPresented: $showingPaywall,
@@ -374,31 +344,6 @@ struct InventoryDetailView: View {
                 },
                 onDismiss: nil
             )
-        }
-        .photosPicker(
-            isPresented: $showPhotoPicker,
-            selection: $selectedPhoto,
-            matching: .images,
-            photoLibrary: .shared()
-        )
-        .onChange(of: selectedPhoto) { _, newValue in
-            guard let item = newValue else { return }
-            Task {
-                await loadPhoto(from: item)
-                selectedPhoto = nil
-            }
-        }
-        .task(id: inventoryItemToDisplay.imageURL) {
-            guard inventoryItemToDisplay.modelContext != nil else { return }
-            isLoading = true
-            defer { isLoading = false }
-            
-            do {
-                loadedImage = try await inventoryItemToDisplay.loadPhoto()
-            } catch {
-                loadingError = error
-                print("Failed to load image: \(error)")
-            }
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
@@ -449,81 +394,11 @@ struct InventoryDetailView: View {
         }
     }
     
-    private func loadPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                
-                if inventoryItemToDisplay.modelContext == nil {
-                    tempUIImage = uiImage
-                } else {
-                    let id = UUID().uuidString
-                    do {
-                        let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id)
-                        inventoryItemToDisplay.imageURL = imageURL
-                        loadedImage = uiImage
-                        try? modelContext.save()
-                    } catch {
-                        print("Failed to save image: \(error)")
-                        loadingError = error
-                    }
-                }
-            }
-        } catch {
-            print("Failed to load photo: \(error)")
-            loadingError = error
-        }
-    }
-    
-    private struct TouchDownButtonStyle: ButtonStyle {
-        func makeBody(configuration: Configuration) -> some View {
-            configuration.label
-                .contentShape(Rectangle())
-        }
-    }
-    
-    private var photoButton: some View {
-        Button {
-            showPhotoSourceAlert = true
-        } label: {
-            Image(systemName: "photo")
-                .font(.title2)
-                .foregroundColor(.white)
-                .padding(8)
-                .background(Circle().fill(.black.opacity(0.6)))
-                .padding(8)
-        }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showingCamera = true
-            }
-            .accessibilityIdentifier("takePhoto")
-            
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            .accessibilityIdentifier("chooseFromLibrary")
-            
-            if tempUIImage != nil || loadedImage != nil {
-                Button("Remove Photo", role: .destructive) {
-                    inventoryItemToDisplay.imageURL = nil
-                    tempUIImage = nil
-                    loadedImage = nil
-                }
-                .accessibilityIdentifier("removePhoto")
-            }
-        }
-    }
-    
     private func callOpenAI() async throws -> ImageDetails {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
         
-        guard let photo = try await inventoryItemToDisplay.loadPhoto() else {
+        guard let photo = try await inventoryItemToDisplay.photo else {
             throw OpenAIError.invalidData
         }
         
@@ -554,7 +429,6 @@ struct InventoryDetailView: View {
             inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
         }
         
-        // Update price handling
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
         if let price = Decimal(string: priceString) {
             inventoryItemToDisplay.price = price
@@ -564,10 +438,6 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.hasUsedAI = true
         
         try? modelContext.save()
-    }
-    
-    private func selectImage() {
-        print("Image selection button tapped")
     }
     
     private func clearFields() {
