@@ -68,6 +68,35 @@ struct EditHomeView: View {
         return locale.localizedString(forIdentifier: code) ?? code
     }
     
+    private func loadPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            if let data = try await item.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: data) {
+                let id = UUID().uuidString
+                do {
+                    let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id)
+                    if let home = activeHome {
+                        home.imageURL = imageURL
+                        loadedImage = uiImage
+                    } else {
+                        tempUIImage = uiImage
+                    }
+                    try? modelContext.save()
+                } catch {
+                    print("Failed to save image: \(error)")
+                    loadingError = error
+                }
+            }
+        } catch {
+            loadingError = error
+            print("Failed to load photo: \(error)")
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -225,27 +254,19 @@ struct EditHomeView: View {
                 print("Failed to load image: \(error)")
             }
         }
-        .navigationTitle(isNewHome ? "New Home" : "\(activeHome?.name ?? "") Details")
-        .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: selectedPhoto, loadPhoto)
-        .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion async -> Void in
-                let id = UUID().uuidString
-                if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
-                    if let home = activeHome {
-                        home.imageURL = imageURL
-                        try? modelContext.save()
-                    } else {
-                        tempUIImage = image
-                    }
-                }
-                await completion()
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhoto,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: selectedPhoto) { _, newValue in
+            guard let item = newValue else { return }
+            Task {
+                await loadPhoto(from: item)
+                selectedPhoto = nil
             }
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showCamera = true
@@ -262,6 +283,23 @@ struct EditHomeView: View {
                         tempUIImage = nil
                     }
                 }
+            }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraView(
+                showingImageAnalysis: .constant(false),
+                analyzingImage: .constant(nil)
+            ) { image, _, completion async -> Void in
+                let id = UUID().uuidString
+                if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
+                    if let home = activeHome {
+                        home.imageURL = imageURL
+                        try? modelContext.save()
+                    } else {
+                        tempUIImage = image
+                    }
+                }
+                await completion()
             }
         }
         .onAppear {
@@ -357,26 +395,6 @@ struct EditHomeView: View {
                     } else {
                         tempUIImage = nil
                     }
-                }
-            }
-        }
-    }
-    
-    private func loadPhoto() {
-        Task {
-            if let data = try? await selectedPhoto?.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                isLoading = true
-                defer { isLoading = false }
-                
-                let id = UUID().uuidString
-                if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                    if let home = activeHome {
-                        home.imageURL = imageURL
-                    } else {
-                        tempUIImage = uiImage
-                    }
-                    try? modelContext.save()
                 }
             }
         }
