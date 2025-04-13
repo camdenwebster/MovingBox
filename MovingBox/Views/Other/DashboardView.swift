@@ -36,18 +36,12 @@ struct DashboardView: View {
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) var locations: [InventoryLocation]
     @Query private var items: [InventoryItem]
-    @State private var selectedPhoto: PhotosPickerItem? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
-    
-    @State private var showPhotoSourceAlert = false
-    @State private var showCamera = false
-    @State private var showPhotoPicker = false
     
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
-    @State private var isShowingRemovePhotoButton = false
     
     private var home: Home? {
         homes.first
@@ -109,13 +103,22 @@ struct DashboardView: View {
                         VStack {
                             Spacer()
                                 .frame(height: 100)
-                            AddPhotoButton(action: {
-                                showPhotoSourceAlert = true
-                            })
-                            .padding()
-                            .background {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.ultraThinMaterial)
+                            PhotoPickerView(
+                                model: Binding(
+                                    get: { home ?? Home() },
+                                    set: { if home == nil { modelContext.insert($0) }}
+                                ),
+                                loadedImage: $loadedImage,
+                                isLoading: $isLoading
+                            ) { isPresented in
+                                AddPhotoButton {
+                                    isPresented.wrappedValue = true
+                                }
+                                .padding()
+                                .background {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(.ultraThinMaterial)
+                                }
                             }
                         }
                     }
@@ -165,25 +168,9 @@ struct DashboardView: View {
             
             do {
                 loadedImage = try await home.photo
-                isShowingRemovePhotoButton = loadedImage != nil
             } catch {
                 loadingError = error
                 print("Failed to load image: \(error)")
-            }
-        }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showCamera = true
-            }
-            Button("Choose from Library") {
-                showPhotoPicker = true
-            }
-            if isShowingRemovePhotoButton {
-                Button("Remove Photo", role: .destructive) {
-                    home?.imageURL = nil
-                    loadedImage = nil
-                    isShowingRemovePhotoButton = false
-                }
             }
         }
     }
@@ -195,16 +182,6 @@ struct DashboardView: View {
                 .fontWeight(.bold)
                 .foregroundColor(.white)
             Spacer()
-            Button {
-                showPhotoSourceAlert = true
-            } label: {
-                Image(systemName: "photo")
-                    .font(.title2)
-                    .foregroundColor(.white)
-                    .padding(8)
-                    .background(Circle().fill(.black.opacity(0.6)))
-                    .padding(8)
-            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
