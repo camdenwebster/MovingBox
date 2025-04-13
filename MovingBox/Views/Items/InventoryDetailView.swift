@@ -375,7 +375,19 @@ struct InventoryDetailView: View {
                 onDismiss: nil
             )
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhoto,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: selectedPhoto) { _, newValue in
+            guard let item = newValue else { return }
+            Task {
+                await loadPhoto(from: item)
+                selectedPhoto = nil
+            }
+        }
         .task(id: inventoryItemToDisplay.imageURL) {
             guard inventoryItemToDisplay.modelContext != nil else { return }
             isLoading = true
@@ -386,12 +398,6 @@ struct InventoryDetailView: View {
             } catch {
                 loadingError = error
                 print("Failed to load image: \(error)")
-            }
-        }
-        .task {
-            if let photo = selectedPhoto {
-                await loadPhoto(from: photo)
-                selectedPhoto = nil
             }
         }
         .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
@@ -443,6 +449,36 @@ struct InventoryDetailView: View {
         }
     }
     
+    private func loadPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            if let data = try await item.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: data) {
+                
+                if inventoryItemToDisplay.modelContext == nil {
+                    tempUIImage = uiImage
+                } else {
+                    let id = UUID().uuidString
+                    do {
+                        let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id)
+                        inventoryItemToDisplay.imageURL = imageURL
+                        loadedImage = uiImage
+                        try? modelContext.save()
+                    } catch {
+                        print("Failed to save image: \(error)")
+                        loadingError = error
+                    }
+                }
+            }
+        } catch {
+            print("Failed to load photo: \(error)")
+            loadingError = error
+        }
+    }
+    
     private struct TouchDownButtonStyle: ButtonStyle {
         func makeBody(configuration: Configuration) -> some View {
             configuration.label
@@ -480,31 +516,6 @@ struct InventoryDetailView: View {
                 }
                 .accessibilityIdentifier("removePhoto")
             }
-        }
-    }
-    
-    private func loadPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                let id = UUID().uuidString
-                if inventoryItemToDisplay.modelContext == nil {
-                    tempUIImage = uiImage
-                } else {
-                    if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                        inventoryItemToDisplay.imageURL = imageURL
-                        loadedImage = uiImage
-                    }
-                }
-                try? modelContext.save()
-            }
-        } catch {
-            loadingError = error
-            print("Failed to load photo: \(error)")
         }
     }
     

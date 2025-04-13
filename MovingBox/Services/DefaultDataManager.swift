@@ -67,8 +67,9 @@ class DefaultDataManager {
         }
     }
     
+    @MainActor
     static func populateTestData(modelContext: ModelContext) async {
-        await TestData.loadTestData(context: modelContext)
+        await TestData.loadTestData(modelContext: modelContext)
         
         do {
             try modelContext.save()
@@ -82,6 +83,7 @@ class DefaultDataManager {
         return await checkForExistingObjects(of: Home.self, in: modelContext)
     }
     
+    @MainActor
     static func populateDefaultData(modelContext: ModelContext) async {
         if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
             // Only create default data if onboarding hasn't been completed

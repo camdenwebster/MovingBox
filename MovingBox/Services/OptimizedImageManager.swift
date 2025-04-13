@@ -9,7 +9,7 @@ final class OptimizedImageManager {
     private let fileManager = FileManager.default
     private let cache = NSCache<NSString, UIImage>()
     
-    private var baseURL: URL? {
+    var baseURL: URL? {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Images")
     }
     

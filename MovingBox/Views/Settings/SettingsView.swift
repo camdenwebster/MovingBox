@@ -487,6 +487,7 @@ struct AboutView: View {
 struct ICloudSettingsView: View {
     @ObservedObject var settingsManager: SettingsManager
     @Environment(\.modelContext) private var modelContext
+    @State private var showRestartAlert = false
     
     var body: some View {
         Form {
@@ -501,6 +502,14 @@ struct ICloudSettingsView: View {
             }
         }
         .navigationTitle("iCloud Settings")
+        .onChange(of: settingsManager.iCloudEnabled) { _, _ in
+            showRestartAlert = true
+        }
+        .alert("App Restart Required", isPresented: $showRestartAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Please restart the app for iCloud changes to take effect.")
+        }
     }
 }
 

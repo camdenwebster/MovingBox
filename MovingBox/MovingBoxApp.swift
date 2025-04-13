@@ -18,7 +18,6 @@ struct MovingBoxApp: App {
     @StateObject private var onboardingManager = OnboardingManager()
     @StateObject private var containerManager = ModelContainerManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
-    @State private var showRestartAlert = false
     @State private var showOnboarding = false
     
     enum TabDestination: Hashable {
@@ -148,14 +147,6 @@ struct MovingBoxApp: App {
             }
             .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
-            .onChange(of: settings.iCloudEnabled) { _, _ in
-                showRestartAlert = true
-            }
-            .alert("App Restart Required", isPresented: $showRestartAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Please restart the app for iCloud changes to take effect.")
-            }
             .task {
                 // Initialize container
                 await containerManager.initialize()

@@ -29,33 +29,20 @@ struct TestData {
     }
     
     // Helper method to set up image URL for test data
-    private static func setupImageURL(imageName: String, id: String) -> URL? {
-        guard let baseURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Images") else {
+    private static func setupImageURL(imageName: String, id: String) async -> URL? {
+        guard let image = UIImage(named: imageName) else {
+            print("❌ Could not load image: \(imageName)")
             return nil
         }
         
-        // Create directory if it doesn't exist
-        if !FileManager.default.fileExists(atPath: baseURL.path) {
-            try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+        do {
+            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
+            print("✅ Successfully saved image and thumbnail: \(imageName)")
+            return imageURL
+        } catch {
+            print("❌ Failed to save image: \(imageName), error: \(error)")
+            return nil
         }
-        
-        let destinationURL = baseURL.appendingPathComponent("\(id).jpg")
-        
-        // Only copy if the file doesn't already exist
-        if !FileManager.default.fileExists(atPath: destinationURL.path),
-           let image = UIImage(named: imageName) {
-            if let data = image.jpegData(compressionQuality: 0.8) {
-                try? data.write(to: destinationURL)
-                // Generate thumbnail
-                Task {
-                    if let uiImage = UIImage(data: data) {
-                        try? await OptimizedImageManager.shared.saveImage(uiImage, id: id)
-                    }
-                }
-            }
-        }
-        
-        return destinationURL
     }
     
     // Sample home with local image path
@@ -187,48 +174,53 @@ struct TestData {
         }
     }
     
-    // Helper method to load test data into SwiftData
-    static func loadTestData(context: ModelContext) async {
-        // Check for existing home
-        let descriptor = FetchDescriptor<Home>()
-        let existingHomes = try? context.fetch(descriptor)
-        let home: Home
-        
-        if let firstHome = existingHomes?.first {
-            home = firstHome
-        } else {
-            home = Home()
-            context.insert(home)
-        }
-        
-        // Update home properties
-        home.address1 = homes[0].address1
-        let homeId = UUID().uuidString
-        home.imageURL = setupImageURL(imageName: homes[0].imageName, id: homeId)
-        
-        // Create locations
-        let inventoryLocations = locations.map { locationData -> InventoryLocation in
-            let location = InventoryLocation()
-            location.name = locationData.name
-            location.desc = locationData.desc
-            let locationId = UUID().uuidString
-            location.imageURL = setupImageURL(imageName: locationData.imageName, id: locationId)
-            context.insert(location)
-            return location
-        }
-        
-        // Create labels
+    @MainActor
+    static func loadTestData(modelContext: ModelContext) async {
+        // Create labels first
         let inventoryLabels = labels.map { labelData -> InventoryLabel in
             let label = InventoryLabel(
                 name: labelData.name,
                 desc: labelData.desc,
                 color: labelData.color
             )
-            context.insert(label)
+            modelContext.insert(label)
             return label
         }
         
-        // Create items with direct associations
+        // Create home
+        let descriptor = FetchDescriptor<Home>()
+        let existingHomes = try? modelContext.fetch(descriptor)
+        let home: Home
+        
+        if let firstHome = existingHomes?.first {
+            home = firstHome
+        } else {
+            home = Home()
+            modelContext.insert(home)
+        }
+        
+        // Update home properties
+        home.address1 = homes[0].address1
+        let homeId = UUID().uuidString
+        if let imageURL = await setupImageURL(imageName: homes[0].imageName, id: homeId) {
+            home.imageURL = imageURL
+        }
+        
+        // Create locations sequentially to maintain data consistency
+        var inventoryLocations = [InventoryLocation]()
+        for locationData in locations {
+            let location = InventoryLocation()
+            location.name = locationData.name
+            location.desc = locationData.desc
+            let locationId = UUID().uuidString
+            if let imageURL = await setupImageURL(imageName: locationData.imageName, id: locationId) {
+                location.imageURL = imageURL
+            }
+            modelContext.insert(location)
+            inventoryLocations.append(location)
+        }
+        
+        // Create items sequentially to maintain data consistency
         for itemData in items {
             let location = inventoryLocations.first { $0.name == itemData.location } ?? inventoryLocations[0]
             let label = inventoryLabels.first { $0.name == itemData.label } ?? inventoryLabels[0]
@@ -251,8 +243,12 @@ struct TestData {
             )
             
             let itemId = UUID().uuidString
-            item.imageURL = setupImageURL(imageName: itemData.imageName, id: itemId)
-            context.insert(item)
+            if let imageURL = await setupImageURL(imageName: itemData.imageName, id: itemId) {
+                item.imageURL = imageURL
+            }
+            modelContext.insert(item)
         }
+        
+        try? modelContext.save()
     }
 }
