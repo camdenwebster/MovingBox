@@ -40,6 +40,9 @@ struct OnboardingView: View {
                 case .item:
                     OnboardingItemView()
                         .transition(manager.transition)
+                case .notifications:
+                    OnboardingNotificationsView()
+                        .transition(manager.transition)
                 case .completion:
                     OnboardingCompletionView(isPresented: $isPresented)
                         .transition(manager.transition)
@@ -80,7 +83,7 @@ struct OnboardingView: View {
         switch manager.currentStep {
         case .welcome, .completion:
             return false
-        case .homeDetails, .location, .item:
+        case .homeDetails, .location, .item, .notifications:
             return true
         }
     }

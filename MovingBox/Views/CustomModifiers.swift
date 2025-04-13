@@ -11,7 +11,7 @@ struct DetailLabel: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(.caption)
-            .foregroundColor(.gray)
+//            .foregroundColor(.gray)
     }
 }
 

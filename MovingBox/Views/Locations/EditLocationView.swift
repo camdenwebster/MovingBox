@@ -106,7 +106,7 @@ struct EditLocationView: View {
                     }
                 }
             }
-            FormTextFieldRow(label: "Name", text: $locationName, placeholder: "Kitchen")
+            FormTextFieldRow(label: "Name", text: $locationName, isEditing: $isEditing, placeholder: "Kitchen")
                 .disabled(!isEditingEnabled)
                 .foregroundColor(isEditingEnabled ? .primary : .secondary)
             if isEditingEnabled || !locationDesc.isEmpty {

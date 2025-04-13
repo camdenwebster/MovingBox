@@ -32,7 +32,7 @@ struct EditLabelView: View {
     var body: some View {
         Form {
             Section("Details"){
-                FormTextFieldRow(label: "Name", text: $labelName, placeholder: "Electronics")
+                FormTextFieldRow(label: "Name", text: $labelName, isEditing: $isEditing, placeholder: "Electronics")
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
                 ColorPicker("Color", selection: $labelColor, supportsOpacity: false)

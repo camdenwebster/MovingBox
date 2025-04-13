@@ -24,7 +24,7 @@ struct InventoryDetailView: View {
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
     @FocusState private var isPriceFieldFocused: Bool
-    @State private var priceString = ""
+    @State private var displayPriceString: String = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "")
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
@@ -52,6 +52,7 @@ struct InventoryDetailView: View {
         self._navigationPath = navigationPath
         self.showSparklesButton = showSparklesButton
         self._isEditing = State(initialValue: isEditing)
+        self._displayPriceString = State(initialValue: formatInitialPrice(inventoryItemToDisplay.price))
     }
 
     @FocusState private var focusedField: Field?
@@ -193,27 +194,23 @@ struct InventoryDetailView: View {
             // Details Section
             Section("Details") {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
-                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, placeholder: "Desktop Computer")
+                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, isEditing: $isEditing, placeholder: "Desktop Computer")
                         .focused($focusedField, equals: .title)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("titleField")
                 }
                 if isEditing || !inventoryItemToDisplay.serial.isEmpty {
-                    FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, placeholder: "SN-12345")
+                    FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, isEditing: $isEditing, placeholder: "SN-12345")
                         .focused($focusedField, equals: .serial)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("serialField")
                 }
                 if isEditing || !inventoryItemToDisplay.make.isEmpty {
-                    FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, placeholder: "Apple")
+                    FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, isEditing: $isEditing, placeholder: "Apple")
                         .focused($focusedField, equals: .make)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("makeField")
                 }
                 if isEditing || !inventoryItemToDisplay.model.isEmpty {
-                    FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, placeholder: "Mac Mini")
+                    FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, isEditing: $isEditing, placeholder: "Mac Mini")
                         .focused($focusedField, equals: .model)
-                        .disabled(!isEditing)
                         .accessibilityIdentifier("modelField")
                 }
             }
@@ -230,12 +227,18 @@ struct InventoryDetailView: View {
                         .frame(height: 60)
                         .disabled(!isEditing)
                         .accessibilityIdentifier("descriptionField")
+                        .foregroundColor(isEditing ? .primary : .secondary)
                 }
             }
             Section("Purchase Price") {
-                PriceFieldRow(priceString: $priceString, priceDecimal: $inventoryItemToDisplay.price)
-                    .disabled(!isEditing)
-                    .accessibilityIdentifier("priceField")
+                PriceFieldRow(
+                    priceString: $displayPriceString,
+                    priceDecimal: $inventoryItemToDisplay.price,
+                    isEditing: $isEditing
+                )
+                .disabled(!isEditing)
+                .accessibilityIdentifier("priceField")
+                .foregroundColor(isEditing ? .primary : .secondary)
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
@@ -291,10 +294,11 @@ struct InventoryDetailView: View {
             if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                 Section("Notes") {
                     TextEditor(text: $inventoryItemToDisplay.notes)
-                .focused($focusedField, equals: .notes)
-                .frame(height: 100)
-                .disabled(!isEditing)
-                .accessibilityIdentifier("notesField")
+                        .foregroundColor(isEditing ? .primary : .secondary)
+                        .focused($focusedField, equals: .notes)
+                        .frame(height: 100)
+                        .disabled(!isEditing)
+                        .accessibilityIdentifier("notesField")
                 }
             }
             if isEditing {
@@ -366,13 +370,10 @@ struct InventoryDetailView: View {
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
-        .onChange(of: selectedPhoto) { oldValue, newValue in
-            Task {
-                if let photo = newValue {
-                    await loadPhoto(from: photo)
-                    // Clear the selection after processing
-                    selectedPhoto = nil
-                }
+        .task {
+            if let photo = selectedPhoto {
+                await loadPhoto(from: photo)
+                selectedPhoto = nil
             }
         }
         .sheet(isPresented: $showingCamera) {
@@ -459,43 +460,43 @@ struct InventoryDetailView: View {
     }
     
     private func loadPhoto(from item: PhotosPickerItem) async {
-        if let data = try? await item.loadTransferable(type: Data.self) {
-            await MainActor.run {
-                inventoryItemToDisplay.data = data  // Save original data directly
+        do {
+            if let data = try await item.loadTransferable(type: Data.self) {
+                inventoryItemToDisplay.data = data
                 inventoryItemToDisplay.hasUsedAI = false
-                try? modelContext.save()
+                try modelContext.save()
             }
+        } catch {
+            // Handle error appropriately
+            errorMessage = "Failed to load photo: \(error.localizedDescription)"
+            showingErrorAlert = true
         }
     }
     
-    func callOpenAI() async throws -> ImageDetails {
+    private func callOpenAI() async throws -> ImageDetails {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
         
         guard let photo = inventoryItemToDisplay.photo else {
-            print("❌ No photo available for analysis")
             throw OpenAIError.invalidData
         }
         
         guard let imageBase64 = PhotoManager.loadCompressedPhotoForAI(from: photo) else {
-            print("❌ Failed to encode image to base64")
             throw OpenAIError.invalidData
         }
         
         let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
         
         TelemetryManager.shared.trackCameraAnalysisUsed()
-        print("🔍 Starting image analysis")
         
         return try await openAi.getImageDetails()
     }
     
-    func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
+    private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
         if inventoryItemToDisplay.modelContext == nil {
             modelContext.insert(inventoryItemToDisplay)
         }
         
-        // Update properties
         inventoryItemToDisplay.title = imageDetails.title
         inventoryItemToDisplay.quantityString = imageDetails.quantity
         inventoryItemToDisplay.label = labels.first { $0.name == imageDetails.category }
@@ -503,25 +504,27 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
         
-        // CHANGE: Only update location if one isn't already set
         if inventoryItemToDisplay.location == nil {
             inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
         }
         
-        // Convert price string to Decimal
+        // Update price handling
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        inventoryItemToDisplay.price = Decimal(string: priceString) ?? 0
+        if let price = Decimal(string: priceString) {
+            inventoryItemToDisplay.price = price
+            displayPriceString = formatInitialPrice(price)
+        }
+        
         inventoryItemToDisplay.hasUsedAI = true
         
-        // Explicitly save changes
         try? modelContext.save()
     }
     
-    func selectImage() {
+    private func selectImage() {
         print("Image selection button tapped")
     }
     
-    func clearFields() {
+    private func clearFields() {
         print("Clear fields button tapped")
         inventoryItemToDisplay.title = ""
         inventoryItemToDisplay.label = nil
@@ -533,7 +536,7 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.notes = ""
     }
     
-    func addLocation() {
+    private func addLocation() {
         let location = InventoryLocation()
         modelContext.insert(location)
         TelemetryManager.shared.trackLocationCreated(name: location.name)
@@ -541,10 +544,18 @@ struct InventoryDetailView: View {
         router.navigate(to: .editLocationView(location: location))
     }
     
-    func addLabel() {
+    private func addLabel() {
         let label = InventoryLabel()
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label))
+    }
+    
+    private func formatInitialPrice(_ price: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: price)) ?? "0.00"
     }
 }
 

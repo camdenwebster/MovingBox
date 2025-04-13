@@ -18,13 +18,15 @@ struct InventoryListView: View {
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
+    
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
     @State private var showingPaywall = false
-    @State private var showLimitAlert = false
+    @State private var showingCamera = false
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
+    @State private var isContextValid = true
     
     @Query private var allItems: [InventoryItem]
     
@@ -50,12 +52,9 @@ struct InventoryListView: View {
                         print("📱 InventoryListView - Add Item button tapped")
                         print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
                         print("📱 InventoryListView - Items count: \(allItems.count)")
-                        if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
-                            print("📱 InventoryListView - Showing first time paywall")
+                        if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                            print("📱 InventoryListView - Showing paywall")
                             showingPaywall = true
-                        } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
-                            print("📱 InventoryListView - Showing limit alert")
-                            showLimitAlert = true
                         } else {
                             print("📱 InventoryListView - Creating new item")
                             let newItem = InventoryItem(
@@ -82,10 +81,8 @@ struct InventoryListView: View {
                     .accessibilityIdentifier("createManually")
                     
                     Button(action: {
-                        if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                        if settings.hasReachedItemLimit(currentCount: allItems.count) {
                             showingPaywall = true
-                        } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
-                            showLimitAlert = true
                         } else {
                             router.navigate(to: .addInventoryItemView(location: location))
                         }
@@ -133,15 +130,9 @@ struct InventoryListView: View {
                     }
                 }
             }
-            .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
-                Button("Upgrade") {
-                    showingPaywall = true
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
-            }
     }
+    
+
     
     func handlePhotoCaptured(_ image: UIImage) {
         analyzingImage = image

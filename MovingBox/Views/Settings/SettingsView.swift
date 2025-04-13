@@ -34,7 +34,6 @@ struct SettingsView: View {
     @State private var showingICloudAlert = false
     @Query private var homes: [Home]
     private var home: Home { homes.first ?? Home() }
-    @StateObject private var iCloudManager = ICloudSyncManager.shared
     
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -359,8 +358,11 @@ struct AISettingsView: View {
 
 
 struct LocationSettingsView: View {
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
+    @State private var showingPaywall = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -386,19 +388,39 @@ struct LocationSettingsView: View {
         }
         .navigationTitle("Location Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingPaywall) {
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settings.isPro = true
+                    // Continue with attempted action after successful purchase
+                    if settings.canAddMoreLocations(currentCount: locations.count) {
+                        router.navigate(to: .editLocationView(location: nil))
+                    }
+                },
+                onDismiss: nil
+            )
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    router.navigate(to: .editLocationView(location: nil))
-                } label: {
-                    Label("Add Location", systemImage: "plus")
+                Button("Add Location", systemImage: "plus") {
+                    if settings.hasReachedLocationLimit(currentCount: locations.count) {
+                        showingPaywall = true
+                    } else {
+                        addLocation()
+                    }
                 }
+                .accessibilityIdentifier("addLocation")
             }
 
         }
+    }
+    
+    func addLocation() {
+        router.navigate(to: .editLocationView(location: nil))
     }
     
     func deleteLocations(at offsets: IndexSet) {
@@ -463,71 +485,22 @@ struct AboutView: View {
 }
 
 struct ICloudSettingsView: View {
-    @StateObject private var iCloudManager = ICloudSyncManager.shared
     @ObservedObject var settingsManager: SettingsManager
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var containerManager: ModelContainerManager
     
     var body: some View {
         Form {
             Section {
                 Toggle("Enable iCloud Sync", isOn: $settingsManager.iCloudEnabled)
-                    .onChange(of: settingsManager.iCloudEnabled) { oldValue, newValue in
-                        containerManager.updateContainer(
-                            isPro: settingsManager.isPro,
-                            iCloudEnabled: newValue
-                        )
-                    }
-                
-                if settingsManager.iCloudEnabled {
-                    HStack {
-                        Text("Last Sync")
-                        Spacer()
-                        if let lastSync = iCloudManager.lastSyncDate {
-                            Text(lastSync.formatted(date: .numeric, time: .shortened))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("Never")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    
-                    Button(action: {
-                        Task {
-                            print("Sync Now button tapped")
-                            await iCloudManager.syncNow()
-                        }
-                    }) {
-                        HStack {
-                            Text("Sync Now")
-                            if iCloudManager.isSyncing {
-                                Spacer()
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(iCloudManager.isSyncing)
-                }
             } footer: {
                 if settingsManager.iCloudEnabled {
-                    Text("Your data automatically syncs with iCloud when changes are made.")
+                    Text("Your data automatically syncs with iCloud when changes are made. Please restart the app for changes to take effect.")
                 } else {
-                    Text("When disabled, your data will only be stored locally on this device.")
+                    Text("When disabled, your data will only be stored locally on this device. Please restart the app for changes to take effect.")
                 }
             }
         }
         .navigationTitle("iCloud Settings")
-        .task {
-            print("ICloudSettingsView appeared")
-            await MainActor.run {
-                iCloudManager.setSettingsManager(settingsManager)
-                iCloudManager.checkICloudStatus()
-                if settingsManager.iCloudEnabled {
-                    print("Setting up sync with ModelContainer")
-                    iCloudManager.setupSync(modelContainer: modelContext.container)
-                }
-            }
-        }
     }
 }
 

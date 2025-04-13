@@ -18,9 +18,8 @@ struct MovingBoxApp: App {
     @StateObject private var onboardingManager = OnboardingManager()
     @StateObject private var containerManager = ModelContainerManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
+    @State private var showRestartAlert = false
     @State private var showOnboarding = false
-    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
-    @Query private var homes: [Home]
     
     enum TabDestination: Hashable {
         case dashboard
@@ -68,17 +67,6 @@ struct MovingBoxApp: App {
         switch destination {
         case .dashboardView:
             DashboardView()
-            // TODO: Perhaps call RevenueCat paywall here instead of onboarding
-//                .presentPaywallIfNeeded(
-//                    requiredEntitlementIdentifier: "Pro",
-//                    purchaseCompleted: { customerInfo in
-//                        print("Purchase completed: \(customerInfo.entitlements)")
-//                    },
-//                    restoreCompleted: { customerInfo in
-//                        // Paywall will be dismissed automatically if "pro" is now active.
-//                        print("Purchases restored: \(customerInfo.entitlements)")
-//                    }
-//                )
         case .locationsListView:
             LocationsListView()
         case .settingsView:
@@ -160,45 +148,24 @@ struct MovingBoxApp: App {
             }
             .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
-            .onChange(of: settings.isPro) { oldValue, newValue in
-                containerManager.updateContainer(isPro: newValue, iCloudEnabled: settings.iCloudEnabled)
+            .onChange(of: settings.iCloudEnabled) { _, _ in
+                showRestartAlert = true
             }
-            .onAppear {
-                // Initialize container with current Pro status and iCloud preference
-                containerManager.updateContainer(isPro: settings.isPro, iCloudEnabled: settings.iCloudEnabled)
-                
-                // Check RevenueCat subscription status on launch
-                Task {
-                    do {
-                        try await revenueCatManager.updateCustomerInfo()
-                    } catch {
-                        print("⚠️ MovingBoxApp - Error checking initial RevenueCat status: \(error)")
-                    }
-                }
-                
-                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
-                    Task {
-                        await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
-                        settings.hasLaunched = true
-                    }
-                }
-
-                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    settings.hasSeenPaywall = false
-                }
-
-                // Only check if we haven't launched before
-                let shouldShowWelcome = OnboardingManager.shouldShowWelcome()
-                if shouldShowWelcome {
-                    showOnboarding = true
-                }
-                
-                settings.hasLaunched = true
-
-                TelemetryDeck.signal("appLaunched")
+            .alert("App Restart Required", isPresented: $showRestartAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Please restart the app for iCloud changes to take effect.")
             }
-            .fullScreenCover(isPresented: $showOnboarding) {
-                OnboardingView(isPresented: $showOnboarding)
+            .task {
+                // Initialize container
+                await containerManager.initialize()
+                
+                // Check RevenueCat subscription status
+                do {
+                    try await revenueCatManager.updateCustomerInfo()
+                } catch {
+                    print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
+                }
             }
             .modelContainer(containerManager.container)
             .environmentObject(router)

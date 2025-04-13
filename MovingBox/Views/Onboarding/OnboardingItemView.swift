@@ -20,25 +20,44 @@ struct OnboardingItemView: View {
                 VStack(spacing: 0) {
                     ScrollView {
                         VStack(spacing: 24) {
-                            VStack(spacing: 24) {
+                            Spacer()
+                            VStack(spacing: 16) {
+                                Image(systemName: "camera.viewfinder")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(.secondary)
+                                    .padding()
+                                    .symbolEffect(.bounce.up.byLayer, options: .nonRepeating)
+                                
                                 OnboardingHeaderText(text: "Add Your First Item")
                                 
                                 VStack(spacing: 16) {
                                     OnboardingDescriptionText(text: "MovingBox uses artificial intelligence to automatically identify and catalog your items.")
                                     
-                                    Image(systemName: "camera.viewfinder")
-                                        .font(.system(size: 60))
-                                        .foregroundStyle(.secondary)
-                                        .padding()
-                                        .symbolEffect(.bounce.up.byLayer, options: .nonRepeating)
+
                                     
                                     VStack(alignment: .leading, spacing: 12) {
-                                        PrivacyBulletPoint(icon: "checkmark.shield", text: "Your photos are analyzed instantly")
-                                        PrivacyBulletPoint(icon: "xmark.shield", text: "We do not store your photos")
-                                        PrivacyBulletPoint(icon: "exclamationmark.triangle", text: "OpenAI will process your photos")
+                                        OnboardingFeatureRow(
+                                            icon: "checkmark.shield",
+                                            iconColor: .green,
+                                            title: "Instant Analysis",
+                                            description: "Your photos are analyzed instantly"
+                                        )
+                                        
+                                        OnboardingFeatureRow(
+                                            icon: "xmark.shield",
+                                            iconColor: .red,
+                                            title: "Privacy First",
+                                            description: "We do not store your photos"
+                                        )
+                                        
+                                        OnboardingFeatureRow(
+                                            icon: "exclamationmark.triangle",
+                                            iconColor: .orange,
+                                            title: "AI Processing",
+                                            description: "OpenAI will process your photos"
+                                        )
                                     }
-                                    .padding()
-                                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                    .padding(20)
                                     .background {
                                         RoundedRectangle(cornerRadius: 12)
                                             .fill(.ultraThinMaterial)

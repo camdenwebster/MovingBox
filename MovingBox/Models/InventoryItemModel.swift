@@ -10,7 +10,7 @@ import SwiftData
 import SwiftUI
 
 @Model
-class InventoryItem: ObservableObject {
+final class InventoryItem: ObservableObject {
     var title: String = ""
     var quantityString: String = "1"
     var quantityInt: Int = 1
@@ -27,10 +27,12 @@ class InventoryItem: ObservableObject {
     @Attribute(.externalStorage) var data: Data?
     var photo: UIImage? {
         get {
-            if let data = data {
-                return UIImage(data: data)
+            guard let data = data else { return nil }
+            // Ensure we're on main thread and have valid context
+            guard Thread.isMainThread else {
+                return DispatchQueue.main.sync { UIImage(data: data) }
             }
-            return nil
+            return UIImage(data: data)
         }
     }
     

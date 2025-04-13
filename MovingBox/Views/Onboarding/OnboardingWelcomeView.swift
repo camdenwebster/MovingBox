@@ -13,7 +13,6 @@ struct OnboardingWelcomeView: View {
     @State private var descriptionOpacity = 0.0
     @State private var buttonOpacity = 0.0
     @State private var isProcessing = false
-    @StateObject private var iCloudManager = ICloudSyncManager.shared
     
     var body: some View {
         OnboardingContainer {
@@ -65,9 +64,6 @@ struct OnboardingWelcomeView: View {
                                     // First check RevenueCat status and sync purchases
                                     try await revenueCatManager.updateCustomerInfo()
                                     try await revenueCatManager.syncPurchases()
-                                    
-                                    // Then wait for any pending iCloud sync
-                                    _ = try await iCloudManager.waitForSync()
                                 }
                                 
                                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)

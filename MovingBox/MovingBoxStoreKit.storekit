@@ -34,7 +34,7 @@
     "_applicationInternalID" : "6742755218",
     "_developerTeamID" : "V7HLP74XY3",
     "_failTransactionsEnabled" : false,
-    "_lastSynchronizedDate" : 765826290.18756795,
+    "_lastSynchronizedDate" : 766065698.89695799,
     "_locale" : "en_US",
     "_storefront" : "USA",
     "_storeKitErrors" : [
@@ -104,7 +104,12 @@
           "familyShareable" : false,
           "groupNumber" : 2,
           "internalID" : "6744124591",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "internalID" : "EE4399E9",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
           "localizations" : [
             {
               "description" : "Unlocks unlimited access to all features",
@@ -114,7 +119,7 @@
           ],
           "productID" : "mb_rc_4999_1y_1w0",
           "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Annual $49.99, 1-week free",
+          "referenceName" : "Annual $49.99",
           "subscriptionGroupID" : "21661057",
           "type" : "RecurringSubscription",
           "winbackOffers" : [
@@ -142,7 +147,7 @@
           ],
           "productID" : "mb_rc_699_1m_1w0",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Monthly $6.99, 1-week free",
+          "referenceName" : "Monthly $6.99",
           "subscriptionGroupID" : "21661057",
           "type" : "RecurringSubscription",
           "winbackOffers" : [

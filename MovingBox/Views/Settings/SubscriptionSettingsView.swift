@@ -6,71 +6,72 @@ struct SubscriptionSettingsView: View {
     @State private var subscriptionInfo: RevenueCatManager.SubscriptionInfo?
     @State private var isLoading = true
     @State private var isSyncing = false
+    @State private var isRestoring = false
+    @State private var lastSyncDate: Date?
     
     var body: some View {
-        ZStack {
-            if isSyncing {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .controlSize(.large)
-                    Text("Loading Subscription Details...")
-                        .foregroundStyle(.secondary)
+        List {
+            if isLoading {
+                Section {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
                 }
-            } else {
-                List {
-                    if isLoading {
-                        Section {
-                            HStack {
-                                Spacer()
-                                ProgressView()
-                                Spacer()
-                            }
+            } else if let info = subscriptionInfo {
+                Section {
+                    subscriptionRow(title: "Status", value: info.status, systemImage: "checkmark.circle.fill")
+                        .foregroundColor(info.status == "Active" ? .green : .red)
+                    
+                    subscriptionRow(title: "Plan", value: "\(info.planType) Pro", systemImage: "creditcard")
+                    
+                    if let expirationDate = info.expirationDate {
+                        subscriptionRow(
+                            title: info.willRenew ? "Next Billing Date" : "Expires",
+                            value: expirationDate.formatted(date: .abbreviated, time: .shortened),
+                            systemImage: "calendar"
+                        )
+                    }
+                }
+                
+                Section {
+                    Button(action: {
+                        Task {
+                            await syncPurchases()
                         }
-                    } else if let info = subscriptionInfo {
-                        Section {
-                            subscriptionRow(title: "Status", value: info.status, systemImage: "checkmark.circle.fill")
-                                .foregroundColor(info.status == "Active" ? .green : .red)
-                            
-                            subscriptionRow(title: "Plan", value: "\(info.planType) Pro", systemImage: "creditcard")
-                            
-                            if let expirationDate = info.expirationDate {
-                                subscriptionRow(
-                                    title: info.willRenew ? "Next Billing Date" : "Expires",
-                                    value: expirationDate.formatted(date: .abbreviated, time: .shortened),
-                                    systemImage: "calendar"
-                                )
-                            }
+                    }) {
+                        Label("Sync Purchases", systemImage: "arrow.triangle.2.circlepath")
+                            .symbolEffect(.rotate, value: isSyncing)
+                            .foregroundStyle(isSyncing ? .secondary : Color.customPrimary)
+                    }
+                    .disabled(isSyncing)
+                    
+                    Button(action: {
+                        Task {
+                            await restorePurchases()
                         }
-                        
-                        Section {
-                            Button(action: {
-                                Task {
-                                    await syncPurchases()
-                                }
-                            }) {
-                                Label("Sync Purchases", systemImage: "arrow.triangle.2.circlepath")
-                            }
-                            
-                            Button(action: {
-                                Task {
-                                    await restorePurchases()
-                                }
-                            }) {
-                                Label("Restore Purchases", systemImage: "arrow.clockwise")
-                            }
-                            
-                            if let managementURL = info.managementURL {
-                                Link(destination: managementURL) {
-                                    Label("Manage Subscription", systemImage: "gear")
-                                }
-                            }
-                        }
-                    } else {
-                        Section {
-                            Text("Unable to load subscription details")
-                                .foregroundColor(.secondary)
+                    }) {
+                        Label("Restore Purchases", systemImage: "arrow.clockwise")
+                            .symbolEffect(.rotate, value: isRestoring)
+                            .foregroundStyle(isRestoring ? .secondary : Color.customPrimary)
+                    }
+                    .disabled(isRestoring)
+                    
+                    if let managementURL = info.managementURL {
+                        Link(destination: managementURL) {
+                            Label("Manage Subscription", systemImage: "gear")
                         }
                     }
+                } footer: {
+                    if let lastSync = lastSyncDate {
+                        Text("Last synced: \(lastSync.formatted(date: .abbreviated, time: .shortened))")
+                    }
+                }
+            } else {
+                Section {
+                    Text("Unable to load subscription details")
+                        .foregroundColor(.secondary)
                 }
             }
         }
@@ -97,6 +98,7 @@ struct SubscriptionSettingsView: View {
         isSyncing = true
         do {
             try await revenueCatManager.syncPurchases()
+            lastSyncDate = .now
         } catch {
             print("Error syncing purchases: \(error)")
         }
@@ -104,15 +106,16 @@ struct SubscriptionSettingsView: View {
     }
     
     private func restorePurchases() async {
-        isSyncing = true
+        isRestoring = true
         do {
             try await revenueCatManager.restorePurchases()
+            lastSyncDate = .now
             // Refresh subscription info after restore
             subscriptionInfo = try await revenueCatManager.getSubscriptionInfo()
         } catch {
             print("Error restoring purchases: \(error)")
         }
-        isSyncing = false
+        isRestoring = false
     }
     
     private func subscriptionRow(title: String, value: String, systemImage: String) -> some View {

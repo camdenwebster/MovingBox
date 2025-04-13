@@ -6,6 +6,7 @@ class ModelContainerManager: ObservableObject {
     static let shared = ModelContainerManager()
     
     @Published private(set) var container: ModelContainer
+    @Published private(set) var isLoading = true
     
     private let schema = Schema([
         InventoryLabel.self,
@@ -16,48 +17,36 @@ class ModelContainerManager: ObservableObject {
     ])
     
     private init() {
-        // Initialize container with a default configuration (no iCloud)
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
-            allowsSave: true,
-            cloudKitDatabase: .none
-        )
+        let isPro = UserDefaults.standard.bool(forKey: "isPro")
+        let iCloudEnabled = UserDefaults.standard.bool(forKey: "iCloudEnabled")
         
-        do {
-            self.container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
-        }
-    }
-    
-    func createContainer(isPro: Bool, iCloudEnabled: Bool) throws -> ModelContainer {
-        let modelConfiguration = ModelConfiguration(
+        let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
             allowsSave: true,
             cloudKitDatabase: (isPro && iCloudEnabled) ? .automatic : .none
         )
         
-        return try ModelContainer(for: schema, configurations: [modelConfiguration])
+        do {
+            self.container = try ModelContainer(for: schema, configurations: [configuration])
+            print("📦 ModelContainerManager - Created container with cloudKitDatabase: \(isPro && iCloudEnabled ? "automatic" : "none")")
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
+        }
     }
     
-    func updateContainer(isPro: Bool, iCloudEnabled: Bool) {
+    func initialize() async {
+        // Allow time for initial sync
         do {
-            // Create new container with updated configuration
-            let newContainer = try createContainer(isPro: isPro, iCloudEnabled: iCloudEnabled)
-            
-            // Update the published container
-            self.container = newContainer
-            
-            // Update iCloud sync manager if needed
-            if isPro && iCloudEnabled {
-                ICloudSyncManager.shared.setupSync(modelContainer: newContainer)
-            } else {
-                ICloudSyncManager.shared.disableSync()
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            await MainActor.run {
+                isLoading = false
             }
         } catch {
-            print("Error updating container: \(error)")
+            print("Error during initialization: \(error)")
+            await MainActor.run {
+                isLoading = false
+            }
         }
     }
 }

@@ -12,7 +12,6 @@ struct AddInventoryItemView: View {
     @State private var showingCamera = false
     @State private var showingPermissionDenied = false
     @State private var showingPaywall = false
-    @State private var showLimitAlert = false
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
     @Query private var allItems: [InventoryItem]
@@ -26,10 +25,8 @@ struct AddInventoryItemView: View {
                 .padding()
             
             Button(action: {
-                if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+                if settings.hasReachedItemLimit(currentCount: allItems.count) {
                     showingPaywall = true
-                } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
-                    showLimitAlert = true
                 } else {
                     checkCameraPermissionsAndPresent()
                 }
@@ -40,10 +37,8 @@ struct AddInventoryItemView: View {
         }
         .navigationTitle("Add New Item")
         .onAppear {
-            if settings.shouldShowFirstTimePaywall(itemCount: allItems.count) {
+            if settings.hasReachedItemLimit(currentCount: allItems.count) {
                 showingPaywall = true
-            } else if settings.hasReachedItemLimit(currentCount: allItems.count) {
-                showLimitAlert = true
             } else {
                 checkCameraPermissionsAndPresent()
             }
@@ -128,16 +123,6 @@ struct AddInventoryItemView: View {
                 },
                 onDismiss: nil
             )
-        }
-        .alert("Upgrade to Pro", isPresented: $showLimitAlert) {
-            Button("Upgrade") {
-                showingPaywall = true
-            }
-            Button("Cancel", role: .cancel) {
-                dismiss()
-            }
-        } message: {
-            Text("You've reached the maximum number of items (\(SettingsManager.maxFreeItems)) for free users. Upgrade to Pro for unlimited items!")
         }
         .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
             Button("Go to Settings", action: openSettings)

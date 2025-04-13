@@ -1,59 +1,64 @@
 import Foundation
 import SwiftUI
 import SwiftData
+import UserNotifications
 
+@MainActor
 class OnboardingManager: ObservableObject {
     @Published var currentStep: OnboardingStep = .welcome
     @Published var showAlert = false
     @Published var alertMessage = ""
     @Published var hasCompleted = false
     @Published private var isMovingForward = true
+    @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
     
     enum OnboardingStep: Int, CaseIterable {
         case welcome
         case homeDetails
         case location
         case item
+        case notifications
         case completion
-
+        
         var title: String {
             switch self {
             case .welcome: return "Welcome"
             case .homeDetails: return "Home Details"
             case .location: return "Add Location"
             case .item: return "Add Item"
+            case .notifications: return "Stay Updated"
             case .completion: return "Great Job!"
             }
         }
     }
     
-    // ADD: Static key constants
     static let hasCompletedOnboardingKey = "hasCompletedOnboardingKey"
     static let hasLaunchedKey = "hasLaunched"
     
     var transition: AnyTransition {
         if isMovingForward {
             return .asymmetric(insertion: .move(edge: .trailing),
-                              removal: .move(edge: .leading))
+                             removal: .move(edge: .leading))
         } else {
             return .asymmetric(insertion: .move(edge: .leading),
-                              removal: .move(edge: .trailing))
+                             removal: .move(edge: .trailing))
         }
     }
     
     init() {
         print("⚡️ OnboardingManager initialized")
+        Task {
+            await checkNotificationStatus()
+        }
     }
     
     func markOnboardingComplete() {
         print("⚡️ Marking onboarding as complete")
-        // CHANGE: Use static key
         UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
         hasCompleted = true
     }
     
     static func shouldShowWelcome() -> Bool {
-        // CHANGE: Use static key
         let hasLaunched = UserDefaults.standard.bool(forKey: Self.hasLaunchedKey)
         print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
         
@@ -77,32 +82,29 @@ class OnboardingManager: ObservableObject {
             return true
         }
         
-        // CHANGE: Use static key
         return UserDefaults.standard.bool(forKey: Self.hasCompletedOnboardingKey)
     }
     
     @MainActor
     static func checkAndUpdateOnboardingState(modelContext: ModelContext) async throws -> Bool {
-        // Only check homes if onboarding hasn't been completed yet
-        if !hasCompletedOnboarding() {
-            do {
-                let descriptor = FetchDescriptor<Home>()
-                let homes = try modelContext.fetch(descriptor)
-                print("⚡️ Checking for existing homes: \(homes.count) found")
-                
-                // If we found homes, mark onboarding as complete
-                if !homes.isEmpty {
-                    // CHANGE: Use static key
-                    UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
-                    return true
-                }
-                return false
-            } catch {
-                print("❌ Error checking for homes: \(error)")
-                throw OnboardingError.homeCheckFailed(error)
-            }
+        guard !hasCompletedOnboarding() && !ProcessInfo.processInfo.arguments.contains("Show-Onboarding") else {
+            return false
         }
-        return false
+        
+        do {
+            let descriptor = FetchDescriptor<Home>()
+            let homes = try modelContext.fetch(descriptor)
+            print("⚡️ Checking for existing homes: \(homes.count) found")
+            
+            if !homes.isEmpty {
+                UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
+                return true
+            }
+            return false
+        } catch let error as NSError {
+            print("❌ Error checking for homes: \(error), \(error.userInfo)")
+            throw OnboardingError.homeCheckFailed(error)
+        }
     }
     
     enum OnboardingError: LocalizedError {
@@ -120,6 +122,28 @@ class OnboardingManager: ObservableObject {
     func showError(message: String) {
         alertMessage = message
         showAlert = true
+    }
+    
+    @MainActor
+    func requestNotificationPermissions() async {
+        do {
+            let center = UNUserNotificationCenter.current()
+            self.notificationStatus = await center.notificationSettings().authorizationStatus
+            
+            if self.notificationStatus == .notDetermined {
+                let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                self.notificationStatus = granted ? .authorized : .denied
+            }
+        } catch {
+            print("❌ Error requesting notification permissions: \(error)")
+            showError(message: "Could not request notification permissions")
+        }
+    }
+    
+    @MainActor
+    func checkNotificationStatus() async {
+        let center = UNUserNotificationCenter.current()
+        self.notificationStatus = await center.notificationSettings().authorizationStatus
     }
     
     func moveToNext() {

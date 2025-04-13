@@ -14,76 +14,81 @@ struct OnboardingCompletionView: View {
     var body: some View {
         OnboardingContainer {
             VStack(spacing: 0) {
-                ScrollView {
+                VStack {
                     VStack {
-                        VStack {
-                            // Success Icon
-                            Image(systemName: showCheckmark ? "checkmark.circle" : "circle" )
-                                .font(.system(size: 100))
-                                .foregroundStyle(.green)
-                                .padding()
-                                .animation(.default, value: showCheckmark)
-                                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
+                        // Success Icon
+                        Image(systemName: showCheckmark ? "checkmark.circle" : "circle" )
+                            .font(.system(size: 100))
+                            .foregroundStyle(.green)
+                            .padding()
+                            .animation(.default, value: showCheckmark)
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
+                        
+                        OnboardingHeaderText(text: "Great Job!")
+                        
+                        VStack(spacing: 16) {
+                            OnboardingDescriptionText(text: "You've taken the first step in protecting what matters most.")
                             
-                            OnboardingHeaderText(text: "Great Job!")
-                            
+                            // Tips Section
                             VStack(spacing: 16) {
-                                OnboardingDescriptionText(text: "You've taken the first step in protecting what matters most.")
-                                
-                                // Tips Section
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Tips for Success")
                                         .font(.headline)
                                         .padding(.bottom, 4)
                                     
-                                    TipRow(icon: "tortoise.fill",
-                                          text: "Take it at your own pace")
+                                    OnboardingFeatureRow(
+                                        icon: "tortoise.fill",
+                                        title: "Take it at your own pace",
+                                        description: "It's a marathon, not a sprint!"
+                                    )
                                     
-                                    TipRow(icon: "clock.fill",
-                                          text: "Add a few items each day")
+                                    OnboardingFeatureRow(
+                                        icon: "clock.fill",
+                                        title: "Add a few items each day",
+                                        description: "Consistency is key"
+                                    )
                                     
-                                    TipRow(icon: "house.fill",
-                                          text: "Go room by room to stay organized")
+                                    OnboardingFeatureRow(
+                                        icon: "house.fill",
+                                        title: "Go room by room to stay organized",
+                                        description: "You'll be done in no time"
+                                    )
                                 }
-                                .padding()
-                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                .padding(20)
                                 .background {
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(.ultraThinMaterial)
                                 }
-                                .padding(.bottom, 32)
+                                .padding(.horizontal)
                             }
-                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
-                        .frame(maxWidth: .infinity)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 
                 Spacer()
                 
                 OnboardingContinueButton(action: completeOnboarding, title: "Get Started")
                     .accessibilityIdentifier("onboarding-completion-continue-button")
-                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                    .frame(maxWidth: .infinity)
+            }
+            .onboardingBackground()
+            .sheet(isPresented: $showingPaywall, onDismiss: {
+                print("📱 OnboardingCompletionView - Paywall sheet dismissed")
+                finishOnboarding()
+            }) {
+                revenueCatManager.presentPaywall(
+                    isPresented: $showingPaywall,
+                    onCompletion: {
+                        print("📱 OnboardingCompletionView - Purchase completed")
+                        finishOnboarding()
+                    },
+                    onDismiss: {
+                        print("📱 OnboardingCompletionView - Paywall dismissed via close button")
+                        finishOnboarding()
+                    }
+                )
             }
         }
-        .sheet(isPresented: $showingPaywall, onDismiss: {
-            print("📱 OnboardingCompletionView - Paywall sheet dismissed")
-            finishOnboarding()
-        }) {
-            revenueCatManager.presentPaywall(
-                isPresented: $showingPaywall,
-                onCompletion: {
-                    print("📱 OnboardingCompletionView - Purchase completed")
-                    finishOnboarding()
-                },
-                onDismiss: {
-                    print("📱 OnboardingCompletionView - Paywall dismissed via close button")
-                    finishOnboarding()
-                }
-            )
-        }
-        .onboardingBackground()
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showCheckmark = true
