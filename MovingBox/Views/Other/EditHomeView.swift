@@ -36,19 +36,13 @@ struct EditHomeView: View {
     @EnvironmentObject var router: Router
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
     @State private var isEditing = false
-    @State private var showPhotoSourceAlert = false
-    @State private var selectedPhoto: PhotosPickerItem?
-    @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
     
-    // Consolidate home-related properties into a temporary home
     @State private var tempHome = Home()
-    // Consolidate insurance-related properties
     @State private var tempPolicy = InsurancePolicy()
     
-    // Computed properties
     private var isNewHome: Bool {
         homes.isEmpty
     }
@@ -68,39 +62,48 @@ struct EditHomeView: View {
     
     var body: some View {
         Form {
-            Section {
-                if let uiImage = tempUIImage ?? loadedImage {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .clipped()
-                        .listRowInsets(EdgeInsets())
-                        .overlay(alignment: .bottomTrailing) {
-                            if isEditingEnabled {
-                                PhotoPickerView(
-                                    model: Binding(
-                                        get: { activeHome ?? tempHome },
-                                        set: { if activeHome == nil { tempHome = $0 }}
-                                    ),
-                                    loadedImage: $loadedImage,
-                                    isLoading: $isLoading
-                                )
+            if isEditingEnabled || loadedImage != nil {
+                Section {
+                    if let uiImage = loadedImage {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .clipped()
+                            .listRowInsets(EdgeInsets())
+                            .overlay(alignment: .bottomTrailing) {
+                                if isEditingEnabled {
+                                    PhotoPickerView(
+                                        model: Binding(
+                                            get: { activeHome ?? tempHome },
+                                            set: { if activeHome == nil { tempHome = $0 }}
+                                        ),
+                                        loadedImage: $loadedImage,
+                                        isLoading: $isLoading
+                                    )
+                                }
                             }
+                    } else if isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                    } else if isEditingEnabled {
+                        PhotoPickerView(
+                            model: Binding(
+                                get: { activeHome ?? tempHome },
+                                set: { if activeHome == nil { tempHome = $0 }}
+                            ),
+                            loadedImage: $loadedImage,
+                            isLoading: $isLoading
+                        ) { isPresented in
+                            AddPhotoButton {
+                                isPresented.wrappedValue = true
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .foregroundStyle(.secondary)
                         }
-                } else if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                } else {
-                    if isEditingEnabled {
-                        AddPhotoButton(action: {
-                            showPhotoSourceAlert = true
-                        })
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -230,33 +233,13 @@ struct EditHomeView: View {
                 print("Failed to load image: \(error)")
             }
         }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                // Handle taking photo
-            }
-            Button("Choose from Library") {
-                // Handle choosing from library
-            }
-            if tempUIImage != nil || loadedImage != nil {
-                Button("Remove Photo", role: .destructive) {
-                    if let home = activeHome {
-                        home.imageURL = nil
-                        loadedImage = nil
-                    } else {
-                        tempUIImage = nil
-                    }
-                }
-            }
-        }
         .onAppear {
             if let existingHome = activeHome {
-                // Initialize editing fields with existing values
                 tempHome = existingHome
                 if let policy = existingHome.insurancePolicy {
                     tempPolicy = policy
                 }
             } else {
-                // Set default country for new home
                 tempHome.country = Locale.current.region?.identifier ?? "US"
             }
         }
@@ -265,7 +248,6 @@ struct EditHomeView: View {
                 Button(isEditing ? "Save" : "Edit") {
                     if isEditing {
                         if let home = activeHome {
-                            // Copy all properties from tempHome to the actual home
                             home.name = tempHome.name
                             home.address1 = tempHome.address1
                             home.address2 = tempHome.address2
@@ -274,7 +256,6 @@ struct EditHomeView: View {
                             home.zip = tempHome.zip
                             home.country = tempHome.country
                             
-                            // Update or create insurance policy
                             if home.insurancePolicy == nil {
                                 tempPolicy.insuredHome = home
                                 home.insurancePolicy = tempPolicy
@@ -288,17 +269,8 @@ struct EditHomeView: View {
             } else {
                 Button("Save") {
                     Task {
-                        // Copy properties from tempHome
                         tempHome.purchaseDate = Date()
                         
-                        if let uiImage = tempUIImage {
-                            let id = UUID().uuidString
-                            if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                                tempHome.imageURL = imageURL
-                            }
-                        }
-                        
-                        // Create insurance policy if provider name or policy number is filled
                         if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
                             tempPolicy.insuredHome = tempHome
                             tempHome.insurancePolicy = tempPolicy

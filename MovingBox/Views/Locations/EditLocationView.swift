@@ -47,26 +47,26 @@ struct EditLocationView: View {
     
     var body: some View {
         Form {
-            Section(header: EmptyView()) {
-                if let uiImage = tempUIImage ?? loadedImage {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .clipped()
-                        .listRowInsets(EdgeInsets())
-                        .overlay(alignment: .bottomTrailing) {
-                            if isEditingEnabled {
-                                PhotoPickerView(
-                                    model: $locationInstance,
-                                    loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
-                                    isLoading: $isLoading
-                                )
+            if isEditingEnabled || loadedImage != nil {
+                Section(header: EmptyView()) {
+                    if let uiImage = loadedImage {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .clipped()
+                            .listRowInsets(EdgeInsets())
+                            .overlay(alignment: .bottomTrailing) {
+                                if isEditingEnabled {
+                                    PhotoPickerView(
+                                        model: $locationInstance,
+                                        loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
+                                        isLoading: $isLoading
+                                    )
+                                }
                             }
-                        }
-                } else {
-                    if isLoading {
+                    } else if isLoading {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
@@ -83,10 +83,6 @@ struct EditLocationView: View {
                             .frame(height: UIScreen.main.bounds.height / 3)
                             .foregroundStyle(.secondary)
                         }
-                    } else {
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
                     }
                 }
             }
@@ -99,6 +95,7 @@ struct EditLocationView: View {
                 .onChange(of: locationName) { _, newValue in
                     locationInstance.name = newValue
                 }
+            
             if isEditingEnabled || !locationDesc.isEmpty {
                 Section(header: Text("Description")) {
                     TextEditor(text: $locationDesc)

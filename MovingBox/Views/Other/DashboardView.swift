@@ -63,41 +63,46 @@ struct DashboardView: View {
             VStack(spacing: 24) {
                 Group {
                     if let uiImage = loadedImage {
-                        ZStack(alignment: .bottom) {
-                            GeometryReader { geometry in
+                        GeometryReader { proxy in
+                            let scrollY = proxy.frame(in: .global).minY
+                            let headerHeight = UIScreen.main.bounds.height / 3
+                            
+                            ZStack(alignment: .bottom) {
                                 Image(uiImage: uiImage)
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(maxWidth: .infinity)
-                                    .frame(width: UIScreen.main.bounds.width, height: max(UIScreen.main.bounds.height / 3, geometry.frame(in: .global).minY + UIScreen.main.bounds.height / 3))
+                                    .frame(width: proxy.size.width, height: headerHeight + (scrollY > 0 ? scrollY : 0))
                                     .clipped()
-                                    .offset(y: -geometry.frame(in: .global).minY)
-                            }
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .overlay(alignment: .bottom) {
+                                    .offset(y: scrollY > 0 ? -scrollY : 0)
+                                
                                 LinearGradient(
                                     gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
                                     startPoint: .bottom,
                                     endPoint: .center
                                 )
                                 .frame(height: 100)
+                                
+                                VStack {
+                                    Spacer()
+                                    dashboardHeader
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-                            
-                            dashboardHeader
+                            .overlay(alignment: .bottomTrailing) {
+                                PhotoPickerView(
+                                    model: Binding(
+                                        get: { home ?? Home() },
+                                        set: { if home == nil { modelContext.insert($0) }}
+                                    ),
+                                    loadedImage: $loadedImage,
+                                    isLoading: $isLoading
+                                )
+                            }
                         }
-                        .overlay(alignment: .bottomTrailing) {
-                            PhotoPickerView(
-                                model: Binding(
-                                    get: { home ?? Home() },
-                                    set: { if home == nil { modelContext.insert($0) }}
-                                ),
-                                loadedImage: $loadedImage,
-                                isLoading: $isLoading
-                            )
-                        }
-                        .ignoresSafeArea(edges: .horizontal)
+                        .frame(height: UIScreen.main.bounds.height / 3)
                     } else if isLoading {
                         ProgressView()
+                            .frame(maxWidth: .infinity)
                             .frame(height: 100)
                     } else {
                         VStack {
@@ -121,6 +126,8 @@ struct DashboardView: View {
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
                     }
                 }
                 
@@ -158,6 +165,7 @@ struct DashboardView: View {
                 }
                 .padding(.horizontal)
             }
+            .frame(maxWidth: .infinity)
         }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
@@ -181,6 +189,8 @@ struct DashboardView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
             Spacer()
         }
         .padding(.horizontal, 16)
