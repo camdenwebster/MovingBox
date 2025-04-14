@@ -13,8 +13,6 @@ class SettingsManager: ObservableObject {
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
-        static let lastSyncDate = "lastSyncDate"
-        static let iCloudEnabled = "iCloudEnabled"
         static let isPro = "isPro"
         static let hasSeenPaywall = "hasSeenPaywall"
     }
@@ -53,20 +51,6 @@ class SettingsManager: ObservableObject {
     @Published var hasLaunched: Bool {
         didSet {
             UserDefaults.standard.set(hasLaunched, forKey: Keys.hasLaunched)
-        }
-    }
-    
-    @Published var lastiCloudSync: Date {
-        didSet {
-            print("📱 Setting lastiCloudSync to: \(lastiCloudSync)")
-            UserDefaults.standard.set(lastiCloudSync, forKey: Keys.lastSyncDate)
-            UserDefaults.standard.synchronize()
-        }
-    }
-    
-    @Published var iCloudEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(iCloudEnabled, forKey: Keys.iCloudEnabled)
         }
     }
     
@@ -110,10 +94,8 @@ class SettingsManager: ObservableObject {
         self.apiKey = defaultApiKey
         self.isHighDetail = isHighDetailDefault
         self.hasLaunched = hasLaunchedDefault
-        self.iCloudEnabled = true
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         self.hasSeenPaywall = false
-        self.lastiCloudSync = Date.distantPast
         
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
         
@@ -148,16 +130,10 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
-        self.iCloudEnabled = UserDefaults.standard.bool(forKey: Keys.iCloudEnabled)
         self.hasSeenPaywall = UserDefaults.standard.bool(forKey: Keys.hasSeenPaywall)
-        self.lastiCloudSync = UserDefaults.standard.object(forKey: Keys.lastSyncDate) as? Date ?? Date.distantPast
-
+        
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
-        
-        if !UserDefaults.standard.contains(key: Keys.iCloudEnabled) {
-            self.iCloudEnabled = true
-        }
         
         // Only check RevenueCat if Is-Pro is NOT present
         if !ProcessInfo.processInfo.arguments.contains("Is-Pro") {
@@ -250,10 +226,6 @@ class SettingsManager: ObservableObject {
         isPro || currentCount < SettingsManager.maxFreePhotosPerItem
     }
     
-    func canAccessICloudSync() -> Bool {
-        return isPro
-    }
-    
     // MARK: - Purchase Flow
     
     func purchasePro() {
@@ -285,8 +257,6 @@ class SettingsManager: ObservableObject {
         hasLaunched = hasLaunchedDefault
         hasSeenPaywall = false
         isPro = false
-        lastiCloudSync = Date.distantPast
-        iCloudEnabled = true
         
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {

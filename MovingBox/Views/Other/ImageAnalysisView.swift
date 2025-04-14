@@ -19,7 +19,6 @@ struct ImageAnalysisView: View {
                         Spacer()
                         
                         Group {
-                            // Use optimizedImage if available, otherwise use the original image
                             Image(uiImage: optimizedImage ?? image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
@@ -66,15 +65,11 @@ struct ImageAnalysisView: View {
             .toolbar(.hidden, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-//            .onboardingBackground()
             .interactiveDismissDisabled(true)
             .task {
                 print("ImageAnalysisView appeared with image size: \(image.size)")
-                if let optimized = await OptimizedImageManager.shared.optimizeImage(image) {
-                    optimizedImage = optimized
-                }
-                // Add a small delay to ensure the analysis animation is visible
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                optimizedImage = OptimizedImageManager.shared.optimizeImage(image)
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
                 onComplete()
             }
         }

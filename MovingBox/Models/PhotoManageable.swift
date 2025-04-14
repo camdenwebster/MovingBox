@@ -23,14 +23,12 @@ extension PhotoManageable {
             // If the file doesn't exist at the original path, try loading using the ID
             let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
             
-            // Reconstruct the URL using OptimizedImageManager's base path
-            if let baseURL = OptimizedImageManager.shared.baseURL {
-                let newURL = baseURL.appendingPathComponent("\(id).jpg")
-                if FileManager.default.fileExists(atPath: newURL.path) {
-                    // Update the stored URL to the correct path
-                    self.imageURL = newURL
-                    return try await OptimizedImageManager.shared.loadImage(url: newURL)
-                }
+            // Reconstruct the URL using OptimizedImageManager
+            let newURL = OptimizedImageManager.shared.getImageURL(for: id)
+            if FileManager.default.fileExists(atPath: newURL.path) {
+                // Update the stored URL to the correct path
+                self.imageURL = newURL
+                return try await OptimizedImageManager.shared.loadImage(url: newURL)
             }
             
             return nil

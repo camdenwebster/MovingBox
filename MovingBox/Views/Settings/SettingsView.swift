@@ -122,28 +122,8 @@ struct SettingsView: View {
                 }
                 
                 Section("Sync & Backup") {
-                    if revenueCatManager.isProSubscriptionActive {
-                        NavigationLink {
-                            ICloudSettingsView(settingsManager: settingsManager)
-                        } label: {
-                            Label("iCloud Settings", systemImage: "icloud")
-                        }
-                    } else {
-                        Button {
-                            showingPaywall = true
-                        } label: {
-                            HStack {
-                                Label("iCloud Settings", systemImage: "icloud")
-                                Spacer()
-                                Text("PRO")
-                                    .font(.caption2)
-                                    .padding(4)
-                                    .background(Color.yellow.opacity(0.2))
-                                    .foregroundColor(.yellow)
-                                    .cornerRadius(4)
-                            }
-                        }
-                    }
+                    Text("Your data is automatically synced across all your devices using iCloud")
+                        .foregroundStyle(.secondary)
                 }
                 
                 Section("Community & Support") {
@@ -181,8 +161,6 @@ struct SettingsView: View {
                     LabelSettingsView()
                 case "home":
                     EditHomeView()
-                case "icloud":
-                    ICloudSettingsView(settingsManager: settingsManager)
                 default:
                     EmptyView()
                 }
@@ -211,14 +189,6 @@ struct SettingsView: View {
                     },
                     onDismiss: nil
                 )
-            }
-            .alert("Pro Feature", isPresented: $showingICloudAlert) {
-                Button("Not Now", role: .cancel) { }
-                Button("Upgrade to Pro") {
-                    showingPaywall = true
-                }
-            } message: {
-                Text("iCloud sync is available exclusively to Pro subscribers.")
             }
         }
     }
@@ -481,35 +451,6 @@ struct AboutView: View {
     var body: some View {
         Text("About MovingBox")
             .navigationTitle("About")
-    }
-}
-
-struct ICloudSettingsView: View {
-    @ObservedObject var settingsManager: SettingsManager
-    @Environment(\.modelContext) private var modelContext
-    @State private var showRestartAlert = false
-    
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Enable iCloud Sync", isOn: $settingsManager.iCloudEnabled)
-            } footer: {
-                if settingsManager.iCloudEnabled {
-                    Text("Your data automatically syncs with iCloud when changes are made. Please restart the app for changes to take effect.")
-                } else {
-                    Text("When disabled, your data will only be stored locally on this device. Please restart the app for changes to take effect.")
-                }
-            }
-        }
-        .navigationTitle("iCloud Settings")
-        .onChange(of: settingsManager.iCloudEnabled) { _, _ in
-            showRestartAlert = true
-        }
-        .alert("App Restart Required", isPresented: $showRestartAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Please restart the app for iCloud changes to take effect.")
-        }
     }
 }
 

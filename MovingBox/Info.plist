@@ -3,15 +3,32 @@
 <plist version="1.0">
 <dict>
 	<key>JWT_SECRET</key>
-	<string>$(JWT_SECRET)</string>
-	<key>NSUserNotificationsUsageDescription</key>
-	<string>MovingBox will notify you on important dates such as warranty or insurance expirations</string>
-	<key>REVENUE_CAT_API_KEY</key>
-	<string>$(REVENUE_CAT_API_KEY)</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-		<string>fetch</string>
-	</array>
+    <key>JWT_SECRET</key>
+        <string>$(JWT_SECRET)</string>
+    <key>NSUserNotificationsUsageDescription</key>
+        <string>MovingBox will notify you on important dates such as warranty or insurance expirations</string>
+    <key>REVENUE_CAT_API_KEY</key>
+        <string>$(REVENUE_CAT_API_KEY)</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>icloud-services</string>
+    </array>
+    <key>com.apple.developer.icloud-container-identifiers</key>
+    <array>
+        <string>iCloud.com.mothersound.movingbox</string>
+    </array>
+    <key>com.apple.developer.icloud-services</key>
+    <array>
+        <string>CloudKit</string>
+        <string>CloudDocuments</string>
+    </array>
+    <key>com.apple.developer.ubiquity-container-identifiers</key>
+    <array>
+        <string>iCloud.com.mothersound.movingbox</string>
+    </array>
 </dict>
 </plist>

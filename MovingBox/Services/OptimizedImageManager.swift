@@ -8,30 +8,65 @@ final class OptimizedImageManager {
     static let shared = OptimizedImageManager()
     private let fileManager = FileManager.default
     private let cache = NSCache<NSString, UIImage>()
+    private let fileCoordinator = NSFileCoordinator()
     
-    var baseURL: URL? {
-        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Images")
+    // CHANGE: Use iCloud container instead of documents directory
+    private var imagesDirectoryURL: URL {
+        guard let containerURL = fileManager.url(forUbiquityContainerIdentifier: nil)?.appendingPathComponent("Images") else {
+            // Fallback to documents directory if iCloud is not available
+            let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            return documentsURL.appendingPathComponent("Images", isDirectory: true)
+        }
+        return containerURL
+    }
+    
+    private enum ImageConfig {
+        static let maxDimension: CGFloat = 2500
+        static let jpegQuality: CGFloat = 0.8
+        static let thumbnailSize = CGSize(width: 512, height: 512)
+        static let aiMaxDimension: CGFloat = 1024
     }
     
     private init() {
         setupImageDirectory()
-        cache.countLimit = 100 // Limit cache to 100 thumbnails
+        cache.countLimit = 100
+        setupUbiquityURLMonitoring()
     }
     
     private func setupImageDirectory() {
-        guard let baseURL else { return }
-        if !fileManager.fileExists(atPath: baseURL.path) {
-            try? fileManager.createDirectory(at: baseURL, withIntermediateDirectories: true)
+        if !fileManager.fileExists(atPath: imagesDirectoryURL.path) {
+            try? fileManager.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true)
+            print("📸 OptimizedImageManager - Created images directory at: \(imagesDirectoryURL)")
+        }
+    }
+    
+    // ADD: Monitor iCloud URL changes
+    private func setupUbiquityURLMonitoring() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(ubiquityIdentityDidChange),
+            name: NSNotification.Name.NSUbiquityIdentityDidChange,
+            object: nil
+        )
+    }
+    
+    @objc private func ubiquityIdentityDidChange(_ notification: Notification) {
+        Task { @MainActor in
+            setupImageDirectory()
+            clearCache()
         }
     }
     
     // MARK: - Image Loading from PhotosPicker
     
-    func loadPhoto(from item: PhotosPickerItem?, quality: CGFloat = 0.8) async throws -> Data? {
+    func loadPhoto(from item: PhotosPickerItem?) async throws -> Data? {
         guard let imageData = try await item?.loadTransferable(type: Data.self),
-              let uiImage = UIImage(data: imageData),
-              let optimizedImage = optimizeImage(uiImage),
-              let compressedData = optimizedImage.jpegData(compressionQuality: quality) else {
+              let uiImage = UIImage(data: imageData) else {
+            return nil
+        }
+        
+        let optimizedImage = optimizeImage(uiImage)
+        guard let compressedData = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             return nil
         }
         return compressedData
@@ -40,38 +75,82 @@ final class OptimizedImageManager {
     // MARK: - Image Saving and Loading
     
     func saveImage(_ image: UIImage, id: String) async throws -> URL {
-        guard let baseURL else { throw ImageError.invalidBaseURL }
-        let imageURL = baseURL.appendingPathComponent("\(id).jpg")
+        let imageURL = imagesDirectoryURL.appendingPathComponent("\(id).jpg")
         
-        let optimizedImage = optimizeImage(image) ?? image
-        guard let data = optimizedImage.jpegData(compressionQuality: 0.8) else {
+        let optimizedImage = optimizeImage(image)
+        guard let data = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             throw ImageError.compressionFailed
         }
         
-        try data.write(to: imageURL)
+        var error: NSError?
+        fileCoordinator.coordinate(writingItemAt: imageURL, options: .forReplacing, error: &error) { url in
+            do {
+                try data.write(to: url)
+                let megabytes = Double(data.count) / 1_000_000.0
+                print("📸 OptimizedImageManager - Saving image (size: \(String(format: "%.2f", megabytes))MB) to: \(url)")
+            } catch {
+                print("📸 OptimizedImageManager - Error saving image: \(error.localizedDescription)")
+            }
+        }
+        
+        if let error {
+            throw error
+        }
+        
         await saveThumbnail(optimizedImage, id: id)
         return imageURL
     }
     
     func loadImage(url: URL) async throws -> UIImage {
-        let data = try Data(contentsOf: url)
-        guard let image = UIImage(data: data) else {
+        var error: NSError?
+        var loadedImage: UIImage?
+        
+        fileCoordinator.coordinate(readingItemAt: url, options: [], error: &error) { url in
+            do {
+                let data = try Data(contentsOf: url)
+                if let image = UIImage(data: data) {
+                    loadedImage = image
+                }
+            } catch {
+                print("📸 OptimizedImageManager - Error loading image: \(error.localizedDescription)")
+            }
+        }
+        
+        if let error {
+            throw error
+        }
+        
+        guard let image = loadedImage else {
             throw ImageError.invalidImageData
         }
+        
         return image
     }
     
     // MARK: - Thumbnail Management
     
     private func saveThumbnail(_ image: UIImage, id: String) async {
-        guard let baseURL else { return }
-        let thumbnailURL = baseURL.appendingPathComponent("\(id)_thumb.jpg")
+        let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
         
-        let size = CGSize(width: 512, height: 512)
-        guard let thumbnail = await image.byPreparingThumbnail(ofSize: size) else { return }
+        // Create thumbnails directory if needed
+        try? fileManager.createDirectory(at: thumbnailURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        
+        guard let thumbnail = await image.byPreparingThumbnail(ofSize: ImageConfig.thumbnailSize) else { return }
         guard let data = thumbnail.jpegData(compressionQuality: 0.7) else { return }
         
-        try? data.write(to: thumbnailURL)
+        var error: NSError?
+        fileCoordinator.coordinate(writingItemAt: thumbnailURL, options: .forReplacing, error: &error) { url in
+            do {
+                try data.write(to: url)
+            } catch {
+                print("📸 OptimizedImageManager - Error saving thumbnail: \(error.localizedDescription)")
+            }
+        }
+        
+        if let error {
+            print("📸 OptimizedImageManager - Error saving thumbnail: \(error.localizedDescription)")
+        }
+        
         cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
     }
     
@@ -80,11 +159,27 @@ final class OptimizedImageManager {
             return cached
         }
         
-        guard let baseURL else { throw ImageError.invalidBaseURL }
-        let thumbnailURL = baseURL.appendingPathComponent("\(id)_thumb.jpg")
+        let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
         
-        let data = try Data(contentsOf: thumbnailURL)
-        guard let thumbnail = UIImage(data: data) else {
+        var error: NSError?
+        var loadedImage: UIImage?
+        
+        fileCoordinator.coordinate(readingItemAt: thumbnailURL, options: [], error: &error) { url in
+            do {
+                let data = try Data(contentsOf: url)
+                if let image = UIImage(data: data) {
+                    loadedImage = image
+                }
+            } catch {
+                print("📸 OptimizedImageManager - Error loading thumbnail: \(error.localizedDescription)")
+            }
+        }
+        
+        if let error {
+            throw error
+        }
+        
+        guard let thumbnail = loadedImage else {
             throw ImageError.invalidImageData
         }
         
@@ -94,65 +189,62 @@ final class OptimizedImageManager {
     
     // MARK: - Image Optimization
     
-    func optimizeImage(_ image: UIImage) -> UIImage? {
-        let maxDimension: CGFloat = 2048 // Max dimension for full-size images
-        let currentWidth = image.size.width
-        let currentHeight = image.size.height
+    func optimizeImage(_ image: UIImage, maxDimension: CGFloat? = nil) -> UIImage {
+        let originalSize = image.size
+        let targetMaxDimension = maxDimension ?? ImageConfig.maxDimension
         
-        // Check if resize is needed
-        guard currentWidth > maxDimension || currentHeight > maxDimension else {
+        let widthScale = targetMaxDimension / originalSize.width
+        let heightScale = targetMaxDimension / originalSize.height
+        let scale = min(1.0, min(widthScale, heightScale))
+        
+        if scale >= 1.0 {
             return image
         }
         
-        let aspectRatio = currentWidth / currentHeight
-        var newWidth: CGFloat
-        var newHeight: CGFloat
+        let newSize = CGSize(
+            width: originalSize.width * scale,
+            height: originalSize.height * scale
+        )
         
-        if currentWidth > currentHeight {
-            newWidth = maxDimension
-            newHeight = maxDimension / aspectRatio
-        } else {
-            newHeight = maxDimension
-            newWidth = maxDimension * aspectRatio
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resizedImage = renderer.image { context in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
         }
         
-        let size = CGSize(width: newWidth, height: newHeight)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        
-        return renderer.image { context in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
+        print("📸 OptimizedImageManager - Resized image from \(Int(originalSize.width))x\(Int(originalSize.height)) to \(Int(newSize.width))x\(Int(newSize.height))")
+        return resizedImage
     }
-    
-    // MARK: - AI Processing
     
     func prepareImageForAI(from image: UIImage) -> String? {
-        let optimizedImage = optimizeImage(image) ?? image
-        guard let compressedData = optimizedImage.jpegData(compressionQuality: 0.3) else {
+        let optimizedImage = optimizeImage(image, maxDimension: ImageConfig.aiMaxDimension)
+        guard let imageData = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             return nil
         }
-        return compressedData.base64EncodedString()
+        return imageData.base64EncodedString()
     }
     
-    // MARK: - Cleanup
+    // ADD: Public method to get image URL
+    func getImageURL(for id: String) -> URL {
+        return imagesDirectoryURL.appendingPathComponent("\(id).jpg")
+    }
     
-    func deleteImage(id: String) {
-        guard let baseURL else { return }
-        let imageURL = baseURL.appendingPathComponent("\(id).jpg")
-        let thumbnailURL = baseURL.appendingPathComponent("\(id)_thumb.jpg")
-        
-        try? fileManager.removeItem(at: imageURL)
-        try? fileManager.removeItem(at: thumbnailURL)
-        cache.removeObject(forKey: "\(id)_thumb" as NSString)
+    func imageExists(for url: URL?) -> Bool {
+        guard let url = url else { return false }
+        return fileManager.fileExists(atPath: url.path)
     }
     
     func clearCache() {
         cache.removeAllObjects()
     }
     
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
     enum ImageError: Error {
         case invalidBaseURL
         case compressionFailed
         case invalidImageData
+        case iCloudNotAvailable
     }
 }

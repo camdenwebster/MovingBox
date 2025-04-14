@@ -1,5 +1,6 @@
 import SwiftData
 import Foundation
+import UIKit
 
 @MainActor
 class ModelContainerManager: ObservableObject {
@@ -17,35 +18,32 @@ class ModelContainerManager: ObservableObject {
     ])
     
     private init() {
-        let isPro = UserDefaults.standard.bool(forKey: "isPro")
-        let iCloudEnabled = UserDefaults.standard.bool(forKey: "iCloudEnabled")
-        
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
             allowsSave: true,
-            cloudKitDatabase: (isPro && iCloudEnabled) ? .automatic : .none
+            cloudKitDatabase: .automatic
         )
         
         do {
             self.container = try ModelContainer(for: schema, configurations: [configuration])
-            print("📦 ModelContainerManager - Created container with cloudKitDatabase: \(isPro && iCloudEnabled ? "automatic" : "none")")
+            print("📦 ModelContainerManager - Created container with CloudKit enabled")
         } catch {
+            print("📦 ModelContainerManager - Fatal error creating container: \(error)")
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }
     
     func initialize() async {
-        // Allow time for initial sync
         do {
-            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            try await Task.sleep(nanoseconds: 1_000_000_000)
             await MainActor.run {
-                isLoading = false
+                self.isLoading = false
             }
         } catch {
             print("Error during initialization: \(error)")
             await MainActor.run {
-                isLoading = false
+                self.isLoading = false
             }
         }
     }
