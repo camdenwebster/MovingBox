@@ -2,17 +2,17 @@ import SwiftUI
 import PhotosUI
 import SwiftData
 
+@MainActor
 struct OnboardingHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
-    
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
-    
     @State private var homeName = ""
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
+    @State private var tempHome = Home()
     
     private var activeHome: Home? {
         homes.first
@@ -52,8 +52,10 @@ struct OnboardingHomeView: View {
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
                                                 model: Binding(
-                                                    get: { activeHome ?? Home() },
-                                                    set: { if activeHome == nil { modelContext.insert($0) }}
+                                                    get: { activeHome ?? tempHome },
+                                                    set: { newValue in
+                                                        tempHome = newValue
+                                                    }
                                                 ),
                                                 loadedImage: $loadedImage,
                                                 isLoading: $isLoading
@@ -66,8 +68,10 @@ struct OnboardingHomeView: View {
                                 } else {
                                     PhotoPickerView(
                                         model: Binding(
-                                            get: { activeHome ?? Home() },
-                                            set: { if activeHome == nil { modelContext.insert($0) }}
+                                            get: { activeHome ?? tempHome },
+                                            set: { newValue in
+                                                tempHome = newValue
+                                            }
                                         ),
                                         loadedImage: $loadedImage,
                                         isLoading: $isLoading

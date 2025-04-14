@@ -92,28 +92,28 @@ class OnboardingManager: ObservableObject {
         }
         
         do {
-            let descriptor = FetchDescriptor<Home>()
-            let homes = try modelContext.fetch(descriptor)
-            print("⚡️ Checking for existing homes: \(homes.count) found")
+            let descriptor = FetchDescriptor<InventoryItem>()
+            let items = try modelContext.fetch(descriptor)
+            print("⚡️ Checking for existing items: \(items.count) found")
             
-            if !homes.isEmpty {
+            if !items.isEmpty {
                 UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
                 return true
             }
             return false
         } catch let error as NSError {
-            print("❌ Error checking for homes: \(error), \(error.userInfo)")
-            throw OnboardingError.homeCheckFailed(error)
+            print("❌ Error checking for items: \(error), \(error.userInfo)")
+            throw OnboardingError.itemCheckFailed(error)
         }
     }
     
     enum OnboardingError: LocalizedError {
-        case homeCheckFailed(Error)
+        case itemCheckFailed(Error)
         
         var errorDescription: String? {
             switch self {
-            case .homeCheckFailed(let error):
-                return "Failed to check for existing homes: \(error.localizedDescription)"
+            case .itemCheckFailed(let error):
+                return "Failed to check for existing items: \(error.localizedDescription)"
             }
         }
     }

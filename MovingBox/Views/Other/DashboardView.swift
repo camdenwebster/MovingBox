@@ -33,7 +33,7 @@ struct StatCard: View {
 @MainActor
 struct DashboardView: View {
     @Environment(\.modelContext) var modelContext
-    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) var locations: [InventoryLocation]
     @Query private var items: [InventoryItem]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass

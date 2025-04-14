@@ -26,6 +26,37 @@ class DefaultDataManager {
         }
     }
     
+    static func getOrCreateHome(modelContext: ModelContext) async throws -> Home {
+        let descriptor = FetchDescriptor<Home>()
+        let homes = try modelContext.fetch(descriptor)
+        
+        if let existingHome = homes.first {
+            return existingHome
+        }
+        
+        // If using iCloud, wait briefly for potential sync
+        let isUsingICloud = modelContext.container.configurations.first?.cloudKitDatabase != nil
+        
+        if isUsingICloud {
+            print("🔍 Checking for Home in iCloud...")
+            // Wait for a short time to allow initial sync
+            try await Task.sleep(nanoseconds: 2 * 1_000_000_000) // 2 seconds
+            
+            // Check again after waiting
+            let secondCheck = try modelContext.fetch(descriptor)
+            if let syncedHome = secondCheck.first {
+                return syncedHome
+            }
+        }
+        
+        // If we still don't have a home, create one
+        print("🏠 No existing home found, creating new home...")
+        let newHome = Home()
+        modelContext.insert(newHome)
+        try modelContext.save()
+        return newHome
+    }
+    
     static func checkForExistingObjects<T>(of type: T.Type, in context: ModelContext) async -> Bool where T: PersistentModel {
         // First check if we can fetch any objects
         let descriptor = FetchDescriptor<T>()
@@ -86,34 +117,17 @@ class DefaultDataManager {
     @MainActor
     static func populateDefaultData(modelContext: ModelContext) async {
         if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
-            // Only create default data if onboarding hasn't been completed
-            if !OnboardingManager.hasCompletedOnboarding() {
-                print("🆕 First launch detected, creating default data...")
-                let defaultHome = Home()
-                modelContext.insert(defaultHome)
-                await populateDefaultLabels(modelContext: modelContext)
-            } else {
-                // If onboarding is complete, check iCloud for existing data
-                let hasExistingHome = await checkForExistingHome(modelContext: modelContext)
+            do {
+                let _ = try await getOrCreateHome(modelContext: modelContext)
                 
-                if !hasExistingHome {
-                    print("🏠 No existing home found, creating default home...")
-                    let defaultHome = Home()
-                    modelContext.insert(defaultHome)
-                } else {
-                    print("🏠 Existing home found, skipping default home creation")
-                }
-                
-                // Only check for labels if we don't have a home (new device setup)
-                if !hasExistingHome {
+                // Only populate labels for first launch
+                if !OnboardingManager.hasCompletedOnboarding() {
                     await populateDefaultLabels(modelContext: modelContext)
                 }
-            }
-            
-            do {
+                
                 try modelContext.save()
             } catch {
-                print("❌ Error saving default data: \(error)")
+                print("❌ Error setting up default data: \(error)")
             }
         }
     }

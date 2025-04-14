@@ -25,11 +25,11 @@ final class Home: PhotoManageable {
     var insurancePolicy: InsurancePolicy?
     
     // MARK: - Legacy Support
-    @Attribute(.externalStorage) internal var legacyImageData: Data?
+    @Attribute(.externalStorage) var data: Data?
     
     /// Migrates legacy image data to the new URL-based storage system
     func migrateImageIfNeeded() async throws {
-        guard let legacyData = legacyImageData,
+        guard let legacyData = data,
               let image = UIImage(data: legacyData),
               imageURL == nil else {
             return
@@ -42,7 +42,7 @@ final class Home: PhotoManageable {
         imageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId)
         
         // Clear legacy data after successful migration
-        legacyImageData = nil
+        data = nil
         
         print("📸 Home - Successfully migrated image for home: \(name)")
     }

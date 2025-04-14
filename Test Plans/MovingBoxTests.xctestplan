@@ -17,6 +17,13 @@
       "skippedTests" : {
         "suites" : [
           {
+            "name" : "HomeMigrationTests",
+            "testFunctions" : [
+              "testSkipMigrationWhenURLExists()",
+              "testSuccessfulMigration()"
+            ]
+          },
+          {
             "name" : "ICloudSyncManagerTests",
             "testFunctions" : [
               "testContextObserverSetup()"

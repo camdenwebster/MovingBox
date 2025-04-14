@@ -77,7 +77,9 @@ struct EditHomeView: View {
                                     PhotoPickerView(
                                         model: Binding(
                                             get: { activeHome ?? tempHome },
-                                            set: { if activeHome == nil { tempHome = $0 }}
+                                            set: { newValue in
+                                                tempHome = newValue
+                                            }
                                         ),
                                         loadedImage: $loadedImage,
                                         isLoading: $isLoading
@@ -92,7 +94,9 @@ struct EditHomeView: View {
                         PhotoPickerView(
                             model: Binding(
                                 get: { activeHome ?? tempHome },
-                                set: { if activeHome == nil { tempHome = $0 }}
+                                set: { newValue in
+                                    tempHome = newValue
+                                }
                             ),
                             loadedImage: $loadedImage,
                             isLoading: $isLoading
@@ -269,17 +273,34 @@ struct EditHomeView: View {
             } else {
                 Button("Save") {
                     Task {
-                        tempHome.purchaseDate = Date()
-                        
-                        if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
-                            tempPolicy.insuredHome = tempHome
-                            tempHome.insurancePolicy = tempPolicy
+                        do {
+                            if isNewHome {
+                                let home = try await DefaultDataManager.getOrCreateHome(modelContext: modelContext)
+                                
+                                home.name = tempHome.name
+                                home.address1 = tempHome.address1
+                                home.address2 = tempHome.address2
+                                home.city = tempHome.city
+                                home.state = tempHome.state
+                                home.zip = tempHome.zip
+                                home.country = tempHome.country
+                                home.purchaseDate = Date()
+                                home.imageURL = tempHome.imageURL
+                                
+                                if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
+                                    tempPolicy.insuredHome = home
+                                    home.insurancePolicy = tempPolicy
+                                }
+                                
+                                TelemetryManager.shared.trackLocationCreated(name: home.address1)
+                                print("EditHomeView: Updated home - \(home.name)")
+                            }
+                            
+                            try modelContext.save()
+                            router.navigateBack()
+                        } catch {
+                            print("❌ Error saving home: \(error)")
                         }
-                        
-                        modelContext.insert(tempHome)
-                        TelemetryManager.shared.trackLocationCreated(name: tempHome.address1)
-                        print("EditHomeView: Created new home - \(tempHome.name)")
-                        router.navigateBack()
                     }
                 }
                 .disabled(tempHome.address1.isEmpty)

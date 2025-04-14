@@ -7,9 +7,12 @@ import UIKit
 @Suite struct HomeMigrationTests {
     
     func createTestContainer() throws -> (ModelContainer, ModelContext) {
+        let schema = Schema([Home.self])
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Home.self, configurations: configuration)
-        return (container, container.mainContext)
+        let container = try ModelContainer(for: schema, configurations: configuration)
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        return (container, context)
     }
     
     @Test("Home with legacy data successfully migrates to URL-based storage")
@@ -20,6 +23,7 @@ import UIKit
         let testImage = UIImage(systemName: "house.fill")!
         home.legacyImageData = testImage.pngData()
         context.insert(home)
+        try context.save()
         
         // When
         try await home.migrateImageIfNeeded()
@@ -35,6 +39,7 @@ import UIKit
         #expect(savedImageData == originalImageData, "Saved image should match original")
         
         // Cleanup
+        try context.delete(model: Home.self)
         try? FileManager.default.removeItem(at: OptimizedImageManager.shared.imagesDirectoryURL)
     }
     
@@ -44,6 +49,7 @@ import UIKit
         let (_, context) = try createTestContainer()
         let home = Home(name: "Test Home")
         context.insert(home)
+        try context.save()
         
         // When
         try await home.migrateImageIfNeeded()
@@ -52,6 +58,7 @@ import UIKit
         #expect(home.imageURL == nil, "Image URL should remain nil when no legacy data exists")
         
         // Cleanup
+        try context.delete(model: Home.self)
         try? FileManager.default.removeItem(at: OptimizedImageManager.shared.imagesDirectoryURL)
     }
     
@@ -69,6 +76,7 @@ import UIKit
         home.legacyImageData = testImage.pngData()
         home.imageURL = imageURL
         context.insert(home)
+        try context.save()
         
         // When
         try await home.migrateImageIfNeeded()
@@ -78,6 +86,7 @@ import UIKit
         #expect(home.imageURL == imageURL, "Existing URL should not be changed")
         
         // Cleanup
+        try context.delete(model: Home.self)
         try? FileManager.default.removeItem(at: OptimizedImageManager.shared.imagesDirectoryURL)
     }
     
@@ -92,7 +101,9 @@ import UIKit
             createTestHome(name: "Home 2", hasImage: true),
             createTestHome(name: "Home 3", hasImage: false)
         ]
+        
         homes.forEach { context.insert($0) }
+        try context.save()
         
         // When
         try await manager.migrateHomes()
@@ -105,6 +116,7 @@ import UIKit
         }
         
         // Cleanup
+        try context.delete(model: Home.self)
         try? FileManager.default.removeItem(at: OptimizedImageManager.shared.imagesDirectoryURL)
     }
     

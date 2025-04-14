@@ -32,9 +32,9 @@ struct SettingsView: View {
     @State private var selectedURL: URL?
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
-    @Query private var homes: [Home]
-    private var home: Home { homes.first ?? Home() }
-    
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    private var home: Home? { homes.first }
+
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
             title: "Knowledge Base",
