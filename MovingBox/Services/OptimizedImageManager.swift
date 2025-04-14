@@ -24,7 +24,7 @@ final class OptimizedImageManager {
         static let maxDimension: CGFloat = 2500
         static let jpegQuality: CGFloat = 0.8
         static let thumbnailSize = CGSize(width: 512, height: 512)
-        static let aiMaxDimension: CGFloat = 1024
+        static let aiMaxDimension: CGFloat = 512
     }
     
     private init() {

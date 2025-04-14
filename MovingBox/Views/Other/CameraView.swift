@@ -51,8 +51,7 @@ struct CameraView: View {
                 analyzingImage = image
                 showingImageAnalysis = true
                 
-                let processedImage = await processImage(image)
-                await onPhotoCapture?(processedImage, true) {
+                await onPhotoCapture?(image, true) {
                     Task { @MainActor in
                         showingImageAnalysis = false
                         analyzingImage = nil
@@ -60,18 +59,6 @@ struct CameraView: View {
                 }
             }
         }
-    }
-    
-    private func processImage(_ image: UIImage) async -> UIImage {
-        let shorterSide = min(image.size.width, image.size.height)
-        let xOffset = (image.size.width - shorterSide) / 2
-        let yOffset = (image.size.height - shorterSide) / 2
-        let cropRect = CGRect(x: xOffset, y: yOffset, width: shorterSide, height: shorterSide)
-        
-        if let cgImage = image.cgImage?.cropping(to: cropRect) {
-            return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-        }
-        return image
     }
     
     private func openSettings() {
@@ -157,15 +144,7 @@ struct ImagePicker: UIViewControllerRepresentable {
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             if let image = info[.originalImage] as? UIImage {
-                let shorterSide = min(image.size.width, image.size.height)
-                let xOffset = (image.size.width - shorterSide) / 2
-                let yOffset = (image.size.height - shorterSide) / 2
-                let cropRect = CGRect(x: xOffset, y: yOffset, width: shorterSide, height: shorterSide)
-                
-                if let cgImage = image.cgImage?.cropping(to: cropRect) {
-                    let croppedImage = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-                    parent.image = croppedImage
-                }
+                parent.image = image
             }
             picker.dismiss(animated: true)
         }
