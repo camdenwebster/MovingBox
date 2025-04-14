@@ -10,8 +10,8 @@ final class OptimizedImageManager {
     private let cache = NSCache<NSString, UIImage>()
     private let fileCoordinator = NSFileCoordinator()
     
-    // CHANGE: Use iCloud container instead of documents directory
-    private var imagesDirectoryURL: URL {
+    // Make internal for testing
+    internal var imagesDirectoryURL: URL {
         guard let containerURL = fileManager.url(forUbiquityContainerIdentifier: nil)?.appendingPathComponent("Images") else {
             // Fallback to documents directory if iCloud is not available
             let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
