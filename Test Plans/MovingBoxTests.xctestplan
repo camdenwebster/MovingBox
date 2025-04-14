@@ -23,23 +23,9 @@
             ]
           },
           {
-            "name" : "OnboardingManagerTests",
-            "testFunctions" : [
-              "testOnboardingStateCheck()",
-              "testWelcomeScreenConditions()"
-            ]
-          },
-          {
-            "name" : "OpenAIServiceTests",
-            "testFunctions" : [
-              "testCompleteIntegrationFlow()"
-            ]
-          },
-          {
             "name" : "SettingsManagerTests",
             "testFunctions" : [
-              "testLastSyncDatePersistence()",
-              "testSettingsPersistence()"
+              "testLastSyncDatePersistence()"
             ]
           },
           {
