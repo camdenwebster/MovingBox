@@ -41,8 +41,10 @@ class ModelContainerManager: ObservableObject {
     
     func initialize() async {
         do {
-            // Migrate homes before completing initialization
+            // Migrate all models before completing initialization
             try await migrateHomes()
+            try await migrateLocations()
+            try await migrateInventoryItems()
             
             try await Task.sleep(nanoseconds: 1_000_000_000)
             await MainActor.run {
@@ -56,7 +58,6 @@ class ModelContainerManager: ObservableObject {
         }
     }
     
-    // Changed to internal for testing
     internal func migrateHomes() async throws {
         let context = container.mainContext
         let descriptor = FetchDescriptor<Home>()
@@ -74,5 +75,43 @@ class ModelContainerManager: ObservableObject {
         }
         
         print("📦 ModelContainerManager - Completed home migrations")
+    }
+    
+    internal func migrateLocations() async throws {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<InventoryLocation>()
+        
+        let locations = try context.fetch(descriptor)
+        print("📦 ModelContainerManager - Beginning migration for \(locations.count) locations")
+        
+        for location in locations {
+            do {
+                try await location.migrateImageIfNeeded()
+                try context.save()
+            } catch {
+                print("📦 ModelContainerManager - Failed to migrate location \(location.name): \(error)")
+            }
+        }
+        
+        print("📦 ModelContainerManager - Completed location migrations")
+    }
+    
+    internal func migrateInventoryItems() async throws {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<InventoryItem>()
+        
+        let items = try context.fetch(descriptor)
+        print("📦 ModelContainerManager - Beginning migration for \(items.count) inventory items")
+        
+        for item in items {
+            do {
+                try await item.migrateImageIfNeeded()
+                try context.save()
+            } catch {
+                print("📦 ModelContainerManager - Failed to migrate inventory item \(item.title): \(error)")
+            }
+        }
+        
+        print("📦 ModelContainerManager - Completed inventory item migrations")
     }
 }

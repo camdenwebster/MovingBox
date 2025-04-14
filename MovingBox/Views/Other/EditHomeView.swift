@@ -52,7 +52,7 @@ struct EditHomeView: View {
     }
     
     private var activeHome: Home? {
-        homes.first
+        homes.last
     }
     
     private func countryName(for code: String) -> String {

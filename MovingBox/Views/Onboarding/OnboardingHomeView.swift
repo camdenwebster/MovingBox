@@ -15,7 +15,7 @@ struct OnboardingHomeView: View {
     @State private var tempHome = Home()
     
     private var activeHome: Home? {
-        homes.first
+        homes.last
     }
     
     @MainActor

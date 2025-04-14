@@ -8,7 +8,6 @@
 import Foundation
 import SwiftData
 import SwiftUI
-import UIKit
 
 @Model
 final class InventoryItem: ObservableObject, PhotoManageable {
@@ -28,17 +27,33 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var imageURL: URL?
     
     var showInvalidQuantityAlert: Bool = false
-    
-    var isInteger: Bool {
-            return Int(quantityString) != nil
-        }
-    
     var hasUsedAI: Bool = false
     
-    init() {}
+    @Attribute(.externalStorage) var data: Data?
+    
+    func migrateImageIfNeeded() async throws {
+        guard let legacyData = data,
+              let image = UIImage(data: legacyData),
+              imageURL == nil else {
+            return
+        }
+        
+        let imageId = UUID().uuidString
+        
+        imageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId)
+        
+        data = nil
+        
+        print("📸 InventoryItem - Successfully migrated image for item: \(title)")
+    }
+    
+    init() {
+        Task {
+            try? await migrateImageIfNeeded()
+        }
+    }
     
     init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool) {
-
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt
@@ -54,6 +69,14 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.notes = notes
         self.showInvalidQuantityAlert = showInvalidQuantityAlert
         self.hasUsedAI = false
+        
+        Task {
+            try? await migrateImageIfNeeded()
+        }
+    }
+    
+    var isInteger: Bool {
+        return Int(quantityString) != nil
     }
     
     func validateQuantityInput() {
@@ -64,5 +87,4 @@ final class InventoryItem: ObservableObject, PhotoManageable {
             showInvalidQuantityAlert = false
         }
     }
-    
 }

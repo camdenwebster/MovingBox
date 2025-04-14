@@ -83,7 +83,7 @@ struct OnboardingWelcomeView: View {
                             } catch {
                                 await MainActor.run {
                                     isProcessing = false
-                                    manager.showError(message: "Unable to check onboarding status. Please try again.")
+                                    manager.showError(message: "Unable to check subscription status. Please make sure network connection is active and try again.")
                                 }
                             }
                         }

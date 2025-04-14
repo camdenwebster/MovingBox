@@ -44,7 +44,7 @@ struct DashboardView: View {
     @State private var isLoading = false
     
     private var home: Home? {
-        homes.first
+        homes.last
     }
     
     private var totalReplacementCost: Decimal {

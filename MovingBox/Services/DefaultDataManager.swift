@@ -30,7 +30,7 @@ class DefaultDataManager {
         let descriptor = FetchDescriptor<Home>()
         let homes = try modelContext.fetch(descriptor)
         
-        if let existingHome = homes.first {
+        if let existingHome = homes.last {
             return existingHome
         }
         

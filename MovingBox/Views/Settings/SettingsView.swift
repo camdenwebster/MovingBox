@@ -32,8 +32,6 @@ struct SettingsView: View {
     @State private var selectedURL: URL?
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-    private var home: Home? { homes.first }
 
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -95,6 +93,7 @@ struct SettingsView: View {
                                 .background(Color.accentColor)
                                 .cornerRadius(10)
                         }
+                        .foregroundColor(.customPrimary)
                         .listRowInsets(EdgeInsets())
                     }
                 }
