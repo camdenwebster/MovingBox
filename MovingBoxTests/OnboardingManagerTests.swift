@@ -90,7 +90,7 @@ import Foundation
                 return false
             } catch let error as NSError {
                 print("❌ Error checking for homes: \(error), \(error.userInfo)")
-                throw OnboardingManager.OnboardingError.homeCheckFailed(error)
+                throw OnboardingManager.OnboardingError.itemCheckFailed(error)
             }
         }
     }

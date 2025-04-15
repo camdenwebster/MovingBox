@@ -21,7 +21,7 @@ import UIKit
         let (_, context) = try createTestContainer()
         let home = Home(name: "Test Home")
         let testImage = UIImage(systemName: "house.fill")!
-        home.legacyImageData = testImage.pngData()
+        home.data = testImage.pngData()
         context.insert(home)
         try context.save()
         
@@ -29,7 +29,7 @@ import UIKit
         try await home.migrateImageIfNeeded()
         
         // Then
-        #expect(home.legacyImageData == nil, "Legacy data should be cleared after migration")
+        #expect(home.data == nil, "Legacy data should be cleared after migration")
         #expect(home.imageURL != nil, "Image URL should be set after migration")
         
         // Verify the image was properly saved
@@ -73,7 +73,7 @@ import UIKit
         let imageId = UUID().uuidString
         let imageURL = try await OptimizedImageManager.shared.saveImage(testImage, id: imageId)
         
-        home.legacyImageData = testImage.pngData()
+        home.data = testImage.pngData()
         home.imageURL = imageURL
         context.insert(home)
         try context.save()
@@ -82,7 +82,7 @@ import UIKit
         try await home.migrateImageIfNeeded()
         
         // Then
-        #expect(home.legacyImageData != nil, "Legacy data should not be cleared if URL already exists")
+        #expect(home.data != nil, "Legacy data should not be cleared if URL already exists")
         #expect(home.imageURL == imageURL, "Existing URL should not be changed")
         
         // Cleanup
@@ -110,7 +110,7 @@ import UIKit
         
         // Then
         let migratedHomes = try context.fetch(FetchDescriptor<Home>())
-        for home in migratedHomes where home.legacyImageData != nil {
+        for home in migratedHomes where home.data != nil {
             #expect(home.imageURL != nil, "Homes with legacy data should have URLs after migration")
             #expect(OptimizedImageManager.shared.imageExists(for: home.imageURL), "Image file should exist at URL")
         }
@@ -125,7 +125,7 @@ import UIKit
     private func createTestHome(name: String, hasImage: Bool) -> Home {
         let home = Home(name: name)
         if hasImage {
-            home.legacyImageData = UIImage(systemName: "house.fill")!.pngData()
+            home.data = UIImage(systemName: "house.fill")!.pngData()
         }
         return home
     }

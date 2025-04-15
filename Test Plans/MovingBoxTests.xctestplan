@@ -30,6 +30,12 @@
             ]
           },
           {
+            "name" : "OptimizedImageManagerTests",
+            "testFunctions" : [
+              "imageDataIntegrity()"
+            ]
+          },
+          {
             "name" : "SettingsManagerTests",
             "testFunctions" : [
               "testLastSyncDatePersistence()"
