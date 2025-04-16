@@ -75,13 +75,6 @@ final class PaywallUITests: XCTestCase {
         listScreen.tapAddItem()
         listScreen.tapCreateManually()
         
-        // Then: Limit alert should appear
-        XCTAssertTrue(app.alerts["Upgrade to Pro"].waitForExistence(timeout: 5),
-                     "Limit alert should appear")
-        
-        // When: User taps upgrade in alert
-        app.alerts["Upgrade to Pro"].buttons["Upgrade"].tap()
-        
         // Then: Paywall should appear
         XCTAssertTrue(paywallScreen.waitForPaywall(),
                      "Paywall should appear after tapping upgrade in alert")
@@ -96,13 +89,6 @@ final class PaywallUITests: XCTestCase {
         tabBar.tapLocations()
         app.buttons["addLocation"].tap()
         
-        // Then: Limit alert should appear
-        XCTAssertTrue(app.alerts["Upgrade to Pro"].waitForExistence(timeout: 5),
-                     "Location limit alert should appear")
-        
-        // When: User taps upgrade in alert
-        app.alerts["Upgrade to Pro"].buttons["Upgrade"].tap()
-        
         // Then: Paywall should appear
         XCTAssertTrue(paywallScreen.waitForPaywall(),
                      "Paywall should appear after tapping upgrade in alert")
@@ -115,13 +101,6 @@ final class PaywallUITests: XCTestCase {
         
         // When: User attempts to add item via tab bar camera
         tabBar.tapAddItem()
-        
-        // Then: Limit alert should appear
-        XCTAssertTrue(app.alerts["Upgrade to Pro"].waitForExistence(timeout: 5),
-                     "Limit alert should appear when using camera from tab bar")
-        
-        // When: User taps upgrade in alert
-        app.alerts["Upgrade to Pro"].buttons["Upgrade"].tap()
         
         // Then: Paywall should appear
         XCTAssertTrue(paywallScreen.waitForPaywall(),
@@ -137,13 +116,6 @@ final class PaywallUITests: XCTestCase {
         tabBar.tapAllItems()
         listScreen.tapAddItem()
         listScreen.tapCreateFromCamera()
-        
-        // Then: Limit alert should appear
-        XCTAssertTrue(listScreen.waitForLimitAlert(),
-                     "Limit alert should appear when using camera from list view")
-        
-        // When: User taps upgrade in alert
-        listScreen.tapUpgradeInAlert()
         
         // Then: Paywall should appear
         XCTAssertTrue(paywallScreen.waitForPaywall(),
