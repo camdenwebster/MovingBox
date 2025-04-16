@@ -18,9 +18,11 @@ struct StatCard: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("statCardLabel")
             Text(value)
                 .font(.title2)
                 .fontWeight(.medium)
+                .accessibilityIdentifier("statCardValue")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()

@@ -133,6 +133,8 @@ class OnboardingManager: ObservableObject {
             if self.notificationStatus == .notDetermined {
                 let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
                 self.notificationStatus = granted ? .authorized : .denied
+                // ADD: Move to next step after user responds
+                moveToNext()
             }
         } catch {
             print("❌ Error requesting notification permissions: \(error)")

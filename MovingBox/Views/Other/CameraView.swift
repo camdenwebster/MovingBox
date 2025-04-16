@@ -71,18 +71,27 @@ struct CameraView: View {
 struct MockCameraView: View {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var onboardingManager: OnboardingManager
+    
+    var imageName: String {
+        switch onboardingManager.currentStep {
+        case .homeDetails: return "craftsman-home"
+        case .location: return "kitchen"
+        default: return "bicycle"
+        }
+    }
     
     var body: some View {
         VStack {
             Spacer()
-            Image("bicycle")
+            Image(imageName)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 200, height: 200)
                 .padding()
             
             Button("Take Photo") {
-                image = UIImage(named: "bicycle")
+                image = UIImage(named: imageName)
                 dismiss()
             }
             .accessibilityIdentifier("takePhotoButton")

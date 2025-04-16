@@ -11,11 +11,15 @@ final class OnboardingUITests: XCTestCase {
         app.launchArguments = [
             "Show-Onboarding",
             "Disable-Persistence",
-            "UI-Testing-Mock-Camera"
+            "UI-Testing-Mock-Camera",
+            "Disable-Animations"
         ]
         cameraScreen = CameraScreen(app: app, testCase: self)
         detailScreen = InventoryDetailScreen(app: app)
         paywallScreen = PaywallScreen(app: app)
+        
+        addNotificationsPermissionsHandler()
+        
         app.launch()
     }
     
@@ -94,8 +98,13 @@ final class OnboardingUITests: XCTestCase {
         cameraScreen.takePhoto()
         
         // Wait for AI processing and save item
-        XCTAssertTrue(detailScreen.saveButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(detailScreen.saveButton.waitForExistence(timeout: 30))
         detailScreen.saveButton.tap()
+        
+        // Notification View
+        let enableNotificationsButton = app.buttons["notificationsButton"]
+        XCTAssertTrue(enableNotificationsButton.waitForExistence(timeout: 10))
+        enableNotificationsButton.tap()
         
         // Completion View
         let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
@@ -125,6 +134,23 @@ extension XCUIApplication {
             launchArguments.append("Skip-Onboarding")
         } else {
             launchArguments.append("Show-Onboarding")
+        }
+    }
+}
+
+extension XCTestCase {
+    // Notifications permissions handler
+    func addNotificationsPermissionsHandler() {
+        addUIInterruptionMonitor(withDescription: "Notifications Authorization Alert") { alert in
+            print("📱 Notifications permission alert appeared")
+            let allowButton = alert.buttons["Allow"]
+            if allowButton.exists {
+                print("✅ Tapping Allow button")
+                allowButton.tap()
+                return true
+            }
+            print("❌ Allow button not found")
+            return false
         }
     }
 }

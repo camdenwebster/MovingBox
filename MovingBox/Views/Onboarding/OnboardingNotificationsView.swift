@@ -68,6 +68,7 @@ struct OnboardingNotificationsView: View {
                                 await onboardingManager.requestNotificationPermissions()
                             }
                         }, title: "Enable Notifications")
+                        .accessibilityIdentifier("notificationsButton")
                         
                     case .denied:
                         Text("Notifications are currently disabled")
@@ -87,6 +88,8 @@ struct OnboardingNotificationsView: View {
                         OnboardingContinueButton(action: {
                             onboardingManager.moveToNext()
                         })
+                        .accessibilityIdentifier("notificationsButton")
+
                         
                     case .authorized, .provisional, .ephemeral:
                         Text("Notifications enabled! ")
@@ -97,6 +100,8 @@ struct OnboardingNotificationsView: View {
                         OnboardingContinueButton(action: {
                             onboardingManager.moveToNext()
                         })
+                        .accessibilityIdentifier("notificationsButton")
+
                         
                     @unknown default:
                         EmptyView()

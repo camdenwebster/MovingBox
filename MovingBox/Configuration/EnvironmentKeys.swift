@@ -23,7 +23,6 @@ extension EnvironmentValues {
     }
 }
 
-// ADD: New environment key for disabling animations
 private struct DisableAnimationsKey: EnvironmentKey {
     static let defaultValue = false
 }

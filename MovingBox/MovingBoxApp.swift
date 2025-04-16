@@ -61,6 +61,10 @@ struct MovingBoxApp: App {
         #endif
     }
     
+    private var disableAnimations: Bool {
+        ProcessInfo.processInfo.arguments.contains("Disable-Animations")
+    }
+    
     @ViewBuilder
     private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
         switch destination {
@@ -147,6 +151,7 @@ struct MovingBoxApp: App {
             }
             .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
+            .environment(\.disableAnimations, disableAnimations)
             .task {
                 // Initialize container
                 await containerManager.initialize()
@@ -185,6 +190,7 @@ struct MovingBoxApp: App {
             }
             .fullScreenCover(isPresented: $showOnboarding) {
                 OnboardingView(isPresented: $showOnboarding)
+                    .environment(\.disableAnimations, disableAnimations)
             }
             .modelContainer(containerManager.container)
             .environmentObject(router)

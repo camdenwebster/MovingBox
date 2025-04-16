@@ -11,7 +11,6 @@
 		191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191FEA602D6D04E5006FF067 /* SettingsManager.swift */; };
 		1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 1920B0D52D88B13000CFA1E9 /* TelemetryDeck */; };
 		1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */; };
-		1927DDF32D8B1F4C00BEFD9D /* placeholder.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */; };
 		1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF92D8B1FEF00BEFD9D /* download_images.py */; };
 		1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */; };
 		194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195652DA4805B008CABAA /* ModelContainerManager.swift */; };
@@ -63,7 +62,6 @@
 		1927DD112D89EB1000BEFD9D /* PRIVACY_POLICY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PRIVACY_POLICY.md; sourceTree = "<group>"; };
 		1927DD122D89EC5D00BEFD9D /* EULA.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EULA.md; sourceTree = "<group>"; };
 		1927DD132D89EE5D00BEFD9D /* icon_shadow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon_shadow.png; sourceTree = "<group>"; };
-		1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = placeholder.txt; sourceTree = "<group>"; };
 		1927DDF92D8B1FEF00BEFD9D /* download_images.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = download_images.py; sourceTree = "<group>"; };
 		1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
 		1937AABB2D938FBD00C68797 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
@@ -249,7 +247,6 @@
 				198958AE2BF99F5600C52CAE /* Previewer.swift */,
 				19D3430D2C12146800F8B2C7 /* Router.swift */,
 				198958AC2BF8FAC700C52CAE /* TestData.swift */,
-				1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */,
 				19D133902D72B422002448A9 /* DefaultDataManager.swift */,
 				191FEA602D6D04E5006FF067 /* SettingsManager.swift */,
 			);
@@ -390,7 +387,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */,
-				1927DDF32D8B1F4C00BEFD9D /* placeholder.txt in Resources */,
 				1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */,
 				1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */,
 				1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */,
