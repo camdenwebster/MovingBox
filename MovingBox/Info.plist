@@ -12,10 +12,6 @@
     <array>
         <string>remote-notification</string>
     </array>
-    <key>UIRequiredDeviceCapabilities</key>
-    <array>
-        <string>icloud-services</string>
-    </array>
     <key>com.apple.developer.icloud-container-identifiers</key>
     <array>
         <string>iCloud.com.mothersound.movingbox</string>
