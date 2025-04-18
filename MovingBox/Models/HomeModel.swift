@@ -10,25 +10,41 @@ import SwiftData
 import SwiftUI
 
 @Model
-class Home {
+@MainActor
+final class Home: PhotoManageable {
     var name: String = ""
     var address1: String = ""
     var address2: String = ""
     var city: String = ""
     var state: String = ""
-    var zip: String = ""  
+    var zip: String = ""
     var country: String = ""
     var purchaseDate: Date = Date()
     var purchasePrice: Decimal = 0.00
-    @Attribute(.externalStorage) var data: Data?
+    var imageURL: URL?
     var insurancePolicy: InsurancePolicy?
-    var photo: UIImage? {
-        get {
-            if let data = data {
-                return UIImage(data: data)
-            }
-            return nil
+    
+    // MARK: - Legacy Support
+    @Attribute(.externalStorage) var data: Data?
+    
+    /// Migrates legacy image data to the new URL-based storage system
+    func migrateImageIfNeeded() async throws {
+        guard let legacyData = data,
+              let image = UIImage(data: legacyData),
+              imageURL == nil else {
+            return
         }
+        
+        // Generate a unique identifier for the image
+        let imageId = UUID().uuidString
+        
+        // Save the image using OptimizedImageManager
+        imageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId)
+        
+        // Clear legacy data after successful migration
+        data = nil
+        
+        print("📸 Home - Successfully migrated image for home: \(name)")
     }
     
     /// Creates a new Home instance with the specified parameters.
@@ -49,7 +65,7 @@ class Home {
         address2: String = "",
         city: String = "",
         state: String = "",
-        zip: String = "",  
+        zip: String = "",
         country: String = "",
         purchaseDate: Date = Date(),
         purchasePrice: Decimal = 0.00,
@@ -65,5 +81,10 @@ class Home {
         self.purchaseDate = purchaseDate
         self.purchasePrice = purchasePrice
         self.insurancePolicy = insurancePolicy
+        
+        // Attempt migration on init
+        Task {
+            try? await migrateImageIfNeeded()
+        }
     }
 }

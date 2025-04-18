@@ -11,7 +11,7 @@ import UIKit
 
 @MainActor
 struct TestData {
-    // Helper function to load test image from asset catalog
+    // Helper method to load test image from asset catalog
     private static func loadTestImage(category: String, filename: String) -> Data? {
         // Use bundle to load image directly from asset catalog
         guard let image = UIImage(named: filename) else {
@@ -26,6 +26,23 @@ struct TestData {
         
         print("✅ Successfully loaded image: \(filename)")
         return data
+    }
+    
+    // Helper method to set up image URL for test data
+    private static func setupImageURL(imageName: String, id: String) async -> URL? {
+        guard let image = UIImage(named: imageName) else {
+            print("❌ Could not load image: \(imageName)")
+            return nil
+        }
+        
+        do {
+            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
+            print("✅ Successfully saved image and thumbnail: \(imageName)")
+            return imageURL
+        } catch {
+            print("❌ Failed to save image: \(imageName), error: \(error)")
+            return nil
+        }
     }
     
     // Sample home with local image path
@@ -157,48 +174,53 @@ struct TestData {
         }
     }
     
-    // Helper method to load test data into SwiftData
-    static func loadTestData(context: ModelContext) async {
-        // Check for existing home
-        let descriptor = FetchDescriptor<Home>()
-        let existingHomes = try? context.fetch(descriptor)
-        let home: Home
-        
-        if let firstHome = existingHomes?.first {
-            // Update existing home
-            home = firstHome
-        } else {
-            // Create new home if none exists
-            home = Home()
-            context.insert(home)
-        }
-        
-        // Update home properties
-        home.address1 = homes[0].address1
-        home.data = loadTestImage(category: "homes", filename: homes[0].imageName)
-        
-        // Create locations
-        let inventoryLocations = locations.map { locationData -> InventoryLocation in
-            let location = InventoryLocation()
-            location.name = locationData.name
-            location.desc = locationData.desc
-            location.data = loadTestImage(category: "locations", filename: locationData.imageName)
-            context.insert(location)
-            return location
-        }
-        
-        // Create labels
+    @MainActor
+    static func loadTestData(modelContext: ModelContext) async {
+        // Create labels first
         let inventoryLabels = labels.map { labelData -> InventoryLabel in
             let label = InventoryLabel(
                 name: labelData.name,
                 desc: labelData.desc,
                 color: labelData.color
             )
-            context.insert(label)
+            modelContext.insert(label)
             return label
         }
         
-        // Create items with direct associations
+        // Create home
+        let descriptor = FetchDescriptor<Home>()
+        let existingHomes = try? modelContext.fetch(descriptor)
+        let home: Home
+        
+        if let firstHome = existingHomes?.first {
+            home = firstHome
+        } else {
+            home = Home()
+            modelContext.insert(home)
+        }
+        
+        // Update home properties
+        home.address1 = homes[0].address1
+        let homeId = UUID().uuidString
+        if let imageURL = await setupImageURL(imageName: homes[0].imageName, id: homeId) {
+            home.imageURL = imageURL
+        }
+        
+        // Create locations sequentially to maintain data consistency
+        var inventoryLocations = [InventoryLocation]()
+        for locationData in locations {
+            let location = InventoryLocation()
+            location.name = locationData.name
+            location.desc = locationData.desc
+            let locationId = UUID().uuidString
+            if let imageURL = await setupImageURL(imageName: locationData.imageName, id: locationId) {
+                location.imageURL = imageURL
+            }
+            modelContext.insert(location)
+            inventoryLocations.append(location)
+        }
+        
+        // Create items sequentially to maintain data consistency
         for itemData in items {
             let location = inventoryLocations.first { $0.name == itemData.location } ?? inventoryLocations[0]
             let label = inventoryLabels.first { $0.name == itemData.label } ?? inventoryLabels[0]
@@ -220,8 +242,13 @@ struct TestData {
                 showInvalidQuantityAlert: false
             )
             
-            item.data = loadTestImage(category: "items", filename: itemData.imageName)
-            context.insert(item)
+            let itemId = UUID().uuidString
+            if let imageURL = await setupImageURL(imageName: itemData.imageName, id: itemId) {
+                item.imageURL = imageURL
+            }
+            modelContext.insert(item)
         }
+        
+        try? modelContext.save()
     }
 }

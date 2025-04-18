@@ -1,7 +1,9 @@
 import Foundation
 import SwiftUI
 import StoreKit
+import RevenueCat
 
+@MainActor
 class SettingsManager: ObservableObject {
     // Keys for UserDefaults
     private enum Keys {
@@ -11,8 +13,8 @@ class SettingsManager: ObservableObject {
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
-        static let lastSyncDate = "lastSyncDate"
-        static let iCloudEnabled = "iCloudEnabled"
+        static let isPro = "isPro"
+        static let hasSeenPaywall = "hasSeenPaywall"
     }
     
     // Published properties that will update the UI
@@ -52,15 +54,17 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    @Published var lastiCloudSync: Date {
+    @Published var isPro: Bool {
         didSet {
-            UserDefaults.standard.set(lastiCloudSync, forKey: Keys.lastSyncDate)
+            let proValue = ProcessInfo.processInfo.arguments.contains("Is-Pro") ? true : isPro
+            print("📱 SettingsManager - Saving Pro status: \(proValue)")
+            UserDefaults.standard.set(proValue, forKey: Keys.isPro)
         }
     }
     
-    @Published var iCloudEnabled: Bool {
+    @Published var hasSeenPaywall: Bool {
         didSet {
-            UserDefaults.standard.set(iCloudEnabled, forKey: Keys.iCloudEnabled)
+            UserDefaults.standard.set(hasSeenPaywall, forKey: Keys.hasSeenPaywall)
         }
     }
     
@@ -69,9 +73,7 @@ class SettingsManager: ObservableObject {
     static let maxFreeLocations = 5
     static let maxFreePhotosPerItem = 3
     
-    // Pro status
-    @AppStorage("isPro") var isPro: Bool = false
-    @AppStorage("hasSeenPaywall") var hasSeenPaywall: Bool = false
+    private let revenueCatManager = RevenueCatManager.shared
     
     // Default values
     private let defaultAIModel = "gpt-4o-mini"
@@ -82,50 +84,97 @@ class SettingsManager: ObservableObject {
     private let hasLaunchedDefault = false
     
     init() {
-        // Configure for testing
-        #if DEBUG
-        // For UI testing, we just need to check the launch argument
-        if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
-            print("⚠️ Running with UI-Testing-Pro flag enabled - All Pro features enabled")
-            isPro = true
-        }
-        // Otherwise use AppConfig
-        else if AppConfig.shared.isPro {
-            isPro = true
-        }
-        #else
-        if AppConfig.shared.isPro {
-            isPro = true
-        }
-        #endif
+        print("📱 SettingsManager - Starting initialization")
+        print("📱 SettingsManager - Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))")
         
-        // Initialize properties from UserDefaults or use defaults
+        // Initialize with default values first
+        self.aiModel = defaultAIModel
+        self.temperature = defaultTemperature
+        self.maxTokens = defaultMaxTokens
+        self.apiKey = defaultApiKey
+        self.isHighDetail = isHighDetailDefault
+        self.hasLaunched = hasLaunchedDefault
+        self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
+        self.hasSeenPaywall = false
+        
+        print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
+        
+        if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
+            print("📱 SettingsManager - Setting Pro status to true due to Is-Pro argument")
+            UserDefaults.standard.set(true, forKey: Keys.isPro)
+        }
+        
+        Task {
+            await setupInitialState()
+        }
+    }
+    
+    private func setupInitialState() async {
+        print("📱 SettingsManager - Beginning setupInitialState")
+        print("📱 SettingsManager - Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))")
+        
+        // Check launch arguments first before loading any defaults
+        if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
+            print("📱 SettingsManager - Setting isPro to true due to launch argument")
+            self.isPro = true
+            UserDefaults.standard.set(true, forKey: Keys.isPro)
+            // Skip RevenueCat check entirely when Is-Pro is present
+            print("📱 SettingsManager - Skipping RevenueCat check due to Is-Pro argument")
+            return
+        }
+        
+        // Load other values from UserDefaults
         self.aiModel = UserDefaults.standard.string(forKey: Keys.aiModel) ?? defaultAIModel
         self.temperature = UserDefaults.standard.double(forKey: Keys.temperature)
         self.maxTokens = UserDefaults.standard.integer(forKey: Keys.maxTokens)
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
-        self.iCloudEnabled = UserDefaults.standard.bool(forKey: Keys.iCloudEnabled)
-        
-        // Initialize last sync date
-        self.lastiCloudSync = UserDefaults.standard.object(forKey: Keys.lastSyncDate) as? Date ?? Date.distantPast
+        self.hasSeenPaywall = UserDefaults.standard.bool(forKey: Keys.hasSeenPaywall)
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
         
-        // Set default value for iCloud if not set
-        if !UserDefaults.standard.contains(key: Keys.iCloudEnabled) {
-            self.iCloudEnabled = true  // Enable by default for Pro users
+        // Only check RevenueCat if Is-Pro is NOT present
+        if !ProcessInfo.processInfo.arguments.contains("Is-Pro") {
+            do {
+                print("📱 SettingsManager - Checking RevenueCat status")
+                let customerInfo = try await Purchases.shared.customerInfo()
+                let isPro = customerInfo.entitlements["Pro"]?.isActive == true
+                print("📱 SettingsManager - RevenueCat status: \(isPro)")
+                self.isPro = isPro
+            } catch {
+                print("⚠️ SettingsManager - Error fetching customer info: \(error)")
+                self.isPro = UserDefaults.standard.bool(forKey: Keys.isPro)
+            }
         }
         
-        #if BETA
-        if AppConfig.shared.configuration == .debug {
-            print("⚠️ Running in BETA-DEBUG mode - All Pro features enabled")
-        } else {
-            print("⚠️ Running in BETA-RELEASE mode - All Pro features enabled")
+        print("📱 SettingsManager - Final isPro value: \(self.isPro)")
+    }
+    
+    private func setupSubscriptionMonitoring() {
+        // Listen for subscription status changes
+        NotificationCenter.default.addObserver(
+            forName: .subscriptionStatusChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            
+            if let isPro = notification.userInfo?["isProActive"] as? Bool {
+                print("📱 SettingsManager - Received subscription status change: isPro = \(isPro)")
+                
+                // Handle actor-isolated property on main actor
+                Task { @MainActor in
+                    self.isPro = isPro
+                    
+                    // Post notification for successful purchase
+                    if isPro {
+                        NotificationCenter.default.post(name: .purchaseCompleted, object: nil)
+                    }
+                }
+            }
         }
-        #endif
     }
     
     // MARK: - Pro Feature Checks
@@ -143,7 +192,10 @@ class SettingsManager: ObservableObject {
     }
     
     func hasReachedItemLimit(currentCount: Int) -> Bool {
-        !isPro && currentCount >= SettingsManager.maxFreeItems
+        print("📱 SettingsManager - Checking hasReachedItemLimit")
+        print("📱 SettingsManager - Current isPro: \(isPro)")
+        print("📱 SettingsManager - Current count: \(currentCount)")
+        return !isPro && currentCount >= SettingsManager.maxFreeItems
     }
     
     func hasReachedLocationLimit(currentCount: Int) -> Bool {
@@ -151,7 +203,11 @@ class SettingsManager: ObservableObject {
     }
     
     func shouldShowFirstTimePaywall(itemCount: Int) -> Bool {
-        !isPro && itemCount == 0 && !hasSeenPaywall
+        print("📱 SettingsManager - Checking shouldShowFirstTimePaywall")
+        print("📱 SettingsManager - Current isPro: \(isPro)")
+        print("📱 SettingsManager - Current itemCount: \(itemCount)")
+        print("📱 SettingsManager - Current hasSeenPaywall: \(hasSeenPaywall)")
+        return !isPro && itemCount == 0 && !hasSeenPaywall
     }
     
     func shouldShowFirstLocationPaywall(locationCount: Int) -> Bool {
@@ -170,22 +226,26 @@ class SettingsManager: ObservableObject {
         isPro || currentCount < SettingsManager.maxFreePhotosPerItem
     }
     
-    func canAccessICloudSync() -> Bool {
-        return isPro
-    }
-    
     // MARK: - Purchase Flow
     
-    // TODO: Implement RevenueCat purchase flow
     func purchasePro() {
-        // This would be replaced with RevenueCat purchase logic
-        // Example:
-        // Purchases.shared.purchasePackage(package) { (transaction, customerInfo, error, userCancelled) in
-        //     self.isPro = customerInfo?.entitlements["pro"]?.isActive ?? false
-        // }
-        isPro = true
+        print("📱 SettingsManager - Initiating Pro purchase")
+        Task {
+            do {
+                try await revenueCatManager.purchasePro()
+                // Customer info will be updated via notification
+            } catch {
+                print("⚠️ SettingsManager - Error purchasing pro: \(error)")
+            }
+        }
     }
     
+    func restorePurchases() async throws {
+        print("📱 SettingsManager - Initiating purchase restoration")
+        try await RevenueCatManager.shared.restorePurchases()
+        // Customer info will be updated via notification
+    }
+
     // MARK: - Reset Settings
     
     func resetToDefaults() {
@@ -197,8 +257,6 @@ class SettingsManager: ObservableObject {
         hasLaunched = hasLaunchedDefault
         hasSeenPaywall = false
         isPro = false
-        lastiCloudSync = Date.distantPast
-        iCloudEnabled = true
         
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
@@ -206,6 +264,10 @@ class SettingsManager: ObservableObject {
         }
         #endif
     }
+}
+
+extension Notification.Name {
+    static let purchaseCompleted = Notification.Name("PurchaseCompletedNotification")
 }
 
 extension UserDefaults {

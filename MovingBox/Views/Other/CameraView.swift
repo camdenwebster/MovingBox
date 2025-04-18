@@ -10,7 +10,7 @@ struct CameraView: View {
     @State private var capturedImage: UIImage?
     @State private var showingPermissionDenied = false
     
-    var onPhotoCapture: ((UIImage, Bool, @escaping () -> Void) -> Void)?
+    var onPhotoCapture: ((UIImage, Bool, @escaping () async -> Void) async -> Void)?
     
     private var isMockCamera: Bool {
         ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
@@ -46,14 +46,16 @@ struct CameraView: View {
     }
     
     private func handleCapturedImage(_ newImage: UIImage?) {
-        if let image = newImage {
-            analyzingImage = image
-            showingImageAnalysis = true
-            
-            onPhotoCapture?(image, true) {
-                DispatchQueue.main.async {
-                    showingImageAnalysis = false
-                    analyzingImage = nil
+        Task {
+            if let image = newImage {
+                analyzingImage = image
+                showingImageAnalysis = true
+                
+                await onPhotoCapture?(image, true) {
+                    Task { @MainActor in
+                        showingImageAnalysis = false
+                        analyzingImage = nil
+                    }
                 }
             }
         }
@@ -69,18 +71,27 @@ struct CameraView: View {
 struct MockCameraView: View {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var onboardingManager: OnboardingManager
+    
+    var imageName: String {
+        switch onboardingManager.currentStep {
+        case .homeDetails: return "craftsman-home"
+        case .location: return "kitchen"
+        default: return "bicycle"
+        }
+    }
     
     var body: some View {
         VStack {
             Spacer()
-            Image("bicycle")
+            Image(imageName)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 200, height: 200)
                 .padding()
             
             Button("Take Photo") {
-                image = UIImage(named: "bicycle")
+                image = UIImage(named: imageName)
                 dismiss()
             }
             .accessibilityIdentifier("takePhotoButton")
@@ -142,15 +153,7 @@ struct ImagePicker: UIViewControllerRepresentable {
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             if let image = info[.originalImage] as? UIImage {
-                let shorterSide = min(image.size.width, image.size.height)
-                let xOffset = (image.size.width - shorterSide) / 2
-                let yOffset = (image.size.height - shorterSide) / 2
-                let cropRect = CGRect(x: xOffset, y: yOffset, width: shorterSide, height: shorterSide)
-                
-                if let cgImage = image.cgImage?.cropping(to: cropRect) {
-                    let croppedImage = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-                    parent.image = croppedImage
-                }
+                parent.image = image
             }
             picker.dismiss(animated: true)
         }

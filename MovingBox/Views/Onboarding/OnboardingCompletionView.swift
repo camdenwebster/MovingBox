@@ -1,72 +1,95 @@
+import RevenueCatUI
 import SwiftUI
 
 struct OnboardingCompletionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var manager: OnboardingManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Binding var isPresented: Bool
     @StateObject private var settingsManager = SettingsManager()
     @State private var showCheckmark = false
     @State private var showTransition = false
+    @State private var showingPaywall = false
     
     var body: some View {
         OnboardingContainer {
             VStack(spacing: 0) {
-                ScrollView {
+                VStack {
                     VStack {
-                        VStack {
-                            // Success Icon
-                            Image(systemName: showCheckmark ? "checkmark.circle" : "circle" )
-                                .font(.system(size: 100))
-                                .foregroundStyle(.green)
-                                .padding()
-                                .animation(.default, value: showCheckmark)
-                                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
+                        // Success Icon
+                        Image(systemName: showCheckmark ? "checkmark.circle" : "circle" )
+                            .font(.system(size: 100))
+                            .foregroundStyle(.green)
+                            .padding()
+                            .animation(.default, value: showCheckmark)
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
+                        
+                        OnboardingHeaderText(text: "Great Job!")
+                        
+                        VStack(spacing: 16) {
+                            OnboardingDescriptionText(text: "You've taken the first step in protecting what matters most.")
                             
-                            OnboardingHeaderText(text: "Great Job!")
-                            
+                            // Tips Section
                             VStack(spacing: 16) {
-                                OnboardingDescriptionText(text: "You've taken the first step in protecting what matters most.")
-                                
-                                // Tips Section
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Tips for Success")
                                         .font(.headline)
                                         .padding(.bottom, 4)
                                     
-                                    TipRow(icon: "tortoise.fill",
-                                          text: "Take it at your own pace")
+                                    OnboardingFeatureRow(
+                                        icon: "tortoise.fill",
+                                        title: "Take it at your own pace",
+                                        description: "It's a marathon, not a sprint!"
+                                    )
                                     
-                                    TipRow(icon: "clock.fill",
-                                          text: "Add a few items each day")
+                                    OnboardingFeatureRow(
+                                        icon: "clock.fill",
+                                        title: "Add a few items each day",
+                                        description: "Consistency is key"
+                                    )
                                     
-                                    TipRow(icon: "house.fill",
-                                          text: "Go room by room to stay organized")
+                                    OnboardingFeatureRow(
+                                        icon: "house.fill",
+                                        title: "Go room by room to stay organized",
+                                        description: "You'll be done in no time"
+                                    )
                                 }
-                                .padding()
-                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
+                                .padding(20)
                                 .background {
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(.ultraThinMaterial)
                                 }
-                                .padding(.bottom, 32)
+                                .padding(.horizontal)
                             }
-                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
                         }
-                        .frame(maxWidth: .infinity) // Center the content
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 
                 Spacer()
                 
                 OnboardingContinueButton(action: completeOnboarding, title: "Get Started")
                     .accessibilityIdentifier("onboarding-completion-continue-button")
-                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600)) // CHANGE: Limit max width
-                    .frame(maxWidth: .infinity) // Center the button
+            }
+            .onboardingBackground()
+            .sheet(isPresented: $showingPaywall, onDismiss: {
+                print("📱 OnboardingCompletionView - Paywall sheet dismissed")
+                finishOnboarding()
+            }) {
+                revenueCatManager.presentPaywall(
+                    isPresented: $showingPaywall,
+                    onCompletion: {
+                        print("📱 OnboardingCompletionView - Purchase completed")
+                        finishOnboarding()
+                    },
+                    onDismiss: {
+                        print("📱 OnboardingCompletionView - Paywall dismissed via close button")
+                        finishOnboarding()
+                    }
+                )
             }
         }
-        .onboardingBackground()
         .onAppear {
-            // Delay the checkmark animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showCheckmark = true
             }
@@ -74,11 +97,19 @@ struct OnboardingCompletionView: View {
     }
     
     private func completeOnboarding() {
+        print("📱 OnboardingCompletionView - completeOnboarding called")
         if settingsManager.isPro {
+            finishOnboarding()
+        } else {
+            showingPaywall = true
+        }
+    }
+    
+    private func finishOnboarding() {
+        print("📱 OnboardingCompletionView - finishOnboarding called")
+        withAnimation {
             manager.markOnboardingComplete()
             isPresented = false
-        } else {
-            manager.currentStep = .paywall
         }
     }
 }
@@ -108,4 +139,5 @@ struct AnyViewModifier: ViewModifier {
 #Preview {
     OnboardingCompletionView(isPresented: .constant(true))
         .environmentObject(OnboardingManager())
+        .environmentObject(RevenueCatManager.shared)
 }

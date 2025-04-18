@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingWelcomeView: View {
     @EnvironmentObject private var manager: OnboardingManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.disableAnimations) private var disableAnimations
     @Environment(\.modelContext) private var modelContext
@@ -12,7 +13,6 @@ struct OnboardingWelcomeView: View {
     @State private var descriptionOpacity = 0.0
     @State private var buttonOpacity = 0.0
     @State private var isProcessing = false
-    @StateObject private var iCloudManager = ICloudSyncManager.shared
     
     var body: some View {
         OnboardingContainer {
@@ -59,8 +59,12 @@ struct OnboardingWelcomeView: View {
                         
                         Task {
                             do {
-                                // First wait for any pending iCloud sync
-                                _ = try await iCloudManager.waitForSync()
+                                let isUiTesting = ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
+                                if !isUiTesting {
+                                    // First check RevenueCat status and sync purchases
+                                    try await revenueCatManager.updateCustomerInfo()
+                                    try await revenueCatManager.syncPurchases()
+                                }
                                 
                                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
                                 
@@ -79,7 +83,7 @@ struct OnboardingWelcomeView: View {
                             } catch {
                                 await MainActor.run {
                                     isProcessing = false
-                                    manager.showError(message: "Unable to check onboarding status. Please try again.")
+                                    manager.showError(message: "Unable to check subscription status. Please make sure network connection is active and try again.")
                                 }
                             }
                         }

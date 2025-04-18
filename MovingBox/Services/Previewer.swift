@@ -34,9 +34,8 @@ struct Previewer {
             let home = Home()
             home.address1 = "123 Main Street"
             
-            if let url = URL(string: "https://town-n-country-living.com/wp-content/uploads/2023/06/craftsman-exterior.jpg"),
-               let data = try? Data(contentsOf: url) {
-                home.data = data
+            if let url = Bundle.main.url(forResource: "craftsman-home", withExtension: "jpg") {
+                home.imageURL = url
             }
             return home
         }()
@@ -46,9 +45,8 @@ struct Previewer {
             location.name = "Office"
             location.desc = "Camden's office"
             
-            if let url = URL(string: "https://i.ytimg.com/vi/uOHOgI66C28/maxresdefault.jpg"),
-               let data = try? Data(contentsOf: url) {
-                location.data = data
+            if let url = Bundle.main.url(forResource: "home-office", withExtension: "jpg") {
+                location.imageURL = url
             }
             return location
         }()
@@ -73,9 +71,8 @@ struct Previewer {
                 showInvalidQuantityAlert: false
             )
             
-            if let url = URL(string: "https://images.ctfassets.net/h4x5uvaoia7v/3Xm6gc7zRp0vMDCsTeLq6r/0bd70d7610c797b8b67103c643b73e6f/GALLERY_87R2_NICKEL_still7.png?w=3840&q=75"),
-               let data = try? Data(contentsOf: url) {
-                item.data = data
+            if let url = Bundle.main.url(forResource: "microphone", withExtension: "jpg") {
+                item.imageURL = url
             }
             return item
         }()

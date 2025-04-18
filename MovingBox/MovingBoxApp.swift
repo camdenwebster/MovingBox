@@ -17,9 +17,8 @@ struct MovingBoxApp: App {
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
     @StateObject private var containerManager = ModelContainerManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var showOnboarding = false
-    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
-    @Query private var homes: [Home]
     
     enum TabDestination: Hashable {
         case dashboard
@@ -62,22 +61,15 @@ struct MovingBoxApp: App {
         #endif
     }
     
+    private var disableAnimations: Bool {
+        ProcessInfo.processInfo.arguments.contains("Disable-Animations")
+    }
+    
     @ViewBuilder
     private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
         switch destination {
         case .dashboardView:
             DashboardView()
-            // TODO: Perhaps call RevenueCat paywall here instead of onboarding
-//                .presentPaywallIfNeeded(
-//                    requiredEntitlementIdentifier: "Pro",
-//                    purchaseCompleted: { customerInfo in
-//                        print("Purchase completed: \(customerInfo.entitlements)")
-//                    },
-//                    restoreCompleted: { customerInfo in
-//                        // Paywall will be dismissed automatically if "pro" is now active.
-//                        print("Purchases restored: \(customerInfo.entitlements)")
-//                    }
-//                )
         case .locationsListView:
             LocationsListView()
         case .settingsView:
@@ -159,13 +151,19 @@ struct MovingBoxApp: App {
             }
             .tabViewStyle(.sidebarAdaptable)
             .tint(Color.customPrimary)
-            .onChange(of: settings.isPro) { oldValue, newValue in
-                containerManager.updateContainer(isPro: newValue, iCloudEnabled: settings.iCloudEnabled)
-            }
-            .onAppear {
-                // Initialize container with current Pro status and iCloud preference
-                containerManager.updateContainer(isPro: settings.isPro, iCloudEnabled: settings.iCloudEnabled)
+            .environment(\.disableAnimations, disableAnimations)
+            .task {
+                // Initialize container
+                await containerManager.initialize()
                 
+                // Check RevenueCat subscription status
+                do {
+                    try await revenueCatManager.updateCustomerInfo()
+                } catch {
+                    print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
+                }
+                
+                // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     Task {
                         await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
@@ -173,28 +171,33 @@ struct MovingBoxApp: App {
                     }
                 }
 
+                // Reset paywall state if launch agrument is set
                 if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
                     settings.hasSeenPaywall = false
                 }
 
-                // Only check if we haven't launched before
+                // Determine if we should show the welcome screen
                 let shouldShowWelcome = OnboardingManager.shouldShowWelcome()
                 if shouldShowWelcome {
                     showOnboarding = true
                 }
                 
+                // Record that we've launched
                 settings.hasLaunched = true
 
+                // Send launched signal to TD
                 TelemetryDeck.signal("appLaunched")
             }
             .fullScreenCover(isPresented: $showOnboarding) {
                 OnboardingView(isPresented: $showOnboarding)
+                    .environment(\.disableAnimations, disableAnimations)
             }
             .modelContainer(containerManager.container)
             .environmentObject(router)
             .environmentObject(settings)
             .environmentObject(containerManager)
             .environmentObject(onboardingManager)
+            .environmentObject(revenueCatManager)
         }
     }
 }

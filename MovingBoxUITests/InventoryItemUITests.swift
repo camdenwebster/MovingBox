@@ -17,7 +17,6 @@ final class InventoryItemUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app.launchArguments = [
-            "Use-Test-Data",
             "Is-Pro",
             "Skip-Onboarding",
             "Disable-Persistence",

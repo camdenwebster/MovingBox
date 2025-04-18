@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import SwiftData
 
+@MainActor
 struct OnboardingLocationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var manager: OnboardingManager
@@ -9,21 +10,23 @@ struct OnboardingLocationView: View {
     
     @Query private var locations: [InventoryLocation]
     
+    @State private var locationInstance = InventoryLocation()
     @State private var locationName = ""
     @State private var locationDesc = ""
-    @State private var selectedPhoto: PhotosPickerItem?
     @State private var tempUIImage: UIImage?
-    @State private var showPhotoSourceAlert = false
-    @State private var showingCamera = false
-    @State private var showPhotoPicker = false
-    @State private var showValidationAlert = false
+    @State private var isLoading = false
     
-    private func loadExistingData() {
+    private func loadExistingData() async {
         if let existingLocation = locations.first {
             locationName = existingLocation.name
             locationDesc = existingLocation.desc
-            if let imageData = existingLocation.data {
-                tempUIImage = UIImage(data: imageData)
+            locationInstance = existingLocation
+            do {
+                if let photo = try await existingLocation.photo {
+                    tempUIImage = photo
+                }
+            } catch {
+                print("Failed to load location photo: \(error)")
             }
         }
     }
@@ -32,7 +35,7 @@ struct OnboardingLocationView: View {
         OnboardingContainer {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 24) {
                         VStack(spacing: 20) {
                             OnboardingHeaderText(text: "Add Your First Location")
                             
@@ -49,59 +52,31 @@ struct OnboardingLocationView: View {
                                         .frame(height: UIScreen.main.bounds.height / 3)
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                         .overlay(alignment: .bottomTrailing) {
-                                            Button {
-                                                showPhotoSourceAlert = true
-                                            } label: {
-                                                Image(systemName: "photo")
-                                                    .font(.title2)
-                                                    .foregroundColor(.white)
-                                                    .padding(8)
-                                                    .background(Circle().fill(.black.opacity(0.6)))
-                                                    .padding(8)
-                                            }
-                                            .accessibilityIdentifier("onboarding-location-change-photo-button")
-                                            .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                                Button("Take Photo") {
-                                                    showingCamera = true
-                                                }
-                                                .accessibilityIdentifier("takePhoto")
-                                                Button("Choose from Library") {
-                                                    showPhotoPicker = true
-                                                }
-                                                .accessibilityIdentifier("chooseFromLibrary")
-                                                if tempUIImage != nil {
-                                                    Button("Remove Photo", role: .destructive) {
-                                                        tempUIImage = nil
-                                                    }
-                                                    .accessibilityIdentifier("removePhoto")
-                                                }
-                                            }
+                                            PhotoPickerView(
+                                                model: $locationInstance,
+                                                loadedImage: $tempUIImage,
+                                                isLoading: $isLoading
+                                            )
                                         }
+                                } else if isLoading {
+                                    ProgressView()
+                                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                        .frame(height: UIScreen.main.bounds.height / 3)
                                 } else {
-                                    AddPhotoButton(action: {
-                                        showPhotoSourceAlert = true
-                                    })
-                                    .accessibilityIdentifier("onboarding-location-add-photo-button")
-                                    .padding()
-                                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(.ultraThinMaterial)
-                                    }
-                                    .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-                                        Button("Take Photo") {
-                                            showingCamera = true
+                                    PhotoPickerView(
+                                        model: $locationInstance,
+                                        loadedImage: $tempUIImage,
+                                        isLoading: $isLoading
+                                    ) { showPhotoSourceAlert in
+                                        AddPhotoButton {
+                                            showPhotoSourceAlert.wrappedValue = true
                                         }
-                                        .accessibilityIdentifier("takePhoto")
-                                        Button("Choose from Library") {
-                                            showPhotoPicker = true
-                                        }
-                                        .accessibilityIdentifier("chooseFromLibrary")
-                                        if tempUIImage != nil {
-                                            Button("Remove Photo", role: .destructive) {
-                                                tempUIImage = nil
-                                            }
-                                            .accessibilityIdentifier("removePhoto")
+                                        .accessibilityIdentifier("onboarding-location-add-photo-button")
+                                        .padding()
+                                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                        .background {
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(.ultraThinMaterial)
                                         }
                                     }
                                 }
@@ -112,11 +87,17 @@ struct OnboardingLocationView: View {
                                 TextField("Location Name", text: $locationName)
                                     .accessibilityIdentifier("onboarding-location-name-field")
                                     .textFieldStyle(.roundedBorder)
+                                    .onChange(of: locationName) { _, newValue in
+                                        locationInstance.name = newValue
+                                    }
                                 
                                 TextField("Description", text: $locationDesc, axis: .vertical)
                                     .accessibilityIdentifier("onboarding-location-description-field")
                                     .textFieldStyle(.roundedBorder)
                                     .lineLimit(3...)
+                                    .onChange(of: locationDesc) { _, newValue in
+                                        locationInstance.desc = newValue
+                                    }
                             }
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
@@ -129,10 +110,8 @@ struct OnboardingLocationView: View {
                 
                 VStack {
                     OnboardingContinueButton {
-                        if locationName.isEmpty {
-                            showValidationAlert = true
-                        } else {
-                            saveLocationAndContinue()
+                        Task {
+                            await saveLocationAndContinue()
                         }
                     }
                     .accessibilityIdentifier("onboarding-location-continue-button")
@@ -142,56 +121,29 @@ struct OnboardingLocationView: View {
             }
         }
         .onboardingBackground()
-        .onChange(of: selectedPhoto, loadPhoto)
-        .onAppear(perform: loadExistingData)
-        .sheet(isPresented: $showingCamera, onDismiss: nil) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion in
-                tempUIImage = image
-                completion()
-            }
-        }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
-        .alert("Missing Details", isPresented: $showValidationAlert) {
-            Button("Go Back") { }
-            Button("Continue Anyway") {
-                saveLocationAndContinue()
-            }
-        } message: {
-            Text("Some details haven't been filled out. Would you like to go back and complete them or continue anyway?")
+        .task {
+            await loadExistingData()
         }
     }
     
-    private func loadPhoto() {
-        Task {
-            if let data = try? await selectedPhoto?.loadTransferable(type: Data.self) {
-                if let uiImage = UIImage(data: data) {
-                    await MainActor.run {
-                        tempUIImage = uiImage
-                    }
-                }
-            }
+    private func saveLocationAndContinue() async {
+        if locationName.isEmpty {
+            return
         }
-    }
-    
-    private func saveLocationAndContinue() {
-        if let existingLocation = locations.first {
-            existingLocation.name = locationName
-            existingLocation.desc = locationDesc
-            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-                existingLocation.data = imageData
+        
+        do {
+            if let existingLocation = locations.first {
+                existingLocation.name = locationInstance.name
+                existingLocation.desc = locationInstance.desc
+                existingLocation.imageURL = locationInstance.imageURL
+            } else {
+                modelContext.insert(locationInstance)
+                TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
             }
-        } else {
-            let location = InventoryLocation(name: locationName, desc: locationDesc)
-            if let imageData = tempUIImage?.jpegData(compressionQuality: 0.8) {
-                location.data = imageData
-            }
-            modelContext.insert(location)
-            TelemetryManager.shared.trackLocationCreated(name: location.name)
+            manager.moveToNext()
+        } catch {
+            print("Failed to save location: \(error)")
         }
-        manager.moveToNext()
     }
 }
 

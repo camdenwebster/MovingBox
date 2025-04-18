@@ -11,11 +11,8 @@
 		191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191FEA602D6D04E5006FF067 /* SettingsManager.swift */; };
 		1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 1920B0D52D88B13000CFA1E9 /* TelemetryDeck */; };
 		1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */; };
-		1927DDF32D8B1F4C00BEFD9D /* placeholder.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */; };
 		1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF92D8B1FEF00BEFD9D /* download_images.py */; };
 		1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */; };
-		1927DE722D8B56AF00BEFD9D /* PhotoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */; };
-		194195642DA440FD008CABAA /* ICloudSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195632DA440FD008CABAA /* ICloudSyncManager.swift */; };
 		194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195652DA4805B008CABAA /* ModelContainerManager.swift */; };
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
 		1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC812BF391CF00734AF4 /* Assets.xcassets */; };
@@ -35,6 +32,8 @@
 		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
 		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
 		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
+		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
+		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,12 +62,9 @@
 		1927DD112D89EB1000BEFD9D /* PRIVACY_POLICY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PRIVACY_POLICY.md; sourceTree = "<group>"; };
 		1927DD122D89EC5D00BEFD9D /* EULA.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EULA.md; sourceTree = "<group>"; };
 		1927DD132D89EE5D00BEFD9D /* icon_shadow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = icon_shadow.png; sourceTree = "<group>"; };
-		1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = placeholder.txt; sourceTree = "<group>"; };
 		1927DDF92D8B1FEF00BEFD9D /* download_images.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = download_images.py; sourceTree = "<group>"; };
 		1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
-		1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoManager.swift; sourceTree = "<group>"; };
 		1937AABB2D938FBD00C68797 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
-		194195632DA440FD008CABAA /* ICloudSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudSyncManager.swift; sourceTree = "<group>"; };
 		194195652DA4805B008CABAA /* ModelContainerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContainerManager.swift; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
@@ -95,8 +91,10 @@
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
+		19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
 		19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxSnapshotTests.xctestplan; path = "Test Plans/MovingBoxSnapshotTests.xctestplan"; sourceTree = "<group>"; };
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
+		19F765D42DAB558000AE287D /* OptimizedImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedImageManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -104,6 +102,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Base.template.xcconfig,
+				Base.xcconfig,
 			);
 			target = 1942DC792BF391CB00734AF4 /* MovingBox */;
 		};
@@ -235,11 +234,11 @@
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				19F765D42DAB558000AE287D /* OptimizedImageManager.swift */,
+				19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */,
 				194195652DA4805B008CABAA /* ModelContainerManager.swift */,
-				194195632DA440FD008CABAA /* ICloudSyncManager.swift */,
 				19750C372DA07FF40056F0FC /* OnboardingManager.swift */,
 				19C01D5D2D93088300773DA4 /* JWTManager.swift */,
-				1927DE712D8B56AF00BEFD9D /* PhotoManager.swift */,
 				1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */,
 				196109F42D764D9100A76504 /* ColorExtension.swift */,
 				190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */,
@@ -248,7 +247,6 @@
 				198958AE2BF99F5600C52CAE /* Previewer.swift */,
 				19D3430D2C12146800F8B2C7 /* Router.swift */,
 				198958AC2BF8FAC700C52CAE /* TestData.swift */,
-				1927DDF22D8B1F4C00BEFD9D /* placeholder.txt */,
 				19D133902D72B422002448A9 /* DefaultDataManager.swift */,
 				191FEA602D6D04E5006FF067 /* SettingsManager.swift */,
 			);
@@ -343,7 +341,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1620;
-				LastUpgradeCheck = 1620;
+				LastUpgradeCheck = 1630;
 				TargetAttributes = {
 					1942DC792BF391CB00734AF4 = {
 						CreatedOnToolsVersion = 15.3;
@@ -389,7 +387,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */,
-				1927DDF32D8B1F4C00BEFD9D /* placeholder.txt in Resources */,
 				1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */,
 				1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */,
 				1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */,
@@ -418,10 +415,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				194195642DA440FD008CABAA /* ICloudSyncManager.swift in Sources */,
 				1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */,
-				1927DE722D8B56AF00BEFD9D /* PhotoManager.swift in Sources */,
+				19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */,
 				194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */,
+				19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
 				196109F52D764D9100A76504 /* ColorExtension.swift in Sources */,
@@ -505,6 +502,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -570,6 +568,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -604,7 +603,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
@@ -644,7 +642,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
@@ -708,6 +705,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -750,7 +748,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
@@ -786,7 +783,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -810,7 +806,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -864,6 +860,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -900,7 +897,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
@@ -936,7 +932,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -960,7 +955,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -984,7 +979,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -1008,7 +1003,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -1034,7 +1029,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -1060,7 +1054,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = V7HLP74XY3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;

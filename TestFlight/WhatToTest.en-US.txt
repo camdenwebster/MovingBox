@@ -4,9 +4,13 @@ We are excited to prepare for our 1.0 launch, and we will greatly appreciate any
 - Creating new inventory records from the Camera view (can be accessed from the "Add Item" tab)
 - Updating existing inventory records with AI (either the "Anlayze with AI" button or the "sparkle" button in an existing inventory record)
 - Analyzing a wide variety of items
-- Testing on a wide variety of iPhone models
+- Testing on a wide variety of iPhone/iPad models
 
 What's New?
+0.8.0
+- iCloud synchronization should be up and running! Try installing MovingBox on multiple devices and let us know how it goes.
+- Began to implement a paywall to support monetization. First 50 AI image analysis calls will be free.
+
 0.7.0
 - Implemented an onboarding flow to help users get started with their home inventory journey
 - Replaced the custom camera view with the native iOS camera view
