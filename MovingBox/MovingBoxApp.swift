@@ -5,11 +5,12 @@
 //  Created by Camden Webster on 5/14/24.
 //
 
+import RevenueCat
+import Sentry
 import SwiftData
 import SwiftUI
-import UIKit
 import TelemetryDeck
-import RevenueCat
+import UIKit
 
 @main
 struct MovingBoxApp: App {
@@ -59,6 +60,24 @@ struct MovingBoxApp: App {
         #if DEBUG
         Purchases.logLevel = .debug
         #endif
+        
+        // Configure Sentry
+        SentrySDK.start { options in
+            options.dsn = "https://e2465694bd00439d2d7c348a52488e03@o4509153398554624.ingest.us.sentry.io/4509174146400256"
+            options.debug = true // Enabled debug when first installing is always helpful
+            // Set tracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
+            // We recommend adjusting this value in production.
+            options.tracesSampleRate = 1.0
+
+            // Configure profiling. Visit https://docs.sentry.io/platforms/apple/profiling/ to learn more.
+            options.configureProfiling = {
+                $0.sessionSampleRate = 1.0 // We recommend adjusting this value in production.
+                $0.lifecycle = .trace
+            }
+            
+            options.sessionReplay.onErrorSampleRate = 0.8
+            options.sessionReplay.sessionSampleRate = 0.1
+        }
     }
     
     private var disableAnimations: Bool {
