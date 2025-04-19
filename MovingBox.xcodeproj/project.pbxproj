@@ -29,11 +29,14 @@
 		19750C382DA07FF40056F0FC /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19750C372DA07FF40056F0FC /* OnboardingManager.swift */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
+		19A9AB102DB274C7001CEDA2 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		19A9AB112DB274C7001CEDA2 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
 		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
 		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
+		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,6 +135,7 @@
 				1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */,
 				1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */,
 				1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */,
+				4A01539D070041769323F9C9 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -139,6 +143,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19A9AB112DB274C7001CEDA2 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -147,6 +152,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */,
+				19A9AB102DB274C7001CEDA2 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,6 +277,7 @@
 				1942DC762BF391CB00734AF4 /* Sources */,
 				1942DC772BF391CB00734AF4 /* Frameworks */,
 				1942DC782BF391CB00734AF4 /* Resources */,
+				309ED56E16674F43B9263DCC /* Upload Debug Symbols to Sentry */,
 			);
 			buildRules = (
 			);
@@ -282,6 +289,9 @@
 				19D133BC2D72BFB8002448A9 /* Models */,
 			);
 			name = MovingBox;
+			packageProductDependencies = (
+				D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */,
+			);
 			productName = MovingBox;
 			productReference = 1942DC7A2BF391CB00734AF4 /* MovingBox.app */;
 			productType = "com.apple.product-type.application";
@@ -369,6 +379,7 @@
 				1920B0D42D88B13000CFA1E9 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
 				1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 				1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+				AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -409,6 +420,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		309ED56E16674F43B9263DCC /* Upload Debug Symbols to Sentry */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+			);
+			name = "Upload Debug Symbols to Sentry";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script is responsible for uploading debug symbols and source context for Sentry.\nif which sentry-cli >/dev/null; then\nexport SENTRY_ORG=mothersound\nexport SENTRY_PROJECT=movingbox\nERROR=$(sentry-cli debug-files upload --include-sources \"$DWARF_DSYM_FOLDER_PATH\" 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1942DC762BF391CB00734AF4 /* Sources */ = {
@@ -602,8 +631,10 @@
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
@@ -641,8 +672,10 @@
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
@@ -747,8 +780,10 @@
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
@@ -896,8 +931,10 @@
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MovingBox;
@@ -1144,6 +1181,14 @@
 				minimumVersion = 1.18.3;
 			};
 		};
+		AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa/";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1166,6 +1211,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
 			productName = SnapshotTesting;
+		};
+		D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

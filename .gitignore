@@ -94,3 +94,5 @@ iOSInjectionProject/
 MovingBox/Configuration/Base.xcconfig
 StoreKitTestCertificate.cer
 /MovingBox/.venv
+
+.sentryclirc
