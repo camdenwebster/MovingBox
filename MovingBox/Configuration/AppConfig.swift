@@ -96,7 +96,7 @@ struct AppConfig {
         if let key = checkBundleVariable(Keys.revenueCatAPIKey) {
             return key
         }
-        return "missing-jwt-secret"
+        return "missing-rc-api-key"
     }
     
     static var sentryDsn: String {
@@ -114,7 +114,7 @@ struct AppConfig {
         #if DEBUG
         print("⚠️ Warning: Using fallback Sentry DSN")
         #endif
-        return "missing-sentry-dsn" // Fallback value
+        return "missing-sentry-dsn"
     }
     
     static var telemetryDeckAppId: String {
