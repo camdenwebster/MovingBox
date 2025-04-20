@@ -16,6 +16,7 @@ struct AppConfig {
     
     let buildType: BuildType
     let configuration: BuildConfiguration
+    
     private(set) var isPro: Bool
     
     private init() {
@@ -50,47 +51,76 @@ struct AppConfig {
     
     enum Keys {
         static let jwtSecret = "JWT_SECRET"
+        static let revenueCatAPIKey = "REVENUE_CAT_API_KEY"
+        static let sentryDsn = "SENTRY_DSN"
+        static let telemetryDeckAppId = "TELEMETRY_DECK_APP_ID"
     }
     
-    // ADD: RevenueCat API key
-    static let revenueCatAPIKey: String = {
-        guard let key = Bundle.main.infoDictionary?["REVENUE_CAT_API_KEY"] as? String else {
-            fatalError("RevenueCat API key not found in configuration")
-        }
-        return key
-    }()
-    
     private static func checkBundleVariable(_ key: String) -> String? {
-        // Check Info.plist first (for runtime values injected during build)
-        if let infoValue = Bundle.main.object(forInfoDictionaryKey: key) as? String {
+        // Check Info.plist first
+        if let infoValue = Bundle.main.object(forInfoDictionaryKey: key) as? String, !infoValue.isEmpty {
             return infoValue
         }
         
-        // Then check Config.plist (for development)
+        // Check xcconfig values via main bundle
+        if let configValue = Bundle.main.infoDictionary?[key] as? String, !configValue.isEmpty {
+            return configValue
+        }
+        
+        // Check Config.plist
         if let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
            let config = NSDictionary(contentsOfFile: path),
-           let value = config[key] as? String {
+           let value = config[key] as? String,
+           !value.isEmpty {
             return value
         }
         
         #if DEBUG
-        // Finally check environment (for local testing)
-        return ProcessInfo.processInfo.environment[key]
-        #else
-        return nil
+        // Finally check environment
+        if let envValue = ProcessInfo.processInfo.environment[key], !envValue.isEmpty {
+            return envValue
+        }
         #endif
+        
+        return nil
     }
     
     static var jwtSecret: String {
         if let secret = checkBundleVariable(Keys.jwtSecret) {
             return secret
         }
+        return "missing-jwt-secret"
+    }
+    
+    static var revenueCatAPIKey: String {
+        if let key = checkBundleVariable(Keys.revenueCatAPIKey) {
+            return key
+        }
+        return "missing-jwt-secret"
+    }
+    
+    static var sentryDsn: String {
+        // Check for debug override first
+        #if DEBUG
+        if let debugDsn = ProcessInfo.processInfo.environment["SENTRY_DSN_DEBUG"] {
+            return debugDsn
+        }
+        #endif
+        
+        if let dsn = checkBundleVariable(Keys.sentryDsn) {
+            return dsn
+        }
         
         #if DEBUG
-        print(" JWT_SECRET not found in bundle or Config.plist")
-        return "debug-secret-key"
-        #else
-        return "missing-jwt-secret"
+        print("⚠️ Warning: Using fallback Sentry DSN")
         #endif
+        return "missing-sentry-dsn" // Fallback value
+    }
+    
+    static var telemetryDeckAppId: String {
+        if let appId = checkBundleVariable(Keys.telemetryDeckAppId) {
+            return appId
+        }
+        return "missing-telemetrydeck-app-id"
     }
 }

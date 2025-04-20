@@ -49,31 +49,42 @@ struct MovingBoxApp: App {
         Self.registerTransformers()
         
         // Configure TelemetryDeck
-        let telemetryConfig = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
+        let appId = AppConfig.telemetryDeckAppId
+        let telemetryConfig = TelemetryDeck.Config(appID: appId)
         telemetryConfig.defaultSignalPrefix = "App."
         telemetryConfig.defaultParameterPrefix = "MyApp."
         TelemetryDeck.initialize(config: telemetryConfig)
         
-        // Configure RevenueCat with API key from config
+        // Configure RevenueCat
         Purchases.configure(withAPIKey: AppConfig.revenueCatAPIKey)
         
         #if DEBUG
         Purchases.logLevel = .debug
         #endif
         
-        // Configure Sentry
-        SentrySDK.start { options in
-            options.dsn = "https://e2465694bd00439d2d7c348a52488e03@o4509153398554624.ingest.us.sentry.io/4509174146400256"
-            options.tracesSampleRate = 0.2
-
-            // Configure profiling. Visit https://docs.sentry.io/platforms/apple/profiling/ to learn more.
-            options.configureProfiling = {
-                $0.sessionSampleRate = 0.3
-                $0.lifecycle = .trace
+        // Configure Sentry with improved error handling
+        do {
+            let dsn = "https://\(AppConfig.sentryDsn)"
+            guard dsn != "missing-sentry-dsn" else {
+                #if DEBUG
+                print("⚠️ Error: Missing Sentry DSN configuration")
+                #endif
+                return
             }
             
-            options.sessionReplay.onErrorSampleRate = 0.8
-            options.sessionReplay.sessionSampleRate = 0.1
+            SentrySDK.start { options in
+                options.dsn = dsn
+                options.debug = AppConfig.shared.configuration == .debug
+                options.tracesSampleRate = 0.2
+                
+                options.configureProfiling = {
+                    $0.sessionSampleRate = 0.3
+                    $0.lifecycle = .trace
+                }
+                
+                options.sessionReplay.onErrorSampleRate = 0.8
+                options.sessionReplay.sessionSampleRate = 0.1
+            }
         }
     }
     
