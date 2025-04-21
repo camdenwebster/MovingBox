@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import SafariServices
+import StoreKit
 
 enum SettingsSection: Hashable {
     case categories
@@ -46,7 +47,7 @@ struct SettingsView: View {
         "rateUs": ExternalLink(
             title: "Rate Us",
             icon: "star",
-            url: URL(string: "https://movingbox.ai/rate")!
+            url: URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review")!
         ),
         "roadmap": ExternalLink(
             title: "Roadmap",
@@ -128,7 +129,20 @@ struct SettingsView: View {
                     externalLinkButton(for: externalLinks["knowledgeBase"]!)
                     externalLinkButton(for: externalLinks["support"]!)
                     externalLinkButton(for: externalLinks["bugs"]!)
-                    externalLinkButton(for: externalLinks["rateUs"]!)
+                    
+                    Button {
+                        requestAppReview()
+                    } label: {
+                        HStack {
+                            Label("Rate Us", systemImage: "star")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
                 
                 
@@ -222,6 +236,18 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+    
+    private func requestAppReview() {
+        if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: scene)
+            print("Requested app review")
+        } else {
+            if let url = URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review") {
+                UIApplication.shared.open(url)
+                print("Opening App Store URL for review")
+            }
+        }
     }
 }
 
