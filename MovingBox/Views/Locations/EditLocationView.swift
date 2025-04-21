@@ -73,12 +73,15 @@ struct EditLocationView: View {
                             .frame(height: UIScreen.main.bounds.height / 3)
                     } else if isEditingEnabled {
                         PhotoPickerView(
-                            model: $locationInstance,
-                            loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
+                            model: Binding(
+                                get: { self.location },
+                                set: { _ in }
+                            ),
+                            loadedImage: $loadedImage,
                             isLoading: $isLoading
-                        ) { isPresented in
+                        ) { showPhotoSourceAlert in
                             AddPhotoButton {
-                                isPresented.wrappedValue = true
+                                showPhotoSourceAlert.wrappedValue = true
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)

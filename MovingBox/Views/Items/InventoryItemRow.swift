@@ -56,7 +56,7 @@ struct InventoryItemRow: View {
             if let label = item.label {
                 Text(label.emoji)
                     .padding(7)
-                    .background(in: Capsule())
+                    .background(in: Circle())
                     .backgroundStyle(Color(label.color ?? .blue))
             } else {
                 EmptyView()

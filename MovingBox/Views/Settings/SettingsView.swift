@@ -399,7 +399,7 @@ struct LabelSettingsView: View {
                 } label: {
                     Text(label.emoji)
                         .padding(7)
-                        .background(in: Capsule())
+                        .background(in: Circle())
                         .backgroundStyle(Color(label.color ?? .blue))
                     Text(label.name)
                 }

@@ -10,8 +10,7 @@ import SwiftData
 import SwiftUI
 
 @Model
-@MainActor
-final class Home: PhotoManageable {
+class Home: PhotoManageable {
     var name: String = ""
     var address1: String = ""
     var address2: String = ""

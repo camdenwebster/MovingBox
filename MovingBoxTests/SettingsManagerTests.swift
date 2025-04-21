@@ -99,11 +99,11 @@ import Foundation
         }
         
         func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-            return !isPro && currentCount >= SettingsManager.maxFreeAiScans
+            return !isPro && currentCount >= SettingsManager.AppConstants.maxFreeAiScans
         }
         
         func canUseMoreAiScans(currentCount: Int) -> Bool {
-            return isPro || currentCount < SettingsManager.maxFreeAiScans
+            return isPro || currentCount < SettingsManager.AppConstants.maxFreeAiScans
         }
     }
     

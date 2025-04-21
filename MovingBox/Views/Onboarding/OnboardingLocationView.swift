@@ -131,19 +131,15 @@ struct OnboardingLocationView: View {
             return
         }
         
-        do {
-            if let existingLocation = locations.first {
-                existingLocation.name = locationInstance.name
-                existingLocation.desc = locationInstance.desc
-                existingLocation.imageURL = locationInstance.imageURL
-            } else {
-                modelContext.insert(locationInstance)
-                TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
-            }
-            manager.moveToNext()
-        } catch {
-            print("Failed to save location: \(error)")
+        if let existingLocation = locations.first {
+            existingLocation.name = locationInstance.name
+            existingLocation.desc = locationInstance.desc
+            existingLocation.imageURL = locationInstance.imageURL
+        } else {
+            modelContext.insert(locationInstance)
+            TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
         }
+        manager.moveToNext()
     }
 }
 

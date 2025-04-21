@@ -62,7 +62,9 @@ class SettingsManager: ObservableObject {
     }
     
     // Pro feature constants
-    static let maxFreeAiScans = 50
+    public struct AppConstants: Sendable {
+        static let maxFreeAiScans = 50
+    }
     
     private let revenueCatManager = RevenueCatManager.shared
     
@@ -176,7 +178,7 @@ class SettingsManager: ObservableObject {
         print("📱 SettingsManager - Checking hasReachedAiScanLimit")
         print("📱 SettingsManager - Current isPro: \(isPro)")
         print("📱 SettingsManager - Current count of items which have used AI scan: \(currentCount)")
-        return !isPro && currentCount >= SettingsManager.maxFreeAiScans
+        return !isPro && currentCount >= AppConstants.maxFreeAiScans
     }
     
     // MARK: - Purchase Flow

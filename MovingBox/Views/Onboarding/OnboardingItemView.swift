@@ -99,28 +99,28 @@ struct OnboardingItemView: View {
                     isProcessingImage = true
                     defer { isProcessingImage = false }
                     
+                    // Create the item first
+                    let newItem = createNewItem()
+                    selectedItem = newItem
+                    
+                    // Save the image
+                    let id = UUID().uuidString
+                    
                     do {
-                        // Create the item first
-                        let newItem = createNewItem()
-                        selectedItem = newItem
+                        let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
+                        newItem.imageURL = imageURL
+                        try modelContext.save()
                         
-                        // Save the image
-                        let id = UUID().uuidString
-                        if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
-                            newItem.imageURL = imageURL
-                            try? modelContext.save()
+                        // Update UI state
+                        await MainActor.run {
+                            capturedImage = image
+                            showCamera = false
                             
-                            // Update UI state
-                            await MainActor.run {
-                                capturedImage = image
-                                showCamera = false
-                                
-                                // Complete the camera operation
-                                Task {
-                                    await completion()
-                                    // Show the analysis view after everything is ready
-                                    showItemFlow = true
-                                }
+                            // Complete the camera operation
+                            Task {
+                                await completion()
+                                // Show the analysis view after everything is ready
+                                showItemFlow = true
                             }
                         }
                     } catch {
@@ -150,7 +150,7 @@ struct OnboardingItemView: View {
                 showCamera = true
             }
         } message: {
-            Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\nAI")
+            Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\nAI can make mistakes and may not always accurately identify items.")
         }
     }
     
