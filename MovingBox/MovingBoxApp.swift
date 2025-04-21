@@ -5,11 +5,12 @@
 //  Created by Camden Webster on 5/14/24.
 //
 
+import RevenueCat
+import Sentry
 import SwiftData
 import SwiftUI
-import UIKit
 import TelemetryDeck
-import RevenueCat
+import UIKit
 
 @main
 struct MovingBoxApp: App {
@@ -48,17 +49,43 @@ struct MovingBoxApp: App {
         Self.registerTransformers()
         
         // Configure TelemetryDeck
-        let telemetryConfig = TelemetryDeck.Config(appID: "763EF9C7-E47D-453D-A2CD-C0DA44BD3155")
+        let appId = AppConfig.telemetryDeckAppId
+        let telemetryConfig = TelemetryDeck.Config(appID: appId)
         telemetryConfig.defaultSignalPrefix = "App."
         telemetryConfig.defaultParameterPrefix = "MyApp."
         TelemetryDeck.initialize(config: telemetryConfig)
         
-        // Configure RevenueCat with API key from config
+        // Configure RevenueCat
         Purchases.configure(withAPIKey: AppConfig.revenueCatAPIKey)
         
         #if DEBUG
         Purchases.logLevel = .debug
         #endif
+        
+        // Configure Sentry with improved error handling
+        do {
+            let dsn = "https://\(AppConfig.sentryDsn)"
+            guard dsn != "missing-sentry-dsn" else {
+                #if DEBUG
+                print("⚠️ Error: Missing Sentry DSN configuration")
+                #endif
+                return
+            }
+            
+            SentrySDK.start { options in
+                options.dsn = dsn
+                options.debug = AppConfig.shared.configuration == .debug
+                options.tracesSampleRate = 0.2
+                
+                options.configureProfiling = {
+                    $0.sessionSampleRate = 0.3
+                    $0.lifecycle = .trace
+                }
+                
+                options.sessionReplay.onErrorSampleRate = 0.8
+                options.sessionReplay.sessionSampleRate = 0.1
+            }
+        }
     }
     
     private var disableAnimations: Bool {
