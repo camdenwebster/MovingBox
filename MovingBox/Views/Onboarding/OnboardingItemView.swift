@@ -150,7 +150,7 @@ struct OnboardingItemView: View {
                 showCamera = true
             }
         } message: {
-            Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.")
+            Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\nAI")
         }
     }
     

@@ -14,7 +14,6 @@ class SettingsManager: ObservableObject {
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
-        static let hasSeenPaywall = "hasSeenPaywall"
     }
     
     // Published properties that will update the UI
@@ -62,16 +61,8 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    @Published var hasSeenPaywall: Bool {
-        didSet {
-            UserDefaults.standard.set(hasSeenPaywall, forKey: Keys.hasSeenPaywall)
-        }
-    }
-    
     // Pro feature constants
-    static let maxFreeItems = 50
-    static let maxFreeLocations = 5
-    static let maxFreePhotosPerItem = 3
+    static let maxFreeAiScans = 50
     
     private let revenueCatManager = RevenueCatManager.shared
     
@@ -95,7 +86,6 @@ class SettingsManager: ObservableObject {
         self.isHighDetail = isHighDetailDefault
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
-        self.hasSeenPaywall = false
         
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
         
@@ -130,7 +120,6 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
-        self.hasSeenPaywall = UserDefaults.standard.bool(forKey: Keys.hasSeenPaywall)
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
@@ -183,47 +172,11 @@ class SettingsManager: ObservableObject {
         !isPro
     }
     
-    func shouldShowPaywallForAI() -> Bool {
-        !isPro
-    }
-    
-    func shouldShowPaywallForCamera() -> Bool {
-        !isPro && !hasSeenPaywall
-    }
-    
-    func hasReachedItemLimit(currentCount: Int) -> Bool {
-        print("📱 SettingsManager - Checking hasReachedItemLimit")
+    func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
+        print("📱 SettingsManager - Checking hasReachedAiScanLimit")
         print("📱 SettingsManager - Current isPro: \(isPro)")
-        print("📱 SettingsManager - Current count: \(currentCount)")
-        return !isPro && currentCount >= SettingsManager.maxFreeItems
-    }
-    
-    func hasReachedLocationLimit(currentCount: Int) -> Bool {
-        !isPro && currentCount >= SettingsManager.maxFreeLocations
-    }
-    
-    func shouldShowFirstTimePaywall(itemCount: Int) -> Bool {
-        print("📱 SettingsManager - Checking shouldShowFirstTimePaywall")
-        print("📱 SettingsManager - Current isPro: \(isPro)")
-        print("📱 SettingsManager - Current itemCount: \(itemCount)")
-        print("📱 SettingsManager - Current hasSeenPaywall: \(hasSeenPaywall)")
-        return !isPro && itemCount == 0 && !hasSeenPaywall
-    }
-    
-    func shouldShowFirstLocationPaywall(locationCount: Int) -> Bool {
-        !isPro && locationCount == 0 && !hasSeenPaywall
-    }
-    
-    func canAddMoreItems(currentCount: Int) -> Bool {
-        isPro || currentCount < SettingsManager.maxFreeItems
-    }
-    
-    func canAddMoreLocations(currentCount: Int) -> Bool {
-        isPro || currentCount < SettingsManager.maxFreeLocations
-    }
-    
-    func canAddMorePhotos(currentCount: Int) -> Bool {
-        isPro || currentCount < SettingsManager.maxFreePhotosPerItem
+        print("📱 SettingsManager - Current count of items which have used AI scan: \(currentCount)")
+        return !isPro && currentCount >= SettingsManager.maxFreeAiScans
     }
     
     // MARK: - Purchase Flow
@@ -255,7 +208,6 @@ class SettingsManager: ObservableObject {
         apiKey = defaultApiKey
         isHighDetail = isHighDetailDefault
         hasLaunched = hasLaunchedDefault
-        hasSeenPaywall = false
         isPro = false
         
         #if DEBUG

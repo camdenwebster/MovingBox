@@ -331,7 +331,6 @@ struct LocationSettingsView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @State private var showingPaywall = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -357,30 +356,13 @@ struct LocationSettingsView: View {
         }
         .navigationTitle("Location Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingPaywall) {
-            revenueCatManager.presentPaywall(
-                isPresented: $showingPaywall,
-                onCompletion: {
-                    settings.isPro = true
-                    // Continue with attempted action after successful purchase
-                    if settings.canAddMoreLocations(currentCount: locations.count) {
-                        router.navigate(to: .editLocationView(location: nil))
-                    }
-                },
-                onDismiss: nil
-            )
-        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Add Location", systemImage: "plus") {
-                    if settings.hasReachedLocationLimit(currentCount: locations.count) {
-                        showingPaywall = true
-                    } else {
-                        addLocation()
-                    }
+                    addLocation()
                 }
                 .accessibilityIdentifier("addLocation")
             }

@@ -59,7 +59,6 @@ struct MovingBoxPaywallView: View {
             .padding()
             .navigationBarItems(
                 trailing: Button(action: {
-                    settingsManager.hasSeenPaywall = true
                     handleDismiss()
                 }) {
                     Image(systemName: "xmark.circle.fill")

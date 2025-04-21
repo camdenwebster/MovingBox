@@ -239,7 +239,8 @@ struct TestData {
                 insured: false,
                 assetId: "",
                 notes: "",
-                showInvalidQuantityAlert: false
+                showInvalidQuantityAlert: false,
+                hasUsedAi: true
             )
             
             let itemId = UUID().uuidString

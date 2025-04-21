@@ -24,6 +24,7 @@ struct InventoryDetailView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
+    @Query private var allItems: [InventoryItem]
     @FocusState private var isPriceFieldFocused: Bool
     @State private var displayPriceString: String = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "")
@@ -309,7 +310,7 @@ struct InventoryDetailView: View {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton && isEditing {
                         Button(action: {
-                            if settings.shouldShowPaywallForAI() {
+                            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
                                 showingPaywall = true
                             } else {
                                 showAIConfirmationAlert = true

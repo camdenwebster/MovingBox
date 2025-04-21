@@ -26,7 +26,7 @@ struct AddInventoryItemView: View {
                 .padding()
             
             Button(action: {
-                if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
                     showingPaywall = true
                 } else {
                     checkCameraPermissionsAndPresent()
@@ -38,7 +38,7 @@ struct AddInventoryItemView: View {
         }
         .navigationTitle("Add New Item")
         .onAppear {
-            if settings.hasReachedItemLimit(currentCount: allItems.count) {
+            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
                 showingPaywall = true
             } else {
                 checkCameraPermissionsAndPresent()
@@ -63,7 +63,7 @@ struct AddInventoryItemView: View {
                     insured: false,
                     assetId: "",
                     notes: "",
-                    showInvalidQuantityAlert: false
+                    showInvalidQuantityAlert: false,
                 )
                 
                 let id = UUID().uuidString

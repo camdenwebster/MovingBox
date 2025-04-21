@@ -74,7 +74,7 @@ struct MovingBoxApp: App {
             
             SentrySDK.start { options in
                 options.dsn = dsn
-                options.debug = AppConfig.shared.configuration == .debug
+//                options.debug = AppConfig.shared.configuration == .debug
                 options.tracesSampleRate = 0.2
                 
                 options.configureProfiling = {
@@ -196,11 +196,6 @@ struct MovingBoxApp: App {
                         await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
                         settings.hasLaunched = true
                     }
-                }
-
-                // Reset paywall state if launch agrument is set
-                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    settings.hasSeenPaywall = false
                 }
 
                 // Determine if we should show the welcome screen
