@@ -28,8 +28,7 @@ struct SettingsView: View {
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
     @State private var selectedSection: SettingsSection? = .categories // Default selection
-    @State private var showingSafariView = false
-    @State private var selectedURL: URL?
+    @State private var safariLink: SafariLinkData? = nil
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
 
@@ -174,10 +173,11 @@ struct SettingsView: View {
                     EmptyView()
                 }
             }
-            .sheet(isPresented: $showingSafariView) {
-                if let url = selectedURL {
-                    SafariView(url: url)
-                }
+            .sheet(item: $safariLink, onDismiss: {
+                print("Safari view dismissed")
+            }) { linkData in
+                SafariView(url: linkData.url)
+                    .edgesIgnoringSafeArea(.all)
             }
             .sheet(isPresented: $showingPaywall) {
                 revenueCatManager.presentPaywall(
@@ -207,13 +207,10 @@ struct SettingsView: View {
         }
     }
     
-    // Helper function to create external link buttons
     private func externalLinkButton(for link: ExternalLink) -> some View {
         Button {
-            // Add print statement for debugging
             print("Button tapped for: \(link.title) with URL: \(link.url.absoluteString)")
-            selectedURL = link.url
-            showingSafariView = true
+            safariLink = SafariLinkData(url: link.url)
         } label: {
             HStack {
                 Label(link.title, systemImage: link.icon)
@@ -226,6 +223,48 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+// MARK: - Safari View
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        print("SafariView - Creating controller for URL: \(url.absoluteString)")
+        let config = SFSafariViewController.Configuration()
+        config.entersReaderIfAvailable = false
+        
+        let safariVC = SFSafariViewController(url: url, configuration: config)
+        safariVC.delegate = context.coordinator
+        return safariVC
+    }
+    
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+        // We don't update the controller - each time we show a new URL, we create a new controller
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, SFSafariViewControllerDelegate {
+        let parent: SafariView
+        
+        init(_ parent: SafariView) {
+            self.parent = parent
+        }
+        
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
+}
+
+// MARK: - Safari Link Data
+struct SafariLinkData: Identifiable {
+    let url: URL
+    let id = UUID()
 }
 
 // MARK: - Settings Menu SubViews
@@ -436,51 +475,6 @@ struct AboutView: View {
     var body: some View {
         Text("About MovingBox")
             .navigationTitle("About")
-    }
-}
-
-// MARK: - SafariView
-struct SafariView: UIViewControllerRepresentable {
-    let url: URL
-    @Environment(\.presentationMode) var presentationMode
-    
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        let configuration = SFSafariViewController.Configuration()
-        configuration.entersReaderIfAvailable = false
-        
-        let safariViewController = SFSafariViewController(url: url, configuration: configuration)
-        safariViewController.delegate = context.coordinator
-        safariViewController.preferredControlTintColor = .systemBlue
-        
-        // Print the URL to help with debugging
-        print("Opening URL: \(url.absoluteString)")
-        
-        return safariViewController
-    }
-    
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, SFSafariViewControllerDelegate {
-        let parent: SafariView
-        
-        init(_ parent: SafariView) {
-            self.parent = parent
-        }
-        
-        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-            parent.presentationMode.wrappedValue.dismiss()
-        }
-        
-        func safariViewController(_ controller: SFSafariViewController, didCompleteInitialLoad didLoadSuccessfully: Bool) {
-            print("Safari view did complete initial load: \(didLoadSuccessfully)")
-            if !didLoadSuccessfully {
-                print("Failed to load URL: \(parent.url.absoluteString)")
-            }
-        }
     }
 }
 
