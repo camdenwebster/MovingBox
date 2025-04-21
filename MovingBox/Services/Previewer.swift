@@ -69,7 +69,7 @@ struct Previewer {
                 assetId: "",
                 notes: "",
                 showInvalidQuantityAlert: false,
-                hasUsedAi: false
+                hasUsedAI: false
             )
             
             if let url = Bundle.main.url(forResource: "microphone", withExtension: "jpg") {

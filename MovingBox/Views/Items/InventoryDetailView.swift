@@ -128,24 +128,28 @@ struct InventoryDetailView: View {
                 Section {
                     Button {
                         guard !isLoadingOpenAiResults else { return }
-                        Task {
-                            do {
-                                let imageDetails = try await callOpenAI()
-                                updateUIWithImageDetails(imageDetails)
-                            } catch OpenAIError.invalidURL {
-                                errorMessage = "Invalid URL configuration"
-                                showingErrorAlert = true
-                            } catch OpenAIError.invalidResponse {
-                                errorMessage = "Error communicating with AI service"
-                                showingErrorAlert = true
-                            } catch OpenAIError.invalidData {
-                                errorMessage = "Unable to process AI response"
-                                showingErrorAlert = true
-                            } catch {
-                                errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                showingErrorAlert = true
+                        if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
+                            showingPaywall = true
+                        } else {
+                                Task {
+                                    do {
+                                        let imageDetails = try await callOpenAI()
+                                        updateUIWithImageDetails(imageDetails)
+                                    } catch OpenAIError.invalidURL {
+                                        errorMessage = "Invalid URL configuration"
+                                        showingErrorAlert = true
+                                    } catch OpenAIError.invalidResponse {
+                                        errorMessage = "Error communicating with AI service"
+                                        showingErrorAlert = true
+                                    } catch OpenAIError.invalidData {
+                                        errorMessage = "Unable to process AI response"
+                                        showingErrorAlert = true
+                                    } catch {
+                                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                                        showingErrorAlert = true
+                                    }
+                                }
                             }
-                        }
                     } label: {
                         HStack {
                             if isLoadingOpenAiResults {

@@ -240,7 +240,7 @@ struct TestData {
                 assetId: "",
                 notes: "",
                 showInvalidQuantityAlert: false,
-                hasUsedAi: true
+                hasUsedAI: true
             )
             
             let itemId = UUID().uuidString
