@@ -397,6 +397,11 @@ struct LabelSettingsView: View {
                 NavigationLink {
                     EditLabelView(label: label)
                 } label: {
+                    Text(label.emoji)
+                        .foregroundStyle(.white)
+                        .padding(7)
+                        .background(in: Capsule())
+                        .backgroundStyle(Color(label.color ?? .blue))
                     Text(label.name)
                 }
             }

@@ -39,25 +39,24 @@ struct InventoryItemRow: View {
             }
             VStack(alignment: .leading) {
                 Text(item.title)
-                if item.make != "" {
-                    Text("Make: \(item.make)")
-                        .detailLabelStyle()
-                } else {
-                    EmptyView()
-                }
-                if item.model != "" {
-                    Text("Model: \(item.model)")
-                        .detailLabelStyle()
-                } else {
-                    EmptyView()
-                }
+//                if item.make != "" {
+//                    Text("Make: \(item.make)")
+//                        .detailLabelStyle()
+//                } else {
+//                    EmptyView()
+//                }
+//                if item.model != "" {
+//                    Text("Model: \(item.model)")
+//                        .detailLabelStyle()
+//                } else {
+//                    EmptyView()
+//                }
             }
             Spacer()
             if let label = item.label {
-                Text(label.name)
+                Text(label.emoji)
                     .foregroundStyle(.white)
-                    .font(.caption)
-                    .padding(5)
+                    .padding(7)
                     .background(in: Capsule())
                     .backgroundStyle(Color(label.color ?? .blue))
             } else {

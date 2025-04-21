@@ -37,6 +37,7 @@ struct DashboardView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) var locations: [InventoryLocation]
+    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) var labels: [InventoryLabel]
     @Query private var items: [InventoryItem]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
@@ -157,6 +158,25 @@ struct DashboardView: View {
                                     LocationItemCard(location: location)
                                         .frame(width: 180)
                                 }
+                            }
+                        }
+                        .scrollTargetLayout()
+                        .padding(.vertical, 8)
+                        .padding(.horizontal)
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                }
+                .padding(.horizontal)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Label Statistics")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHGrid(rows: [locationRow], spacing: 16) {
+                            ForEach(labels) { label in
+                                LocationItemCard(label: label)
+                                    .frame(width: 180)
                             }
                         }
                         .scrollTargetLayout()
