@@ -166,10 +166,10 @@ struct SettingsView: View {
             }
             .navigationDestination(for: Router.Destination.self) { destination in
                 switch destination {
-                case .editLocationView(let location):
-                    EditLocationView(location: location)
-                case .editLabelView(let label):
-                    EditLabelView(label: label)
+                case .editLocationView(let location, let isEditing):
+                    EditLocationView(location: location, isEditing: isEditing)
+                case .editLabelView(let label, let isEditing):
+                    EditLabelView(label: label, isEditing: isEditing)
                 default:
                     EmptyView()
                 }
@@ -371,7 +371,7 @@ struct LocationSettingsView: View {
     }
     
     func addLocation() {
-        router.navigate(to: .editLocationView(location: nil))
+        router.navigate(to: .editLocationView(location: nil, isEditing: true))
     }
     
     func deleteLocations(at offsets: IndexSet) {
@@ -398,7 +398,6 @@ struct LabelSettingsView: View {
                     EditLabelView(label: label)
                 } label: {
                     Text(label.emoji)
-                        .foregroundStyle(.white)
                         .padding(7)
                         .background(in: Capsule())
                         .backgroundStyle(Color(label.color ?? .blue))
@@ -415,7 +414,7 @@ struct LabelSettingsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    router.navigate(to: .editLabelView(label: nil))
+                    router.navigate(to: .editLabelView(label: nil, isEditing: true))
                 } label: {
                     Label("Add Label", systemImage: "plus")
                 }

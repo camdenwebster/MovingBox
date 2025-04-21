@@ -105,10 +105,10 @@ struct MovingBoxApp: App {
             AISettingsView(settings: settings)
         case .inventoryListView(let location):
             InventoryListView(location: location)
-        case .editLocationView(let location):
-            EditLocationView(location: location)
-        case .editLabelView(let label):
-            EditLabelView(label: label)
+        case .editLocationView(let location, let isEditing):
+            EditLocationView(location: location, isEditing: isEditing)
+        case .editLabelView(let label, let isEditing):
+            EditLabelView(label: label, isEditing: isEditing)
         case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
             InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
         case .addInventoryItemView(let location):

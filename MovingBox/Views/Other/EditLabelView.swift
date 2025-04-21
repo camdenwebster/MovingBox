@@ -22,6 +22,12 @@ struct EditLabelView: View {
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
     
+    // MARK: - Add initializer to accept isEditing parameter
+    init(label: InventoryLabel? = nil, isEditing: Bool = false) {
+        self.label = label
+        self._isEditing = State(initialValue: isEditing)
+    }
+    
     // Computed properties
     private var isNewLabel: Bool {
         label == nil
@@ -81,7 +87,6 @@ struct EditLabelView: View {
                         label?.color = UIColor(labelColor)
                         label?.emoji = labelEmoji
                         isEditing = false
-                        router.navigateBack()
                     } else {
                         isEditing = true
                     }
@@ -93,6 +98,8 @@ struct EditLabelView: View {
                     TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
                     print("EditLabelView: Created new label - \(newLabel.name)")
                     print("EditLabelView: Total number of labels after save: \(labels.count)")
+                    isEditing = false
+                    router.navigateBack()
                 }
                 .disabled(labelName.isEmpty)
                 .bold()

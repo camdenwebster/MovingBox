@@ -20,25 +20,13 @@ struct LabelItemCard: View {
     var body: some View {
         VStack(spacing: 0) {
             // Photo section
-            Group {
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 120)
-                        .clipped()
-                } else {
-                    Rectangle()
-                        .fill(Color(.systemGray5))
-                        .frame(width: 160, height: 100)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                        )
-                }
+            VStack {
+                Text(label.emoji)
+                    .font(.system(size: 60))
+                    .frame(height: 100)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(label.color ?? .systemGray5))
             }
-
             
             // Label details
             VStack(alignment: .leading) {
@@ -61,6 +49,7 @@ struct LabelItemCard: View {
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
                     Text(CurrencyFormatter.format(totalReplacementCost))
+                        .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
                 }

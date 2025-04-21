@@ -27,7 +27,8 @@ struct EditLocationView: View {
     @State private var loadingError: Error?
     @State private var showPhotoSourceAlert = false
 
-    init(location: InventoryLocation? = nil) {
+    init(location: InventoryLocation? = nil,
+         isEditing: Bool = false) {
         self.location = location
         if let location = location {
             self._locationInstance = State(initialValue: location)

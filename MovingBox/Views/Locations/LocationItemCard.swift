@@ -25,7 +25,7 @@ struct LocationItemCard: View {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(height: 120)
+                        .frame(height: 100)
                         .clipped()
                 } else {
                     Rectangle()
@@ -68,6 +68,7 @@ struct LocationItemCard: View {
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
                     Text(CurrencyFormatter.format(totalReplacementCost))
+                        .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
                 }

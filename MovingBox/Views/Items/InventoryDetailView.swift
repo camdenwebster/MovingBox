@@ -237,14 +237,14 @@ struct InventoryDetailView: View {
                         if labels.isEmpty == false {
                             Divider()
                             ForEach(labels) { label in
-                                Text(label.name)
+                                Text("\(label.emoji) \(label.name)")
                                 .tag(Optional(label))
                             }
                         }
                     }
                 .disabled(!isEditing)
                 .accessibilityIdentifier("labelPicker")
-                
+                    
                 if isEditing {
                     Button("Add a new Label", action: addLabel)
                     .accessibilityIdentifier("addNewLabel")
@@ -486,13 +486,13 @@ struct InventoryDetailView: View {
         modelContext.insert(location)
         TelemetryManager.shared.trackLocationCreated(name: location.name)
         inventoryItemToDisplay.location = location
-        router.navigate(to: .editLocationView(location: location))
+        router.navigate(to: .editLocationView(location: location, isEditing: true))
     }
     
     private func addLabel() {
         let label = InventoryLabel()
         inventoryItemToDisplay.label = label
-        router.navigate(to: .editLabelView(label: label))
+        router.navigate(to: .editLabelView(label: label, isEditing: true))
     }
     
     private func formatInitialPrice(_ price: Decimal) -> String {
