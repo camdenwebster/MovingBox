@@ -50,7 +50,7 @@ struct EditLocationView: View {
         Form {
             if isEditingEnabled || loadedImage != nil {
                 Section(header: EmptyView()) {
-                    if let uiImage = loadedImage {
+                    if let uiImage = tempUIImage ?? loadedImage {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
@@ -73,11 +73,8 @@ struct EditLocationView: View {
                             .frame(height: UIScreen.main.bounds.height / 3)
                     } else if isEditingEnabled {
                         PhotoPickerView(
-                            model: Binding(
-                                get: { self.location },
-                                set: { _ in }
-                            ),
-                            loadedImage: $loadedImage,
+                            model: $locationInstance,
+                            loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
                             isLoading: $isLoading
                         ) { showPhotoSourceAlert in
                             AddPhotoButton {
