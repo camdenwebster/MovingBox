@@ -9,10 +9,7 @@ struct OnboardingItemView: View {
     @Query private var locations: [InventoryLocation]
     
     @State private var showPrivacyAlert = false
-    @State private var showCamera = false
-    @State private var showItemFlow = false
-    @State private var selectedItem: InventoryItem?
-    @State private var capturedImage: UIImage?
+    @State private var showItemCreationFlow = false
     @State private var isProcessingImage = false
     
     var body: some View {
@@ -89,91 +86,21 @@ struct OnboardingItemView: View {
             }
         }
         .onboardingBackground()
-        // Camera sheet
-        .sheet(isPresented: $showCamera) {
-            NavigationStack {
-                CameraView(
-                    showingImageAnalysis: .constant(false),
-                    analyzingImage: .constant(nil)
-                ) { image, needsAnalysis, completion async -> Void in
-                    isProcessingImage = true
-                    defer { isProcessingImage = false }
-                    
-                    // Create the item first
-                    let newItem = createNewItem()
-                    selectedItem = newItem
-                    
-                    // Save the image
-                    let id = UUID().uuidString
-                    
-                    do {
-                        let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-                        newItem.imageURL = imageURL
-                        try modelContext.save()
-                        
-                        // Update UI state
-                        await MainActor.run {
-                            capturedImage = image
-                            showCamera = false
-                            
-                            // Complete the camera operation
-                            Task {
-                                await completion()
-                                // Show the analysis view after everything is ready
-                                showItemFlow = true
-                            }
-                        }
-                    } catch {
-                        print("Error processing image: \(error)")
-                        await completion()
-                    }
-                }
+        .sheet(isPresented: $showItemCreationFlow) {
+            ItemCreationFlowView(location: locations.first) {
+                manager.moveToNext()
             }
+            .environment(\.isOnboarding, true)
             .interactiveDismissDisabled(isProcessingImage)
-        }
-        // Analysis and Detail sheet
-        .sheet(isPresented: $showItemFlow) {
-            if let image = capturedImage, let item = selectedItem {
-                ItemAnalysisDetailView(
-                    item: item,
-                    image: image
-                ) {
-                    showItemFlow = false
-                    manager.moveToNext()
-                }
-                .environment(\.isOnboarding, true)
-            }
         }
         .alert("Privacy Notice", isPresented: $showPrivacyAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Continue") {
-                showCamera = true
+                showItemCreationFlow = true
             }
         } message: {
             Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\nAI can make mistakes and may not always accurately identify items.")
         }
-    }
-    
-    private func createNewItem() -> InventoryItem {
-        let newItem = InventoryItem(
-            title: "",
-            quantityString: "1",
-            quantityInt: 1,
-            desc: "",
-            serial: "",
-            model: "",
-            make: "",
-            location: locations.first,
-            label: nil,
-            price: Decimal.zero,
-            insured: false,
-            assetId: "",
-            notes: "",
-            showInvalidQuantityAlert: false
-        )
-        modelContext.insert(newItem)
-        try? modelContext.save()
-        return newItem
     }
 }
 
