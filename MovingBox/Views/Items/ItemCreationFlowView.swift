@@ -140,6 +140,7 @@ struct ItemCreationFlowView: View {
             .animation(transitionAnimation, value: currentStep)
             .interactiveDismissDisabled(currentStep != .camera || processingImage)
         }
+        .toolbar(.hidden, for: .navigationBar)
         .onChange(of: analysisComplete) { _, newValue in
             if newValue && currentStep == .analyzing {
                 print("Analysis complete changed to true")

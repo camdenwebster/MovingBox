@@ -206,7 +206,11 @@ final class OptimizedImageManager {
             height: originalSize.height * scale
         )
         
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let format = UIGraphicsImageRendererFormat()
+        format.preferredRange = .standard
+        format.scale = image.scale
+        
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         let resizedImage = renderer.image { context in
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }
