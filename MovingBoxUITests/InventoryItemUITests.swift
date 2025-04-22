@@ -7,6 +7,7 @@
 
 import XCTest
 
+@MainActor
 final class InventoryItemUITests: XCTestCase {
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
@@ -28,6 +29,8 @@ final class InventoryItemUITests: XCTestCase {
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
         tabBar = TabBar(app: app)
+        
+        setupSnapshot(app)
         
         app.launch()
     }

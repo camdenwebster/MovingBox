@@ -116,6 +116,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		196A7F3E2DB49BA000C5C4E8 /* fastlane */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = fastlane; sourceTree = "<group>"; };
 		19B7D9702D9B112200690F64 /* MovingBoxUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxUITests; sourceTree = "<group>"; };
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1981B5C92D9ACB6A007AD7F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
 		19D133A82D72BFB2002448A9 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
@@ -164,6 +165,7 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				196A7F3E2DB49BA000C5C4E8 /* fastlane */,
 				1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */,
 				1961C6FB2D9EBB5F004CF387 /* StoreKitTestCertificate.cer */,
 				19F2CC3F2D9D85210053050B /* .gitattributes */,
@@ -363,6 +365,52 @@
 			knownRegions = (
 				en,
 				Base,
+				de,
+				zh_Hans,
+				he,
+				en_AU,
+				ar,
+				el,
+				ja,
+				uk,
+				es_419,
+				en_US,
+				pt_BR,
+				da,
+				it,
+				bg,
+				sk,
+				kk,
+				pt_PT,
+				ms,
+				sv,
+				cs,
+				ko,
+				zh_Hant,
+				en_CA,
+				no,
+				hu,
+				tr,
+				pl,
+				en_GB,
+				vi,
+				ru,
+				fr_CA,
+				es_ES,
+				fi,
+				id,
+				nl,
+				th,
+				ro,
+				fr_FR,
+				hr,
+				hi,
+				ca,
+				nb,
+				"zh-Hans",
+				"zh-Hant",
+				es,
+				fr,
 			);
 			mainGroup = 1942DC712BF391CB00734AF4;
 			packageReferences = (

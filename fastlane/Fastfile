@@ -1,0 +1,39 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Generate new localized screenshots"
+  lane :screenshots do
+    capture_screenshots(scheme: "MovingBoxUITests")
+  end
+
+  desc "Run UI Tests on multiple devices"
+  lane :ui_tests do
+    # First reset simulators to ensure clean state
+    #reset_simulator_contents
+
+    # Run tests on each device
+    run_tests(
+      #project: "MovingBox.xcodeproj",
+      scheme: "MovingBoxUITests",
+      devices: ["iPhone 16 Pro (18.4)"],
+      #output_directory: "test_output",
+      buildlog_path: "./fastlane/fastlane-buildlog",
+      derived_data_path: "DerivedData"
+    )
+  end
+end
