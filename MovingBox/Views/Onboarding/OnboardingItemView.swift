@@ -99,7 +99,7 @@ struct OnboardingItemView: View {
                 showItemCreationFlow = true
             }
         } message: {
-            Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\nAI can make mistakes and may not always accurately identify items.")
+            Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\n\nAI can make mistakes and may not always accurately identify items.")
         }
     }
 }

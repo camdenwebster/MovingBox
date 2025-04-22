@@ -104,8 +104,17 @@ struct OnboardingHomeView: View {
                 
                 VStack {
                     OnboardingContinueButton {
-                        Task {
-                            await handleContinueButton()
+                        if homeName.isEmpty {
+                            manager.showError(message: "Please enter a name for your home")
+                        } else {
+                            Task {
+                                do {
+                                    try await handleContinueButton()
+                                } catch {
+                                    loadingError = error
+                                    manager.showError(message: "Failed to save home: \(error.localizedDescription)")
+                                }
+                            }
                         }
                     }
                     .accessibilityIdentifier("onboarding-home-continue-button")
@@ -121,33 +130,21 @@ struct OnboardingHomeView: View {
     }
     
     @MainActor
-    private func handleContinueButton() async {
-        if homeName.isEmpty {
-            manager.showError(message: "Please enter a name for your home")
-        } else {
-            do {
-                await saveHomeAndContinue()
-                manager.moveToNext()
-            } catch {
-                loadingError = error
-                print("Failed to save home: \(error)")
-            }
-        }
+    private func handleContinueButton() async throws {
+        try await saveHomeAndContinue()
+        manager.moveToNext()
     }
     
     @MainActor
-    private func saveHomeAndContinue() async {
-        do {
-            if let existingHome = activeHome {
-                existingHome.name = homeName
-            } else {
-                let home = Home()
-                home.name = homeName
-                modelContext.insert(home)
-            }
-        } catch {
-            loadingError = error
-            print("Failed to save home: \(error)")
+    private func saveHomeAndContinue() async throws {
+        if let existingHome = activeHome {
+            existingHome.name = homeName
+            try modelContext.save()
+        } else {
+            let home = Home()
+            home.name = homeName
+            modelContext.insert(home)
+            try modelContext.save()
         }
     }
 }

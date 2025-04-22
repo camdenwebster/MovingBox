@@ -268,6 +268,10 @@ struct ItemCreationFlowView: View {
                     errorMessage = "Error communicating with AI service"
                 case .invalidData:
                     errorMessage = "Unable to process AI response"
+                case .rateLimitExceeded:
+                    errorMessage = "Rate limit exceeded, please try again later"
+                case .serverError(_):
+                    errorMessage = "Server error: \(openAIError.localizedDescription)"
                 @unknown default:
                     errorMessage = "Unknown AI service error"
                 }
