@@ -32,7 +32,13 @@ struct SettingsView: View {
     @State private var safariLink: SafariLinkData? = nil
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
-
+    
+    // ADD: State property for tracking analyzed items count
+    @State private var analyzedItemsCount: Int = 0
+    
+    // ADD: Query for all inventory items
+    @Query private var allItems: [InventoryItem]
+    
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
             title: "Knowledge Base",
@@ -81,6 +87,32 @@ struct SettingsView: View {
         NavigationView {
             List {
                 if !revenueCatManager.isProSubscriptionActive {
+                    Section {
+                        // ADD: Display the usage progress bar
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("AI Analysis Usage")
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(analyzedItemsCount)/50")
+                                    .foregroundColor(.secondary)
+                                    .font(.subheadline)
+                            }
+                            
+                            ProgressView(value: Double(analyzedItemsCount), total: 50)
+                                .tint(progressTintColor)
+                                .background(Color(.systemGray5))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .padding(.bottom, 5)
+                            
+                            Text("\(50 - analyzedItemsCount) free image analyses remaining")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 10)
+                        
+
+                    }
                     Section {
                         Button(action: {
                             showingPaywall = true
@@ -203,7 +235,32 @@ struct SettingsView: View {
                     onDismiss: nil
                 )
             }
+            .onAppear {
+                updateAnalyzedItemsCount()
+            }
+            .onChange(of: allItems) { _, _ in
+                updateAnalyzedItemsCount()
+            }
         }
+    }
+    
+    // ADD: Computed property for progress bar color based on usage
+    private var progressTintColor: Color {
+        let percentage = Double(analyzedItemsCount) / 50.0
+        
+        if percentage < 0.5 {
+            return .green
+        } else if percentage < 0.8 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+    
+    // ADD: Function to count analyzed items from SwiftData
+    private func updateAnalyzedItemsCount() {
+        // Count items that have hasUsedAi = true
+        analyzedItemsCount = allItems.filter { $0.hasUsedAI == true }.count
     }
     
     private struct FeatureRow: View {
