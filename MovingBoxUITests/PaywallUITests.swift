@@ -131,9 +131,6 @@ final class PaywallUITests: XCTestCase {
         
         // When: User attempts actions that would normally show paywall
         tabBar.tapAllItems()
-        
-        snapshot("01_InventoryItemList")
-
         listScreen.tapAddItem()
         listScreen.tapCreateFromCamera()
         

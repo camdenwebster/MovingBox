@@ -18,6 +18,9 @@ default_platform(:ios)
 platform :ios do
   desc "Generate new localized screenshots"
   lane :screenshots do
+    # Set simulator boot timeout
+    ENV["SNAPSHOT_SIMULATOR_WAIT_FOR_BOOT_TIMEOUT"] = "15"
+    
     # Reset simulators
     reset_simulator_contents
     

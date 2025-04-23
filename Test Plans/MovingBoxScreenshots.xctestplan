@@ -1,0 +1,53 @@
+{
+  "configurations" : [
+    {
+      "id" : "2DE57D1B-6507-4D7C-9E12-4FE90A7DB793",
+      "name" : "English",
+      "options" : {
+        "language" : "en",
+        "locationScenario" : {
+          "identifier" : "San Francisco, CA, USA",
+          "referenceType" : "built-in"
+        },
+        "region" : "US"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "areLocalizationScreenshotsEnabled" : true,
+    "maximumTestExecutionTimeAllowance" : 300,
+    "maximumTestRepetitions" : 3,
+    "testRepetitionMode" : "retryOnFailure",
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "skippedTests" : [
+        "InventoryItemUITests",
+        "InventoryItemUITests\/testAddItemFromPhotoViaListView()",
+        "InventoryItemUITests\/testAddItemManuallyViaListViewFromCameraRoll()",
+        "InventoryItemUITests\/testAddItemViaTabBar()",
+        "MovingBoxPerformanceTests",
+        "MovingBoxPerformanceTests\/testLaunchPerformance()",
+        "MovingBoxUITestsLaunchTests",
+        "MovingBoxUITestsLaunchTests\/testLaunch()",
+        "OnboardingUITests",
+        "OnboardingUITests\/testOnboardingHappyPath()",
+        "PaywallUITests",
+        "PaywallUITests\/testAiLimitShowsAlertFromListView()",
+        "PaywallUITests\/testAiLimitShowsAlertFromTabBar()",
+        "PaywallUITests\/testProUserBypassesPaywallForListViewCamera()",
+        "PaywallUITests\/testProUserBypassesPaywallForManualItemCreationOverLimit()",
+        "PaywallUITests\/testProUserBypassesPaywallForTabViewCamera()",
+        "PaywallUITests\/testSettingsViewPaywallButton()"
+      ],
+      "target" : {
+        "containerPath" : "container:MovingBox.xcodeproj",
+        "identifier" : "19B7D96E2D9B112200690F64",
+        "name" : "MovingBoxUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

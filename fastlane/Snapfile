@@ -9,7 +9,7 @@ languages([
   "en-US"
 ])
 
-scheme("MovingBoxUITests")
+scheme("MovingBoxScreenshots")
 output_directory("./fastlane/screenshots")  # Updated to match MindNode example structure
 clear_previous_screenshots(true)
 override_status_bar(true)
@@ -19,4 +19,3 @@ app_identifier("com.mothersound.movingbox")
 # Optional but recommended additions
 concurrent_simulators(3)
 number_of_retries(3)
-stop_after_first_error(true)
