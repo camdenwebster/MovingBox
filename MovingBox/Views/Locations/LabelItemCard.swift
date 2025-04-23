@@ -1,5 +1,5 @@
 //
-//  LocationItemCard.swift
+//  LabelItemCard.swift
 //  MovingBox
 //
 //  Created by Camden Webster on 6/6/24.
@@ -7,49 +7,30 @@
 
 import SwiftUI
 
-struct LocationItemCard: View {
-    var location: InventoryLocation
+struct LabelItemCard: View {
+    var label: InventoryLabel
     var showCost: Bool = false
     @State private var thumbnail: UIImage?
     @State private var loadingError: Error?
     
     private var totalReplacementCost: Decimal {
-        location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
+        label.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
     }
     
     var body: some View {
         VStack(spacing: 0) {
             // Photo section
-            Group {
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 100)
-                        .clipped()
-                } else {
-                    Rectangle()
-                        .fill(Color(.systemGray5))
-                        .frame(width: 160, height: 100)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                        )
-                }
-            }
-            .task(id: location.imageURL) {
-                do {
-                    thumbnail = try await location.thumbnail
-                } catch {
-                    loadingError = error
-                    thumbnail = nil
-                }
+            VStack {
+                Text(label.emoji)
+                    .font(.system(size: 60))
+                    .frame(height: 100)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(label.color ?? .systemGray5))
             }
             
-            // Location details
+            // Label details
             VStack(alignment: .leading) {
-                Text(location.name)
+                Text(label.name)
                     .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color(.label))
@@ -58,7 +39,7 @@ struct LocationItemCard: View {
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
-                    Text("\(location.inventoryItems?.count ?? 0)")
+                    Text("\(label.inventoryItems?.count ?? 0)")
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
                 }
@@ -87,7 +68,7 @@ struct LocationItemCard: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        return LocationItemCard(location: previewer.location)
+        return LabelItemCard(label: previewer.label)
             .modelContainer(previewer.container)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")

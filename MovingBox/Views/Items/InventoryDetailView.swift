@@ -24,6 +24,7 @@ struct InventoryDetailView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
+    @Query private var allItems: [InventoryItem]
     @FocusState private var isPriceFieldFocused: Bool
     @State private var displayPriceString: String = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "")
@@ -127,24 +128,28 @@ struct InventoryDetailView: View {
                 Section {
                     Button {
                         guard !isLoadingOpenAiResults else { return }
-                        Task {
-                            do {
-                                let imageDetails = try await callOpenAI()
-                                updateUIWithImageDetails(imageDetails)
-                            } catch OpenAIError.invalidURL {
-                                errorMessage = "Invalid URL configuration"
-                                showingErrorAlert = true
-                            } catch OpenAIError.invalidResponse {
-                                errorMessage = "Error communicating with AI service"
-                                showingErrorAlert = true
-                            } catch OpenAIError.invalidData {
-                                errorMessage = "Unable to process AI response"
-                                showingErrorAlert = true
-                            } catch {
-                                errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                showingErrorAlert = true
+                        if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
+                            showingPaywall = true
+                        } else {
+                                Task {
+                                    do {
+                                        let imageDetails = try await callOpenAI()
+                                        updateUIWithImageDetails(imageDetails)
+                                    } catch OpenAIError.invalidURL {
+                                        errorMessage = "Invalid URL configuration"
+                                        showingErrorAlert = true
+                                    } catch OpenAIError.invalidResponse {
+                                        errorMessage = "Error communicating with AI service"
+                                        showingErrorAlert = true
+                                    } catch OpenAIError.invalidData {
+                                        errorMessage = "Unable to process AI response"
+                                        showingErrorAlert = true
+                                    } catch {
+                                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                                        showingErrorAlert = true
+                                    }
+                                }
                             }
-                        }
                     } label: {
                         HStack {
                             if isLoadingOpenAiResults {
@@ -232,14 +237,14 @@ struct InventoryDetailView: View {
                         if labels.isEmpty == false {
                             Divider()
                             ForEach(labels) { label in
-                                Text(label.name)
+                                Text("\(label.emoji) \(label.name)")
                                 .tag(Optional(label))
                             }
                         }
                     }
                 .disabled(!isEditing)
                 .accessibilityIdentifier("labelPicker")
-                
+                    
                 if isEditing {
                     Button("Add a new Label", action: addLabel)
                     .accessibilityIdentifier("addNewLabel")
@@ -309,7 +314,7 @@ struct InventoryDetailView: View {
                 if inventoryItemToDisplay.hasUsedAI {
                     if showSparklesButton && isEditing {
                         Button(action: {
-                            if settings.shouldShowPaywallForAI() {
+                            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
                                 showingPaywall = true
                             } else {
                                 showAIConfirmationAlert = true
@@ -481,13 +486,13 @@ struct InventoryDetailView: View {
         modelContext.insert(location)
         TelemetryManager.shared.trackLocationCreated(name: location.name)
         inventoryItemToDisplay.location = location
-        router.navigate(to: .editLocationView(location: location))
+        router.navigate(to: .editLocationView(location: location, isEditing: true))
     }
     
     private func addLabel() {
         let label = InventoryLabel()
         inventoryItemToDisplay.label = label
-        router.navigate(to: .editLabelView(label: label))
+        router.navigate(to: .editLabelView(label: label, isEditing: true))
     }
     
     private func formatInitialPrice(_ price: Decimal) -> String {

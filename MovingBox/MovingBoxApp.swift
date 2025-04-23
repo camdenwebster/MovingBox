@@ -74,7 +74,7 @@ struct MovingBoxApp: App {
             
             SentrySDK.start { options in
                 options.dsn = dsn
-                options.debug = AppConfig.shared.configuration == .debug
+//                options.debug = AppConfig.shared.configuration == .debug
                 options.tracesSampleRate = 0.2
                 
                 options.configureProfiling = {
@@ -105,10 +105,10 @@ struct MovingBoxApp: App {
             AISettingsView(settings: settings)
         case .inventoryListView(let location):
             InventoryListView(location: location)
-        case .editLocationView(let location):
-            EditLocationView(location: location)
-        case .editLabelView(let label):
-            EditLabelView(label: label)
+        case .editLocationView(let location, let isEditing):
+            EditLocationView(location: location, isEditing: isEditing)
+        case .editLabelView(let label, let isEditing):
+            EditLabelView(label: label, isEditing: isEditing)
         case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
             InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
         case .addInventoryItemView(let location):
@@ -196,11 +196,6 @@ struct MovingBoxApp: App {
                         await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
                         settings.hasLaunched = true
                     }
-                }
-
-                // Reset paywall state if launch agrument is set
-                if ProcessInfo.processInfo.arguments.contains("reset-paywall-state") {
-                    settings.hasSeenPaywall = false
                 }
 
                 // Determine if we should show the welcome screen

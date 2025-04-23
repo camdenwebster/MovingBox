@@ -110,8 +110,17 @@ struct OnboardingLocationView: View {
                 
                 VStack {
                     OnboardingContinueButton {
-                        Task {
-                            await saveLocationAndContinue()
+                        if locationName.isEmpty {
+                            manager.showError(message: "Please enter a name for your location")
+                        } else {
+                            Task {
+                                do {
+                                    try await saveLocationAndContinue()
+                                    manager.moveToNext()
+                                } catch {
+                                    manager.showError(message: "Failed to save location: \(error.localizedDescription)")
+                                }
+                            }
                         }
                     }
                     .accessibilityIdentifier("onboarding-location-continue-button")
@@ -126,23 +135,16 @@ struct OnboardingLocationView: View {
         }
     }
     
-    private func saveLocationAndContinue() async {
-        if locationName.isEmpty {
-            return
-        }
-        
-        do {
-            if let existingLocation = locations.first {
-                existingLocation.name = locationInstance.name
-                existingLocation.desc = locationInstance.desc
-                existingLocation.imageURL = locationInstance.imageURL
-            } else {
-                modelContext.insert(locationInstance)
-                TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
-            }
-            manager.moveToNext()
-        } catch {
-            print("Failed to save location: \(error)")
+    private func saveLocationAndContinue() async throws {
+        if let existingLocation = locations.first {
+            existingLocation.name = locationInstance.name
+            existingLocation.desc = locationInstance.desc
+            existingLocation.imageURL = locationInstance.imageURL
+            try modelContext.save()
+        } else {
+            modelContext.insert(locationInstance)
+            try modelContext.save()
+            TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
         }
     }
 }

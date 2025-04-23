@@ -119,12 +119,12 @@ class OpenAIService {
                     ),
                     "make": FunctionParameter(
                         type: "string",
-                        description: "The brand or manufacturer associated with the subject",
+                        description: "The brand or manufacturer associated with the subject, or empty string if unclear",
                         enum_values: nil
                     ),
                     "model": FunctionParameter(
                         type: "string",
-                        description: "The model name or number associated with the subject",
+                        description: "The model name or number associated with the subject, or empty string if unclear",
                         enum_values: nil
                     ),
                     "category": FunctionParameter(
@@ -134,7 +134,7 @@ class OpenAIService {
                     ),
                     "location": FunctionParameter(
                         type: "string",
-                        description: "The most likely room or location in the house",
+                        description: "The most likely room or location in the house to find this item",
                         enum_values: locations
                     ),
                     "price": FunctionParameter(

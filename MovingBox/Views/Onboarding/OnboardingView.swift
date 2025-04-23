@@ -20,7 +20,7 @@ struct OnboardingView: View {
 //                            // Wait briefly for SwiftData sync
 //                            try? await Task.sleep(nanoseconds: 1_000_000_000)
 //                            hasCheckedOnboarding = true
-//                            
+//
 //                            // Check for existing homes and complete onboarding if found
 //                            do {
 //                                let hasExistingData = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
@@ -71,6 +71,9 @@ struct OnboardingView: View {
         .environmentObject(manager)
         .environmentObject(settings)
         .tint(Color.customPrimary)
+        .alert(manager.alertMessage, isPresented: $manager.showAlert) {
+            Button("OK", role: .cancel) { }
+        }
         .onChange(of: manager.hasCompleted) { _, completed in
             if completed {
                 settings.hasLaunched = true

@@ -56,10 +56,9 @@ struct InventoryListSubView: View {
         self.sortOrder = sortOrder
     }
     
+    @MainActor
     private func loadItems() async {
-        await MainActor.run {
-            isLoading = true
-        }
+        isLoading = true
         
         do {
             let descriptor = FetchDescriptor<InventoryItem>(sortBy: sortOrder)
@@ -83,18 +82,15 @@ struct InventoryListSubView: View {
                 }
             }
             
-            await MainActor.run {
-                self.items = allItems
-                self.isLoading = false
-            }
+            self.items = allItems
+            self.isLoading = false
         } catch {
             print("Error loading items: \(error)")
-            await MainActor.run {
-                self.isLoading = false
-            }
+            self.isLoading = false
         }
     }
     
+    @MainActor
     func deleteItems(at offsets: IndexSet) {
         for index in offsets {
             let itemToDelete = items[index]

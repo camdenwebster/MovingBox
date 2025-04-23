@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import SafariServices
+import StoreKit
 
 enum SettingsSection: Hashable {
     case categories
@@ -28,11 +29,16 @@ struct SettingsView: View {
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
     @State private var selectedSection: SettingsSection? = .categories // Default selection
-    @State private var showingSafariView = false
-    @State private var selectedURL: URL?
+    @State private var safariLink: SafariLinkData? = nil
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
-
+    
+    // ADD: State property for tracking analyzed items count
+    @State private var analyzedItemsCount: Int = 0
+    
+    // ADD: Query for all inventory items
+    @Query private var allItems: [InventoryItem]
+    
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
             title: "Knowledge Base",
@@ -47,7 +53,7 @@ struct SettingsView: View {
         "rateUs": ExternalLink(
             title: "Rate Us",
             icon: "star",
-            url: URL(string: "https://movingbox.ai/rate")!
+            url: URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review")!
         ),
         "roadmap": ExternalLink(
             title: "Roadmap",
@@ -81,6 +87,32 @@ struct SettingsView: View {
         NavigationView {
             List {
                 if !revenueCatManager.isProSubscriptionActive {
+                    Section {
+                        // ADD: Display the usage progress bar
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("AI Analysis Usage")
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(analyzedItemsCount)/50")
+                                    .foregroundColor(.secondary)
+                                    .font(.subheadline)
+                            }
+                            
+                            ProgressView(value: Double(analyzedItemsCount), total: 50)
+                                .tint(progressTintColor)
+                                .background(Color(.systemGray5))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .padding(.bottom, 5)
+                            
+                            Text("\(50 - analyzedItemsCount) free image analyses remaining")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 10)
+                        
+
+                    }
                     Section {
                         Button(action: {
                             showingPaywall = true
@@ -129,7 +161,20 @@ struct SettingsView: View {
                     externalLinkButton(for: externalLinks["knowledgeBase"]!)
                     externalLinkButton(for: externalLinks["support"]!)
                     externalLinkButton(for: externalLinks["bugs"]!)
-                    externalLinkButton(for: externalLinks["rateUs"]!)
+                    
+                    Button {
+                        requestAppReview()
+                    } label: {
+                        HStack {
+                            Label("Rate Us", systemImage: "star")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
                 
                 
@@ -166,18 +211,19 @@ struct SettingsView: View {
             }
             .navigationDestination(for: Router.Destination.self) { destination in
                 switch destination {
-                case .editLocationView(let location):
-                    EditLocationView(location: location)
-                case .editLabelView(let label):
-                    EditLabelView(label: label)
+                case .editLocationView(let location, let isEditing):
+                    EditLocationView(location: location, isEditing: isEditing)
+                case .editLabelView(let label, let isEditing):
+                    EditLabelView(label: label, isEditing: isEditing)
                 default:
                     EmptyView()
                 }
             }
-            .sheet(isPresented: $showingSafariView) {
-                if let url = selectedURL {
-                    SafariView(url: url)
-                }
+            .sheet(item: $safariLink, onDismiss: {
+                print("Safari view dismissed")
+            }) { linkData in
+                SafariView(url: linkData.url)
+                    .edgesIgnoringSafeArea(.all)
             }
             .sheet(isPresented: $showingPaywall) {
                 revenueCatManager.presentPaywall(
@@ -189,7 +235,32 @@ struct SettingsView: View {
                     onDismiss: nil
                 )
             }
+            .onAppear {
+                updateAnalyzedItemsCount()
+            }
+            .onChange(of: allItems) { _, _ in
+                updateAnalyzedItemsCount()
+            }
         }
+    }
+    
+    // ADD: Computed property for progress bar color based on usage
+    private var progressTintColor: Color {
+        let percentage = Double(analyzedItemsCount) / 50.0
+        
+        if percentage < 0.5 {
+            return .green
+        } else if percentage < 0.8 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+    
+    // ADD: Function to count analyzed items from SwiftData
+    private func updateAnalyzedItemsCount() {
+        // Count items that have hasUsedAi = true
+        analyzedItemsCount = allItems.filter { $0.hasUsedAI == true }.count
     }
     
     private struct FeatureRow: View {
@@ -207,13 +278,10 @@ struct SettingsView: View {
         }
     }
     
-    // Helper function to create external link buttons
     private func externalLinkButton(for link: ExternalLink) -> some View {
         Button {
-            // Add print statement for debugging
             print("Button tapped for: \(link.title) with URL: \(link.url.absoluteString)")
-            selectedURL = link.url
-            showingSafariView = true
+            safariLink = SafariLinkData(url: link.url)
         } label: {
             HStack {
                 Label(link.title, systemImage: link.icon)
@@ -226,6 +294,60 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
     }
+    
+    private func requestAppReview() {
+        if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: scene)
+            print("Requested app review")
+        } else {
+            if let url = URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review") {
+                UIApplication.shared.open(url)
+                print("Opening App Store URL for review")
+            }
+        }
+    }
+}
+
+// MARK: - Safari View
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        print("SafariView - Creating controller for URL: \(url.absoluteString)")
+        let config = SFSafariViewController.Configuration()
+        config.entersReaderIfAvailable = false
+        
+        let safariVC = SFSafariViewController(url: url, configuration: config)
+        safariVC.delegate = context.coordinator
+        return safariVC
+    }
+    
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+        // We don't update the controller - each time we show a new URL, we create a new controller
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, SFSafariViewControllerDelegate {
+        let parent: SafariView
+        
+        init(_ parent: SafariView) {
+            self.parent = parent
+        }
+        
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
+}
+
+// MARK: - Safari Link Data
+struct SafariLinkData: Identifiable {
+    let url: URL
+    let id = UUID()
 }
 
 // MARK: - Settings Menu SubViews
@@ -331,7 +453,6 @@ struct LocationSettingsView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @State private var showingPaywall = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
@@ -357,30 +478,13 @@ struct LocationSettingsView: View {
         }
         .navigationTitle("Location Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingPaywall) {
-            revenueCatManager.presentPaywall(
-                isPresented: $showingPaywall,
-                onCompletion: {
-                    settings.isPro = true
-                    // Continue with attempted action after successful purchase
-                    if settings.canAddMoreLocations(currentCount: locations.count) {
-                        router.navigate(to: .editLocationView(location: nil))
-                    }
-                },
-                onDismiss: nil
-            )
-        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Add Location", systemImage: "plus") {
-                    if settings.hasReachedLocationLimit(currentCount: locations.count) {
-                        showingPaywall = true
-                    } else {
-                        addLocation()
-                    }
+                    addLocation()
                 }
                 .accessibilityIdentifier("addLocation")
             }
@@ -389,7 +493,7 @@ struct LocationSettingsView: View {
     }
     
     func addLocation() {
-        router.navigate(to: .editLocationView(location: nil))
+        router.navigate(to: .editLocationView(location: nil, isEditing: true))
     }
     
     func deleteLocations(at offsets: IndexSet) {
@@ -415,6 +519,10 @@ struct LabelSettingsView: View {
                 NavigationLink {
                     EditLabelView(label: label)
                 } label: {
+                    Text(label.emoji)
+                        .padding(7)
+                        .background(in: Circle())
+                        .backgroundStyle(Color(label.color ?? .blue))
                     Text(label.name)
                 }
             }
@@ -428,7 +536,7 @@ struct LabelSettingsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    router.navigate(to: .editLabelView(label: nil))
+                    router.navigate(to: .editLabelView(label: nil, isEditing: true))
                 } label: {
                     Label("Add Label", systemImage: "plus")
                 }
@@ -450,51 +558,6 @@ struct AboutView: View {
     var body: some View {
         Text("About MovingBox")
             .navigationTitle("About")
-    }
-}
-
-// MARK: - SafariView
-struct SafariView: UIViewControllerRepresentable {
-    let url: URL
-    @Environment(\.presentationMode) var presentationMode
-    
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        let configuration = SFSafariViewController.Configuration()
-        configuration.entersReaderIfAvailable = false
-        
-        let safariViewController = SFSafariViewController(url: url, configuration: configuration)
-        safariViewController.delegate = context.coordinator
-        safariViewController.preferredControlTintColor = .systemBlue
-        
-        // Print the URL to help with debugging
-        print("Opening URL: \(url.absoluteString)")
-        
-        return safariViewController
-    }
-    
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, SFSafariViewControllerDelegate {
-        let parent: SafariView
-        
-        init(_ parent: SafariView) {
-            self.parent = parent
-        }
-        
-        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-            parent.presentationMode.wrappedValue.dismiss()
-        }
-        
-        func safariViewController(_ controller: SFSafariViewController, didCompleteInitialLoad didLoadSuccessfully: Bool) {
-            print("Safari view did complete initial load: \(didLoadSuccessfully)")
-            if !didLoadSuccessfully {
-                print("Failed to load URL: \(parent.url.absoluteString)")
-            }
-        }
     }
 }
 

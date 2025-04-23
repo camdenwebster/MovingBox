@@ -52,36 +52,31 @@ struct InventoryListView: View {
                         print("📱 InventoryListView - Add Item button tapped")
                         print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
                         print("📱 InventoryListView - Items count: \(allItems.count)")
-                        if settings.hasReachedItemLimit(currentCount: allItems.count) {
-                            print("📱 InventoryListView - Showing paywall")
-                            showingPaywall = true
-                        } else {
-                            print("📱 InventoryListView - Creating new item")
-                            let newItem = InventoryItem(
-                                title: "",
-                                quantityString: "1",
-                                quantityInt: 1,
-                                desc: "",
-                                serial: "",
-                                model: "",
-                                make: "",
-                                location: location,
-                                label: nil,
-                                price: Decimal.zero,
-                                insured: false,
-                                assetId: "",
-                                notes: "",
-                                showInvalidQuantityAlert: false
-                            )
-                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                        }
+                        print("📱 InventoryListView - Creating new item")
+                        let newItem = InventoryItem(
+                            title: "",
+                            quantityString: "1",
+                            quantityInt: 1,
+                            desc: "",
+                            serial: "",
+                            model: "",
+                            make: "",
+                            location: location,
+                            label: nil,
+                            price: Decimal.zero,
+                            insured: false,
+                            assetId: "",
+                            notes: "",
+                            showInvalidQuantityAlert: false
+                        )
+                        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
                     }) {
                         Label("Add Manually", systemImage: "square.and.pencil")
                     }
                     .accessibilityIdentifier("createManually")
                     
                     Button(action: {
-                        if settings.hasReachedItemLimit(currentCount: allItems.count) {
+                        if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
                             showingPaywall = true
                         } else {
                             router.navigate(to: .addInventoryItemView(location: location))
@@ -99,25 +94,23 @@ struct InventoryListView: View {
                     isPresented: $showingPaywall,
                     onCompletion: {
                         settings.isPro = true
-                        if settings.canAddMoreItems(currentCount: allItems.count) {
-                            let newItem = InventoryItem(
-                                title: "",
-                                quantityString: "1",
-                                quantityInt: 1,
-                                desc: "",
-                                serial: "",
-                                model: "",
-                                make: "",
-                                location: location,
-                                label: nil,
-                                price: Decimal.zero,
-                                insured: false,
-                                assetId: "",
-                                notes: "",
-                                showInvalidQuantityAlert: false
-                            )
-                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                        }
+                        let newItem = InventoryItem(
+                            title: "",
+                            quantityString: "1",
+                            quantityInt: 1,
+                            desc: "",
+                            serial: "",
+                            model: "",
+                            make: "",
+                            location: location,
+                            label: nil,
+                            price: Decimal.zero,
+                            insured: false,
+                            assetId: "",
+                            notes: "",
+                            showInvalidQuantityAlert: false
+                        )
+                        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
                     },
                     onDismiss: nil
                 )
