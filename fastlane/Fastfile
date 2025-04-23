@@ -18,20 +18,42 @@ default_platform(:ios)
 platform :ios do
   desc "Generate new localized screenshots"
   lane :screenshots do
-    capture_screenshots(scheme: "MovingBoxUITests")
+    # Reset simulators
+    reset_simulator_contents
+    
+    # Capture screenshots
+    capture_screenshots
+    
+    # Frame screenshots - using the simpler syntax from MindNode example
+    frameit(
+      white: false,
+      filter: "01_.*\.png",
+      path: './fastlane/screenshots'
+    )
+  end
+
+  desc "Generate frames for existing screenshots"
+  lane :frame_screenshots do
+    # Using the simpler syntax from MindNode example
+    frameit(
+      white: false,
+      filter: "01_.*\.png",
+      path: './fastlane/screenshots'
+    )
   end
 
   desc "Run UI Tests on multiple devices"
   lane :ui_tests do
     # First reset simulators to ensure clean state
-    #reset_simulator_contents
+    reset_simulator_contents
 
     # Run tests on each device
     run_tests(
-      #project: "MovingBox.xcodeproj",
+      project: "MovingBox.xcodeproj",
       scheme: "MovingBoxUITests",
-      devices: ["iPhone 16 Pro (18.4)"],
-      #output_directory: "test_output",
+      devices: ["iPhone 14 Pro (18.4)",
+                "iPhone 14 Pro Max (18.4)"
+            ],
       buildlog_path: "./fastlane/fastlane-buildlog",
       derived_data_path: "DerivedData"
     )

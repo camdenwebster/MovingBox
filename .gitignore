@@ -96,3 +96,4 @@ StoreKitTestCertificate.cer
 /MovingBox/.venv
 screenshots
 test_output
+fastlane/fastlane-buildlog

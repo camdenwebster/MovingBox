@@ -32,7 +32,6 @@ final class DashboardUITests: XCTestCase {
         
         setupSnapshot(app)
         
-        app.launch()
     }
     
     override func tearDownWithError() throws {
@@ -45,9 +44,23 @@ final class DashboardUITests: XCTestCase {
     func testDashboardElementsExistWithTestData() throws {
         // Given MovingBox has data in the inventory
         app.launchArguments.append("Use-Test-Data")
+        app.launch()
+
         // When the user launches the app
         // Then the dashboard should display the correct elements with the data
         sleep(5)
         snapshot("01_Dashboard")
+    }
+    
+    func testLocationsElementsExistWithTestData() throws {
+        // Given MovingBox has data in the inventory
+        app.launchArguments.append("Use-Test-Data")
+        app.launch()
+
+        // When the user launches the app
+        // Then the dashboard should display the correct elements with the data
+        sleep(5)
+        tabBar.locationsTab.tap()
+        snapshot("01_Locations")
     }
 }

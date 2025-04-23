@@ -1,24 +1,22 @@
 # Snapfile
 devices([
-    "iPhone 16 Pro Max",
-    "iPhone 16 Pro",
-    "iPad Pro 13-inch (M4)",
+  "iPhone 14 Pro Max",
+  "iPhone 14 Pro",
+  "iPad Pro 13-inch (M4)"  # Correct iPad name
 ])
 
 languages([
-    "en-US",
-#   "de-DE",
-#   "it-IT",
-#   ["pt", "pt_BR"] # Portuguese with Brazilian locale
+  "en-US"
 ])
 
 scheme("MovingBoxUITests")
-output_directory("./screenshots")
+output_directory("./screenshots")  # Updated to match MindNode example structure
 clear_previous_screenshots(true)
 override_status_bar(true)
+reinstall_app(true)
+app_identifier("com.mothersound.movingbox")
 
-# Arguments to pass to the app on launch. See https://docs.fastlane.tools/actions/snapshot/#launch-arguments
-# launch_arguments(["-favColor red"])
-
-# For more information about all available options run
-# fastlane action snapshot
+# Optional but recommended additions
+concurrent_simulators(3)
+number_of_retries(3)
+stop_after_first_error(true)
