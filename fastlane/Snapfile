@@ -10,7 +10,7 @@ languages([
 ])
 
 scheme("MovingBoxUITests")
-output_directory("./screenshots")  # Updated to match MindNode example structure
+output_directory("./fastlane/screenshots")  # Updated to match MindNode example structure
 clear_previous_screenshots(true)
 override_status_bar(true)
 reinstall_app(true)

@@ -94,6 +94,7 @@ iOSInjectionProject/
 MovingBox/Configuration/Base.xcconfig
 StoreKitTestCertificate.cer
 /MovingBox/.venv
-screenshots
+fastlane/screenshots/*/*.png
 test_output
 fastlane/fastlane-buildlog
+screenshots/*/*.png

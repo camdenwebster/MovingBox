@@ -22,22 +22,15 @@ platform :ios do
     reset_simulator_contents
     
     # Capture screenshots
-    capture_screenshots
+    capture_ios_screenshots
     
-    # Frame screenshots - using the simpler syntax from MindNode example
-    frameit(
-      white: false,
-      filter: "01_.*\.png",
-      path: './fastlane/screenshots'
-    )
+    generate_frames
   end
 
   desc "Generate frames for existing screenshots"
-  lane :frame_screenshots do
-    # Using the simpler syntax from MindNode example
+  lane :generate_frames do
     frameit(
       white: false,
-      filter: "01_.*\.png",
       path: './fastlane/screenshots'
     )
   end
