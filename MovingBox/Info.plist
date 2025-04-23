@@ -8,6 +8,10 @@
 	<string>MovingBox will notify you on important dates such as warranty or insurance expirations</string>
 	<key>REVENUE_CAT_API_KEY</key>
 	<string>$(REVENUE_CAT_API_KEY)</string>
+	<key>TELEMETRY_DECK_APP_ID</key>
+	<string>$(TELEMETRY_DECK_APP_ID)</string>
+	<key>SENTRY_DSN</key>
+	<string>$(SENTRY_DSN)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

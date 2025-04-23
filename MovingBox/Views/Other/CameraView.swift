@@ -9,6 +9,7 @@ struct CameraView: View {
     @Binding var analyzingImage: UIImage?
     @State private var capturedImage: UIImage?
     @State private var showingPermissionDenied = false
+    @State private var isProcessingCapture = false
     
     var onPhotoCapture: ((UIImage, Bool, @escaping () async -> Void) async -> Void)?
     
@@ -40,14 +41,19 @@ struct CameraView: View {
                 }
             }
         }
+        .disabled(isProcessingCapture)
         .onDisappear {
-            capturedImage = nil
+            // Only clear the image if we're not in the middle of processing
+            if !isProcessingCapture {
+                capturedImage = nil
+            }
         }
     }
     
     private func handleCapturedImage(_ newImage: UIImage?) {
         Task {
             if let image = newImage {
+                isProcessingCapture = true
                 analyzingImage = image
                 showingImageAnalysis = true
                 
@@ -55,6 +61,7 @@ struct CameraView: View {
                     Task { @MainActor in
                         showingImageAnalysis = false
                         analyzingImage = nil
+                        isProcessingCapture = false
                     }
                 }
             }
@@ -92,7 +99,6 @@ struct MockCameraView: View {
             
             Button("Take Photo") {
                 image = UIImage(named: imageName)
-                dismiss()
             }
             .accessibilityIdentifier("takePhotoButton")
             .padding()
@@ -155,7 +161,6 @@ struct ImagePicker: UIViewControllerRepresentable {
             if let image = info[.originalImage] as? UIImage {
                 parent.image = image
             }
-            picker.dismiss(animated: true)
         }
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {

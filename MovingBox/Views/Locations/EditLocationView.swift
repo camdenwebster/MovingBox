@@ -27,7 +27,8 @@ struct EditLocationView: View {
     @State private var loadingError: Error?
     @State private var showPhotoSourceAlert = false
 
-    init(location: InventoryLocation? = nil) {
+    init(location: InventoryLocation? = nil,
+         isEditing: Bool = false) {
         self.location = location
         if let location = location {
             self._locationInstance = State(initialValue: location)
@@ -49,7 +50,7 @@ struct EditLocationView: View {
         Form {
             if isEditingEnabled || loadedImage != nil {
                 Section(header: EmptyView()) {
-                    if let uiImage = loadedImage {
+                    if let uiImage = tempUIImage ?? loadedImage {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
@@ -75,9 +76,9 @@ struct EditLocationView: View {
                             model: $locationInstance,
                             loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
                             isLoading: $isLoading
-                        ) { isPresented in
+                        ) { showPhotoSourceAlert in
                             AddPhotoButton {
-                                isPresented.wrappedValue = true
+                                showPhotoSourceAlert.wrappedValue = true
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)

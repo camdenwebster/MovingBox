@@ -7,6 +7,13 @@ We are excited to prepare for our 1.0 launch, and we will greatly appreciate any
 - Testing on a wide variety of iPhone/iPad models
 
 What's New?
+0.9.0
+- Added emoji support for Labels
+- Added a "Label statistics" section to the dashboard
+- Free tier now includes 50 free AI image analysis calls with unlimited items and locations
+- Added a progress indicator to the Settings view to help you track your usage of the free AI image analysis calls
+- Bug fixes and enhancements as we approach general availability
+
 0.8.0
 - iCloud synchronization should be up and running! Try installing MovingBox on multiple devices and let us know how it goes.
 - Began to implement a paywall to support monetization. First 50 AI image analysis calls will be free.

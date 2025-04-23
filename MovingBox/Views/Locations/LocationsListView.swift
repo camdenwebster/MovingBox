@@ -16,7 +16,6 @@ struct LocationsListView: View {
     @EnvironmentObject var settings: SettingsManager
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
-    @State private var showingPaywall = false
     @State private var showingCamera = false
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
@@ -44,11 +43,7 @@ struct LocationsListView: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
                         Button {
-                            if settings.hasReachedLocationLimit(currentCount: locations.count) {
-                                showingPaywall = true
-                            } else {
-                                addLocation()
-                            }
+                            addLocation()
                         } label: {
                             Label("Add Location", systemImage: "plus")
                         }
@@ -76,11 +71,7 @@ struct LocationsListView: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
                         Button {
-                            if settings.hasReachedLocationLimit(currentCount: locations.count) {
-                                showingPaywall = true
-                            } else {
-                                addLocation()
-                            }
+                            addLocation()
                         } label: {
                             Label("Add Location", systemImage: "plus")
                         }
@@ -100,18 +91,6 @@ struct LocationsListView: View {
         }
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)
-        .sheet(isPresented: $showingPaywall) {
-            revenueCatManager.presentPaywall(
-                isPresented: $showingPaywall,
-                onCompletion: {
-                    settings.isPro = true
-                    if settings.canAddMoreLocations(currentCount: locations.count) {
-                        router.navigate(to: .editLocationView(location: nil))
-                    }
-                },
-                onDismiss: nil
-            )
-        }
         .background(Color(.systemGroupedBackground))
         .onAppear {
             print("LocationsListView: Total number of locations: \(locations.count)")

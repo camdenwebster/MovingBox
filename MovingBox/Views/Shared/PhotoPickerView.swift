@@ -10,6 +10,7 @@ struct PhotoPickerView<T: PhotoManageable>: View {
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
+    @State private var cameraImage: UIImage? = nil
     let showRemoveButton: Bool
     private let contentProvider: ((Binding<Bool>) -> AnyView)?
     
@@ -89,12 +90,15 @@ struct PhotoPickerView<T: PhotoManageable>: View {
             }
         }
         .sheet(isPresented: $showCamera) {
-            CameraView(
-                showingImageAnalysis: .constant(false),
-                analyzingImage: .constant(nil)
-            ) { image, _, completion async -> Void in
-                await handleNewImage(image)
-                await completion()
+            SimpleCameraView(capturedImage: $cameraImage)
+        }
+        .onChange(of: cameraImage) { _, newImage in
+            if let image = newImage {
+                Task {
+                    await handleNewImage(image)
+                    cameraImage = nil
+                    showCamera = false
+                }
             }
         }
     }

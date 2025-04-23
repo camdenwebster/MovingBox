@@ -270,6 +270,7 @@ struct EditHomeView: View {
                         isEditing = true
                     }
                 }
+                .font(isEditing ? .body.bold() : .body)
             } else {
                 Button("Save") {
                     Task {
@@ -304,6 +305,7 @@ struct EditHomeView: View {
                     }
                 }
                 .disabled(tempHome.address1.isEmpty)
+                .bold()
             }
         }
     }

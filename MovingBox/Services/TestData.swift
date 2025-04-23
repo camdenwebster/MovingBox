@@ -60,16 +60,29 @@ struct TestData {
         ("Basement", "Finished basement with storage", "basement")
     ]
     
-    // Sample labels with softer, more pleasing colors
-    static let labels: [(name: String, desc: String, color: UIColor)] = [
-        ("Electronics", "Computers, phones, and gadgets", UIColor(red: 0.95, green: 0.61, blue: 0.61, alpha: 1.0)),   // Soft red
-        ("Furniture", "Chairs, tables, and storage", UIColor(red: 0.82, green: 0.71, blue: 0.55, alpha: 1.0)),       // Warm beige
-        ("Kitchen", "Appliances and cookware", UIColor(red: 0.73, green: 0.87, blue: 0.68, alpha: 1.0)),           // Sage green
-        ("Books", "Books and magazines", UIColor(red: 0.67, green: 0.84, blue: 0.90, alpha: 1.0)),                 // Powder blue
-        ("Art", "Paintings and decorative items", UIColor(red: 0.85, green: 0.75, blue: 0.86, alpha: 1.0)),        // Soft lavender
-        ("Tools", "Hand tools and power tools", UIColor(red: 0.80, green: 0.80, blue: 0.83, alpha: 1.0)),         // Cool gray
-        ("Sports", "Exercise and sports equipment", UIColor(red: 0.96, green: 0.76, blue: 0.56, alpha: 1.0)),      // Peach
-        ("Clothing", "Clothes and accessories", UIColor(red: 0.69, green: 0.88, blue: 0.90, alpha: 1.0))          // Light teal
+    // Sample labels with softer, more pleasing colors and emojis
+    static let labels: [(name: String, desc: String, color: UIColor, emoji: String)] = [
+        ("Electronics", "Computers, phones, and gadgets", UIColor(red: 0.95, green: 0.61, blue: 0.61, alpha: 1.0), "📱"),   // Soft red
+        ("Furniture", "Chairs, tables, and storage", UIColor(red: 0.82, green: 0.71, blue: 0.55, alpha: 1.0), "🪑"),       // Warm beige
+        ("Kitchen", "Appliances and cookware", UIColor(red: 0.73, green: 0.87, blue: 0.68, alpha: 1.0), "🍳"),           // Sage green
+        ("Books", "Books and magazines", UIColor(red: 0.67, green: 0.84, blue: 0.90, alpha: 1.0), "📚"),                 // Powder blue
+        ("Art", "Paintings and decorative items", UIColor(red: 0.85, green: 0.75, blue: 0.86, alpha: 1.0), "🎨"),        // Soft lavender
+        ("Tools", "Hand tools and power tools", UIColor(red: 0.80, green: 0.80, blue: 0.83, alpha: 1.0), "🔧"),         // Cool gray
+        ("Sports", "Exercise and sports equipment", UIColor(red: 0.96, green: 0.76, blue: 0.56, alpha: 1.0), "🏀"),      // Peach
+        ("Clothing", "Clothes and accessories", UIColor(red: 0.69, green: 0.88, blue: 0.90, alpha: 1.0), "👕"),          // Light teal
+        // Additional labels
+        ("Jewelry", "Watches, necklaces, and rings", UIColor(red: 0.90, green: 0.85, blue: 0.60, alpha: 1.0), "💍"),      // Pale gold
+        ("Documents", "Important papers and files", UIColor(red: 0.87, green: 0.87, blue: 0.87, alpha: 1.0), "📄"),      // Light gray
+        ("Collectibles", "Figurines, stamps, and memorabilia", UIColor(red: 0.78, green: 0.70, blue: 0.84, alpha: 1.0), "🏆"), // Medium purple
+        ("Seasonal", "Holiday decorations and items", UIColor(red: 0.92, green: 0.70, blue: 0.70, alpha: 1.0), "🎄"),    // Light coral
+        ("Bathroom", "Towels, toiletries, and accessories", UIColor(red: 0.65, green: 0.85, blue: 0.85, alpha: 1.0), "🚿"), // Light cyan
+        ("Toys", "Children's toys and games", UIColor(red: 0.94, green: 0.82, blue: 0.65, alpha: 1.0), "🧸"),           // Light orange
+        ("Gardening", "Plants, pots, and garden tools", UIColor(red: 0.60, green: 0.80, blue: 0.60, alpha: 1.0), "🌱"),  // Medium green
+        ("Technology", "Chargers, cables, and accessories", UIColor(red: 0.75, green: 0.75, blue: 0.95, alpha: 1.0), "💻"), // Periwinkle
+        ("Memorabilia", "Personal mementos and keepsakes", UIColor(red: 0.85, green: 0.80, blue: 0.70, alpha: 1.0), "🎞️"), // Light tan
+        ("Pet Supplies", "Pet food, toys, and accessories", UIColor(red: 0.80, green: 0.90, blue: 0.75, alpha: 1.0), "🐾"), // Mint green
+        ("Media", "DVDs, CDs, and physical media", UIColor(red: 0.70, green: 0.65, blue: 0.75, alpha: 1.0), "💿"),      // Muted purple
+        ("Decorative", "Home decor and ornamental items", UIColor(red: 0.90, green: 0.80, blue: 0.90, alpha: 1.0), "🏺")  // Light pink
     ]
     
     // Sample inventory items with local image paths
@@ -168,7 +181,8 @@ struct TestData {
             let label = InventoryLabel(
                 name: labelData.name,
                 desc: labelData.desc,
-                color: labelData.color
+                color: labelData.color,
+                emoji: labelData.emoji
             )
             context.insert(label)
         }
@@ -181,7 +195,8 @@ struct TestData {
             let label = InventoryLabel(
                 name: labelData.name,
                 desc: labelData.desc,
-                color: labelData.color
+                color: labelData.color,
+                emoji: labelData.emoji
             )
             modelContext.insert(label)
             return label
@@ -239,7 +254,8 @@ struct TestData {
                 insured: false,
                 assetId: "",
                 notes: "",
-                showInvalidQuantityAlert: false
+                showInvalidQuantityAlert: false,
+                hasUsedAI: true
             )
             
             let itemId = UUID().uuidString

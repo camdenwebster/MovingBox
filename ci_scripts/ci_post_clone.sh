@@ -35,6 +35,27 @@ if [ -z "$JWT_SECRET" ]; then
     JWT_SECRET="development-placeholder-jwt-secret"
 fi
 
+# Check if TELEMETRY_DECK_APP_ID environment variable is set in Xcode Cloud
+if [ -z "$TELEMETRY_DECK_APP_ID" ]; then
+    echo "Warning: TELEMETRY_DECK_APP_ID environment variable is not set."
+    echo "Using placeholder value for development purposes."
+    TELEMETRY_DECK_APP_ID="development-placeholder-td-app-id"
+fi
+
+# Check if REVENUE_CAT_API_KEY environment variable is set in Xcode Cloud
+if [ -z "$REVENUE_CAT_API_KEY" ]; then
+    echo "Warning: REVENUE_CAT_API_KEY environment variable is not set."
+    echo "Using placeholder value for development purposes."
+    REVENUE_CAT_API_KEY="development-placeholder-revenuecat-api-key"
+fi
+
+# Check if SENTRY_DSN environment variable is set in Xcode Cloud
+if [ -z "$SENTRY_DSN" ]; then
+    echo "Warning: SENTRY_DSN environment variable is not set."
+    echo "Using placeholder value for development purposes."
+    SENTRY_DSN="development-placeholder-sentry-dsn"
+fi
+
 # Create the Base.xcconfig file from template if it exists
 if [ -f "$TEMPLATE_FILE" ]; then
     echo "Generating $OUTPUT_FILE from template..."
@@ -64,4 +85,14 @@ echo "========================================================"
 # Add preview of REVENUE_CAT_API_KEY (first 5 characters)
 RC_API_KEY_PREVIEW=$(grep "REVENUE_CAT_API_KEY" "$OUTPUT_FILE" | cut -d "=" -f2 | tr -d ' ' | cut -c1-5)
 echo "REVENUE_CAT_API_KEY preview (first 5 chars): ${RC_API_KEY_PREVIEW}..."
+echo "========================================================"
+
+# Add preview of TELEMETRY_DECK_APP_ID (first 5 characters)
+TELEMETRY_DECK_APP_ID_PREVIEW=$(grep "TELEMETRY_DECK_APP_ID" "$OUTPUT_FILE" | cut -d "=" -f2 | tr -d ' ' | cut -c1-5)
+echo "TELEMETRY_DECK_APP_ID preview (first 5 chars): ${TELEMETRY_DECK_APP_ID_PREVIEW}..."
+echo "========================================================"
+
+# Add preview of SENTRY_DSN (first 5 characters)
+SENTRY_DSN_PREVIEW=$(grep "SENTRY_DSN" "$OUTPUT_FILE" | cut -d "=" -f2 | tr -d ' ' | cut -c1-5)
+echo "SENTRY_DSN preview (first 5 chars): ${SENTRY_DSN_PREVIEW}..."
 echo "========================================================"

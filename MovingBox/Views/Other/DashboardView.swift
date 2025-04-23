@@ -37,6 +37,7 @@ struct DashboardView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) var locations: [InventoryLocation]
+    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) var labels: [InventoryLabel]
     @Query private var items: [InventoryItem]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
@@ -58,7 +59,7 @@ struct DashboardView: View {
         GridItem(.flexible())
     ]
     
-    private let locationRow = GridItem(.fixed(160))
+    private let row = GridItem(.fixed(160))
 
     var body: some View {
         ScrollView {
@@ -145,18 +146,37 @@ struct DashboardView: View {
                 }
                 .padding(.horizontal)
                 
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Location Statistics")
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
                     ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHGrid(rows: [locationRow], spacing: 16) {
+                        LazyHGrid(rows: [row], spacing: 16) {
                             ForEach(locations) { location in
                                 NavigationLink(value: Router.Destination.inventoryListView(location: location)) {
                                     LocationItemCard(location: location)
-                                        .frame(width: 180)
+                                        .frame(width: 150)
                                 }
+                            }
+                        }
+                        .scrollTargetLayout()
+                        .padding(.vertical, 8)
+                        .padding(.horizontal)
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                }
+                .padding(.horizontal)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Label Statistics")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHGrid(rows: [row], spacing: 16) {
+                            ForEach(labels) { label in
+                                LabelItemCard(label: label)
+                                    .frame(width: 150)
                             }
                         }
                         .scrollTargetLayout()
