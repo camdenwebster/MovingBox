@@ -1,6 +1,5 @@
-
-"01_InventoryItemBeforeAnalysis" = "AI vision";
-"01_InventoryItemAfterAnalysis" = "No typing required";
-"01_Dashboard" = "Inventory Dashboard;
-"01_Locations" = "Organize by Room";
-"01_InventoryItemList" = "Inventory Lists";
+"01_InventoryItemBeforeAnalysis" = "AI Photo Recognition";
+"01_InventoryItemAfterAnalysis" = "Instant Item Cataloging";
+"01_Dashboard" = "Complete Home Inventory";
+"01_Locations" = "Room-by-Room Organization";
+"01_InventoryItemList" = "Insurance-Ready Lists";

@@ -1,6 +1,5 @@
-
-"01_InventoryItemBeforeAnalysis" = "Home inventory powered by";
-"01_InventoryItemAfterAnalysis" = "Populate inventory details from a single photo";
-"01_Dashboard" = "View inventory statistics at a glance";
-"01_Locations" = "Keep track of item locations";
-"01_InventoryItemList" = "Be prepared in the event of loss, theft or damage";
+"01_InventoryItemBeforeAnalysis" = "Take photos to instantly catalog your belongings";
+"01_InventoryItemAfterAnalysis" = "AI identifies and documents items automatically";
+"01_Dashboard" = "Track value and details of everything you own";
+"01_Locations" = "Find any item in seconds, anywhere in your home";
+"01_InventoryItemList" = "Keep inventory records ready for insurance needs";
