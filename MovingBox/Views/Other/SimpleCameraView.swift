@@ -55,14 +55,14 @@ struct MockSimpleCameraView: View {
     var body: some View {
         VStack {
             Spacer()
-            Image("bicycle")
+            Image("tablet")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 200, height: 200)
                 .padding()
             
             Button("Take Photo") {
-                image = UIImage(named: "bicycle")
+                image = UIImage(named: "tablet")
             }
             .accessibilityIdentifier("takePhotoButton")
             .padding()
