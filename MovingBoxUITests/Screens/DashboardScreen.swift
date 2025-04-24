@@ -20,7 +20,6 @@ class DashboardScreen {
     }
     
     
-    
     func testDataLoaded() -> Bool {
         var iterations = 0
         let expectedItemCount = "50"

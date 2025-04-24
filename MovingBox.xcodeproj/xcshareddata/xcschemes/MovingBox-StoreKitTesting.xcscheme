@@ -76,7 +76,11 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "UI-Testing"
+            argument = "Use-Test-Data"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "UI-Testing-Mock-Camera"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

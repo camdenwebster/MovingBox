@@ -1,0 +1,21 @@
+# Snapfile
+devices([
+  "iPhone 14 Pro Max",
+  "iPhone 14 Pro",
+  "iPad Pro 13-inch (M4)"  # Correct iPad name
+])
+
+languages([
+  "en-US"
+])
+
+scheme("MovingBoxScreenshots")
+output_directory("./fastlane/screenshots")  # Updated to match MindNode example structure
+clear_previous_screenshots(true)
+override_status_bar(true)
+reinstall_app(true)
+app_identifier("com.mothersound.movingbox")
+
+# Optional but recommended additions
+concurrent_simulators(3)
+number_of_retries(3)

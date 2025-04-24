@@ -1,0 +1,57 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Generate new localized screenshots"
+  lane :screenshots do
+    # Set simulator boot timeout
+    ENV["SNAPSHOT_SIMULATOR_WAIT_FOR_BOOT_TIMEOUT"] = "15"
+    
+    # Reset simulators
+    reset_simulator_contents
+    
+    # Capture screenshots
+    capture_ios_screenshots
+    
+    generate_frames
+  end
+
+  desc "Generate frames for existing screenshots"
+  lane :generate_frames do
+    frameit(
+      white: false,
+      path: './fastlane/screenshots'
+    )
+  end
+
+  desc "Run UI Tests on multiple devices"
+  lane :ui_tests do
+    # First reset simulators to ensure clean state
+    reset_simulator_contents
+
+    # Run tests on each device
+    run_tests(
+      project: "MovingBox.xcodeproj",
+      scheme: "MovingBoxUITests",
+      devices: ["iPhone 14 Pro (18.4)",
+                "iPhone 14 Pro Max (18.4)"
+            ],
+      buildlog_path: "./fastlane/fastlane-buildlog",
+      derived_data_path: "DerivedData"
+    )
+  end
+end

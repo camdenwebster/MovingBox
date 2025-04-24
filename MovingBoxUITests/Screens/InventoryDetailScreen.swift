@@ -75,6 +75,14 @@ class InventoryDetailScreen {
         self.cancelButton = app.sheets.buttons["cancel"]
     }
     
+    func takePhotoWithCamera() {
+        // Open the confirmation dialog to add a photo
+        tapToAddPhotoButton.tap()
+        
+        // Handle the confirmation dialog to use camera or library
+        takePhotoButton.tap()
+    }
+    
     func addPhotoFromLibrary() {
         // Open the confirmation dialog to add a photo
         tapToAddPhotoButton.tap()

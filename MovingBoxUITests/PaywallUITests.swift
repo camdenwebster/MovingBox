@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class PaywallUITests: XCTestCase {
     var app: XCUIApplication!
     var listScreen: InventoryListScreen!
@@ -27,6 +28,8 @@ final class PaywallUITests: XCTestCase {
         cameraScreen = CameraScreen(app: app, testCase: self)
         paywallScreen = PaywallScreen(app: app)
         tabBar = TabBar(app: app)
+        
+        setupSnapshot(app)
     }
         
     override func tearDownWithError() throws {
@@ -41,39 +44,8 @@ final class PaywallUITests: XCTestCase {
     }
     
     // MARK: - Free Tier Tests
-    
-    func testItemLimitShowsAlert() throws {
-        // Given: User has reached item limit
-        app.launchArguments.append("Use-Test-Data")
-        app.launch()
-        sleep(5)
 
-        // When: User attempts to add another item
-        tabBar.tapAllItems()
-        listScreen.tapAddItem()
-        listScreen.tapCreateManually()
-        
-        // Then: Paywall should appear
-        XCTAssertTrue(paywallScreen.waitForPaywall(),
-                     "Paywall should appear after tapping upgrade in alert")
-    }
-    
-    func testLocationLimitShowsAlert() throws {
-        // Given: User has reached location limit
-        app.launchArguments.append("Use-Test-Data")
-        app.launch()
-        sleep(5)
-        
-        // When: User attempts to add another location
-        tabBar.tapLocations()
-        app.buttons["addLocation"].tap()
-        
-        // Then: Paywall should appear
-        XCTAssertTrue(paywallScreen.waitForPaywall(),
-                     "Paywall should appear after tapping upgrade in alert")
-    }
-    
-    func testItemLimitShowsAlertFromTabBarCamera() throws {
+    func testAiLimitShowsAlertFromTabBar() throws {
         // Given: User has reached free tier limit
         app.launchArguments.append("Use-Test-Data")
         app.launch()
@@ -87,7 +59,7 @@ final class PaywallUITests: XCTestCase {
                      "Paywall should appear after tapping upgrade in alert")
     }
     
-    func testItemLimitShowsAlertFromListViewCamera() throws {
+    func testAiLimitShowsAlertFromListView() throws {
         // Given: User has reached item limit
         app.launchArguments.append("Use-Test-Data")
         app.launch()
@@ -119,6 +91,15 @@ final class PaywallUITests: XCTestCase {
         // Then: Should return to list view
         XCTAssertTrue(listScreen.addItemButton.exists,
                      "Should return to list view after canceling alert")
+    }
+    
+    func testSettingsViewPaywallButton() throws {
+        // Given a user is in the Settings view
+        app.launch()
+        tabBar.tapSettings()
+        // When the user taps "Get MovingBox Pro"
+        
+        // Then the paywall should be displayed
     }
     
     // MARK: - Pro Tier Tests

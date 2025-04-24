@@ -7,6 +7,7 @@
 
 import XCTest
 
+@MainActor
 final class InventoryItemUITests: XCTestCase {
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
@@ -28,6 +29,8 @@ final class InventoryItemUITests: XCTestCase {
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
         tabBar = TabBar(app: app)
+        
+        setupSnapshot(app)
         
         app.launch()
     }
@@ -72,7 +75,7 @@ final class InventoryItemUITests: XCTestCase {
     func testAddItemManuallyViaListViewFromCameraRoll() throws {
         // Given: User is on the All Items tab
         tabBar.tapAllItems()
-        
+
         // When: User initiates adding an item manually
         listScreen.tapAddItem()
         listScreen.tapCreateManually()
@@ -93,7 +96,6 @@ final class InventoryItemUITests: XCTestCase {
         // Then: Detail view should be updated after AI analysis completes
         XCTAssertTrue(detailScreen.sparklesButton.waitForExistence(timeout: 10),
                      "Detail view should be updated after AI analysis")
-        
         // And: Fields should be populated with AI analysis results
         verifyPopulatedFields()
         

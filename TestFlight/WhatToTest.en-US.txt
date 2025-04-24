@@ -7,6 +7,9 @@ We are excited to prepare for our 1.0 launch, and we will greatly appreciate any
 - Testing on a wide variety of iPhone/iPad models
 
 What's New?
+1.0.0
+- Release candidate! Last change to test all major features prior to launch
+
 0.9.0
 - Added emoji support for Labels
 - Added a "Label statistics" section to the dashboard
