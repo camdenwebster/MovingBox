@@ -98,5 +98,6 @@ fastlane/screenshots/*/*.png
 test_output
 fastlane/fastlane-buildlog
 screenshots/*/*.png
+screenshots/*.html
 
 .sentryclirc
