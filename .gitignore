@@ -101,3 +101,4 @@ screenshots/*/*.png
 screenshots/*.html
 
 .sentryclirc
+fastlane/screenshots/screenshots.html

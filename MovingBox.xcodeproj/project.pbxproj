@@ -173,7 +173,6 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
-				1995E01B2DB98CEE004E4914 /* MovingBoxScreenshots.xctestplan */,
 				1995DD642DB902C3004E4914 /* screenshots */,
 				196A7F3E2DB49BA000C5C4E8 /* fastlane */,
 				1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */,
@@ -181,6 +180,7 @@
 				19F2CC3F2D9D85210053050B /* .gitattributes */,
 				1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */,
 				19B7D9912D9B364800690F64 /* MovingBoxTests.xctestplan */,
+				1995E01B2DB98CEE004E4914 /* MovingBoxScreenshots.xctestplan */,
 				19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */,
 				19B7D9902D9B362E00690F64 /* MovingBoxUITests.xctestplan */,
 				1937AABA2D938F6D00C68797 /* ci_scripts */,

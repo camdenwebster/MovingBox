@@ -2,7 +2,7 @@
 devices([
   "iPhone 14 Pro Max",
   "iPhone 14 Pro",
-  "iPad Pro 13-inch (M4)"  # Correct iPad name
+  "iPad Pro (12.9-inch) (4th generation)"  # Correct iPad name
 ])
 
 languages([

@@ -23,24 +23,11 @@
   "testTargets" : [
     {
       "parallelizable" : true,
-      "skippedTests" : [
-        "InventoryItemUITests",
-        "InventoryItemUITests\/testAddItemFromPhotoViaListView()",
-        "InventoryItemUITests\/testAddItemManuallyViaListViewFromCameraRoll()",
-        "InventoryItemUITests\/testAddItemViaTabBar()",
-        "MovingBoxPerformanceTests",
-        "MovingBoxPerformanceTests\/testLaunchPerformance()",
-        "MovingBoxUITestsLaunchTests",
-        "MovingBoxUITestsLaunchTests\/testLaunch()",
-        "OnboardingUITests",
-        "OnboardingUITests\/testOnboardingHappyPath()",
-        "PaywallUITests",
-        "PaywallUITests\/testAiLimitShowsAlertFromListView()",
-        "PaywallUITests\/testAiLimitShowsAlertFromTabBar()",
-        "PaywallUITests\/testProUserBypassesPaywallForListViewCamera()",
-        "PaywallUITests\/testProUserBypassesPaywallForManualItemCreationOverLimit()",
-        "PaywallUITests\/testProUserBypassesPaywallForTabViewCamera()",
-        "PaywallUITests\/testSettingsViewPaywallButton()"
+      "selectedTests" : [
+        "FastlaneSnapshots\/testDashboardSnapshot()",
+        "FastlaneSnapshots\/testItemDetailViewSnapshots()",
+        "FastlaneSnapshots\/testItemListViewSnapshot()",
+        "FastlaneSnapshots\/testLocationsSnapshot()"
       ],
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",

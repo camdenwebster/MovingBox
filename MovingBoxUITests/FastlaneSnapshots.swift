@@ -1,5 +1,5 @@
 //
-//  DashboardUITests.swift
+//  FastlaneSnapshots.swift
 //  MovingBox
 //
 //  Created by Camden Webster on 4/19/25.
