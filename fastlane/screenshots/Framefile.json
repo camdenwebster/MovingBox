@@ -1,22 +1,24 @@
 {
   "default": {
-    "keyword": {
+    "title": {
       "fonts": [
         {
           "font": "./fonts/SF-Pro-Display-Regular.otf",
           "supported": ["en-US"]
         }
       ],
-      "color": "#FFFFFF"
+      "color": "#666666",
+      "font_size": 48
     },
-    "title": {
+    "keyword": {
       "fonts": [
         {
           "font": "./fonts/SF-Pro-Display-Bold.otf",
           "supported": ["en-US"]
         }
       ],
-      "color": "#FFFFFF"
+      "color": "#333333",
+      "font_size": 64
     },
     "background": "./background.png",
     "stack_title": true,
@@ -29,7 +31,7 @@
     {
       "filter": "01_.*\\.png",      
       "keyword": {
-        "color": "#FFFFFF"
+        "color": "#333333"
       }
     }
   ]

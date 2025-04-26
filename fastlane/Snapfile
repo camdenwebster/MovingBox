@@ -15,6 +15,7 @@ clear_previous_screenshots(true)
 override_status_bar(true)
 reinstall_app(true)
 app_identifier("com.mothersound.movingbox")
+skip_open_summary(true)
 
 # Optional but recommended additions
 concurrent_simulators(3)

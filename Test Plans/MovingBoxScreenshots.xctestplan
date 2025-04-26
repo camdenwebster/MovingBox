@@ -24,10 +24,7 @@
     {
       "parallelizable" : true,
       "selectedTests" : [
-        "FastlaneSnapshots\/testDashboardSnapshot()",
-        "FastlaneSnapshots\/testItemDetailViewSnapshots()",
-        "FastlaneSnapshots\/testItemListViewSnapshot()",
-        "FastlaneSnapshots\/testLocationsSnapshot()"
+        "FastlaneSnapshots\/testItemDetailViewSnapshots()"
       ],
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",
