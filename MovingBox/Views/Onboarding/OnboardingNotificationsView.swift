@@ -69,6 +69,7 @@ struct OnboardingNotificationsView: View {
                             }
                         }, title: "Enable Notifications")
                         .accessibilityIdentifier("notificationsButton")
+                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         
                     case .denied:
                         Text("Notifications are currently disabled")
@@ -89,7 +90,7 @@ struct OnboardingNotificationsView: View {
                             onboardingManager.moveToNext()
                         })
                         .accessibilityIdentifier("notificationsButton")
-
+                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         
                     case .authorized, .provisional, .ephemeral:
                         Text("Notifications enabled! ")
@@ -101,12 +102,14 @@ struct OnboardingNotificationsView: View {
                             onboardingManager.moveToNext()
                         })
                         .accessibilityIdentifier("notificationsButton")
-
+                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         
                     @unknown default:
                         EmptyView()
                     }
+
                 }
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal)
             }
         }
