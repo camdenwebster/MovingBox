@@ -122,6 +122,8 @@ struct MovingBoxApp: App {
                     AddInventoryItemView(location: location)
                 case .locationsSettingsView:
                     LocationSettingsView()
+                case .subscriptionSettingsView:
+                    SubscriptionSettingsView()
                 }
             }
         )
@@ -288,6 +290,24 @@ struct MainTabView: View {
                 SettingsView()
                     .navigationDestination(for: Router.Destination.self) { destination in
                         destinationView(destination, router.path(for: .settings))
+                    }
+                    .navigationDestination(for: String.self) { destination in
+                        switch destination {
+                        case "appearance":
+                            AppearanceSettingsView()
+                        case "notifications":
+                            NotificationSettingsView()
+                        case "ai":
+                            AISettingsView(settings: SettingsManager())
+                        case "locations":
+                            LocationSettingsView()
+                        case "labels":
+                            LabelSettingsView()
+                        case "home":
+                            EditHomeView()
+                        default:
+                            EmptyView()
+                        }
                     }
             }
             .tabItem {

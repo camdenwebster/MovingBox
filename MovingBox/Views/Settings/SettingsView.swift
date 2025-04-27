@@ -84,167 +84,136 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationView {
-            List {
-                if !revenueCatManager.isProSubscriptionActive {
-                    Section {
-                        // ADD: Display the usage progress bar
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text("AI Analysis Usage")
-                                    .font(.headline)
-                                Spacer()
-                                Text("\(analyzedItemsCount)/50")
-                                    .foregroundColor(.secondary)
-                                    .font(.subheadline)
-                            }
-                            
-                            ProgressView(value: Double(analyzedItemsCount), total: 50)
-                                .tint(progressTintColor)
-                                .background(Color(.systemGray5))
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                                .padding(.bottom, 5)
-                            
-                            Text("\(50 - analyzedItemsCount) free image analyses remaining")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.vertical, 10)
-                        
-
-                    }
-                    Section {
-                        Button(action: {
-                            showingPaywall = true
-                        }) {
-                            Text("Get MovingBox Pro")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.accentColor)
-                                .cornerRadius(10)
-                        }
-                        .foregroundColor(.customPrimary)
-                        .listRowInsets(EdgeInsets())
-                    }
-                }
-                
-                Section("Home Settings") {
-                    NavigationLink(value: "home") {
-                        Label("Home Details", systemImage: "house")
-                    }
-                    NavigationLink(value: "locations") {
-                        Label("Location Settings", systemImage: "location")
-                    }
-                    NavigationLink(value: "labels") {
-                        Label("Label Settings", systemImage: "tag")
-                    }
-                }
-                
-                if revenueCatManager.isProSubscriptionActive {
-                    Section("Subscription Status") {
-                        NavigationLink {
-                            SubscriptionSettingsView()
-                        } label: {
-                            Label("Subscription Details", systemImage: "creditcard")
-                        }
-                    }
-                }
-                
-                Section("Sync & Backup") {
-                    Text("Your data is automatically synced across all your devices using iCloud")
-                        .foregroundStyle(.secondary)
-                }
-                
-                Section("Community & Support") {
-                    externalLinkButton(for: externalLinks["knowledgeBase"]!)
-                    externalLinkButton(for: externalLinks["support"]!)
-                    externalLinkButton(for: externalLinks["bugs"]!)
-                    
-                    Button {
-                        requestAppReview()
-                    } label: {
+        List {
+            if !revenueCatManager.isProSubscriptionActive {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Label("Rate Us", systemImage: "star")
+                            Text("AI Analysis Usage")
+                                .font(.headline)
                             Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text("\(analyzedItemsCount)/50")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
                         }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                
-                
-                Section("About") {
-                    HStack {
-                        Label("Version", systemImage: "info.circle")
-                        Spacer()
-                        Text(appVersion)
+                        
+                        ProgressView(value: Double(analyzedItemsCount), total: 50)
+                            .tint(progressTintColor)
+                            .background(Color(.systemGray5))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .padding(.bottom, 5)
+                        
+                        Text("\(50 - analyzedItemsCount) free image analyses remaining")
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    externalLinkButton(for: externalLinks["roadmap"]!)
-                    externalLinkButton(for: externalLinks["privacyPolicy"]!)
-                    externalLinkButton(for: externalLinks["termsOfService"]!)
+                    .padding(.vertical, 10)
+                }
+                
+                Section {
+                    Button(action: {
+                        showingPaywall = true
+                    }) {
+                        Text("Get MovingBox Pro")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.accentColor)
+                            .cornerRadius(10)
+                    }
+                    .foregroundColor(.customPrimary)
+                    .listRowInsets(EdgeInsets())
                 }
             }
-            .navigationTitle("Settings")
-            .navigationDestination(for: String.self) { destination in
-                switch destination {
-                case "appearance":
-                    AppearanceSettingsView()
-                case "notifications":
-                    NotificationSettingsView()
-                case "ai":
-                    AISettingsView(settings: settingsManager)
-                case "locations":
-                    LocationSettingsView()
-                case "labels":
-                    LabelSettingsView()
-                case "home":
-                    EditHomeView()
-                default:
-                    EmptyView()
+            
+            Section("Home Settings") {
+                NavigationLink(value: "home") {
+                    Label("Home Details", systemImage: "house")
+                }
+                NavigationLink(value: "locations") {
+                    Label("Location Settings", systemImage: "map")
+                }
+                NavigationLink(value: "labels") {
+                    Label("Label Settings", systemImage: "tag")
                 }
             }
-            .navigationDestination(for: Router.Destination.self) { destination in
-                switch destination {
-                case .editLocationView(let location, let isEditing):
-                    EditLocationView(location: location, isEditing: isEditing)
-                case .editLabelView(let label, let isEditing):
-                    EditLabelView(label: label, isEditing: isEditing)
-                default:
-                    EmptyView()
+            
+            if revenueCatManager.isProSubscriptionActive {
+                Section("Subscription Status") {
+                    NavigationLink(value: Router.Destination.subscriptionSettingsView) {
+                        Label("Subscription Details", systemImage: "creditcard")
+                    }
                 }
             }
-            .sheet(item: $safariLink, onDismiss: {
-                print("Safari view dismissed")
-            }) { linkData in
-                SafariView(url: linkData.url)
-                    .edgesIgnoringSafeArea(.all)
+            
+            Section("Sync & Backup") {
+                Text("Your data is automatically synced across all your devices using iCloud")
+                    .foregroundStyle(.secondary)
             }
-            .sheet(isPresented: $showingPaywall) {
-                revenueCatManager.presentPaywall(
-                    isPresented: $showingPaywall,
-                    onCompletion: {
-                        // Update settings manager when purchase completes
-                        settingsManager.isPro = true
-                    },
-                    onDismiss: nil
-                )
+            
+            Section("Community & Support") {
+                ForEach([
+                    externalLinks["knowledgeBase"]!,
+                    externalLinks["support"]!,
+                    externalLinks["bugs"]!
+                ], id: \.title) { link in
+                    externalLinkButton(for: link)
+                }
+                
+                Button {
+                    requestAppReview()
+                } label: {
+                    HStack {
+                        Label("Rate Us", systemImage: "star")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .onAppear {
-                updateAnalyzedItemsCount()
+            
+            Section("About") {
+                HStack {
+                    Label("Version", systemImage: "info.circle")
+                    Spacer()
+                    Text(appVersion)
+                        .foregroundColor(.secondary)
+                }
+                ForEach([
+                    externalLinks["roadmap"]!,
+                    externalLinks["privacyPolicy"]!,
+                    externalLinks["termsOfService"]!
+                ], id: \.title) { link in
+                    externalLinkButton(for: link)
+                }
             }
-            .onChange(of: allItems) { _, _ in
-                updateAnalyzedItemsCount()
-            }
+        }
+        .navigationTitle("Settings")
+        .sheet(item: $safariLink) { linkData in
+            SafariView(url: linkData.url)
+                .edgesIgnoringSafeArea(.all)
+        }
+        .sheet(isPresented: $showingPaywall) {
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: {
+                    settingsManager.isPro = true
+                },
+                onDismiss: nil
+            )
+        }
+        .onAppear {
+            updateAnalyzedItemsCount()
+        }
+        .onChange(of: allItems) { _, _ in
+            updateAnalyzedItemsCount()
         }
     }
     
-    // ADD: Computed property for progress bar color based on usage
     private var progressTintColor: Color {
         let percentage = Double(analyzedItemsCount) / 50.0
         
@@ -514,31 +483,39 @@ struct LabelSettingsView: View {
     ]) var labels: [InventoryLabel]
     
     var body: some View {
-        List {
-            ForEach(labels) { label in
-                NavigationLink {
-                    EditLabelView(label: label)
-                } label: {
-                    Text(label.emoji)
-                        .padding(7)
-                        .background(in: Circle())
-                        .backgroundStyle(Color(label.color ?? .blue))
-                    Text(label.name)
+        if labels.isEmpty {
+            ContentUnavailableView(
+                "No Labels",
+                systemImage: "tag",
+                description: Text("Add labels to categorize your items.")
+            )
+        } else {
+            List {
+                ForEach(labels) { label in
+                    NavigationLink {
+                        EditLabelView(label: label)
+                    } label: {
+                        Text(label.emoji)
+                            .padding(7)
+                            .background(in: Circle())
+                            .backgroundStyle(Color(label.color ?? .blue))
+                        Text(label.name)
+                    }
                 }
+                .onDelete(perform: deleteLabel)
             }
-            .onDelete(perform: deleteLabel)
-        }
-        .navigationTitle("Label Settings")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    router.navigate(to: .editLabelView(label: nil, isEditing: true))
-                } label: {
-                    Label("Add Label", systemImage: "plus")
+            .navigationTitle("Label Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        router.navigate(to: .editLabelView(label: nil, isEditing: true))
+                    } label: {
+                        Label("Add Label", systemImage: "plus")
+                    }
                 }
             }
         }
