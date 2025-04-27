@@ -89,12 +89,6 @@ struct OnboardingWelcomeView: View {
                 .animation(.easeInOut, value: isProcessing)
             }
         }
-        .onboardingBackground()
-        .alert("Error", isPresented: $manager.showAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(manager.alertMessage)
-        }
         .onAppear {
             let animation: Animation? = disableAnimations ? nil : .easeOut(duration: 0.6)
             
@@ -132,37 +126,45 @@ struct OnboardingWelcomeView: View {
         isProcessing = true
         
         Task {
-            do {
-                let isUiTesting = ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
-                
+            let isUiTesting = ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
+            
+            // Try RevenueCat sync
+            if !isUiTesting {
                 await updateStatusMessage("Checking subscription status...")
-                if !isUiTesting {
+                do {
                     try await revenueCatManager.updateCustomerInfo()
                     try await revenueCatManager.syncPurchases()
+                } catch {
+                    print("⚠️ RevenueCat sync failed: \(error)")
                 }
-                
-                await updateStatusMessage("Checking for existing data...")
+            }
+            
+            // Try checking for existing data
+            await updateStatusMessage("Checking for existing data...")
+            do {
                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
-                
                 if shouldDismiss {
                     await updateStatusMessage("Complete! Redirecting...")
                     manager.markOnboardingComplete()
-                } else {
-                    await updateStatusMessage("Setting up default data...")
-                    await DefaultDataManager.populateDefaultData(modelContext: modelContext)
-                    manager.moveToNext()
-                }
-                
-                await MainActor.run {
-                    isProcessing = false
-                    statusMessage = ""
+                    return
                 }
             } catch {
-                await MainActor.run {
-                    isProcessing = false
-                    statusMessage = ""
-                    manager.showError(message: "Unable to check subscription status. Please make sure network connection is active and try again.")
-                }
+                print("⚠️ Onboarding state check failed: \(error)")
+            }
+            
+            // Try setting up default data
+            await updateStatusMessage("Setting up default data...")
+            do {
+                await DefaultDataManager.populateDefaultData(modelContext: modelContext)
+            } catch {
+                print("⚠️ Default data setup failed: \(error)")
+            }
+            
+            // Continue with onboarding
+            await MainActor.run {
+                isProcessing = false
+                statusMessage = ""
+                manager.moveToNext()
             }
         }
     }

@@ -109,7 +109,6 @@ struct OnboardingNotificationsView: View {
                 }
                 .padding(.horizontal)
             }
-            .onboardingBackground()
         }
     }
 }

@@ -123,7 +123,6 @@ struct OnboardingHomeView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .onboardingBackground()
         .task {
             await loadExistingData()
         }

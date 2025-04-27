@@ -71,7 +71,6 @@ struct OnboardingCompletionView: View {
                 OnboardingContinueButton(action: completeOnboarding, title: "Get Started")
                     .accessibilityIdentifier("onboarding-completion-continue-button")
             }
-            .onboardingBackground()
             .sheet(isPresented: $showingPaywall, onDismiss: {
                 print("📱 OnboardingCompletionView - Paywall sheet dismissed")
                 finishOnboarding()

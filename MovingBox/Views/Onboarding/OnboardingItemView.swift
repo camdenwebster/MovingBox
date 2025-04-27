@@ -85,7 +85,6 @@ struct OnboardingItemView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .onboardingBackground()
         .sheet(isPresented: $showItemCreationFlow) {
             ItemCreationFlowView(location: locations.first) {
                 manager.moveToNext()
