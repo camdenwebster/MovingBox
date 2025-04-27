@@ -228,50 +228,38 @@ struct InventoryDetailView: View {
                 .disabled(!isEditing)
                 .accessibilityIdentifier("insuredToggle")
             }
-            if isEditing || inventoryItemToDisplay.label != nil {
-                Section {
-                    Picker("Label", selection: $inventoryItemToDisplay.label) {
-                        Text("None")
-                            .tag(Optional<InventoryLabel>.none)
-                        
-                        if labels.isEmpty == false {
-                            Divider()
-                            ForEach(labels) { label in
-                                Text("\(label.emoji) \(label.name)")
-                                .tag(Optional(label))
+            Section("Locations & Labels") {
+                if isEditing || inventoryItemToDisplay.location != nil {
+                        Picker("Location", selection: $inventoryItemToDisplay.location) {
+                            Text("None")
+                                .tag(Optional<InventoryLocation>.none)
+                            
+                            if locations.isEmpty == false {
+                                Divider()
+                                ForEach(locations) { location in
+                                    Text(location.name)
+                                    .tag(Optional(location))
+                                }
                             }
                         }
-                    }
-                .disabled(!isEditing)
-                .accessibilityIdentifier("labelPicker")
-                    
-                if isEditing {
-                    Button("Add a new Label", action: addLabel)
-                    .accessibilityIdentifier("addNewLabel")
+                    .disabled(!isEditing)
+                    .accessibilityIdentifier("locationPicker")
                 }
-                }
-            }
-            if isEditing || inventoryItemToDisplay.location != nil {
-                Section {
-                    Picker("Location", selection: $inventoryItemToDisplay.location) {
-                        Text("None")
-                            .tag(Optional<InventoryLocation>.none)
-                        
-                        if locations.isEmpty == false {
-                            Divider()
-                            ForEach(locations) { location in
-                                Text(location.name)
-                                .tag(Optional(location))
+                if isEditing || inventoryItemToDisplay.label != nil {
+                        Picker("Label", selection: $inventoryItemToDisplay.label) {
+                            Text("None")
+                                .tag(Optional<InventoryLabel>.none)
+                            
+                            if labels.isEmpty == false {
+                                Divider()
+                                ForEach(labels) { label in
+                                    Text("\(label.emoji) \(label.name)")
+                                    .tag(Optional(label))
+                                }
                             }
                         }
-                    }
-                .disabled(!isEditing)
-                .accessibilityIdentifier("locationPicker")
-                
-                if isEditing {
-                    Button("Add a new Location", action: addLocation)
-                    .accessibilityIdentifier("addNewLocation")
-                }
+                    .disabled(!isEditing)
+                    .accessibilityIdentifier("labelPicker")
                 }
             }
             if isEditing || !inventoryItemToDisplay.notes.isEmpty {

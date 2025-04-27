@@ -128,21 +128,47 @@ struct SettingsView: View {
             }
             
             Section("Home Settings") {
-                NavigationLink(value: "home") {
-                    Label("Home Details", systemImage: "house")
-                }
-                NavigationLink(value: "locations") {
-                    Label("Location Settings", systemImage: "map")
-                }
-                NavigationLink(value: "labels") {
-                    Label("Label Settings", systemImage: "tag")
+                Group {
+                    NavigationLink(value: "home") {
+                        Label {
+                            Text("Home Details")
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "house")
+                                .foregroundStyle(Color.customPrimary)
+                        }
+                    }
+                    NavigationLink(value: "locations") {
+                        Label {
+                            Text("Location Settings")
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "location")
+                                .foregroundStyle(Color.customPrimary)
+                        }
+                    }
+                    NavigationLink(value: "labels") {
+                        Label {
+                            Text("Label Settings")
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "tag")
+                                .foregroundStyle(Color.customPrimary)
+                        }
+                    }
                 }
             }
             
             if revenueCatManager.isProSubscriptionActive {
                 Section("Subscription Status") {
                     NavigationLink(value: Router.Destination.subscriptionSettingsView) {
-                        Label("Subscription Details", systemImage: "creditcard")
+                        Label {
+                            Text("Subscription Details")
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "creditcard")
+                                .foregroundStyle(Color.customPrimary)
+                        }
                     }
                 }
             }
@@ -165,7 +191,13 @@ struct SettingsView: View {
                     requestAppReview()
                 } label: {
                     HStack {
-                        Label("Rate Us", systemImage: "star")
+                        Label {
+                            Text("Rate Us")
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "star")
+                                .foregroundStyle(Color.customPrimary)
+                        }
                         Spacer()
                         Image(systemName: "arrow.up.right.square")
                             .font(.caption)
@@ -178,7 +210,13 @@ struct SettingsView: View {
             
             Section("About") {
                 HStack {
-                    Label("Version", systemImage: "info.circle")
+                    Label {
+                        Text("Version")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(Color.customPrimary)
+                    }
                     Spacer()
                     Text(appVersion)
                         .foregroundColor(.secondary)
@@ -193,6 +231,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .tint(Color.customPrimary)
         .sheet(item: $safariLink) { linkData in
             SafariView(url: linkData.url)
                 .edgesIgnoringSafeArea(.all)
@@ -253,7 +292,13 @@ struct SettingsView: View {
             safariLink = SafariLinkData(url: link.url)
         } label: {
             HStack {
-                Label(link.title, systemImage: link.icon)
+                Label {
+                    Text(link.title)
+                        .foregroundStyle(.primary)
+                } icon: {
+                    Image(systemName: link.icon)
+                        .foregroundStyle(Color.customPrimary)
+                }
                 Spacer()
                 Image(systemName: "arrow.up.right.square")
                     .font(.caption)
