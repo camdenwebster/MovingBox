@@ -102,3 +102,5 @@ screenshots/*.html
 
 .sentryclirc
 fastlane/screenshots/screenshots.html
+fastlane/screenshots/light/screenshots.html
+fastlane/screenshots/dark/screenshots.html

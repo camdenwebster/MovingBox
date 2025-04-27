@@ -3,24 +3,24 @@
     "title": {
       "fonts": [
         {
-          "font": "./fonts/SF-Pro-Display-Regular.otf",
+          "font": "../fonts/SF-Pro-Display-Regular.otf",
           "supported": ["en-US"]
         }
       ],
-      "color": "#666666",
+      "color": "#444444",
       "font_size": 48
     },
     "keyword": {
       "fonts": [
         {
-          "font": "./fonts/SF-Pro-Display-Bold.otf",
+          "font": "../fonts/SF-Pro-Display-Bold.otf",
           "supported": ["en-US"]
         }
       ],
       "color": "#333333",
-      "font_size": 64
+      "font_size": 80
     },
-    "background": "./background.png",
+    "background": "./background-light.png",
     "stack_title": true,
     "frame": "BLACK",
     "device_frame_version": "latest",
