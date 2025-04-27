@@ -1,24 +1,26 @@
 {
   "default": {
-    "keyword": {
-      "fonts": [
-        {
-          "font": "./fonts/SF-Pro-Display-Regular.otf",
-          "supported": ["en-US"]
-        }
-      ],
-      "color": "#FFFFFF"
-    },
     "title": {
       "fonts": [
         {
-          "font": "./fonts/SF-Pro-Display-Bold.otf",
+          "font": "../fonts/SF-Pro-Display-Regular.otf",
           "supported": ["en-US"]
         }
       ],
-      "color": "#FFFFFF"
+      "color": "#444444",
+      "font_size": 48
     },
-    "background": "./background.png",
+    "keyword": {
+      "fonts": [
+        {
+          "font": "../fonts/SF-Pro-Display-Bold.otf",
+          "supported": ["en-US"]
+        }
+      ],
+      "color": "#333333",
+      "font_size": 80
+    },
+    "background": "./background-light.png",
     "stack_title": true,
     "frame": "BLACK",
     "device_frame_version": "latest",
@@ -29,7 +31,7 @@
     {
       "filter": "01_.*\\.png",      
       "keyword": {
-        "color": "#FFFFFF"
+        "color": "#333333"
       }
     }
   ]

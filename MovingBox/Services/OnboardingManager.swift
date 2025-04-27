@@ -30,6 +30,11 @@ class OnboardingManager: ObservableObject {
             case .completion: return "Great Job!"
             }
         }
+        
+        // Steps that should show in navigation dots (excluding welcome and completion)
+        static var navigationSteps: [OnboardingStep] {
+            [.homeDetails, .location, .item, .notifications]
+        }
     }
     
     static let hasCompletedOnboardingKey = "hasCompletedOnboardingKey"

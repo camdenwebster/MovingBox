@@ -129,7 +129,6 @@ struct OnboardingLocationView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .onboardingBackground()
         .task {
             await loadExistingData()
         }

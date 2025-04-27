@@ -11,44 +11,37 @@ struct OnboardingView: View {
     
     var body: some View {
         NavigationStack {
-            VStack {
-                switch manager.currentStep {
-                case .welcome:
-                    OnboardingWelcomeView()
-                        .transition(manager.transition)
-//                        .task {
-//                            // Wait briefly for SwiftData sync
-//                            try? await Task.sleep(nanoseconds: 1_000_000_000)
-//                            hasCheckedOnboarding = true
-//
-//                            // Check for existing homes and complete onboarding if found
-//                            do {
-//                                let hasExistingData = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
-//                                if hasExistingData {
-//                                    manager.markOnboardingComplete()
-//                                }
-//                            } catch {
-//                                manager.showError(message: "Unable to check onboarding status. Please try again.")
-//                            }
-//                        }
-                case .homeDetails:
-                    OnboardingHomeView()
-                        .transition(manager.transition)
-                case .location:
-                    OnboardingLocationView()
-                        .transition(manager.transition)
-                case .item:
-                    OnboardingItemView()
-                        .transition(manager.transition)
-                case .notifications:
-                    OnboardingNotificationsView()
-                        .transition(manager.transition)
-                case .completion:
-                    OnboardingCompletionView(isPresented: $isPresented)
-                        .transition(manager.transition)
-
+            ZStack {
+                // Content
+                VStack(spacing: 0) {
+                    switch manager.currentStep {
+                    case .welcome:
+                        OnboardingWelcomeView()
+                            .transition(manager.transition)
+                    case .homeDetails:
+                        OnboardingHomeView()
+                            .transition(manager.transition)
+                    case .location:
+                        OnboardingLocationView()
+                            .transition(manager.transition)
+                    case .item:
+                        OnboardingItemView()
+                            .transition(manager.transition)
+                    case .notifications:
+                        OnboardingNotificationsView()
+                            .transition(manager.transition)
+                    case .completion:
+                        OnboardingCompletionView(isPresented: $isPresented)
+                            .transition(manager.transition)
+                    }
+                    
+                    if OnboardingManager.OnboardingStep.navigationSteps.contains(manager.currentStep) {
+                        StepIndicator(totalSteps: OnboardingManager.OnboardingStep.navigationSteps.count,
+                                    currentStep: OnboardingManager.OnboardingStep.navigationSteps.firstIndex(of: manager.currentStep) ?? 0)
+                    }
                 }
             }
+            .onboardingBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -88,6 +81,22 @@ struct OnboardingView: View {
             return false
         case .homeDetails, .location, .item, .notifications:
             return true
+        }
+    }
+}
+
+struct StepIndicator: View {
+    let totalSteps: Int
+    let currentStep: Int
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<totalSteps, id: \.self) { index in
+                Circle()
+                    .fill(index == currentStep ? Color.customPrimary : Color.gray.opacity(0.3))
+                    .frame(width: 8, height: 8)
+                    .animation(.easeInOut, value: currentStep)
+            }
         }
     }
 }

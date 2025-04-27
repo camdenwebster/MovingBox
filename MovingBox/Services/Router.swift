@@ -48,6 +48,7 @@ final class Router: ObservableObject {
         case inventoryDetailView(item: InventoryItem, showSparklesButton: Bool = false, isEditing: Bool = false)
         case aISettingsView
         case addInventoryItemView(location: InventoryLocation?)
+        case subscriptionSettingsView
     }
     
     @Published var selectedTab: Tab = .dashboard

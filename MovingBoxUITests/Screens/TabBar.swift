@@ -21,12 +21,23 @@ class TabBar {
     init(app: XCUIApplication) {
         self.app = app
         
-        // Initialize tab bar items using accessibility identifiers
-        self.dashboardTab = app.tabBars.buttons["Dashboard"]
-        self.locationsTab = app.tabBars.buttons["Locations"]
-        self.addItemTab = app.tabBars.buttons["Add Item"]
-        self.allItemsTab = app.tabBars.buttons["All Items"]
-        self.settingsTab = app.tabBars.buttons["Settings"]
+        // Check if device is iPad
+        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
+        
+        // Initialize tab bar items using appropriate query based on device type
+        if isIPad {
+            self.dashboardTab = app.buttons["Dashboard"]
+            self.locationsTab = app.buttons["Locations"]
+            self.addItemTab = app.buttons["Add Item"]
+            self.allItemsTab = app.buttons["All Items"]
+            self.settingsTab = app.buttons["Settings"]
+        } else {
+            self.dashboardTab = app.tabBars.buttons["Dashboard"]
+            self.locationsTab = app.tabBars.buttons["Locations"]
+            self.addItemTab = app.tabBars.buttons["Add Item"]
+            self.allItemsTab = app.tabBars.buttons["All Items"]
+            self.settingsTab = app.tabBars.buttons["Settings"]
+        }
     }
     
     func tapDashboard() {

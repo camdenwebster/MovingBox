@@ -19,7 +19,7 @@ struct MovingBoxApp: App {
     @StateObject private var onboardingManager = OnboardingManager()
     @StateObject private var containerManager = ModelContainerManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
-    @State private var showOnboarding = false
+    @State private var appState: AppState = .splash
     
     enum TabDestination: Hashable {
         case dashboard
@@ -39,6 +39,12 @@ struct MovingBoxApp: App {
             case .location: return "Location"
             }
         }
+    }
+    
+    private enum AppState {
+        case splash
+        case onboarding
+        case main
     }
     
     static func registerTransformers() {
@@ -92,93 +98,54 @@ struct MovingBoxApp: App {
         ProcessInfo.processInfo.arguments.contains("Disable-Animations")
     }
     
-    @ViewBuilder
-    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
-        switch destination {
-        case .dashboardView:
-            DashboardView()
-        case .locationsListView:
-            LocationsListView()
-        case .settingsView:
-            SettingsView()
-        case .aISettingsView:
-            AISettingsView(settings: settings)
-        case .inventoryListView(let location):
-            InventoryListView(location: location)
-        case .editLocationView(let location, let isEditing):
-            EditLocationView(location: location, isEditing: isEditing)
-        case .editLabelView(let label, let isEditing):
-            EditLabelView(label: label, isEditing: isEditing)
-        case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-            InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
-        case .addInventoryItemView(let location):
-            AddInventoryItemView(location: location)
-        case .locationsSettingsView:
-            LocationSettingsView()
-        }
+    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> AnyView {
+        AnyView(
+            Group {
+                switch destination {
+                case .dashboardView:
+                    DashboardView()
+                case .locationsListView:
+                    LocationsListView()
+                case .settingsView:
+                    SettingsView()
+                case .aISettingsView:
+                    AISettingsView(settings: settings)
+                case .inventoryListView(let location):
+                    InventoryListView(location: location)
+                case .editLocationView(let location, let isEditing):
+                    EditLocationView(location: location, isEditing: isEditing)
+                case .editLabelView(let label, let isEditing):
+                    EditLabelView(label: label, isEditing: isEditing)
+                case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
+                    InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
+                case .addInventoryItemView(let location):
+                    AddInventoryItemView(location: location)
+                case .locationsSettingsView:
+                    LocationSettingsView()
+                case .subscriptionSettingsView:
+                    SubscriptionSettingsView()
+                }
+            }
+        )
     }
     
     var body: some Scene {
         WindowGroup {
-            TabView(selection: $router.selectedTab) {
-                NavigationStack(path: router.path(for: .dashboard)) {
-                    DashboardView()
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .dashboard))
-                        }
+            Group {
+                switch appState {
+                case .splash:
+                    SplashView()
+                case .onboarding:
+                    OnboardingView(isPresented: .init(
+                        get: { appState == .onboarding },
+                        set: { _ in appState = .main }
+                    ))
+                    .environment(\.disableAnimations, disableAnimations)
+                case .main:
+                    MainTabView(destinationView: destinationView)
+                        .environment(\.disableAnimations, disableAnimations)
                 }
-                .tabItem {
-                    Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
-                }
-                .tag(Router.Tab.dashboard)
-                
-                NavigationStack(path: router.path(for: .locations)) {
-                    LocationsListView()
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .locations))
-                        }
-                }
-                .tabItem {
-                    Label("Locations", systemImage: "map")
-                }
-                .tag(Router.Tab.locations)
-                
-                NavigationStack(path: router.path(for: .addItem)) {
-                    AddInventoryItemView(location: nil)
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .addItem))
-                        }
-                }
-                .tabItem {
-                    Label("Add Item", systemImage: "camera.viewfinder")
-                }
-                .tag(Router.Tab.addItem)
-                
-                NavigationStack(path: router.path(for: .allItems)) {
-                    InventoryListView(location: nil)
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .allItems))
-                        }
-                }
-                .tabItem {
-                    Label("All Items", systemImage: "list.bullet")
-                }
-                .tag(Router.Tab.allItems)
-                
-                NavigationStack(path: router.path(for: .settings)) {
-                    SettingsView()
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: router.path(for: .settings))
-                        }
-                }
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .tag(Router.Tab.settings)
             }
-            .tabViewStyle(.sidebarAdaptable)
-            .tint(Color.customPrimary)
-            .environment(\.disableAnimations, disableAnimations)
             .task {
                 // Initialize container
                 await containerManager.initialize()
@@ -192,16 +159,12 @@ struct MovingBoxApp: App {
                 
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
-                    Task {
-                        await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
-                        settings.hasLaunched = true
-                    }
-                }
-
-                // Determine if we should show the welcome screen
-                let shouldShowWelcome = OnboardingManager.shouldShowWelcome()
-                if shouldShowWelcome {
-                    showOnboarding = true
+                    await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
+                    settings.hasLaunched = true
+                    appState = .main
+                } else {
+                    // Determine if we should show the welcome screen
+                    appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
                 }
                 
                 // Record that we've launched
@@ -210,10 +173,6 @@ struct MovingBoxApp: App {
                 // Send launched signal to TD
                 TelemetryDeck.signal("appLaunched")
             }
-            .fullScreenCover(isPresented: $showOnboarding) {
-                OnboardingView(isPresented: $showOnboarding)
-                    .environment(\.disableAnimations, disableAnimations)
-            }
             .modelContainer(containerManager.container)
             .environmentObject(router)
             .environmentObject(settings)
@@ -221,5 +180,147 @@ struct MovingBoxApp: App {
             .environmentObject(onboardingManager)
             .environmentObject(revenueCatManager)
         }
+    }
+}
+
+struct SplashView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var backgroundImage: String {
+        colorScheme == .dark ? "background-dark" : "background-light"
+    }
+    
+    private var textColor: Color {
+        colorScheme == .dark ? .splashTextDark : .splashTextLight
+    }
+    
+    var body: some View {
+        ZStack {
+            Image(backgroundImage)
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                if let appIcon = Bundle.main.icon {
+                    Image(uiImage: appIcon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 80, height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                
+                VStack {
+                    Text("MovingBox")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(textColor)
+                    Text("Home inventory, simplified")
+                        .fontWeight(.light)
+                        .foregroundColor(textColor)
+                }
+            }
+        }
+    }
+}
+
+extension Bundle {
+    var icon: UIImage? {
+        if let icons = infoDictionary?["CFBundleIcons"] as? [String: Any],
+           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
+           let lastIcon = iconFiles.last {
+            return UIImage(named: lastIcon)
+        }
+        return nil
+    }
+}
+
+struct MainTabView: View {
+    @EnvironmentObject var router: Router
+    let destinationView: (Router.Destination, Binding<NavigationPath>) -> AnyView
+    
+    var body: some View {
+        TabView(selection: $router.selectedTab) {
+            NavigationStack(path: router.path(for: .dashboard)) {
+                DashboardView()
+                    .navigationDestination(for: Router.Destination.self) { destination in
+                        destinationView(destination, router.path(for: .dashboard))
+                    }
+            }
+            .tabItem {
+                Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
+            }
+            .tag(Router.Tab.dashboard)
+            
+            NavigationStack(path: router.path(for: .locations)) {
+                LocationsListView()
+                    .navigationDestination(for: Router.Destination.self) { destination in
+                        destinationView(destination, router.path(for: .locations))
+                    }
+            }
+            .tabItem {
+                Label("Locations", systemImage: "map")
+            }
+            .tag(Router.Tab.locations)
+            
+            NavigationStack(path: router.path(for: .addItem)) {
+                AddInventoryItemView(location: nil)
+                    .navigationDestination(for: Router.Destination.self) { destination in
+                        destinationView(destination, router.path(for: .addItem))
+                    }
+            }
+            .tabItem {
+                Label("Add Item", systemImage: "camera.viewfinder")
+            }
+            .tag(Router.Tab.addItem)
+            
+            NavigationStack(path: router.path(for: .allItems)) {
+                InventoryListView(location: nil)
+                    .navigationDestination(for: Router.Destination.self) { destination in
+                        destinationView(destination, router.path(for: .allItems))
+                    }
+            }
+            .tabItem {
+                Label("All Items", systemImage: "list.bullet")
+            }
+            .tag(Router.Tab.allItems)
+            
+            NavigationStack(path: router.path(for: .settings)) {
+                SettingsView()
+                    .navigationDestination(for: Router.Destination.self) { destination in
+                        destinationView(destination, router.path(for: .settings))
+                            .tint(Color.customPrimary)
+                    }
+                    .navigationDestination(for: String.self) { destination in
+                        Group {
+                            switch destination {
+                            case "appearance":
+                                AppearanceSettingsView()
+                            case "notifications":
+                                NotificationSettingsView()
+                            case "ai":
+                                AISettingsView(settings: SettingsManager())
+                            case "locations":
+                                LocationSettingsView()
+                            case "labels":
+                                LabelSettingsView()
+                            case "home":
+                                EditHomeView()
+                            default:
+                                EmptyView()
+                            }
+                        }
+                        .tint(Color.customPrimary)
+                    }
+                    .tint(Color.customPrimary)
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .tag(Router.Tab.settings)
+        }
+        .tabViewStyle(.sidebarAdaptable)
+        .tint(Color.customPrimary)
     }
 }

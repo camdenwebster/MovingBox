@@ -19,22 +19,34 @@ platform :ios do
   desc "Generate new localized screenshots"
   lane :screenshots do
     # Set simulator boot timeout
-    ENV["SNAPSHOT_SIMULATOR_WAIT_FOR_BOOT_TIMEOUT"] = "15"
+    ENV["SNAPSHOT_SIMULATOR_WAIT_FOR_BOOT_TIMEOUT"] = "30"
     
     # Reset simulators
     reset_simulator_contents
     
     # Capture screenshots
-    capture_ios_screenshots
+    capture_ios_screenshots(
+      output_directory: "./fastlane/screenshots/light"
+    )
+
+    # Capture dark screenshots
+    capture_ios_screenshots(
+      dark_mode: true,
+      output_directory: "./fastlane/screenshots/dark"
+    )
     
-    generate_frames
+    # Generate frames for both light and dark mode
+    generate_frames(mode: "light")
+    generate_frames(mode: "dark")
   end
 
   desc "Generate frames for existing screenshots"
-  lane :generate_frames do
+  lane :generate_frames do |options|
+    # Set default mode to light if not specified
+    mode = options[:mode] || "light"
+    
     frameit(
-      white: false,
-      path: './fastlane/screenshots'
+      path: "./fastlane/screenshots/#{mode}",
     )
   end
 
