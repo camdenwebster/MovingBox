@@ -156,16 +156,6 @@ struct SettingsView: View {
                                 .foregroundStyle(Color.customPrimary)
                         }
                     }
-                    // ADD: Reporting entry
-                    NavigationLink(value: "reporting") {
-                        Label {
-                            Text("Reporting")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "doc.plaintext")
-                                .foregroundStyle(Color.customPrimary)
-                        }
-                    }
                 }
             }
             
@@ -184,6 +174,15 @@ struct SettingsView: View {
             }
             
             Section("Sync & Backup") {
+                NavigationLink(value: "reporting") {
+                    Label {
+                        Text("Reporting")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "doc.plaintext")
+                            .foregroundStyle(Color.customPrimary)
+                    }
+                }
                 Text("Your data is automatically synced across all your devices using iCloud")
                     .foregroundStyle(.secondary)
             }

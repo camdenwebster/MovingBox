@@ -131,7 +131,7 @@ import SwiftData
             #expect(imageUrl.url.starts(with: "data:image/png:base64,"))
             #expect(imageUrl.detail == "high")
         } else {
-            #expect(false, "Failed to decode request payload")
+            #expect(Bool(false), "Failed to decode request payload")
         }
     }
     

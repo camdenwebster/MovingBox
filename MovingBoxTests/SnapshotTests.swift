@@ -322,7 +322,6 @@ extension SnapshotTests {
         let container = try await createTestContainer()
         
         let descriptor = FetchDescriptor<Home>()
-        let homes = try container.mainContext.fetch(descriptor)
         
         let view = configureViewForSnapshot(
             EditHomeView()
@@ -346,7 +345,6 @@ extension SnapshotTests {
         let container = try await createTestContainer()
         
         let descriptor = FetchDescriptor<Home>()
-        let homes = try container.mainContext.fetch(descriptor)
         
         let view = configureViewForSnapshot(
             EditHomeView()

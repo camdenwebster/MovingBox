@@ -27,9 +27,7 @@ actor ExportManager {
         // Fetch data on MainActor
         let items = try modelContext.fetch(FetchDescriptor<InventoryItem>())
         guard !items.isEmpty else { throw ExportError.nothingToExport }
-        
-        let home = try? modelContext.fetch(FetchDescriptor<Home>()).first
-        
+                
         // Capture all required data
         let itemData: [(
             title: String,
@@ -63,9 +61,8 @@ actor ExportManager {
             )
         }
         
-        let homeName = home?.name ?? "Home"
         let dateString = DateFormatter.exportDateFormatter.string(from: .init())
-        let suggestedName = "\(homeName)-export-\(dateString).zip"
+        let suggestedName = "MovingBox-export-\(dateString).zip"
 
         // Working directory in tmp
         let workingRoot = FileManager.default.temporaryDirectory
