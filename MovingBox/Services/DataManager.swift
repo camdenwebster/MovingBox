@@ -28,8 +28,9 @@ actor DataManager {
     /// inside the temporary directory – caller is expected to share / move / delete.
     @MainActor
     func exportInventory(modelContext: ModelContext) async throws -> URL {
-        // Fetch data on MainActor
+        // Fetch both inventory and location data
         let items = try modelContext.fetch(FetchDescriptor<InventoryItem>())
+        let locations = try modelContext.fetch(FetchDescriptor<InventoryLocation>())
         guard !items.isEmpty else { throw DataError.nothingToExport }
                 
         // Capture all required data
@@ -65,6 +66,19 @@ actor DataManager {
             )
         }
         
+        // Capture location data
+        let locationData: [(
+            name: String,
+            desc: String,
+            imageURL: URL?
+        )] = locations.map { location in
+            (
+                name: location.name,
+                desc: location.desc,
+                imageURL: location.imageURL
+            )
+        }
+        
         let dateString = DateFormatter.exportDateFormatter.string(from: .init())
         let suggestedName = "MovingBox-export-\(dateString).zip"
 
@@ -75,11 +89,14 @@ actor DataManager {
         try FileManager.default.createDirectory(at: photosDir,
                                              withIntermediateDirectories: true)
 
-        // 1. Write CSV
-        let csvURL = workingRoot.appendingPathComponent("inventory.csv")
-        try await writeCSV(items: itemData, to: csvURL)
+        // Write both CSV files
+        let itemsCSVURL = workingRoot.appendingPathComponent("inventory.csv")
+        try await writeCSV(items: itemData, to: itemsCSVURL)
+        
+        let locationsCSVURL = workingRoot.appendingPathComponent("locations.csv")
+        try await writeLocationsCSV(locations: locationData, to: locationsCSVURL)
 
-        // 2. Copy photos
+        // Copy photos from both items and locations
         for item in itemData {
             if let src = item.imageURL,
                FileManager.default.fileExists(atPath: src.path) {
@@ -88,8 +105,17 @@ actor DataManager {
                 try FileManager.default.copyItem(at: src, to: dest)
             }
         }
+        
+        for location in locationData {
+            if let src = location.imageURL,
+               FileManager.default.fileExists(atPath: src.path) {
+                let dest = photosDir.appendingPathComponent(src.lastPathComponent)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.copyItem(at: src, to: dest)
+            }
+        }
 
-        // 3. Zip
+        // Zip
         let archiveURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(suggestedName)
         try? FileManager.default.removeItem(at: archiveURL)         // overwrite if exists
@@ -135,21 +161,59 @@ actor DataManager {
         try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
         try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
         
-        // Find and parse CSV
-        let csvURL = workingDir.appendingPathComponent("inventory.csv")
+        // Find and parse both CSV files
+        let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
+        let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
         let photosDir = workingDir.appendingPathComponent("photos")
         
-        guard FileManager.default.fileExists(atPath: csvURL.path) else {
+        // Import locations first
+        if FileManager.default.fileExists(atPath: locationsCSVURL.path) {
+            let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
+            let rows = csvString.components(separatedBy: .newlines)
+                .filter { !$0.isEmpty }
+            
+            if rows.count > 1 {
+                for row in rows.dropFirst() {
+                    let values = await parseCSVRow(row)
+                    guard values.count >= 3 else { continue }
+                    
+                    let location = InventoryLocation(name: values[0])
+                    location.desc = values[1]
+                    
+                    // Handle location photo
+                    let photoFilename = values[2]
+                    if !photoFilename.isEmpty {
+                        let photoURL = photosDir.appendingPathComponent(photoFilename)
+                        if FileManager.default.fileExists(atPath: photoURL.path) {
+                            let destURL = try FileManager.default.url(
+                                for: .documentDirectory,
+                                in: .userDomainMask,
+                                appropriateFor: nil,
+                                create: true
+                            ).appendingPathComponent(photoFilename)
+                            
+                            try? FileManager.default.removeItem(at: destURL)
+                            try FileManager.default.copyItem(at: photoURL, to: destURL)
+                            location.imageURL = destURL
+                        }
+                    }
+                    
+                    modelContext.insert(location)
+                }
+            }
+        }
+        
+        // Import inventory
+        guard FileManager.default.fileExists(atPath: itemsCSVURL.path) else {
             throw DataError.invalidCSVFormat
         }
         
-        let csvString = try String(contentsOf: csvURL, encoding: .utf8)
+        let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
         let rows = csvString.components(separatedBy: .newlines)
             .filter { !$0.isEmpty }
         
         guard rows.count > 1 else { throw DataError.invalidCSVFormat }
         
-        // Skip header row
         var importCount = 0
         for row in rows.dropFirst() {
             let values = await parseCSVRow(row)
@@ -298,6 +362,31 @@ actor DataManager {
         values.append(currentValue)
         
         return values.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+    
+    private func writeLocationsCSV(locations: [(
+        name: String,
+        desc: String,
+        imageURL: URL?
+    )], to url: URL) async throws {
+        let csvLines: [String] = {
+            var lines: [String] = []
+            let header = ["Name", "Description", "PhotoFilename"]
+            lines.append(header.joined(separator: ","))
+            
+            for location in locations {
+                let row: [String] = [
+                    location.name,
+                    location.desc,
+                    location.imageURL?.lastPathComponent ?? ""
+                ]
+                lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
+            }
+            return lines
+        }()
+        
+        let csvString = csvLines.joined(separator: "\n")
+        try csvString.data(using: .utf8)?.write(to: url)
     }
 }
 

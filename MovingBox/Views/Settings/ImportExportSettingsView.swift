@@ -19,7 +19,8 @@ struct ImportExportSettingsView: View {
     @State private var errorMessage: String = ""
     @State private var showFileImporter = false
     @State private var showImportSuccess = false
-    @State private var importedCount: Int = 0
+    @State private var importedItemCount: Int = 0
+    @State private var importedLocationCount: Int = 0
     
     var body: some View {
         List {
@@ -68,7 +69,7 @@ struct ImportExportSettingsView: View {
         }
         .alert("Import Successful", isPresented: $showImportSuccess) {
         } message: {
-            Text("Successfully imported \(importedCount) items")
+            Text("Successfully imported:\n- \(importedItemCount) items\n- \(importedLocationCount)")
         }
         .sheet(isPresented: $showShareSheet) {
             if let archiveURL {
@@ -90,7 +91,7 @@ struct ImportExportSettingsView: View {
                         from: url,
                         modelContext: modelContext
                     )
-                    importedCount = count
+                    importedItemCount = count
                     showImportSuccess = true
                 } catch {
                     errorMessage = error.localizedDescription
