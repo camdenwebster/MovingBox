@@ -31,6 +31,8 @@
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
 		19A9AB102DB274C7001CEDA2 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		19A9AB112DB274C7001CEDA2 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		19BA29932DC464A70064C5A9 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19BA29922DC464A70064C5A9 /* ExportManager.swift */; };
+		19BA299C2DC465170064C5A9 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 19BA299B2DC465170064C5A9 /* ZIPFoundation */; };
 		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
 		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
 		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
@@ -90,6 +92,7 @@
 		19B7D96F2D9B112200690F64 /* MovingBoxUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19B7D9902D9B362E00690F64 /* MovingBoxUITests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxUITests.xctestplan; path = "Test Plans/MovingBoxUITests.xctestplan"; sourceTree = "<group>"; };
 		19B7D9912D9B364800690F64 /* MovingBoxTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxTests.xctestplan; path = "Test Plans/MovingBoxTests.xctestplan"; sourceTree = "<group>"; };
+		19BA29922DC464A70064C5A9 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
 		19C01D5B2D92EEC600773DA4 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		19C01D5D2D93088300773DA4 /* JWTManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTManager.swift; sourceTree = "<group>"; };
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
@@ -139,6 +142,7 @@
 				1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */,
 				1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */,
 				4A01539D070041769323F9C9 /* Sentry in Frameworks */,
+				19BA299C2DC465170064C5A9 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,6 +250,7 @@
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				19BA29922DC464A70064C5A9 /* ExportManager.swift */,
 				19F765D42DAB558000AE287D /* OptimizedImageManager.swift */,
 				19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */,
 				194195652DA4805B008CABAA /* ModelContainerManager.swift */,
@@ -298,6 +303,7 @@
 			name = MovingBox;
 			packageProductDependencies = (
 				D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */,
+				19BA299B2DC465170064C5A9 /* ZIPFoundation */,
 			);
 			productName = MovingBox;
 			productReference = 1942DC7A2BF391CB00734AF4 /* MovingBox.app */;
@@ -433,6 +439,7 @@
 				1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 				1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 				AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+				19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -503,6 +510,7 @@
 				19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
+				19BA29932DC464A70064C5A9 /* ExportManager.swift in Sources */,
 				196109F52D764D9100A76504 /* ColorExtension.swift in Sources */,
 				19D3430E2C12146800F8B2C7 /* Router.swift in Sources */,
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
@@ -1234,6 +1242,14 @@
 				minimumVersion = 1.18.3;
 			};
 		};
+		19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
 		AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa/";
@@ -1264,6 +1280,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
 			productName = SnapshotTesting;
+		};
+		19BA299B2DC465170064C5A9 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
 		};
 		D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */ = {
 			isa = XCSwiftPackageProductDependency;

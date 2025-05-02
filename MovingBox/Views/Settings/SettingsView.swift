@@ -156,6 +156,16 @@ struct SettingsView: View {
                                 .foregroundStyle(Color.customPrimary)
                         }
                     }
+                    // ADD: Reporting entry
+                    NavigationLink(value: "reporting") {
+                        Label {
+                            Text("Reporting")
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "doc.plaintext")
+                                .foregroundStyle(Color.customPrimary)
+                        }
+                    }
                 }
             }
             
@@ -250,6 +260,15 @@ struct SettingsView: View {
         }
         .onChange(of: allItems) { _, _ in
             updateAnalyzedItemsCount()
+        }
+        .navigationDestination(for: String.self) { value in
+            switch value {
+                case "home": EditHomeView()
+                case "locations": LocationSettingsView()
+                case "labels": LabelSettingsView()
+                case "reporting": ReportingSettingsView()
+                default: EmptyView()
+            }
         }
     }
     
