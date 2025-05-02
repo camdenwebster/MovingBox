@@ -69,7 +69,7 @@ struct ImportExportSettingsView: View {
         }
         .alert("Import Successful", isPresented: $showImportSuccess) {
         } message: {
-            Text("Successfully imported:\n- \(importedItemCount) items\n- \(importedLocationCount)")
+            Text("Successfully imported:\n- \(importedItemCount) items\n- \(importedLocationCount) locations")
         }
         .sheet(isPresented: $showShareSheet) {
             if let archiveURL {
@@ -87,11 +87,12 @@ struct ImportExportSettingsView: View {
                     isProcessingImport = true
                     defer { isProcessingImport = false }
                     
-                    let count = try await DataManager.shared.importInventory(
+                    let importResult = try await DataManager.shared.importInventory(
                         from: url,
                         modelContext: modelContext
                     )
-                    importedItemCount = count
+                    importedItemCount = importResult.itemCount
+                    importedLocationCount = importResult.locationCount
                     showImportSuccess = true
                 } catch {
                     errorMessage = error.localizedDescription

@@ -133,8 +133,13 @@ actor DataManager {
         return archiveURL
     }
 
+    struct ImportResult {
+        let itemCount: Int
+        let locationCount: Int
+    }
+
     @MainActor
-    func importInventory(from zipURL: URL, modelContext: ModelContext) async throws -> Int {
+    func importInventory(from zipURL: URL, modelContext: ModelContext) async throws -> ImportResult {
         // Start security-scoped resource access
         guard zipURL.startAccessingSecurityScopedResource() else {
             throw DataError.fileAccessDenied
@@ -166,6 +171,7 @@ actor DataManager {
         let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
         let photosDir = workingDir.appendingPathComponent("photos")
         
+        var locationCount = 0
         // Import locations first
         if FileManager.default.fileExists(atPath: locationsCSVURL.path) {
             let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
@@ -199,6 +205,7 @@ actor DataManager {
                     }
                     
                     modelContext.insert(location)
+                    locationCount += 1
                 }
             }
         }
@@ -214,7 +221,7 @@ actor DataManager {
         
         guard rows.count > 1 else { throw DataError.invalidCSVFormat }
         
-        var importCount = 0
+        var itemCount = 0
         for row in rows.dropFirst() {
             let values = await parseCSVRow(row)
             guard values.count >= 13 else { continue }
@@ -282,10 +289,10 @@ actor DataManager {
             }
             
             modelContext.insert(item)
-            importCount += 1
+            itemCount += 1
         }
         
-        return importCount
+        return ImportResult(itemCount: itemCount, locationCount: locationCount)
     }
     
     // MARK: - Helpers
