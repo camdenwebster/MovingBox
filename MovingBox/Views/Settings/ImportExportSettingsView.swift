@@ -37,6 +37,7 @@ struct ImportExportSettingsView: View {
                         Text("Import Inventory")
                     }
                 }
+                .accessibilityIdentifier("importButton")
                 .disabled(isProcessingImport)
             }
             
@@ -55,6 +56,7 @@ struct ImportExportSettingsView: View {
                         Text("Export Inventory")
                     }
                 }
+                .accessibilityIdentifier("exportButton")
                 .disabled(isProcessingExport)
             } footer: {
                 Text("Export generates a ZIP file containing all items and photos. Import restores items from a previously exported ZIP file.")

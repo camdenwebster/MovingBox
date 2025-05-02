@@ -22,7 +22,7 @@ class DashboardScreen {
     
     func testDataLoaded() -> Bool {
         var iterations = 0
-        let expectedItemCount = "50"
+        let expectedItemCount = "53"
         let actualItemCount = statCardValue.firstMatch.label
         while actualItemCount != expectedItemCount && iterations < 10 {
             sleep(1)

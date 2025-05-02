@@ -183,6 +183,7 @@ struct SettingsView: View {
                             .foregroundStyle(Color.customPrimary)
                     }
                 }
+                .accessibilityIdentifier("importExportLink")
                 Text("Your data is automatically synced across all your devices using iCloud")
                     .foregroundStyle(.secondary)
             }
