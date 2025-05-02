@@ -174,9 +174,9 @@ struct SettingsView: View {
             }
             
             Section("Sync & Backup") {
-                NavigationLink(value: "reporting") {
+                NavigationLink(value: "importExport") {
                     Label {
-                        Text("Reporting")
+                        Text("Import & Export")
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "doc.plaintext")
@@ -265,7 +265,7 @@ struct SettingsView: View {
                 case "home": EditHomeView()
                 case "locations": LocationSettingsView()
                 case "labels": LabelSettingsView()
-                case "reporting": ReportingSettingsView()
+                case "importExport ": ImportExportSettingsView()
                 default: EmptyView()
             }
         }

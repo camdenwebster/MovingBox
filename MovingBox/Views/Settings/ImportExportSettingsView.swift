@@ -1,14 +1,14 @@
 //
-//  ReportingSettingsView.swift
+//  ImportExportSettingsView.swift
 //  MovingBox
 //
-//  Created by Alex (AI) on 6/10/25.
+//  Created by Camden Webster on 05/01/2025.
 //
 
 import SwiftUI
 import SwiftData
 
-struct ReportingSettingsView: View {
+struct ImportExportSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var isProcessing = false
     @State private var archiveURL: URL?
@@ -39,7 +39,8 @@ struct ReportingSettingsView: View {
                     .font(.footnote)
             }
         }
-        .navigationTitle("Reporting")
+        .navigationTitle("Import & Export")
+        .navigationBarTitleDisplayMode(.inline)
         .alert("Export Failed", isPresented: $showErrorAlert, actions: {}) {
             Text(exportError)
         }
@@ -67,7 +68,7 @@ struct ReportingSettingsView: View {
 
 #Preview("ReportingSettingsView") {
     NavigationStack {
-        ReportingSettingsView()
+        ImportExportSettingsView()
             .environmentObject(Router())
     }
 }
