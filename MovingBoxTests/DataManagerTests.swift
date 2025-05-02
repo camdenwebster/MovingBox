@@ -1,5 +1,5 @@
 //
-//  ExportManagerTests.swift
+//  DataManagerTests.swift
 //  MovingBoxTests
 //
 //  Created by Alex (AI) on 6/10/25.
@@ -13,7 +13,7 @@ import UIKit
 @testable import MovingBox
 
 @MainActor
-struct ExportManagerTests {
+struct DataManagerTests {
     var container: ModelContainer!
     var context: ModelContext!
     
@@ -26,9 +26,9 @@ struct ExportManagerTests {
     @Test("Empty inventory throws error")
     func emptyInventoryThrowsError() async {
         do {
-            _ = try await ExportManager.shared.exportInventory(modelContext: context)
+            _ = try await DataManager.shared.exportInventory(modelContext: context)
             Issue.record("Expected error to be thrown")
-        } catch let error as ExportManager.ExportError {
+        } catch let error as DataManager.DataError {
             #expect(error == .nothingToExport)
         } catch {
             Issue.record("Unexpected error type: \(error)")
@@ -46,7 +46,7 @@ struct ExportManagerTests {
         context.insert(item)
         
         // When
-        let url = try await ExportManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContext: context)
         
         // Then
         #expect(FileManager.default.fileExists(atPath: url.path))
@@ -82,7 +82,7 @@ struct ExportManagerTests {
         context.insert(item)
         
         // When
-        let url = try await ExportManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContext: context)
         defer {
             try? FileManager.default.removeItem(at: url)
         }

@@ -7,24 +7,45 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct ImportExportSettingsView: View {
     @Environment(\.modelContext) private var modelContext
-    @State private var isProcessing = false
+    @State private var isProcessingImport = false
+    @State private var isProcessingExport = false
     @State private var archiveURL: URL?
     @State private var showShareSheet = false
     @State private var showErrorAlert = false
-    @State private var exportError: String = ""
-
+    @State private var errorMessage: String = ""
+    @State private var showFileImporter = false
+    @State private var showImportSuccess = false
+    @State private var importedCount: Int = 0
+    
     var body: some View {
         List {
+            Section {
+                Button {
+                    showFileImporter = true
+                } label: {
+                    if isProcessingImport {
+                        HStack {
+                            ProgressView()
+                            Text("Importing…")
+                        }
+                    } else {
+                        Text("Import Inventory")
+                    }
+                }
+                .disabled(isProcessingImport)
+            }
+            
             Section {
                 Button {
                     Task {
                         await startExport()
                     }
                 } label: {
-                    if isProcessing {
+                    if isProcessingExport {
                         HStack {
                             ProgressView()
                             Text("Exporting…")
@@ -33,34 +54,62 @@ struct ImportExportSettingsView: View {
                         Text("Export Inventory")
                     }
                 }
-                .disabled(isProcessing)
+                .disabled(isProcessingExport)
             } footer: {
-                Text("Generates a CSV file containing all items plus a folder of photos, then compresses everything into a zip archive.")
+                Text("Export generates a ZIP file containing all items and photos. Import restores items from a previously exported ZIP file.")
                     .font(.footnote)
             }
         }
         .navigationTitle("Import & Export")
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Export Failed", isPresented: $showErrorAlert, actions: {}) {
-            Text(exportError)
+        .alert("Export Failed", isPresented: $showErrorAlert) {
+        } message: {
+            Text(errorMessage)
+        }
+        .alert("Import Successful", isPresented: $showImportSuccess) {
+        } message: {
+            Text("Successfully imported \(importedCount) items")
         }
         .sheet(isPresented: $showShareSheet) {
             if let archiveURL {
                 ShareSheet(activityItems: [archiveURL])
             }
         }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.zip],
+            allowsMultipleSelection: false
+        ) { result in
+            Task {
+                do {
+                    let url = try result.get().first!
+                    isProcessingImport = true
+                    defer { isProcessingImport = false }
+                    
+                    let count = try await DataManager.shared.importInventory(
+                        from: url,
+                        modelContext: modelContext
+                    )
+                    importedCount = count
+                    showImportSuccess = true
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
     }
 
     @MainActor
     private func startExport() async {
-        isProcessing = true
-        defer { isProcessing = false }
+        isProcessingExport = true
+        defer { isProcessingExport = false }
         do {
-            let url = try await ExportManager.shared.exportInventory(modelContext: modelContext)
+            let url = try await DataManager.shared.exportInventory(modelContext: modelContext)
             archiveURL = url
             showShareSheet = true
         } catch {
-            exportError = error.localizedDescription
+            errorMessage = error.localizedDescription
             showErrorAlert = true
         }
     }
