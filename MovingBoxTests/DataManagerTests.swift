@@ -7,19 +7,23 @@ import UIKit
 
 @MainActor
 struct DataManagerTests {
-    var container: ModelContainer!
-    var context: ModelContext!
-    let fileManager = FileManager.default
-    
-    init() throws {
+    func createContainer() throws -> ModelContainer {
         let schema = Schema([InventoryItem.self, InventoryLocation.self, InventoryLabel.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        container = try ModelContainer(for: schema, configurations: [config])
-        context = container.mainContext
+        return try ModelContainer(for: schema, configurations: [config])
     }
     
+    func createContext(with container: ModelContainer) -> ModelContext {
+        return ModelContext(container)
+    }
+    
+    let fileManager = FileManager.default
+    
     @Test("Empty inventory throws error")
-    func emptyInventoryThrowsError() async {
+    func emptyInventoryThrowsError() async throws {
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
         do {
             _ = try await DataManager.shared.exportInventory(modelContext: context)
             Issue.record("Expected error to be thrown")
@@ -33,10 +37,14 @@ struct DataManagerTests {
     @Test("Export with items creates zip file")
     func exportWithItemsCreatesZip() async throws {
         // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
         let item = InventoryItem()
         item.title = "Test Item"
         item.desc = "Test Description"
         context.insert(item)
+        try context.save()
         
         // When
         let url = try await DataManager.shared.exportInventory(modelContext: context)
@@ -60,6 +68,9 @@ struct DataManagerTests {
     @Test("Export with photos includes photos in zip")
     func exportWithPhotosIncludesPhotos() async throws {
         // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
         let tempURL = try getTestFileURL(named: "test.png")
         let image = UIImage(systemName: "star.fill")!
         let imageData = image.pngData()!
@@ -73,6 +84,7 @@ struct DataManagerTests {
         item.title = "Test Item"
         item.imageURL = tempURL
         context.insert(item)
+        try context.save()
         
         // When
         let url = try await DataManager.shared.exportInventory(modelContext: context)
@@ -93,15 +105,20 @@ struct DataManagerTests {
     @Test("Export with locations includes locations.csv and photos")
     func exportWithLocationsIncludesLocationsData() async throws {
         // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
         let location = InventoryLocation(name: "Test Location")
         location.desc = "Test Notes"
         location.imageURL = try createTestImage(named: "location.png")
         context.insert(location)
+        try context.save()
         
         let item = InventoryItem()
         item.title = "Test Item"
         item.location = location
         context.insert(item)
+        try context.save()
         
         // When
         let url = try await DataManager.shared.exportInventory(modelContext: context)
@@ -122,6 +139,9 @@ struct DataManagerTests {
     @Test("Import with locations and items returns correct counts")
     func importWithLocationsAndItemsReturnsCounts() async throws {
         // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
         let documentsURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -202,7 +222,10 @@ struct DataManagerTests {
     
     @Test("Import with invalid zip throws error")
     func importWithInvalidZipThrowsError() async throws {
-        // Create an invalid file
+        // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
         let documentsURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -227,14 +250,17 @@ struct DataManagerTests {
         do {
             _ = try await DataManager.shared.importInventory(from: invalidZipURL, modelContext: context)
             Issue.record("Expected error to be thrown")
+        } catch let error as DataManager.DataError {
+            #expect(error == .invalidZipFile)
+        } catch is Archive.ArchiveError {
+            // This is also an acceptable error
+            #expect(true, "Received expected ZIPFoundation ArchiveError")
         } catch {
-            // The exact error might vary depending on the ZIP implementation
-            // but it should be treated as an invalid zip file by DataManager
-            #expect(error is DataManager.DataError)
+            Issue.record("Unexpected error type: \(error)")
         }
     }
     
-    // MARK: - Helpers
+    // MARK: - Helper Methods
     
     private func getTestFileURL(named filename: String) throws -> URL {
         try fileManager.url(

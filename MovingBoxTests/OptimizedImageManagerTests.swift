@@ -29,13 +29,13 @@ import SwiftUI
     }
     
     @Test("Image optimization reduces large images")
-    func imageOptimization() {
+    func imageOptimization() async throws {
         // Given
         let originalSize = CGSize(width: 3000, height: 3000)
         let largeImage = createTestImage(size: originalSize)
         
         // When
-        let optimizedImage = manager.optimizeImage(largeImage)
+        let optimizedImage = await manager.optimizeImage(largeImage)
         
         // Then
         #expect(optimizedImage.size.width < originalSize.width)
@@ -45,13 +45,13 @@ import SwiftUI
     }
     
     @Test("Small images remain unoptimized")
-    func smallImageOptimization() {
+    func smallImageOptimization() async {
         // Given
         let originalSize = CGSize(width: 100, height: 100)
         let smallImage = createTestImage(size: originalSize)
         
         // When
-        let optimizedImage = manager.optimizeImage(smallImage)
+        let optimizedImage = await manager.optimizeImage(smallImage)
         
         // Then
         #expect(optimizedImage.size == originalSize)
@@ -86,12 +86,12 @@ import SwiftUI
     }
     
     @Test("Image preparation for AI resizes to correct dimensions")
-    func aiImagePreparation() {
+    func aiImagePreparation() async throws {
         // Given
         let originalImage = createTestImage(size: CGSize(width: 2000, height: 2000))
         
         // When
-        let base64String = manager.prepareImageForAI(from: originalImage)
+        let base64String = await manager.prepareImageForAI(from: originalImage)
         
         // Then
         #expect(base64String != nil)
