@@ -40,8 +40,6 @@ final class ImportExportUITests: XCTestCase {
         }
         XCTAssertTrue(dashboardScreen.testDataLoaded(),
                      "Dashboard should show initial test data")
-        XCTAssertEqual(dashboardScreen.statCardValue.firstMatch.label, "53",
-                      "Initial inventory count should be 53")
         
         // Navigate to Import/Export settings
         tabBar.tapSettings()

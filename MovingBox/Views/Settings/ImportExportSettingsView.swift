@@ -39,6 +39,9 @@ struct ImportExportSettingsView: View {
                 }
                 .accessibilityIdentifier("importButton")
                 .disabled(isProcessingImport)
+            } footer: {
+                Text("Restore items from a previously exported ZIP file.")
+                    .font(.footnote)
             }
             
             Section {
@@ -59,7 +62,7 @@ struct ImportExportSettingsView: View {
                 .accessibilityIdentifier("exportButton")
                 .disabled(isProcessingExport)
             } footer: {
-                Text("Export generates a ZIP file containing all items and photos. Import restores items from a previously exported ZIP file.")
+                Text("Export a ZIP file containing all items and photos.")
                     .font(.footnote)
             }
         }

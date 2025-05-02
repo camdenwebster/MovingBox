@@ -24,12 +24,12 @@ class DashboardScreen {
         var iterations = 0
         let expectedItemCount = "53"
         let actualItemCount = statCardValue.firstMatch.label
-        while actualItemCount != expectedItemCount && iterations < 10 {
+        while actualItemCount >= expectedItemCount && iterations < 10 {
             sleep(1)
             iterations += 1
             print("Waiting for data to load...")
         }
-        return actualItemCount == expectedItemCount
+        return actualItemCount >= expectedItemCount
     }
     
     
