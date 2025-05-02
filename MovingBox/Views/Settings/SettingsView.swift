@@ -25,6 +25,7 @@ struct ExternalLink {
 // MARK: - Main Settings Body
 struct SettingsView: View {
     @StateObject private var settingsManager = SettingsManager()
+    @StateObject private var cloudManager = CloudManager.shared
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
@@ -174,8 +175,37 @@ struct SettingsView: View {
             }
             
             Section("Sync & Backup") {
-                Text("Your data is automatically synced across all your devices using iCloud")
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Label {
+                        Text("iCloud Sync")
+                    } icon: {
+                        Image(systemName: "icloud")
+                            .foregroundStyle(Color.customPrimary)
+                    }
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(cloudManager.isAvailable ? .green : .red)
+                            .frame(width: 8, height: 8)
+                        Text(cloudManager.isAvailable ? "Connected" : "Disconnected")
+                            .foregroundStyle(.secondary)
+                            .font(.footnote)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if !cloudManager.isAvailable {
+                        showingICloudAlert = true
+                    }
+                }
+                
+                if let error = cloudManager.error {
+                    Text(error.localizedDescription)
+                        .foregroundStyle(.secondary)
+                        .font(.footnote)
+                }
             }
             
             Section("Community & Support") {
@@ -244,6 +274,16 @@ struct SettingsView: View {
                 },
                 onDismiss: nil
             )
+        }
+        .alert("iCloud Sync Required", isPresented: $showingICloudAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Please sign in to iCloud in Settings and ensure iCloud Drive is enabled to sync your data across devices.")
         }
         .onAppear {
             updateAnalyzedItemsCount()

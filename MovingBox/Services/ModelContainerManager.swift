@@ -22,12 +22,12 @@ class ModelContainerManager: ObservableObject {
             schema: schema,
             isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
             allowsSave: true,
-            cloudKitDatabase: .automatic
+            cloudKitDatabase: CloudManager.shared.isAvailable ? .automatic : .none
         )
         
         do {
             self.container = try ModelContainer(for: schema, configurations: [configuration])
-            print("📦 ModelContainerManager - Created container with CloudKit enabled")
+            print("📦 ModelContainerManager - Created container with CloudKit \(CloudManager.shared.isAvailable ? "enabled" : "disabled")")
         } catch {
             print("📦 ModelContainerManager - Fatal error creating container: \(error)")
             fatalError("Failed to create ModelContainer: \(error)")

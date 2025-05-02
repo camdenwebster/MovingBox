@@ -7,6 +7,8 @@ struct OnboardingWelcomeView: View {
     @Environment(\.disableAnimations) private var disableAnimations
     @Environment(\.modelContext) private var modelContext
     
+    @StateObject private var cloudManager = CloudManager.shared
+    
     @State private var imageOpacity = 0.0
     @State private var welcomeOpacity = 0.0
     @State private var titleOpacity = 0.0
@@ -51,6 +53,14 @@ struct OnboardingWelcomeView: View {
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                             .opacity(descriptionOpacity)
                             .offset(y: descriptionOpacity == 0 ? -20 : 0)
+                            
+                        if let error = cloudManager.error {
+                            Text(error.localizedDescription)
+                                .foregroundStyle(.secondary)
+                                .font(.footnote)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                        }
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -140,7 +150,7 @@ struct OnboardingWelcomeView: View {
             }
             
             // Try checking for existing data
-            await updateStatusMessage("Checking for existing data...")
+            await updateStatusMessage(cloudManager.isAvailable ? "Checking for existing data..." : "Checking local data...")
             do {
                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
                 if shouldDismiss {
