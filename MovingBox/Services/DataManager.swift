@@ -11,9 +11,6 @@ import SwiftData
 import SwiftUI
 
 actor DataManager {
-    static let shared = DataManager()
-    private init() {}
-
     enum DataError: Error {
         case nothingToExport
         case failedCreateZip
@@ -22,6 +19,9 @@ actor DataManager {
         case photoNotFound
         case fileAccessDenied
     }
+
+    static let shared = DataManager()
+    private init() {}
 
     /// Exports all `InventoryItem`s (and their photos) into a single **zip** file that also
     /// contains `inventory.csv`.  The returned `URL` points to the finished archive
@@ -133,168 +133,236 @@ actor DataManager {
         return archiveURL
     }
 
+    enum ImportProgress {
+        case progress(Double)
+        case completed(ImportResult)
+        case error(Error)
+    }
+
     struct ImportResult {
         let itemCount: Int
         let locationCount: Int
     }
 
-    @MainActor
-    func importInventory(from zipURL: URL, modelContext: ModelContext) async throws -> ImportResult {
-        // Start security-scoped resource access
-        guard zipURL.startAccessingSecurityScopedResource() else {
-            throw DataError.fileAccessDenied
-        }
-        
-        defer {
-            zipURL.stopAccessingSecurityScopedResource()
-        }
-        
-        let workingDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
-        
-        defer {
-            try? FileManager.default.removeItem(at: workingDir)
-        }
-        
-        // Create a local copy of the zip file first
-        let localZipURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(zipURL.lastPathComponent)
-        try? FileManager.default.removeItem(at: localZipURL)
-        try FileManager.default.copyItem(at: zipURL, to: localZipURL)
-        
-        // Unzip archive
-        try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
-        try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
-        
-        // Find and parse both CSV files
-        let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
-        let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
-        let photosDir = workingDir.appendingPathComponent("photos")
-        
-        var locationCount = 0
-        // Import locations first
-        if FileManager.default.fileExists(atPath: locationsCSVURL.path) {
-            let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
-            let rows = csvString.components(separatedBy: .newlines)
-                .filter { !$0.isEmpty }
-            
-            if rows.count > 1 {
-                for row in rows.dropFirst() {
-                    let values = await parseCSVRow(row)
-                    guard values.count >= 3 else { continue }
+    /// Exports inventory from a zip file and reports progress through an async sequence
+    func importInventory(
+        from zipURL: URL,
+        modelContext: ModelContext
+    ) -> AsyncStream<ImportProgress> {
+        AsyncStream { continuation in
+            Task { @MainActor in
+                do {
+                    print("📦 Starting import from: \(zipURL.lastPathComponent)")
                     
-                    let location = InventoryLocation(name: values[0])
-                    location.desc = values[1]
+                    // Create working directory
+                    let workingDir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
                     
-                    // Handle location photo
-                    let photoFilename = values[2]
-                    if !photoFilename.isEmpty {
-                        let photoURL = photosDir.appendingPathComponent(photoFilename)
-                        if FileManager.default.fileExists(atPath: photoURL.path) {
-                            let destURL = try FileManager.default.url(
-                                for: .documentDirectory,
-                                in: .userDomainMask,
-                                appropriateFor: nil,
-                                create: true
-                            ).appendingPathComponent(photoFilename)
-                            
-                            try? FileManager.default.removeItem(at: destURL)
-                            try FileManager.default.copyItem(at: photoURL, to: destURL)
-                            location.imageURL = destURL
+                    defer {
+                        try? FileManager.default.removeItem(at: workingDir)
+                    }
+                    
+                    // Create local copy and unzip
+                    print("📦 Creating local copy and unzipping...")
+                    let localZipURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(zipURL.lastPathComponent)
+                    try? FileManager.default.removeItem(at: localZipURL)
+                    
+                    // Check if we can access the file
+                    guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
+                        print("❌ File access denied: \(zipURL.path)")
+                        continuation.yield(.error(DataError.fileAccessDenied))
+                        continuation.finish()
+                        return
+                    }
+                    
+                    try FileManager.default.copyItem(at: zipURL, to: localZipURL)
+                    
+                    try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
+                    try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
+                    
+                    // Get CSV files
+                    let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
+                    let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
+                    let photosDir = workingDir.appendingPathComponent("photos")
+                    
+                    // Calculate total rows
+                    var totalRows = 0
+                    var processedRows = 0
+                    
+                    if FileManager.default.fileExists(atPath: locationsCSVURL.path) {
+                        let locationCSV = try String(contentsOf: locationsCSVURL, encoding: .utf8)
+                        let locationCount = locationCSV.components(separatedBy: .newlines)
+                            .filter { !$0.isEmpty }
+                            .count - 1
+                        totalRows += locationCount
+                        print("📦 Found \(locationCount) locations to import")
+                    }
+                    
+                    if FileManager.default.fileExists(atPath: itemsCSVURL.path) {
+                        let itemsCSV = try String(contentsOf: itemsCSVURL, encoding: .utf8)
+                        let itemCount = itemsCSV.components(separatedBy: .newlines)
+                            .filter { !$0.isEmpty }
+                            .count - 1
+                        totalRows += itemCount
+                        print("📦 Found \(itemCount) items to import")
+                    }
+                    
+                    guard totalRows > 0 else {
+                        print("❌ No data found to import")
+                        continuation.yield(.error(DataError.invalidCSVFormat))
+                        continuation.finish()
+                        throw DataError.invalidCSVFormat
+                    }
+                    
+                    print("📦 Starting location import...")
+                    // Import locations first
+                    var locationCount = 0
+                    if FileManager.default.fileExists(atPath: locationsCSVURL.path) {
+                        let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
+                        let rows = csvString.components(separatedBy: .newlines)
+                            .filter { !$0.isEmpty }
+                        
+                        if rows.count > 1 {
+                            for row in rows.dropFirst() {
+                                let values = await parseCSVRow(row)
+                                guard values.count >= 3 else { continue }
+                                
+                                print("📍 Importing location: \(values[0])")
+                                let location = createAndConfigureLocation(
+                                    name: values[0],
+                                    desc: values[1]
+                                )
+                                
+                                // Handle photo if exists
+                                if !values[2].isEmpty {
+                                    let photoURL = photosDir.appendingPathComponent(values[2])
+                                    if FileManager.default.fileExists(atPath: photoURL.path) {
+                                        print("🏞️ Found photo for location: \(values[0])")
+                                        let destURL = try FileManager.default.url(
+                                            for: .documentDirectory,
+                                            in: .userDomainMask,
+                                            appropriateFor: nil,
+                                            create: true
+                                        ).appendingPathComponent(values[2])
+                                        
+                                        try? FileManager.default.removeItem(at: destURL)
+                                        try FileManager.default.copyItem(at: photoURL, to: destURL)
+                                        location.imageURL = destURL
+                                    }
+                                }
+                                
+                                modelContext.insert(location)
+                                locationCount += 1
+                                processedRows += 1
+                                let progress = Double(processedRows) / Double(totalRows)
+                                print("📊 Import progress: \(Int(progress * 100))% (\(processedRows)/\(totalRows))")
+                                continuation.yield(.progress(progress))
+                            }
                         }
                     }
                     
-                    modelContext.insert(location)
-                    locationCount += 1
-                }
-            }
-        }
-        
-        // Import inventory
-        guard FileManager.default.fileExists(atPath: itemsCSVURL.path) else {
-            throw DataError.invalidCSVFormat
-        }
-        
-        let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
-        let rows = csvString.components(separatedBy: .newlines)
-            .filter { !$0.isEmpty }
-        
-        guard rows.count > 1 else { throw DataError.invalidCSVFormat }
-        
-        var itemCount = 0
-        for row in rows.dropFirst() {
-            let values = await parseCSVRow(row)
-            guard values.count >= 13 else { continue }
-            
-            // Get location or create new one
-            let locationName = values[2]
-            let location: InventoryLocation
-            if let existing = try? modelContext.fetch(FetchDescriptor<InventoryLocation>(
-                predicate: #Predicate<InventoryLocation> { $0.name == locationName }
-            )).first {
-                location = existing
-            } else {
-                location = InventoryLocation(name: locationName)
-                modelContext.insert(location)
-            }
-            
-            // Get label or create new one
-            let labelName = values[3]
-            let label: InventoryLabel?
-            if !labelName.isEmpty {
-                if let existing = try? modelContext.fetch(FetchDescriptor<InventoryLabel>(
-                    predicate: #Predicate<InventoryLabel> { $0.name == labelName }
-                )).first {
-                    label = existing
-                } else {
-                    label = InventoryLabel(name: labelName)
-                    modelContext.insert(label!)
-                }
-            } else {
-                label = nil
-            }
-            
-            // Create item with title and location - other properties set after initialization
-            let item = InventoryItem()
-            item.title = values[0]
-            item.desc = values[1]
-            item.location = location
-            item.label = label
-            item.quantityInt = Int(values[4]) ?? 1
-            item.serial = values[5]
-            item.model = values[6]
-            item.make = values[7]
-            item.price = Decimal(string: values[8]) ?? 0
-            item.insured = values[9].lowercased() == "true"
-            item.notes = values[10]
-            item.hasUsedAI = values[12].lowercased() == "true"
-            
-            // Handle photo if exists
-            let photoFilename = values[11]
-            if !photoFilename.isEmpty {
-                let photoURL = photosDir.appendingPathComponent(photoFilename)
-                if FileManager.default.fileExists(atPath: photoURL.path) {
-                    // Copy photo to app container
-                    let destURL = try FileManager.default.url(
-                        for: .documentDirectory,
-                        in: .userDomainMask,
-                        appropriateFor: nil,
-                        create: true
-                    ).appendingPathComponent(photoFilename)
+                    print("📦 Starting item import...")
+                    // Import inventory items
+                    var itemCount = 0
+                    if FileManager.default.fileExists(atPath: itemsCSVURL.path) {
+                        let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
+                        let rows = csvString.components(separatedBy: .newlines)
+                            .filter { !$0.isEmpty }
+                        
+                        if rows.count > 1 {
+                            for row in rows.dropFirst() {
+                                let values = await parseCSVRow(row)
+                                guard values.count >= 13 else { continue }
+                                
+                                print("📝 Importing item: \(values[0])")
+                                let item = createAndConfigureItem(
+                                    title: values[0],
+                                    desc: values[1]
+                                )
+                                
+                                // Get or create location
+                                print("🔍 Finding location for item: \(values[2])")
+                                let location = findOrCreateLocation(
+                                    name: values[2],
+                                    modelContext: modelContext
+                                )
+                                item.location = location
+                                
+                                // Handle photo if exists
+                                let photoFilename = values[11]
+                                if !photoFilename.isEmpty {
+                                    let photoURL = photosDir.appendingPathComponent(photoFilename)
+                                    if FileManager.default.fileExists(atPath: photoURL.path) {
+                                        print("🏞️ Found photo for item: \(values[0])")
+                                        let destURL = try FileManager.default.url(
+                                            for: .documentDirectory,
+                                            in: .userDomainMask,
+                                            appropriateFor: nil,
+                                            create: true
+                                        ).appendingPathComponent(photoFilename)
+                                        
+                                        try? FileManager.default.removeItem(at: destURL)
+                                        try FileManager.default.copyItem(at: photoURL, to: destURL)
+                                        item.imageURL = destURL
+                                    }
+                                }
+                                
+                                modelContext.insert(item)
+                                itemCount += 1
+                                processedRows += 1
+                                let progress = Double(processedRows) / Double(totalRows)
+                                print("📊 Import progress: \(Int(progress * 100))% (\(processedRows)/\(totalRows))")
+                                continuation.yield(.progress(progress))
+                            }
+                        }
+                    }
                     
-                    try? FileManager.default.removeItem(at: destURL)
-                    try FileManager.default.copyItem(at: photoURL, to: destURL)
-                    item.imageURL = destURL
+                    print("✅ Import complete! Imported \(itemCount) items and \(locationCount) locations")
+                    continuation.yield(.completed(ImportResult(
+                        itemCount: itemCount,
+                        locationCount: locationCount
+                    )))
+                    continuation.finish()
+                    
+                } catch {
+                    print("❌ Import failed: \(error.localizedDescription)")
+                    continuation.yield(.error(error))
+                    continuation.finish()
+                    throw error
                 }
             }
-            
-            modelContext.insert(item)
-            itemCount += 1
         }
-        
-        return ImportResult(itemCount: itemCount, locationCount: locationCount)
     }
     
+    @MainActor
+    private func createAndConfigureLocation(name: String, desc: String) -> InventoryLocation {
+        let location = InventoryLocation(name: name)
+        location.desc = desc
+        return location
+    }
+    
+    @MainActor
+    private func createAndConfigureItem(title: String, desc: String) -> InventoryItem {
+        let item = InventoryItem()
+        item.title = title
+        item.desc = desc
+        return item
+    }
+    
+    @MainActor
+    private func findOrCreateLocation(name: String, modelContext: ModelContext) -> InventoryLocation {
+        if let existing = try? modelContext.fetch(FetchDescriptor<InventoryLocation>(
+            predicate: #Predicate<InventoryLocation> { $0.name == name }
+        )).first {
+            return existing
+        } else {
+            let location = InventoryLocation(name: name)
+            modelContext.insert(location)
+            return location
+        }
+    }
+
     // MARK: - Helpers
     private func writeCSV(items: [(
         title: String,
