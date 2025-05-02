@@ -22,8 +22,11 @@ class DashboardScreen {
     
     func testDataLoaded() -> Bool {
         var iterations = 0
-        let expectedItemCount = "53"
-        let actualItemCount = statCardValue.firstMatch.label
+        let expectedItemCount = 53
+        guard let actualItemCount = Int(statCardValue.firstMatch.label) else {
+            print("Error: actualItemCount is not a valid number.")
+            return false
+        }
         while actualItemCount >= expectedItemCount && iterations < 10 {
             sleep(1)
             iterations += 1
