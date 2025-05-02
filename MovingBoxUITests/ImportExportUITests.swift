@@ -50,14 +50,14 @@ final class ImportExportUITests: XCTestCase {
         
         // Save to Files (simulated)
         let sharingUIServiceApp = XCUIApplication(bundleIdentifier: "com.apple.SharingUIService")
-//        sharingUIServiceApp.activate()
         sharingUIServiceApp.otherElements.element(boundBy: 27).tap()
-//        app.activate()
         app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].tap()
         
         // Import the exported inventory
         importExportScreen.importButton.tap()
         app.cells.images.firstMatch.tap()
+        
+        // TODO: Re-try this test once this but is resolved: https://developer.apple.com/forums/thread/763549
         app.otherElements.matching(identifier: "Horizontal scroll bar, 1 page").element(boundBy: 1).tap()
         
         // Handle system file picker (simulated)
