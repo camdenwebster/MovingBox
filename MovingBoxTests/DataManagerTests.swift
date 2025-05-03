@@ -141,83 +141,34 @@ struct DataManagerTests {
         // Given
         let container = try createContainer()
         let context = createContext(with: container)
-        
-        let documentsURL = try fileManager.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        
-        // Create working directory
-        let workingDir = documentsURL.appendingPathComponent("test-export-\(UUID().uuidString)")
-        try fileManager.createDirectory(at: workingDir, withIntermediateDirectories: true)
-        
-        // Create photos directory inside working directory
-        let photosDir = workingDir.appendingPathComponent("photos")
-        try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
-        
-        // Create test images first
-        let locationImagePath = photosDir.appendingPathComponent("location.png")
-        let itemImagePath = photosDir.appendingPathComponent("item.png")
-        try "test image data".data(using: .utf8)?.write(to: locationImagePath)
-        try "test image data".data(using: .utf8)?.write(to: itemImagePath)
-        
-        // Verify images exist
-        guard fileManager.fileExists(atPath: locationImagePath.path),
-              fileManager.fileExists(atPath: itemImagePath.path) else {
-            throw DataManager.DataError.photoNotFound
-        }
-        
-        // Create CSV files
-        let locationsCSVPath = workingDir.appendingPathComponent("locations.csv")
-        let inventoryCSVPath = workingDir.appendingPathComponent("inventory.csv")
-        
-        let locationsCSV = """
-        Name,Notes,PhotoFilename
-        Test Location,Test Notes,location.png
-        Second Location,More Notes,
-        """
-        try locationsCSV.write(to: locationsCSVPath, atomically: true, encoding: .utf8)
-        
-        let inventoryCSV = """
-        Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
-        Test Item,Test Description,Test Location,,1,,,,,false,,item.png,false
-        Second Item,Another Description,Second Location,,1,,,,,false,,,false
-        """
-        try inventoryCSV.write(to: inventoryCSVPath, atomically: true, encoding: .utf8)
-        
-        // Create zip file
-        let zipURL = documentsURL.appendingPathComponent("test-import.zip")
-        if fileManager.fileExists(atPath: zipURL.path) {
-            try fileManager.removeItem(at: zipURL)
-        }
-        
-        // Create archive and add files
-        try fileManager.zipItem(at: workingDir, to: zipURL, shouldKeepParent: false)
-        
-        defer {
-            try? fileManager.removeItem(at: workingDir)
-            try? fileManager.removeItem(at: zipURL)
-        }
-        
-        // Verify zip exists
-        guard fileManager.fileExists(atPath: zipURL.path) else {
-            throw DataManager.DataError.failedCreateZip
-        }
+        let zipURL = try createTestImportFile()
         
         // When
-        let result = try await DataManager.shared.importInventory(from: zipURL, modelContext: context)
+        var importedItemCount = 0
+        var importedLocationCount = 0
+        
+        for try await progress in await DataManager.shared.importInventory(
+            from: zipURL,
+            modelContext: context
+        ) {
+            if case .completed(let result) = progress {
+                importedItemCount = result.itemCount
+                importedLocationCount = result.locationCount
+            }
+        }
         
         // Then
-        #expect(result.itemCount == 2)
-        #expect(result.locationCount == 2)
+        #expect(importedItemCount == 2)
+        #expect(importedLocationCount == 2)
         
         let locations = try context.fetch(FetchDescriptor<InventoryLocation>())
         #expect(locations.count == 2)
         
         let items = try context.fetch(FetchDescriptor<InventoryItem>())
         #expect(items.count == 2)
+        
+        // Cleanup
+        try? FileManager.default.removeItem(at: zipURL)
     }
     
     @Test("Import with invalid zip throws error")
@@ -246,18 +197,114 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: invalidZipURL)
         }
         
-        // Attempt to import
-        do {
-            _ = try await DataManager.shared.importInventory(from: invalidZipURL, modelContext: context)
-            Issue.record("Expected error to be thrown")
-        } catch let error as DataManager.DataError {
-            #expect(error == .invalidZipFile)
-        } catch is Archive.ArchiveError {
-            // This is also an acceptable error
+        // When
+        var receivedError: Error?
+        
+        for try await progress in await DataManager.shared.importInventory(
+            from: invalidZipURL,
+            modelContext: context
+        ) {
+            if case .error(let error) = progress {
+                receivedError = error
+                break
+            }
+        }
+        
+        // Then
+        guard let error = receivedError else {
+            Issue.record("Expected error to be received")
+            return
+        }
+        
+        if let dataError = error as? DataManager.DataError {
+            #expect(dataError == .invalidZipFile)
+        } else if error is Archive.ArchiveError {
             #expect(true, "Received expected ZIPFoundation ArchiveError")
-        } catch {
+        } else {
             Issue.record("Unexpected error type: \(error)")
         }
+    }
+    
+    @Test("Export respects configuration flags")
+    func exportRespectsConfiguration() async throws {
+        // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        let item = InventoryItem()
+        item.title = "Test Item"
+        context.insert(item)
+        
+        let location = InventoryLocation(name: "Test Location")
+        context.insert(location)
+        
+        let label = InventoryLabel(name: "Test Label")
+        context.insert(label)
+        
+        try context.save()
+        
+        // When exporting only items
+        let itemsOnlyConfig = DataManager.ExportConfig(
+            includeItems: true,
+            includeLocations: false,
+            includeLabels: false
+        )
+        
+        let itemsOnlyURL = try await DataManager.shared.exportInventory(
+            modelContext: context,
+            config: itemsOnlyConfig
+        )
+        
+        // Then
+        do {
+            let archive = try Archive(url: itemsOnlyURL, accessMode: .read, pathEncoding: .utf8)
+            #expect(archive.contains { $0.path == "inventory.csv" })
+            #expect(!archive.contains { $0.path == "locations.csv" })
+            #expect(!archive.contains { $0.path == "labels.csv" })
+        } catch {
+            Issue.record("Unable to open archive: \(error)")
+        }
+        
+        try? FileManager.default.removeItem(at: itemsOnlyURL)
+    }
+    
+    @Test("Import respects configuration flags")
+    func importRespectsConfiguration() async throws {
+        // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        let importURL = try createTestImportFile()
+        
+        // When importing only items
+        let itemsOnlyConfig = DataManager.ImportConfig(
+            includeItems: true,
+            includeLocations: false,
+            includeLabels: false
+        )
+        
+        var importedItemCount = 0
+        var importedLocationCount = 0
+        var importedLabelCount = 0
+        
+        for try await progress in await DataManager.shared.importInventory(
+            from: importURL,
+            modelContext: context,
+            config: itemsOnlyConfig
+        ) {
+            if case .completed(let result) = progress {
+                importedItemCount = result.itemCount
+                importedLocationCount = result.locationCount
+                importedLabelCount = result.labelCount
+            }
+        }
+        
+        // Then
+        #expect(importedItemCount > 0)
+        #expect(importedLocationCount == 0)
+        #expect(importedLabelCount == 0)
+        
+        try? FileManager.default.removeItem(at: importURL)
     }
     
     // MARK: - Helper Methods
@@ -280,5 +327,48 @@ struct DataManagerTests {
     private func createTestImage(named filename: String, in directory: URL) throws {
         let imageURL = directory.appendingPathComponent(filename)
         try "test".data(using: .utf8)?.write(to: imageURL)
+    }
+    
+    private func createTestImportFile() throws -> URL {
+        let documentsURL = try fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        
+        let workingDir = documentsURL.appendingPathComponent("test-export-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: workingDir, withIntermediateDirectories: true)
+        
+        let photosDir = workingDir.appendingPathComponent("photos")
+        try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
+        
+        // Create test CSVs
+        let inventoryCSV = """
+        Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
+        Test Item,Test Description,Test Location,,1,,,,,false,,test.png,false
+        """
+        try inventoryCSV.write(to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
+        
+        let locationsCSV = """
+        Name,Description,PhotoFilename
+        Test Location,Test Description,
+        """
+        try locationsCSV.write(to: workingDir.appendingPathComponent("locations.csv"), atomically: true, encoding: .utf8)
+        
+        let labelsCSV = """
+        Name,Description,ColorHex,Emoji
+        Test Label,Test Description,#FF0000,📦
+        """
+        try labelsCSV.write(to: workingDir.appendingPathComponent("labels.csv"), atomically: true, encoding: .utf8)
+        
+        // Create zip
+        let zipURL = documentsURL.appendingPathComponent("test-import.zip")
+        try? fileManager.removeItem(at: zipURL)
+        try fileManager.zipItem(at: workingDir, to: zipURL, shouldKeepParent: false)
+        
+        try? fileManager.removeItem(at: workingDir)
+        
+        return zipURL
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ImportLoadingView: View {
     let importedItemCount: Int
     let importedLocationCount: Int
+    let importedLabelCount: Int
     @Environment(\.colorScheme) private var colorScheme
     @Binding var isComplete: Bool
     let importCompleted: Bool
@@ -16,6 +17,7 @@ struct ImportLoadingView: View {
         "Reading your data...",
         "Processing items...",
         "Setting up locations...",
+        "Configuring labels...",
         "Almost there..."
     ]
     
@@ -114,6 +116,8 @@ struct ImportLoadingView: View {
                             VStack(spacing: 8) {
                                 Text("\(importedItemCount) items imported")
                                 Text("\(importedLocationCount) locations imported")
+                                Text("\(importedLabelCount) labels imported")
+                                    .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Button("Done") {
