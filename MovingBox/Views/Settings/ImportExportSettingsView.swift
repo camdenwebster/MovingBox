@@ -203,14 +203,45 @@ struct ImportExportSettingsView: View {
             importCompleted = false
             showImportLoading = true
             
-            let tmpDirectory = FileManager.default.temporaryDirectory
-            let tmpURL = tmpDirectory.appendingPathComponent(url.lastPathComponent)
-            
-            if FileManager.default.fileExists(atPath: tmpURL.path) {
-                try FileManager.default.removeItem(at: tmpURL)
+            // Start accessing security-scoped resource
+            guard url.startAccessingSecurityScopedResource() else {
+                throw NSError(
+                    domain: "ImportError",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"]
+                )
             }
             
-            try FileManager.default.copyItem(at: url, to: tmpURL)
+            defer {
+                url.stopAccessingSecurityScopedResource()
+            }
+            
+            // Use Documents directory instead of tmp
+            let documentsDirectory = FileManager.default.urls(
+                for: .documentDirectory,
+                in: .userDomainMask
+            ).first!
+            let importDirectory = documentsDirectory.appendingPathComponent("Imports", isDirectory: true)
+            
+            // Create Imports directory if it doesn't exist
+            if !FileManager.default.fileExists(atPath: importDirectory.path) {
+                try FileManager.default.createDirectory(
+                    at: importDirectory,
+                    withIntermediateDirectories: true
+                )
+            }
+            
+            let importURL = importDirectory.appendingPathComponent(UUID().uuidString + ".zip")
+            
+            // Clean up any existing file
+            if FileManager.default.fileExists(atPath: importURL.path) {
+                try FileManager.default.removeItem(at: importURL)
+            }
+            
+            print("📦 Copying file to: \(importURL.path)")
+            
+            // Copy with secure file protection
+            try FileManager.default.copyItem(at: url, to: importURL)
             
             let config = DataManager.ImportConfig(
                 includeItems: importItems,
@@ -219,7 +250,7 @@ struct ImportExportSettingsView: View {
             )
             
             for try await progress in await DataManager.shared.importInventory(
-                from: tmpURL,
+                from: importURL,
                 modelContext: modelContext,
                 config: config
             ) {
@@ -231,11 +262,18 @@ struct ImportExportSettingsView: View {
                     importedLocationCount = result.locationCount
                     importedLabelCount = result.labelCount
                     importCompleted = true
-                    try? FileManager.default.removeItem(at: tmpURL)
+                    try? FileManager.default.removeItem(at: importURL)
+                    // Clean up Imports directory if empty
+                    if let contents = try? FileManager.default.contentsOfDirectory(
+                        at: importDirectory,
+                        includingPropertiesForKeys: nil
+                    ), contents.isEmpty {
+                        try? FileManager.default.removeItem(at: importDirectory)
+                    }
                 case .error(let error):
                     importError = error
                     importCompleted = false
-                    try? FileManager.default.removeItem(at: tmpURL)
+                    try? FileManager.default.removeItem(at: importURL)
                 }
             }
         } catch {
