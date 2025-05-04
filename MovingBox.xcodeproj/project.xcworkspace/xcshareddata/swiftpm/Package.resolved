@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/RevenueCat/purchases-ios-spm.git",
       "state" : {
-        "revision" : "96545bf014ca3d5a2b0ffd2c8de7105ca0705a19",
-        "version" : "5.22.0"
+        "revision" : "f45bccdad1c7b5f57af3fb511f67854cacd13fd7",
+        "version" : "5.22.2"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
-        "revision" : "dd30b39839f28a9c3cb88ac9cb27cc0eca33e661",
-        "version" : "8.49.1"
+        "revision" : "5bda7f7c1ca97eba3b1ba32cd40041e72c38de03",
+        "version" : "8.49.2"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/TelemetryDeck/SwiftSDK.git",
       "state" : {
-        "revision" : "501270cd33082c3fa430b724e849855482ed051c",
-        "version" : "2.9.3"
+        "revision" : "a7fd1eb469589a3c8fd8cc3abe19b092b5d674dc",
+        "version" : "2.9.4"
       }
     },
     {
