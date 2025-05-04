@@ -59,6 +59,9 @@ struct DashboardView: View {
         GridItem(.flexible())
     ]
     
+    let headerHeight = UIScreen.main.bounds.height / 3
+
+    
     private let row = GridItem(.fixed(160))
 
     var body: some View {
@@ -68,7 +71,6 @@ struct DashboardView: View {
                     if let uiImage = loadedImage {
                         GeometryReader { proxy in
                             let scrollY = proxy.frame(in: .global).minY
-                            let headerHeight = UIScreen.main.bounds.height / 3
                             
                             ZStack(alignment: .bottom) {
                                 Image(uiImage: uiImage)
@@ -106,7 +108,7 @@ struct DashboardView: View {
                     } else if isLoading {
                         ProgressView()
                             .frame(maxWidth: .infinity)
-                            .frame(height: 100)
+                            .frame(height: headerHeight)
                     } else {
                         VStack {
                             Spacer()

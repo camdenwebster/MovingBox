@@ -346,13 +346,15 @@ struct DataManagerTests {
         // Create test CSVs
         let inventoryCSV = """
         Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
-        Test Item,Test Description,Test Location,,1,,,,,false,,test.png,false
+        Test Item 1,Test Description,Test Location 1,,1,,,,,false,,test1.png,false
+        Test Item 2,Test Description,Test Location 2,,1,,,,,false,,test2.png,false
         """
         try inventoryCSV.write(to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
         
         let locationsCSV = """
         Name,Description,PhotoFilename
-        Test Location,Test Description,
+        Test Location 1,Test Description,location1.png
+        Test Location 2,Test Description,location2.png
         """
         try locationsCSV.write(to: workingDir.appendingPathComponent("locations.csv"), atomically: true, encoding: .utf8)
         
@@ -361,6 +363,12 @@ struct DataManagerTests {
         Test Label,Test Description,#FF0000,📦
         """
         try labelsCSV.write(to: workingDir.appendingPathComponent("labels.csv"), atomically: true, encoding: .utf8)
+        
+        // Create dummy photo files
+        try createTestImage(named: "test1.png", in: photosDir)
+        try createTestImage(named: "test2.png", in: photosDir)
+        try createTestImage(named: "location1.png", in: photosDir)
+        try createTestImage(named: "location2.png", in: photosDir)
         
         // Create zip
         let zipURL = documentsURL.appendingPathComponent("test-import.zip")
