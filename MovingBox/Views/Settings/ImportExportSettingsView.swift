@@ -22,6 +22,7 @@ struct ImportExportSettingsView: View {
     @State private var importCompleted = false
     @State private var importProgress: Double = 0
     @State private var importError: Error?
+    @State private var showDuplicateWarning = false
     @State private var importItems = true
     @State private var importLocations = true
     @State private var importLabels = true
@@ -78,7 +79,7 @@ struct ImportExportSettingsView: View {
                 })
                 Button {
                     if hasImportOptionsSelected {
-                        showFileImporter = true
+                        showDuplicateWarning = true
                     } else {
                         noOptionsAlertType = .importing
                         showNoOptionsAlert = true
@@ -128,6 +129,14 @@ struct ImportExportSettingsView: View {
                 Text("Export a ZIP file containing all items and photos.")
                     .font(.footnote)
             }
+        }
+        .alert("Warning", isPresented: $showDuplicateWarning) {
+            Button("Cancel", role: .cancel) { }
+            Button("Continue") {
+                showFileImporter = true
+            }
+        } message: {
+            Text("The import process does not check for duplicate data. Importing the same data multiple times may result in duplicate items, locations, and labels.")
         }
         .alert(noOptionsAlertType.title, isPresented: $showNoOptionsAlert) {
             Button("OK", role: .cancel) { }

@@ -136,7 +136,7 @@ struct ImportLoadingView: View {
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.accentColor)
+                                .background(Color.customPrimary)
                                 .cornerRadius(10)
                             }
                             .padding(.horizontal)
