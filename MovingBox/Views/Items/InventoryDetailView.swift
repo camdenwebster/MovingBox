@@ -419,7 +419,7 @@ struct InventoryDetailView: View {
             throw OpenAIError.invalidData
         }
         
-        guard let imageBase64 = OptimizedImageManager.shared.prepareImageForAI(from: photo) else {
+        guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: photo) else {
             throw OpenAIError.invalidData
         }
         

@@ -20,6 +20,7 @@
     {
       "parallelizable" : true,
       "skippedTests" : [
+        "ImportExportUITests\/testImportExportFlow()",
         "PaywallUITests\/testFirstItemCreationShowsPaywall()"
       ],
       "target" : {

@@ -234,7 +234,7 @@ struct ItemCreationFlowView: View {
         
         do {
             // Prepare image for AI
-            guard let imageBase64 = OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+            guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: image) else {
                 throw OpenAIError.invalidData
             }
             

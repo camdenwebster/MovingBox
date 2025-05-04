@@ -174,6 +174,16 @@ struct SettingsView: View {
             }
             
             Section("Sync & Backup") {
+                NavigationLink(value: "importExport") {
+                    Label {
+                        Text("Import & Export")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "doc.plaintext")
+                            .foregroundStyle(Color.customPrimary)
+                    }
+                }
+                .accessibilityIdentifier("importExportLink")
                 Text("Your data is automatically synced across all your devices using iCloud")
                     .foregroundStyle(.secondary)
             }
@@ -250,6 +260,15 @@ struct SettingsView: View {
         }
         .onChange(of: allItems) { _, _ in
             updateAnalyzedItemsCount()
+        }
+        .navigationDestination(for: String.self) { value in
+            switch value {
+                case "home": EditHomeView()
+                case "locations": LocationSettingsView()
+                case "labels": LabelSettingsView()
+                case "importExport": ImportExportSettingsView()
+                default: EmptyView()
+            }
         }
     }
     

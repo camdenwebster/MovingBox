@@ -3,7 +3,6 @@ import UIKit
 import SwiftUI
 import PhotosUI
 
-@MainActor
 final class OptimizedImageManager {
     static let shared = OptimizedImageManager()
     private let fileManager = FileManager.default
@@ -51,7 +50,7 @@ final class OptimizedImageManager {
     }
     
     @objc private func ubiquityIdentityDidChange(_ notification: Notification) {
-        Task { @MainActor in
+        Task {
             setupImageDirectory()
             clearCache()
         }
@@ -65,7 +64,7 @@ final class OptimizedImageManager {
             return nil
         }
         
-        let optimizedImage = optimizeImage(uiImage)
+        let optimizedImage = await optimizeImage(uiImage)
         guard let compressedData = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             return nil
         }
@@ -77,7 +76,7 @@ final class OptimizedImageManager {
     func saveImage(_ image: UIImage, id: String) async throws -> URL {
         let imageURL = imagesDirectoryURL.appendingPathComponent("\(id).jpg")
         
-        let optimizedImage = optimizeImage(image)
+        let optimizedImage = await optimizeImage(image)
         guard let data = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             throw ImageError.compressionFailed
         }
@@ -189,7 +188,7 @@ final class OptimizedImageManager {
     
     // MARK: - Image Optimization
     
-    func optimizeImage(_ image: UIImage, maxDimension: CGFloat? = nil) -> UIImage {
+    func optimizeImage(_ image: UIImage, maxDimension: CGFloat? = nil) async -> UIImage {
         let originalSize = image.size
         let targetMaxDimension = maxDimension ?? ImageConfig.maxDimension
         
@@ -206,21 +205,29 @@ final class OptimizedImageManager {
             height: originalSize.height * scale
         )
         
-        let format = UIGraphicsImageRendererFormat()
-        format.preferredRange = .standard
-        format.scale = image.scale
+        // Capture value types only
+        let imageScale = image.scale
         
-        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
-        let resizedImage = renderer.image { context in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                // Create format inside async block to avoid Sendable issues
+                let format = UIGraphicsImageRendererFormat()
+                format.preferredRange = .standard
+                format.scale = imageScale
+                
+                let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+                let resized = renderer.image { _ in
+                    // Draw image in background thread
+                    image.draw(in: CGRect(origin: .zero, size: newSize))
+                }
+                
+                continuation.resume(returning: resized)
+            }
         }
-        
-        print("📸 OptimizedImageManager - Resized image from \(Int(originalSize.width))x\(Int(originalSize.height)) to \(Int(newSize.width))x\(Int(newSize.height))")
-        return resizedImage
     }
     
-    func prepareImageForAI(from image: UIImage) -> String? {
-        let optimizedImage = optimizeImage(image, maxDimension: ImageConfig.aiMaxDimension)
+    func prepareImageForAI(from image: UIImage) async -> String? {
+        let optimizedImage = await optimizeImage(image, maxDimension: ImageConfig.aiMaxDimension)
         guard let imageData = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             return nil
         }

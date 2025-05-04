@@ -85,7 +85,9 @@ struct ImageAnalysisView: View {
             appearedTime = Date()
             
             // Optimize the image for display
-            optimizedImage = OptimizedImageManager.shared.optimizeImage(image)
+            Task {
+                optimizedImage = await OptimizedImageManager.shared.optimizeImage(image)
+            }
             
             // Ensure we show the analysis screen for at least the minimum time
             DispatchQueue.main.asyncAfter(deadline: .now() + minimumAnalysisTime) {
