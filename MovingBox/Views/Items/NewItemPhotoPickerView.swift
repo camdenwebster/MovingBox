@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import SwiftData
+import UIKit
 
 struct NewItemPhotoPickerView: View {
     @Environment(\.dismiss) var dismiss
@@ -55,9 +56,9 @@ struct NewItemPhotoPickerView: View {
 
             if !loadedImages.isEmpty {
                 Button("Continue") {
-                    // TODO: Navigate to ItemCreationFlowView with the selected photos
-                    // This requires modifying ItemCreationFlowView to accept an array of images.
-                    print("Continue with \(loadedImages.count) photos")
+                    // NOTE: Passing large UIImage arrays directly in NavigationPath can be inefficient.
+                    // In a real app, it might be better to save images here and pass URLs/IDs.
+                    router.navigate(to: .itemCreationFlow(location: location, initialImages: loadedImages))
                 }
                 .buttonStyle(.borderedProminent)
                 .padding()
