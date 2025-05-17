@@ -66,4 +66,177 @@ platform :ios do
       derived_data_path: "DerivedData"
     )
   end
+  
+  #######################
+  # Release Automation  #
+  #######################
+  
+  desc "Increment build number"
+  lane :increment_build do
+    increment_build_number
+  end
+  
+  desc "Increment version number"
+  lane :increment_version do |options|
+    version_type = options[:type]
+    version_number = options[:version_number]
+    
+    if version_number
+      increment_version_number(
+        version_number: version_number
+      )
+    elsif version_type
+      increment_version_number(
+        bump_type: version_type
+      )
+    else
+      UI.user_error!("You must specify either a version_number or a bump_type (major, minor, patch)")
+    end
+  end
+  
+  desc "Extract release notes from CHANGELOG.md for a specific version"
+  lane :extract_release_notes do |options|
+    version = options[:version]
+    
+    # If no version provided, exit with error
+    UI.user_error!("No version provided. Provide a version like '1.0.0'") unless version
+    
+    # Read CHANGELOG.md file
+    changelog_path = "../CHANGELOG.md"
+    changelog = File.read(changelog_path) if File.exist?(changelog_path)
+    
+    # If CHANGELOG.md doesn't exist, try example-CHANGELOG.md
+    if changelog.nil?
+      example_changelog_path = "../example-CHANGELOG.md"
+      changelog = File.read(example_changelog_path) if File.exist?(example_changelog_path)
+    end
+    
+    UI.user_error!("Could not find CHANGELOG.md or example-CHANGELOG.md") if changelog.nil?
+    
+    # Find release notes for the specified version
+    version_header = "## [#{version}]"
+    sections = changelog.split(/^## \[\d+\.\d+\.\d+\]/)
+    
+    version_notes = nil
+    
+    sections.each do |section|
+      if section.include?(version_header) || section.include?("## [#{version}] ")
+        version_notes = section.strip
+        break
+      end
+    end
+    
+    UI.user_error!("Could not find release notes for version #{version}") if version_notes.nil?
+    
+    # Write release notes to a file
+    File.write("./release_notes.txt", version_notes)
+    
+    UI.success("Release notes for version #{version} extracted successfully")
+    
+    return version_notes
+  end
+  
+  desc "Build app for release"
+  lane :build_app_for_release do |options|
+    # Clean build artifacts
+    clean_build_artifacts
+    
+    # Set up code signing
+    setup_ci if ENV['CI']
+    
+    # Build the app
+    build_app(
+      project: "MovingBox.xcodeproj",
+      scheme: "MovingBox",
+      export_method: options[:export_method] || "app-store",
+      output_directory: "./build",
+      clean: true
+    )
+  end
+  
+  desc "Upload to TestFlight"
+  lane :upload_to_testflight do |options|
+    version = options[:version]
+    notes = options[:release_notes]
+    skip_build = options[:skip_build] || false
+    
+    # If no version, exit with error
+    UI.user_error!("No version provided. Provide a version like '1.0.0'") unless version
+    
+    # If no explicit release notes provided, extract from CHANGELOG
+    if notes.nil?
+      notes = extract_release_notes(version: version)
+    end
+    
+    # Increment version number if provided
+    increment_version(version_number: version)
+    
+    # Always increment build number
+    increment_build
+    
+    # Build app if not skipped
+    build_app_for_release unless skip_build
+    
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_submission: true,
+      skip_waiting_for_build_processing: true,
+      changelog: notes,
+      distribute_external: false
+    )
+    
+    UI.success("Successfully uploaded to TestFlight!")
+  end
+  
+  desc "Upload to App Store"
+  lane :upload_to_app_store do |options|
+    version = options[:version]
+    skip_build = options[:skip_build] || false
+    
+    # If no version, exit with error
+    UI.user_error!("No version provided. Provide a version like '1.0.0'") unless version
+    
+    # Extract release notes
+    release_notes = extract_release_notes(version: version)
+    
+    # Increment version number
+    increment_version(version_number: version)
+    
+    # Always increment build number
+    increment_build
+    
+    # Build app if not skipped
+    build_app_for_release unless skip_build
+    
+    # Upload to App Store
+    deliver(
+      skip_metadata: options[:skip_metadata] || false,
+      skip_screenshots: options[:skip_screenshots] || true,
+      submit_for_review: options[:submit_for_review] || false,
+      force: true
+    )
+    
+    UI.success("Successfully uploaded to App Store!")
+  end
+  
+  desc "Full release process: Build, TestFlight, and App Store"
+  lane :release do |options|
+    version = options[:version]
+    
+    # If no version, exit with error
+    UI.user_error!("No version provided. Provide a version like '1.0.0'") unless version
+    
+    # First, build and upload to TestFlight
+    upload_to_testflight(
+      version: version
+    )
+    
+    # Then upload to App Store (using the already built IPA)
+    upload_to_app_store(
+      version: version,
+      skip_build: true
+    )
+    
+    UI.success("🎉 Successfully completed the full release process for version #{version}! 🎉")
+  end
 end

@@ -81,14 +81,14 @@ struct Previewer {
         let newPolicy = InsurancePolicy(
             providerName: "State Farm",
             policyNumber: "123456789",
+            startDate: Date(),
+            endDate: Calendar.current.date(byAdding: .year, value: 1, to: Date())!,
             deductibleAmount: 1000,
             dwellingCoverageAmount: 500000,
             personalPropertyCoverageAmount: 100000,
             lossOfUseCoverageAmount: 5000,
             liabilityCoverageAmount: 300000,
-            medicalPaymentsCoverageAmount: 5000,
-            startDate: Date(),
-            endDate: Calendar.current.date(byAdding: .year, value: 1, to: Date())!
+            medicalPaymentsCoverageAmount: 5000
         )
         
         // Insert all models into the container

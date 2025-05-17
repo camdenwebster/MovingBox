@@ -39,7 +39,7 @@ struct ItemAnalysisDetailView: View {
     private var mainContent: some View {
         ZStack {
             if showingImageAnalysis {
-                ImageAnalysisView(image: image) {
+                ImageAnalysisView(images: [image]) {
                     Task {
                         do {
                             try await performAnalysis()

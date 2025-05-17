@@ -1,19 +1,22 @@
 import SwiftUI
 
 struct ImageAnalysisView: View {
-    let image: UIImage
+    let images: [UIImage]
     let onComplete: () -> Void
     
     @State private var scannerOffset: CGFloat = -100
-    @State private var optimizedImage: UIImage?
+    @State private var optimizedImages: [UIImage] = []
     @State private var analysisTimeElapsed = false
     @State private var appearedTime = Date()
     @State private var scannerOpacity: Double = 0
+    @State private var currentImageIndex: Int = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
     
     // Minimum time to show analysis screen (for UX purposes)
     private let minimumAnalysisTime: Double = 2.0
+    // Time between image transitions
+    private let transitionTime: Double = 1.0
     
     var body: some View {
         ZStack {
@@ -24,13 +27,15 @@ struct ImageAnalysisView: View {
                     Spacer()
                     
                     Group {
-                        Image(uiImage: optimizedImage ?? image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: min(geometry.size.width, geometry.size.height))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical)
-                            .transition(.opacity)
+                        if let currentImage = optimizedImages[safe: currentImageIndex] ?? images[safe: currentImageIndex] {
+                            Image(uiImage: currentImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: min(geometry.size.width, geometry.size.height))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical)
+                                .transition(.opacity)
+                        }
                     }
                     
                     Spacer()
@@ -41,7 +46,7 @@ struct ImageAnalysisView: View {
                         Text("AI Image Analysis in Progress...")
                             .font(.headline)
                             .foregroundStyle(.primary)
-                        Text("Please wait while we analyze your photo")
+                        Text("Analyzing photo \(currentImageIndex + 1) of \(images.count)")
                             .foregroundStyle(.secondary)
                     }
                     .frame(height: 120)
@@ -69,7 +74,7 @@ struct ImageAnalysisView: View {
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .interactiveDismissDisabled(true)
         .onAppear {
-            print("ImageAnalysisView appeared")
+            print("ImageAnalysisView appeared with \(images.count) images")
             
             // Fade in the scanner
             withAnimation(.easeIn(duration: 0.5)) {
@@ -84,9 +89,21 @@ struct ImageAnalysisView: View {
             // Store the time we appeared
             appearedTime = Date()
             
-            // Optimize the image for display
+            // Optimize all images
             Task {
-                optimizedImage = await OptimizedImageManager.shared.optimizeImage(image)
+                for image in images {
+                    let optimized = await OptimizedImageManager.shared.optimizeImage(image)
+                    optimizedImages.append(optimized)
+                }
+            }
+            
+            // Start image carousel
+            if images.count > 1 {
+                Timer.scheduledTimer(withTimeInterval: transitionTime, repeats: true) { timer in
+                    withAnimation {
+                        currentImageIndex = (currentImageIndex + 1) % images.count
+                    }
+                }
             }
             
             // Ensure we show the analysis screen for at least the minimum time
@@ -106,9 +123,15 @@ struct ImageAnalysisView: View {
     }
 }
 
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}
+
 #Preview {
     ImageAnalysisView(
-        image: UIImage(systemName: "photo")!,
+        images: [UIImage(systemName: "photo")!],
         onComplete: {}
     )
 }

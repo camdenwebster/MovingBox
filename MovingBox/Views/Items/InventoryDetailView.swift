@@ -51,6 +51,13 @@ struct InventoryDetailView: View {
 
     var onSave: (() -> Void)?
 
+    @State private var loadedImages: [UIImage] = []
+    @State private var currentImageIndex: Int = 0 {
+        didSet {
+            inventoryItemToDisplay.primaryImageIndex = currentImageIndex
+        }
+    }
+
     init(inventoryItemToDisplay: InventoryItem,
          navigationPath: Binding<NavigationPath>,
          showSparklesButton: Bool = false,
@@ -78,53 +85,52 @@ struct InventoryDetailView: View {
     var body: some View {
         Form {
             Section {
-                if let uiImage = tempUIImage ?? loadedImage {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .clipped()
-                        .listRowInsets(EdgeInsets())
-                        .overlay(alignment: .bottomTrailing) {
-                            if isEditing {
-                                PhotoPickerView(
-                                    model: Binding(
-                                        get: { self.inventoryItemToDisplay },
-                                        set: { _ in }
-                                    ),
-                                    loadedImage: $loadedImage,
-                                    isLoading: $isLoading
-                                )
-                            }
+                if !loadedImages.isEmpty {
+                    Group {
+                        if isEditing {
+                            PhotoGridEditorView<InventoryItem>(
+                                model: Binding(
+                                    get: { self.inventoryItemToDisplay },
+                                    set: { _ in }
+                                ),
+                                loadedImages: $loadedImages,
+                                isLoading: $isLoading
+                            )
+                            .listRowInsets(EdgeInsets())
+                        } else {
+                            PhotoCarouselView(
+                                images: loadedImages,
+                                currentIndex: $currentImageIndex
+                            )
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .listRowInsets(EdgeInsets())
                         }
+                    }
                 } else if isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .frame(height: UIScreen.main.bounds.height / 3)
-                } else {
-                    if isEditing {
-                        PhotoPickerView(
-                            model: Binding(
-                                get: { self.inventoryItemToDisplay },
-                                set: { _ in }
-                            ),
-                            loadedImage: $loadedImage,
-                            isLoading: $isLoading
-                        ) { showPhotoSourceAlert in
-                            AddPhotoButton {
-                                showPhotoSourceAlert.wrappedValue = true
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .foregroundStyle(.secondary)
+                } else if isEditing {
+                    PhotoPickerView(
+                        model: Binding(
+                            get: { self.inventoryItemToDisplay },
+                            set: { _ in }
+                        ),
+                        loadedImages: $loadedImages,
+                        isLoading: $isLoading
+                    ) { showPhotoSourceAlert in
+                        AddPhotoButton {
+                            showPhotoSourceAlert.wrappedValue = true
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .foregroundStyle(.secondary)
                     }
                 }
             }
             
             // AI Button Section
-            if isEditing && !inventoryItemToDisplay.hasUsedAI && inventoryItemToDisplay.imageURL != nil {
+            if isEditing && !inventoryItemToDisplay.hasUsedAI && !inventoryItemToDisplay.imageURLs.isEmpty {
                 Section {
                     Button {
                         guard !isLoadingOpenAiResults else { return }
@@ -398,16 +404,41 @@ struct InventoryDetailView: View {
         } message: {
             Text("Do you want to save your changes before going back?")
         }
-        .task(id: inventoryItemToDisplay.imageURL) {
+        .task(id: inventoryItemToDisplay.imageURLs) {
             guard inventoryItemToDisplay.modelContext != nil else { return }
             isLoading = true
             defer { isLoading = false }
             
-            do {
-                loadedImage = try await inventoryItemToDisplay.photo
-            } catch {
-                print("Failed to load image: \(error)")
+            loadedImages = []
+            for url in inventoryItemToDisplay.imageURLs {
+                if let image = try? await OptimizedImageManager.shared.loadImage(url: url) {
+                    loadedImages.append(image)
+                }
             }
+        }
+    }
+
+    private func handlePhotoCaptured(_ image: UIImage) async throws {
+        guard inventoryItemToDisplay.modelContext != nil else { return }
+        
+        let id = UUID().uuidString
+        if let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id) {
+            inventoryItemToDisplay.imageURLs.append(imageURL)
+            try? modelContext.save()
+        }
+    }
+
+    private func handleLegacyData() async {
+        guard let data = inventoryItemToDisplay.data,
+              let image = UIImage(data: data) else {
+            return
+        }
+        
+        let id = UUID().uuidString
+        if let imageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id) {
+            inventoryItemToDisplay.imageURLs.append(imageURL)
+            inventoryItemToDisplay.data = nil
+            try? modelContext.save()
         }
     }
 
@@ -415,7 +446,8 @@ struct InventoryDetailView: View {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
         
-        guard let photo = try await inventoryItemToDisplay.photo else {
+        guard let url = inventoryItemToDisplay.imageURLs.first,
+              let photo = try await OptimizedImageManager.shared.loadImage(url: url) else {
             throw OpenAIError.invalidData
         }
         

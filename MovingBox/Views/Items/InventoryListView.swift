@@ -8,6 +8,7 @@
 import RevenueCatUI
 import SwiftData
 import SwiftUI
+import UIKit
 
 enum Options: Hashable {
     case destination(String)
@@ -27,6 +28,14 @@ struct InventoryListView: View {
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
     @State private var isContextValid = true
+    @State private var analyzedItemsCount = 0
+    
+    private struct AnalyzableImage: Identifiable {
+        let id = UUID()
+        let image: UIImage
+    }
+    
+    @State private var showingAnalysis: AnalyzableImage?
     
     @Query private var allItems: [InventoryItem]
     
@@ -47,77 +56,39 @@ struct InventoryListView: View {
                             .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
                     }
                 }
-                Menu("Add Item", systemImage: "plus") {
-                    Button(action: {
-                        print("📱 InventoryListView - Add Item button tapped")
-                        print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
-                        print("📱 InventoryListView - Items count: \(allItems.count)")
-                        print("📱 InventoryListView - Creating new item")
-                        let newItem = InventoryItem(
-                            title: "",
-                            quantityString: "1",
-                            quantityInt: 1,
-                            desc: "",
-                            serial: "",
-                            model: "",
-                            make: "",
-                            location: location,
-                            label: nil,
-                            price: Decimal.zero,
-                            insured: false,
-                            assetId: "",
-                            notes: "",
-                            showInvalidQuantityAlert: false
-                        )
-                        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                    }) {
-                        Label("Add Manually", systemImage: "square.and.pencil")
-                    }
-                    .accessibilityIdentifier("createManually")
-                    
-                    Button(action: {
-                        if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
-                            showingPaywall = true
-                        } else {
-                            router.navigate(to: .addInventoryItemView(location: location))
-                        }
-                    }) {
-                        Label("Add from Photo", systemImage: "camera")
-                    }
-                    .accessibilityIdentifier("createFromCamera")
+                
+                Button {
+                    router.navigate(to: .addItemView(location: location))
+                } label: {
+                    Label("Add Item", systemImage: "plus")
                 }
-                .accessibilityIdentifier("addItem")
             }
-            .searchable(text: $searchText)
+            .searchable(text: $searchText, prompt: "Search items")
             .sheet(isPresented: $showingPaywall) {
                 revenueCatManager.presentPaywall(
                     isPresented: $showingPaywall,
                     onCompletion: {
                         settings.isPro = true
-                        let newItem = InventoryItem(
-                            title: "",
-                            quantityString: "1",
-                            quantityInt: 1,
-                            desc: "",
-                            serial: "",
-                            model: "",
-                            make: "",
-                            location: location,
-                            label: nil,
-                            price: Decimal.zero,
-                            insured: false,
-                            assetId: "",
-                            notes: "",
-                            showInvalidQuantityAlert: false
-                        )
-                        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                        router.navigate(to: .addItemView(location: location))
                     },
                     onDismiss: nil
                 )
             }
+            .sheet(item: $showingAnalysis) { wrapper in
+                Group {
+                    if settings.shouldShowPaywallForAiScan(currentCount: analyzedItemsCount) {
+                        MovingBoxPaywallView()
+                    } else {
+                        ImageAnalysisView(images: [wrapper.image]) {
+                            showingAnalysis = nil
+                            processImageDetails()
+                        }
+                    }
+                }
+            }
             .fullScreenCover(isPresented: $showingImageAnalysis) {
                 if let image = analyzingImage {
-                    ImageAnalysisView(image: image) {
+                    ImageAnalysisView(images: [image]) {
                         showingImageAnalysis = false
                         analyzingImage = nil
                     }
@@ -125,11 +96,12 @@ struct InventoryListView: View {
             }
     }
     
-
+    private func handlePhotoCaptured(_ image: UIImage) {
+        showingAnalysis = AnalyzableImage(image: image)
+    }
     
-    func handlePhotoCaptured(_ image: UIImage) {
-        analyzingImage = image
-        showingImageAnalysis = true
+    func processImageDetails() {
+        
     }
 }
 

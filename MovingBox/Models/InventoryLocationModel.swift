@@ -13,27 +13,26 @@ import SwiftUI
 class InventoryLocation: PhotoManageable {
     var name: String = ""
     var desc: String = ""
-    var imageURL: URL?
+    var imageURLs: [URL] = []
+    var primaryImageIndex: Int = 0
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
-    // ADD: Legacy Support
     @Attribute(.externalStorage) var data: Data?
     
     /// Migrates legacy image data to the new URL-based storage system
     func migrateImageIfNeeded() async throws {
         guard let legacyData = data,
               let image = UIImage(data: legacyData),
-              imageURL == nil else {
+              imageURLs.isEmpty else {
             return
         }
         
-        // Generate a unique identifier for the image
         let imageId = UUID().uuidString
         
-        // Save the image using OptimizedImageManager
-        imageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId)
+        if let newImageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId) {
+            imageURLs.append(newImageURL)
+        }
         
-        // Clear legacy data after successful migration
         data = nil
         
         print("📸 Location - Successfully migrated image for location: \(name)")

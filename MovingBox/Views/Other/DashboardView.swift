@@ -42,9 +42,10 @@ struct DashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     
-    @State private var loadedImage: UIImage?
+    @State private var loadedImages: [UIImage] = []
     @State private var loadingError: Error?
     @State private var isLoading = false
+    @State private var currentHomeImageIndex: Int = 0
     
     private var home: Home? {
         homes.last
@@ -61,78 +62,77 @@ struct DashboardView: View {
     
     let headerHeight = UIScreen.main.bounds.height / 3
 
-    
     private let row = GridItem(.fixed(160))
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 Group {
-                    if let uiImage = loadedImage {
-                        GeometryReader { proxy in
-                            let scrollY = proxy.frame(in: .global).minY
-                            
-                            ZStack(alignment: .bottom) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: proxy.size.width, height: headerHeight + (scrollY > 0 ? scrollY : 0))
-                                    .clipped()
-                                    .offset(y: scrollY > 0 ? -scrollY : 0)
-                                
-                                LinearGradient(
-                                    gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
-                                    startPoint: .bottom,
-                                    endPoint: .center
-                                )
-                                .frame(height: 100)
-                                
-                                VStack {
-                                    Spacer()
-                                    dashboardHeader
+                    Group {
+                        if !loadedImages.isEmpty {
+                            GeometryReader { proxy in
+                                let scrollY = proxy.frame(in: .global).minY
+
+                                ZStack(alignment: .bottom) {
+                                    PhotoCarouselView(images: loadedImages, currentIndex: $currentHomeImageIndex)
+                                        .frame(width: proxy.size.width, height: headerHeight + (scrollY > 0 ? scrollY : 0))
+                                        .clipped()
+                                        .offset(y: scrollY > 0 ? -scrollY : 0)
+
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
+                                        startPoint: .bottom,
+                                        endPoint: .center
+                                    )
+                                    .frame(height: 100)
+
+                                    VStack {
+                                        Spacer()
+                                        dashboardHeader
+                                    }
+                                    .frame(maxWidth: .infinity)
                                 }
-                                .frame(maxWidth: .infinity)
+                                .overlay(alignment: .bottomTrailing) {
+                                    PhotoPickerView(
+                                        model: Binding(
+                                            get: { home ?? Home() },
+                                            set: { if home == nil { modelContext.insert($0) }}
+                                        ),
+                                        loadedImages: $loadedImages,
+                                        isLoading: $isLoading
+                                    )
+                                }
                             }
-                            .overlay(alignment: .bottomTrailing) {
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                        } else if isLoading {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: headerHeight)
+                        } else {
+                            VStack {
+                                Spacer()
+                                    .frame(height: 100)
                                 PhotoPickerView(
                                     model: Binding(
                                         get: { home ?? Home() },
                                         set: { if home == nil { modelContext.insert($0) }}
                                     ),
-                                    loadedImage: $loadedImage,
+                                    loadedImages: $loadedImages,
                                     isLoading: $isLoading
-                                )
+                                ) { isPresented in
+                                    AddPhotoButton {
+                                        isPresented.wrappedValue = true
+                                    }
+                                    .padding()
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(.ultraThinMaterial)
+                                    }
+                                }
                             }
-                        }
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                    } else if isLoading {
-                        ProgressView()
                             .frame(maxWidth: .infinity)
-                            .frame(height: headerHeight)
-                    } else {
-                        VStack {
-                            Spacer()
-                                .frame(height: 100)
-                            PhotoPickerView(
-                                model: Binding(
-                                    get: { home ?? Home() },
-                                    set: { if home == nil { modelContext.insert($0) }}
-                                ),
-                                loadedImage: $loadedImage,
-                                isLoading: $isLoading
-                            ) { isPresented in
-                                AddPhotoButton {
-                                    isPresented.wrappedValue = true
-                                }
-                                .padding()
-                                .background {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(.ultraThinMaterial)
-                                }
-                            }
+                            .frame(height: UIScreen.main.bounds.height / 3)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
                     }
                 }
                 
@@ -193,16 +193,28 @@ struct DashboardView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
-        .task(id: home?.imageURL) {
+        .task(id: home?.imageURLs) {
             guard let home = home else { return }
             isLoading = true
             defer { isLoading = false }
             
-            do {
-                loadedImage = try await home.photo
-            } catch {
-                loadingError = error
-                print("Failed to load image: \(error)")
+            loadedImages = []
+            for url in home.imageURLs {
+                do {
+                    if let image = await OptimizedImageManager.shared.loadImage(url: url) {
+                        loadedImages.append(image)
+                    }
+                } catch {
+                    loadingError = error
+                    print("Failed to load image: \(error)")
+                }
+            }
+            currentHomeImageIndex = home.primaryImageIndex
+        }
+        .onChange(of: currentHomeImageIndex) { _, newIndex in
+            if let home = home {
+                home.primaryImageIndex = newIndex
+                try? modelContext.save()
             }
         }
     }

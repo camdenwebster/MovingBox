@@ -56,7 +56,7 @@ class SettingsManager: ObservableObject {
     @Published var isPro: Bool {
         didSet {
             let proValue = ProcessInfo.processInfo.arguments.contains("Is-Pro") ? true : isPro
-            print("📱 SettingsManager - Saving Pro status: \(proValue)")
+            Logger.info("Saving Pro status: \(proValue)", category: .app)
             UserDefaults.standard.set(proValue, forKey: Keys.isPro)
         }
     }
@@ -77,8 +77,8 @@ class SettingsManager: ObservableObject {
     private let hasLaunchedDefault = false
     
     init() {
-        print("📱 SettingsManager - Starting initialization")
-        print("📱 SettingsManager - Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))")
+        Logger.info("Starting initialization", category: .app)
+        Logger.info("Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))", category: .app)
         
         // Initialize with default values first
         self.aiModel = defaultAIModel
@@ -89,10 +89,10 @@ class SettingsManager: ObservableObject {
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         
-        print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
+        Logger.info("Initial isPro value: \(self.isPro)", category: .app)
         
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
-            print("📱 SettingsManager - Setting Pro status to true due to Is-Pro argument")
+            Logger.info("Setting Pro status to true due to Is-Pro argument", category: .app)
             UserDefaults.standard.set(true, forKey: Keys.isPro)
         }
         
@@ -102,16 +102,16 @@ class SettingsManager: ObservableObject {
     }
     
     private func setupInitialState() async {
-        print("📱 SettingsManager - Beginning setupInitialState")
-        print("📱 SettingsManager - Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))")
+        Logger.info("Beginning setupInitialState", category: .app)
+        Logger.info("Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))", category: .app)
         
         // Check launch arguments first before loading any defaults
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
-            print("📱 SettingsManager - Setting isPro to true due to launch argument")
+            Logger.info("Setting isPro to true due to launch argument", category: .app)
             self.isPro = true
             UserDefaults.standard.set(true, forKey: Keys.isPro)
             // Skip RevenueCat check entirely when Is-Pro is present
-            print("📱 SettingsManager - Skipping RevenueCat check due to Is-Pro argument")
+            Logger.info("Skipping RevenueCat check due to Is-Pro argument", category: .app)
             return
         }
         
@@ -129,18 +129,18 @@ class SettingsManager: ObservableObject {
         // Only check RevenueCat if Is-Pro is NOT present
         if !ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             do {
-                print("📱 SettingsManager - Checking RevenueCat status")
+                Logger.info("Checking RevenueCat status", category: .app)
                 let customerInfo = try await Purchases.shared.customerInfo()
                 let isPro = customerInfo.entitlements["Pro"]?.isActive == true
-                print("📱 SettingsManager - RevenueCat status: \(isPro)")
+                Logger.info("RevenueCat status: \(isPro)", category: .app)
                 self.isPro = isPro
             } catch {
-                print("⚠️ SettingsManager - Error fetching customer info: \(error)")
+                Logger.warning("Error fetching customer info: \(error)", category: .app)
                 self.isPro = UserDefaults.standard.bool(forKey: Keys.isPro)
             }
         }
         
-        print("📱 SettingsManager - Final isPro value: \(self.isPro)")
+        Logger.info("Final isPro value: \(self.isPro)", category: .app)
     }
     
     private func setupSubscriptionMonitoring() {
@@ -153,7 +153,7 @@ class SettingsManager: ObservableObject {
             guard let self = self else { return }
             
             if let isPro = notification.userInfo?["isProActive"] as? Bool {
-                print("📱 SettingsManager - Received subscription status change: isPro = \(isPro)")
+                Logger.info("Received subscription status change: isPro = \(isPro)", category: .app)
                 
                 // Handle actor-isolated property on main actor
                 Task { @MainActor in
@@ -175,28 +175,28 @@ class SettingsManager: ObservableObject {
     }
     
     func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-        print("📱 SettingsManager - Checking hasReachedAiScanLimit")
-        print("📱 SettingsManager - Current isPro: \(isPro)")
-        print("📱 SettingsManager - Current count of items which have used AI scan: \(currentCount)")
+        Logger.info("Checking hasReachedAiScanLimit", category: .app)
+        Logger.info("Current isPro: \(isPro)", category: .app)
+        Logger.info("Current count of items which have used AI scan: \(currentCount)", category: .app)
         return !isPro && currentCount >= AppConstants.maxFreeAiScans
     }
     
     // MARK: - Purchase Flow
     
     func purchasePro() {
-        print("📱 SettingsManager - Initiating Pro purchase")
+        Logger.info("Initiating Pro purchase", category: .app)
         Task {
             do {
                 try await revenueCatManager.purchasePro()
                 // Customer info will be updated via notification
             } catch {
-                print("⚠️ SettingsManager - Error purchasing pro: \(error)")
+                Logger.error("Error purchasing pro: \(error)", category: .app)
             }
         }
     }
     
     func restorePurchases() async throws {
-        print("📱 SettingsManager - Initiating purchase restoration")
+        Logger.info("Initiating purchase restoration", category: .app)
         try await RevenueCatManager.shared.restorePurchases()
         // Customer info will be updated via notification
     }

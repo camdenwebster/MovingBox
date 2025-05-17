@@ -34,29 +34,29 @@ class RevenueCatManager: NSObject, ObservableObject {
     private override init() {
         // CHANGE: Check for Is-Pro before setting initial value
         let isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
-        print("📱 RevenueCatManager - Initializing with Is-Pro: \(isPro)")
+        Logger.info("Initializing with Is-Pro: \(isPro)", category: .subscription)
         self._isProSubscriptionActive = isPro
         super.init()
         
         // Only setup purchases if Is-Pro is not present
         if !isPro {
-            print("📱 RevenueCatManager - Setting up purchases updates")
+            Logger.info("Setting up purchases updates", category: .subscription)
             setupPurchasesUpdates()
             
             Task {
                 do {
                     try await updateCustomerInfo()
                 } catch {
-                    print("⚠️ RevenueCatManager - Error during initial customer info fetch: \(error)")
+                    Logger.error("Error during initial customer info fetch: \(error)", category: .subscription)
                 }
             }
         } else {
-            print("📱 RevenueCatManager - Skipping RevenueCat setup due to Is-Pro argument")
+            Logger.info("Skipping RevenueCat setup due to Is-Pro argument", category: .subscription)
         }
     }
     
     private func setupPurchasesUpdates() {
-        print("📱 RevenueCatManager - Setting up purchases delegate...")
+        Logger.info("Setting up purchases delegate...", category: .subscription)
         Purchases.shared.delegate = self
         
         // Force an immediate check of customer info
@@ -64,49 +64,49 @@ class RevenueCatManager: NSObject, ObservableObject {
             do {
                 let customerInfo = try await Purchases.shared.customerInfo()
                 handleCustomerInfoUpdate(customerInfo)
-                print("📱 RevenueCatManager - Initial customer info fetched")
+                Logger.info("Initial customer info fetched", category: .subscription)
             } catch {
-                print("⚠️ RevenueCatManager - Error fetching initial customer info: \(error)")
+                Logger.error("Error fetching initial customer info: \(error)", category: .subscription)
             }
         }
     }
     
     func updateCustomerInfo() async throws {
-        print("📱 RevenueCatManager - Updating customer info...")
+        Logger.info("Updating customer info...", category: .subscription)
         let customerInfo = try await Purchases.shared.customerInfo()
         handleCustomerInfoUpdate(customerInfo)
     }
     
     @MainActor
     private func handleCustomerInfoUpdate(_ customerInfo: CustomerInfo) {
-        print("📱 RevenueCatManager - Processing customer info update...")
-        print("📱 RevenueCatManager - All entitlements:")
+        Logger.info("Processing customer info update...", category: .subscription)
+        Logger.debug("All entitlements:", category: .subscription)
         
         // DEBUG: Print raw entitlements for verification
-        print("📱 RevenueCatManager - Raw entitlements:")
-        print(customerInfo.entitlements.all)
+        Logger.debug("Raw entitlements:", category: .subscription)
+        Logger.debug("\(customerInfo.entitlements.all)", category: .subscription)
         
         customerInfo.entitlements.all.forEach { entitlement in
-            print("📱 Entitlement: \(entitlement.key)")
-            print("  - Identifier: \(entitlement.value.identifier)")
-            print("  - Is active: \(entitlement.value.isActive)")
-            print("  - Will renew: \(String(describing: entitlement.value.willRenew))")
-            print("  - Product identifier: \(entitlement.value.productIdentifier)")
+            Logger.debug("Entitlement: \(entitlement.key)", category: .subscription)
+            Logger.debug("  - Identifier: \(entitlement.value.identifier)", category: .subscription)
+            Logger.debug("  - Is active: \(entitlement.value.isActive)", category: .subscription)
+            Logger.debug("  - Will renew: \(String(describing: entitlement.value.willRenew))", category: .subscription)
+            Logger.debug("  - Product identifier: \(entitlement.value.productIdentifier)", category: .subscription)
             if let expirationDate = entitlement.value.expirationDate {
-                print("  - Expires: \(expirationDate)")
+                Logger.debug("  - Expires: \(expirationDate)", category: .subscription)
             }
         }
         
         // Check for "Pro" entitlement (case-sensitive)
         if let proEntitlement = customerInfo.entitlements["Pro"] {
             let isPro = proEntitlement.isActive
-            print("📱 RevenueCatManager - Found Pro entitlement:")
-            print("  - Is active: \(isPro)")
-            print("  - Identifier: \(proEntitlement.identifier)")
-            print("  - Product identifier: \(proEntitlement.productIdentifier)")
+            Logger.info("Found Pro entitlement:", category: .subscription)
+            Logger.info("  - Is active: \(isPro)", category: .subscription)
+            Logger.info("  - Identifier: \(proEntitlement.identifier)", category: .subscription)
+            Logger.info("  - Product identifier: \(proEntitlement.productIdentifier)", category: .subscription)
             self._isProSubscriptionActive = isPro
             UserDefaults.standard.set(isPro, forKey: "isPro")
-            print("📱 RevenueCatManager - Updated Pro status: \(isPro)")
+            Logger.info("Updated Pro status: \(isPro)", category: .subscription)
             
             // Notify observers
             NotificationCenter.default.post(
@@ -115,7 +115,7 @@ class RevenueCatManager: NSObject, ObservableObject {
                 userInfo: ["isProActive": isPro]
             )
         } else {
-            print("⚠️ RevenueCatManager - Pro entitlement not found in customerInfo")
+            Logger.warning("Pro entitlement not found in customerInfo", category: .subscription)
             self._isProSubscriptionActive = false
             UserDefaults.standard.set(false, forKey: "isPro")
             
@@ -148,80 +148,80 @@ class RevenueCatManager: NSObject, ObservableObject {
         return PaywallView()
             .onChange(of: isProSubscriptionActive) { [self] oldValue, newValue in
                 if newValue {
-                    print("📱 RevenueCatManager - Pro subscription activated")
+                    Logger.info("Pro subscription activated", category: .subscription)
                     isPresented.wrappedValue = false
                     self.onPurchaseCompleted?()
                 }
             }
             .onChange(of: isPresented.wrappedValue) { [self] oldValue, newValue in
                 if !newValue {
-                    print("📱 RevenueCatManager - Paywall view dismissed")
+                    Logger.info("Paywall view dismissed", category: .subscription)
                     self.onPaywallDismissed?()
                 }
             }
     }
     
     func purchasePro() async throws {
-        print("📱 RevenueCatManager - Starting Pro purchase flow")
+        Logger.info("Starting Pro purchase flow", category: .subscription)
         do {
             let offerings = try await Purchases.shared.offerings()
-            print("📱 RevenueCatManager - Retrieved offerings")
+            Logger.info("Retrieved offerings", category: .subscription)
             
             guard let offering = offerings.current else {
-                print("⚠️ RevenueCatManager - No offering available")
+                Logger.warning("No offering available", category: .subscription)
                 throw NSError(domain: "RevenueCatManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "No offering available"])
             }
             
-            print("📱 RevenueCatManager - Available packages:")
+            Logger.info("Available packages:", category: .subscription)
             offering.availablePackages.forEach { package in
-                print("  - \(package.identifier): \(package.storeProduct.productIdentifier)")
+                Logger.debug("  - \(package.identifier): \(package.storeProduct.productIdentifier)", category: .subscription)
             }
             
             guard let package = offering.availablePackages.first else {
-                print("⚠️ RevenueCatManager - No package available")
+                Logger.warning("No package available", category: .subscription)
                 throw NSError(domain: "RevenueCatManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "No package available"])
             }
             
-            print("📱 RevenueCatManager - Attempting to purchase package: \(package.identifier)")
+            Logger.info("Attempting to purchase package: \(package.identifier)", category: .subscription)
             let result = try await Purchases.shared.purchase(package: package)
             handleCustomerInfoUpdate(result.customerInfo)
         } catch {
-            print("⚠️ RevenueCatManager - Purchase failed: \(error)")
+            Logger.error("Purchase failed: \(error)", category: .subscription)
             throw error
         }
     }
     
     func restorePurchases() async throws {
-        print("📱 RevenueCatManager - Starting restore purchases flow")
+        Logger.info("Starting restore purchases flow", category: .subscription)
         do {
             // First try to get current customer info
             let currentInfo = try await Purchases.shared.customerInfo()
-            print("📱 RevenueCatManager - Current customer info before restore:")
+            Logger.info("Current customer info before restore:", category: .subscription)
             handleCustomerInfoUpdate(currentInfo)
             
             // Perform the restore
-            print("📱 RevenueCatManager - Calling restorePurchases...")
+            Logger.info("Calling restorePurchases...", category: .subscription)
             let customerInfo = try await Purchases.shared.restorePurchases()
-            print("📱 RevenueCatManager - Restore completed, processing results...")
+            Logger.info("Restore completed, processing results...", category: .subscription)
             handleCustomerInfoUpdate(customerInfo)
             
             // Double-check the status after restore
             let finalCheck = try await Purchases.shared.customerInfo()
-            print("📱 RevenueCatManager - Final verification after restore:")
+            Logger.info("Final verification after restore:", category: .subscription)
             handleCustomerInfoUpdate(finalCheck)
             
             // If Pro is active after restore, ensure paywall is dismissed
             if finalCheck.entitlements["Pro"]?.isActive == true {
-                print("📱 RevenueCatManager - Pro is active after restore")
+                Logger.info("Pro is active after restore", category: .subscription)
             }
         } catch {
-            print("⚠️ RevenueCatManager - Restore failed: \(error)")
+            Logger.error("Restore failed: \(error)", category: .subscription)
             throw error
         }
     }
     
     func syncPurchases() async throws {
-        print("📱 RevenueCatManager - Syncing purchases...")
+        Logger.info("Syncing purchases...", category: .subscription)
         let customerInfo = try await Purchases.shared.syncPurchases()
         handleCustomerInfoUpdate(customerInfo)
     }
@@ -235,29 +235,29 @@ class RevenueCatManager: NSObject, ObservableObject {
 // MARK: - PurchasesDelegate
 extension RevenueCatManager: PurchasesDelegate {
     nonisolated func purchases(_ purchases: Purchases, receivedUpdated customerInfo: CustomerInfo) {
-        print("📱 RevenueCatManager - Delegate received updated customer info")
+        Logger.info("Delegate received updated customer info", category: .subscription)
         Task { @MainActor in
             handleCustomerInfoUpdate(customerInfo)
         }
     }
     
     nonisolated func purchases(_ purchases: Purchases, readyForPromotePaywall readyForPromote: Bool) {
-        print("📱 RevenueCatManager - Ready for promote paywall: \(readyForPromote)")
+        Logger.info("Ready for promote paywall: \(readyForPromote)", category: .subscription)
     }
     
     nonisolated func purchases(_ purchases: Purchases, completedTransaction transaction: StoreTransaction) {
-        print("📱 RevenueCatManager - Completed transaction: \(transaction.productIdentifier)")
+        Logger.info("Completed transaction: \(transaction.productIdentifier)", category: .subscription)
         Task { @MainActor in
             do {
                 try await updateCustomerInfo()
             } catch {
-                print("⚠️ RevenueCatManager - Error updating customer info after transaction: \(error)")
+                Logger.error("Error updating customer info after transaction: \(error)", category: .subscription)
             }
         }
     }
     
     nonisolated func purchases(_ purchases: Purchases, failedTransaction transaction: StoreTransaction) {
-        print("⚠️ RevenueCatManager - Failed transaction: \(transaction.productIdentifier)")
+        Logger.error("Failed transaction: \(transaction.productIdentifier)", category: .subscription)
     }
 }
 

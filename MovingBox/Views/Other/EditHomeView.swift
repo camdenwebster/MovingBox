@@ -35,8 +35,9 @@ struct EditHomeView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
+    @Query(sort: [SortDescriptor(\InsurancePolicy.startDate)]) private var policies: [InsurancePolicy]
     @State private var isEditing = false
-    @State private var loadedImage: UIImage?
+    @State private var loadedImages: [UIImage] = []
     @State private var loadingError: Error?
     @State private var isLoading = false
     
@@ -60,54 +61,87 @@ struct EditHomeView: View {
         return locale.localizedString(forIdentifier: code) ?? code
     }
     
+    func saveHome() async throws {
+        if isNewHome {
+            let home = try await DefaultDataManager.getOrCreateHome(modelContext: modelContext)
+            
+            home.name = tempHome.name
+            home.address1 = tempHome.address1
+            home.address2 = tempHome.address2
+            home.city = tempHome.city
+            home.state = tempHome.state
+            home.zip = tempHome.zip
+            home.country = tempHome.country
+            home.purchaseDate = Date()
+            home.imageURLs = tempHome.imageURLs
+            
+            if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
+                modelContext.insert(tempPolicy)
+            }
+            
+            TelemetryManager.shared.trackLocationCreated(name: home.address1)
+            print("EditHomeView: Updated home - \(home.name)")
+        }
+        
+        try modelContext.save()
+        router.navigateBack()
+    }
+    
+    private func findPolicy(for home: Home) -> InsurancePolicy? {
+        // Just return the first policy - since we only have one home and one policy
+        return policies.first
+    }
+    
     var body: some View {
         Form {
-            if isEditingEnabled || loadedImage != nil {
-                Section {
-                    if let uiImage = loadedImage {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .clipped()
-                            .listRowInsets(EdgeInsets())
-                            .overlay(alignment: .bottomTrailing) {
-                                if isEditingEnabled {
-                                    PhotoPickerView(
-                                        model: Binding(
-                                            get: { activeHome ?? tempHome },
-                                            set: { newValue in
-                                                tempHome = newValue
-                                            }
-                                        ),
-                                        loadedImage: $loadedImage,
-                                        isLoading: $isLoading
-                                    )
-                                }
-                            }
-                    } else if isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                    } else if isEditingEnabled {
-                        PhotoPickerView(
+            Section {
+                if !loadedImages.isEmpty {
+                    if isEditingEnabled {
+                        PhotoGridEditorView<Home>(
                             model: Binding(
                                 get: { activeHome ?? tempHome },
-                                set: { newValue in
-                                    tempHome = newValue
-                                }
+                                set: { tempHome = $0 }
                             ),
-                            loadedImage: $loadedImage,
+                            loadedImages: $loadedImages,
                             isLoading: $isLoading
-                        ) { isPresented in
-                            AddPhotoButton {
-                                isPresented.wrappedValue = true
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .foregroundStyle(.secondary)
+                        )
+                        .listRowInsets(EdgeInsets())
+                    } else {
+                        PhotoCarouselView(
+                            images: loadedImages,
+                            currentIndex: Binding(
+                                get: { activeHome?.primaryImageIndex ?? tempHome.primaryImageIndex },
+                                set: { newIndex in 
+                                    if let home = activeHome {
+                                        home.primaryImageIndex = newIndex
+                                    } else {
+                                        tempHome.primaryImageIndex = newIndex
+                                    }
+                                }
+                            )
+                        )
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .listRowInsets(EdgeInsets())
+                    }
+                } else if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                } else if isEditingEnabled {
+                    PhotoPickerView(
+                        model: Binding(
+                            get: { activeHome ?? tempHome },
+                            set: { tempHome = $0 }
+                        ),
+                        loadedImages: $loadedImages,
+                        isLoading: $isLoading
+                    ) { showPhotoSourceAlert in
+                        AddPhotoButton {
+                            showPhotoSourceAlert.wrappedValue = true
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIScreen.main.bounds.height / 3)
+                        .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -225,22 +259,32 @@ struct EditHomeView: View {
                 )
             }
         }
-        .task(id: activeHome?.imageURL) {
+        .task(id: activeHome?.imageURLs) {
             guard let home = activeHome else { return }
             isLoading = true
             defer { isLoading = false }
             
-            do {
-                loadedImage = try await home.photo
-            } catch {
-                loadingError = error
-                print("Failed to load image: \(error)")
+            loadedImages = []
+            for url in home.imageURLs {
+                do {
+                    if let image = try await OptimizedImageManager.shared.loadImage(url: url) {
+                        loadedImages.append(image)
+                    }
+                } catch {
+                    loadingError = error
+                    print("Failed to load image: \(error)")
+                }
+                
+                // For backward compatibility
+                if loadedImages.isEmpty, let photo = try? await home.photo {
+                    loadedImages = [photo]
+                }
             }
         }
         .onAppear {
             if let existingHome = activeHome {
                 tempHome = existingHome
-                if let policy = existingHome.insurancePolicy {
+                if let policy = findPolicy(for: existingHome) {
                     tempPolicy = policy
                 }
             } else {
@@ -260,12 +304,12 @@ struct EditHomeView: View {
                             home.zip = tempHome.zip
                             home.country = tempHome.country
                             
-                            if home.insurancePolicy == nil {
-                                tempPolicy.insuredHome = home
-                                home.insurancePolicy = tempPolicy
+                            if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
+                                modelContext.insert(tempPolicy)
+                                try? modelContext.save()
                             }
+                            isEditing = false
                         }
-                        isEditing = false
                     } else {
                         isEditing = true
                     }
@@ -275,30 +319,7 @@ struct EditHomeView: View {
                 Button("Save") {
                     Task {
                         do {
-                            if isNewHome {
-                                let home = try await DefaultDataManager.getOrCreateHome(modelContext: modelContext)
-                                
-                                home.name = tempHome.name
-                                home.address1 = tempHome.address1
-                                home.address2 = tempHome.address2
-                                home.city = tempHome.city
-                                home.state = tempHome.state
-                                home.zip = tempHome.zip
-                                home.country = tempHome.country
-                                home.purchaseDate = Date()
-                                home.imageURL = tempHome.imageURL
-                                
-                                if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
-                                    tempPolicy.insuredHome = home
-                                    home.insurancePolicy = tempPolicy
-                                }
-                                
-                                TelemetryManager.shared.trackLocationCreated(name: home.address1)
-                                print("EditHomeView: Updated home - \(home.name)")
-                            }
-                            
-                            try modelContext.save()
-                            router.navigateBack()
+                            try await saveHome()
                         } catch {
                             print("❌ Error saving home: \(error)")
                         }

@@ -4,43 +4,45 @@ import PhotosUI
 struct PhotoPickerView<T: PhotoManageable>: View {
     @Environment(\.modelContext) private var modelContext
     @Binding var model: T
-    @Binding var loadedImage: UIImage?
+    @Binding var loadedImages: [UIImage]
     @Binding var isLoading: Bool
-    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var showPhotoSourceAlert = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
-    @State private var cameraImage: UIImage? = nil
+    @State private var tempCameraImages: [UIImage] = []
+    @State private var showPhotoLimitAlert = false
     let showRemoveButton: Bool
     private let contentProvider: ((Binding<Bool>) -> AnyView)?
-    
+    private let maxPhotos = 10
+
     init(
         model: Binding<T>,
-        loadedImage: Binding<UIImage?>,
+        loadedImages: Binding<[UIImage]>,
         isLoading: Binding<Bool>,
         showRemoveButton: Bool = true
     ) {
         self._model = model
-        self._loadedImage = loadedImage
+        self._loadedImages = loadedImages
         self._isLoading = isLoading
         self.showRemoveButton = showRemoveButton
         self.contentProvider = nil
     }
-    
+
     init(
         model: Binding<T>,
-        loadedImage: Binding<UIImage?>,
+        loadedImages: Binding<[UIImage]>,
         isLoading: Binding<Bool>,
         showRemoveButton: Bool = true,
         @ViewBuilder content: @escaping (Binding<Bool>) -> some View
     ) {
         self._model = model
-        self._loadedImage = loadedImage
+        self._loadedImages = loadedImages
         self._isLoading = isLoading
         self.showRemoveButton = showRemoveButton
         self.contentProvider = { AnyView(content($0)) }
     }
-    
+
     var body: some View {
         Group {
             if let provider = contentProvider {
@@ -60,75 +62,106 @@ struct PhotoPickerView<T: PhotoManageable>: View {
         }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
-                showCamera = true
+                if loadedImages.count >= maxPhotos {
+                    showPhotoLimitAlert = true
+                } else {
+                    tempCameraImages = []
+                    showCamera = true
+                }
             }
             .accessibilityIdentifier("takePhoto")
             Button("Choose from Library") {
-                showPhotoPicker = true
+                 if loadedImages.count >= maxPhotos {
+                     showPhotoLimitAlert = true
+                 } else {
+                    showPhotoPicker = true
+                 }
             }
             .accessibilityIdentifier("chooseFromLibrary")
-            if showRemoveButton && (model.imageURL != nil) {
-                Button("Remove Photo", role: .destructive) {
-                    model.imageURL = nil
-                    loadedImage = nil
+            if showRemoveButton && (!model.imageURLs.isEmpty) {
+                Button("Remove All Photos", role: .destructive) {
+                    model.imageURLs = []
+                    loadedImages = []
+                    model.primaryImageIndex = 0
                     try? modelContext.save()
                 }
             }
         }
         .photosPicker(
             isPresented: $showPhotoPicker,
-            selection: $selectedPhoto,
+            selection: $selectedPhotos,
+            maxSelectionCount: maxPhotos - loadedImages.count,
             matching: .images,
             photoLibrary: .shared()
         )
-        .onChange(of: selectedPhoto) { _, newValue in
+        .onChange(of: selectedPhotos) { _, newValue in
             Task {
-                if let photo = newValue {
-                    await loadPhoto(from: photo)
-                    selectedPhoto = nil
-                }
+                await loadPhotos(from: newValue)
+                selectedPhotos = [] 
             }
         }
         .sheet(isPresented: $showCamera) {
-            SimpleCameraView(capturedImage: $cameraImage)
-        }
-        .onChange(of: cameraImage) { _, newImage in
-            if let image = newImage {
+            SimpleCameraView(capturedImages: $tempCameraImages) {
                 Task {
-                    await handleNewImage(image)
-                    cameraImage = nil
-                    showCamera = false
+                    await handleNewImagesFromCamera(tempCameraImages)
+                    tempCameraImages = [] 
+                    showCamera = false 
                 }
             }
         }
-    }
-    
-    private func handleNewImage(_ image: UIImage) async {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            let id = UUID().uuidString
-            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-            model.imageURL = imageURL
-            loadedImage = image
-            try? modelContext.save()
-        } catch {
-            print("Failed to save image: \(error)")
+        .alert("Photo Limit Reached", isPresented: $showPhotoLimitAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("You can add up to 10 photos per item.")
         }
     }
-    
-    private func loadPhoto(from item: PhotosPickerItem) async {
+
+    private func handleNewImagesFromCamera(_ images: [UIImage]) async {
         isLoading = true
         defer { isLoading = false }
-        
-        do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                await handleNewImage(uiImage)
+
+        for image in images {
+            if loadedImages.count < maxPhotos {
+                do {
+                    let id = UUID().uuidString
+                    if let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id) {
+                        model.imageURLs.append(imageURL)
+                        loadedImages.append(image)
+                    }
+                } catch {
+                    print("Failed to save image from camera: \(error)")
+                }
+            } else {
+                showPhotoLimitAlert = true
+                break 
             }
-        } catch {
-            print("Failed to load photo: \(error)")
         }
+        try? modelContext.save()
+    }
+
+    private func loadPhotos(from items: [PhotosPickerItem]) async {
+        isLoading = true
+        defer { isLoading = false }
+
+        for item in items {
+             if loadedImages.count < maxPhotos {
+                do {
+                    if let data = try await item.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: data) {
+                       let id = UUID().uuidString
+                       if let imageURL = try await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
+                           model.imageURLs.append(imageURL)
+                           loadedImages.append(uiImage)
+                       }
+                   }
+               } catch {
+                   print("Failed to load photo from library: \(error)")
+               }
+           } else {
+               showPhotoLimitAlert = true
+               break 
+           }
+        }
+        try? modelContext.save()
     }
 }

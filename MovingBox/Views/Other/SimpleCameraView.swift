@@ -4,32 +4,33 @@ import AVFoundation
 
 struct SimpleCameraView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var capturedImage: UIImage?
+    @Binding var capturedImages: [UIImage]
+    let onDone: () -> Void
+
     @State private var showingPermissionDenied = false
-    
+
     private var isMockCamera: Bool {
         ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
     }
-    
+
     var body: some View {
         Group {
             if isMockCamera {
-                MockSimpleCameraView(image: $capturedImage)
-                    .onChange(of: capturedImage) { _, newImage in
-                        if newImage != nil {
-                            dismiss()
+                MockSimpleCameraView(capturedImages: $capturedImages, onDone: onDone)
+            } else {
+                ImagePicker(image: Binding(
+                    get: { nil }, 
+                    set: { newImage in
+                        if let newImage {
+                            capturedImages.append(newImage)
                         }
                     }
-            } else {
-                ImagePicker(image: $capturedImage, sourceType: .camera) { authorized in
+                ), sourceType: .camera) { authorized in
                     if !authorized {
                         showingPermissionDenied = true
                     }
                 }
-                .onChange(of: capturedImage) { _, newImage in
-                    if newImage != nil {
-                        dismiss()
-                    }
+                .onChange(of: capturedImages) { oldValue, newValue in
                 }
                 .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                     Button("Go to Settings", action: openSettings)
@@ -37,10 +38,17 @@ struct SimpleCameraView: View {
                 } message: {
                     Text("Please grant camera access in Settings to use this feature.")
                 }
+                VStack {
+                    Spacer()
+                    Button("Done") {
+                        onDone()
+                    }
+                    .padding()
+                }
             }
         }
     }
-    
+
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
@@ -49,9 +57,10 @@ struct SimpleCameraView: View {
 }
 
 struct MockSimpleCameraView: View {
-    @Binding var image: UIImage?
+    @Binding var capturedImages: [UIImage]
+    let onDone: () -> Void
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         VStack {
             Spacer()
@@ -60,15 +69,30 @@ struct MockSimpleCameraView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 200, height: 200)
                 .padding()
-            
-            Button("Take Photo") {
-                image = UIImage(named: "tablet")
+
+            HStack {
+                Button("Take Photo") {
+                    if let mockImage = UIImage(named: "tablet") {
+                        capturedImages.append(mockImage)
+                        print("Mock Camera: Captured \(capturedImages.count) images")
+                    }
+                }
+                .accessibilityIdentifier("takePhotoButton")
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+
+                Button("Done") {
+                    print("Mock Camera: Done capturing")
+                    onDone()
+                }
+                .accessibilityIdentifier("doneButton")
+                .padding()
+                .background(Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(8)
             }
-            .accessibilityIdentifier("takePhotoButton")
-            .padding()
-            .background(Color.blue)
-            .foregroundColor(.white)
-            .cornerRadius(8)
             .padding(.bottom, 30)
         }
     }

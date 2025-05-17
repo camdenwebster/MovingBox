@@ -1,10 +1,3 @@
-//
-//  InventoryItemModel.swift
-//  MovingBox
-//
-//  Created by Camden Webster on 4/9/24.
-//
-
 import Foundation
 import SwiftData
 import SwiftUI
@@ -24,7 +17,10 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var insured: Bool = false
     var assetId: String = ""
     var notes: String = ""
-    var imageURL: URL?
+    
+    var imageURLs: [URL] = []
+    var primaryImageIndex: Int = 0
+    
     var showInvalidQuantityAlert: Bool = false
     var hasUsedAI: Bool = false
     
@@ -33,13 +29,15 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     func migrateImageIfNeeded() async throws {
         guard let legacyData = data,
               let image = UIImage(data: legacyData),
-              imageURL == nil else {
+              imageURLs.isEmpty else {
             return
         }
         
         let imageId = UUID().uuidString
         
-        imageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId)
+        if let newImageURL = try await OptimizedImageManager.shared.saveImage(image, id: imageId) {
+            imageURLs.append(newImageURL)
+        }
         
         data = nil
         

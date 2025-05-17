@@ -19,6 +19,7 @@
 		1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */; };
 		1942DC8C2BF3D4BE00734AF4 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */; };
 		1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */; };
+		194A55D82DC85BBF009DF8DC /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194A55D72DC85BBF009DF8DC /* Logger.swift */; };
 		196109F52D764D9100A76504 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196109F42D764D9100A76504 /* ColorExtension.swift */; };
 		1961C6E92D9DDC56004CF387 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6E82D9DDC56004CF387 /* RevenueCat */; };
 		1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6EA2D9DDC56004CF387 /* RevenueCatUI */; };
@@ -77,6 +78,7 @@
 		1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
+		194A55D72DC85BBF009DF8DC /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		196109F42D764D9100A76504 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
 		1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxStoreKit.storekit; path = MovingBox/MovingBoxStoreKit.storekit; sourceTree = "<group>"; };
@@ -248,6 +250,7 @@
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				194A55D72DC85BBF009DF8DC /* Logger.swift */,
 				19BA29922DC464A70064C5A9 /* DataManager.swift */,
 				19F765D42DAB558000AE287D /* OptimizedImageManager.swift */,
 				19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */,
@@ -505,6 +508,7 @@
 				19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */,
 				194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */,
 				19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */,
+				194A55D82DC85BBF009DF8DC /* Logger.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
 				19BA29932DC464A70064C5A9 /* DataManager.swift in Sources */,

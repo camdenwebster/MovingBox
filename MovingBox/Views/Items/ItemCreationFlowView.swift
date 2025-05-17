@@ -1,326 +1,366 @@
 import SwiftUI
+import PhotosUI
 import SwiftData
 import AVFoundation
+import UIKit
 
-enum ItemCreationStep {
-    case camera
-    case analyzing
-    case details
-}
-
+@MainActor
 struct ItemCreationFlowView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.isOnboarding) private var isOnboarding
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    
-    @State private var currentStep: ItemCreationStep = .camera
-    @State private var capturedImage: UIImage?
-    @State private var item: InventoryItem?
-    @State private var showingPermissionDenied = false
-    @State private var processingImage = false
-    @State private var analysisComplete = false
-    @State private var errorMessage: String?
-    @State private var transitionId = UUID()
-    
-    // Animation properties
-    private let transitionAnimation = Animation.easeInOut(duration: 0.3)
-    
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
+
     let location: InventoryLocation?
-    let onComplete: (() -> Void)?
-    
+    let onComplete: () -> Void
+    var initialImages: [UIImage] = []
+
+    @State private var currentStep: ItemCreationStep = .camera
+    @State private var item: InventoryItem? 
+    @State private var analysisComplete = false 
+    @State private var analysisViewReadyToDismiss = false 
+    @State private var isLoadingOpenAiResults = false
+    @State private var showingPaywall = false
+    @State private var errorMessage: String?
+    @State private var showError = false
+    @State private var transitionId = UUID() 
+    @State private var tempLoadedImages: [UIImage] = []
+    @State private var tempImageURLs: [URL] = [] 
+    @State private var tempPrimaryImageIndex: Int = 0
+
+    private class TempPhotoManageable: PhotoManageable, ObservableObject {
+        var imageURL: URL? { 
+            get { primaryImageURL }
+            set {
+                if let newValue {
+                    imageURLs = [newValue]
+                    primaryImageIndex = 0
+                } else {
+                    imageURLs = []
+                    primaryImageIndex = 0
+                }
+            }
+        }
+        var imageURLs: [URL]
+        var primaryImageIndex: Int
+        var photo: UIImage? { get async throws { nil } } 
+        var thumbnail: UIImage? { get async throws { nil } } 
+
+        init(imageURLs: [URL], primaryImageIndex: Int) {
+            self.imageURLs = imageURLs
+            self.primaryImageIndex = primaryImageIndex
+        }
+    }
+
+    @State private var tempPhotoModel: TempPhotoManageable = TempPhotoManageable(imageURLs: [], primaryImageIndex: 0)
+
+
+    private enum ItemCreationStep: Int, CaseIterable {
+        case camera = 0
+        case analyzing = 1
+        case details = 2
+
+        var title: String {
+            switch self {
+            case .camera: return "Add Photo(s)" 
+            case .analyzing: return "Analyzing"
+            case .details: return "Details"
+            }
+        }
+    }
+
+    private var transitionAnimation: Animation {
+        .easeInOut(duration: 0.3)
+    }
+
     var body: some View {
-        NavigationStack {
-            ZStack {
-                switch currentStep {
-                case .camera:
-                    CameraView(
-                        showingImageAnalysis: .constant(false),
-                        analyzingImage: .constant(nil)
-                    ) { image, needsAnalysis, completion async -> Void in
-                        // Set processing flag to prevent premature dismissal
-                        processingImage = true
-                        
-                        // Process the image
-                        await handleCapturedImage(image)
-                        
-                        // Complete the camera operation but stay in the sheet
-                        await completion()
-                        
-                        // Transition to next step
-                        if self.item != nil {
-                            await MainActor.run {
-                                withAnimation(transitionAnimation) {
-                                    transitionId = UUID()
-                                    currentStep = .analyzing
-                                }
-                            }
-                        } else {
-                            await MainActor.run {
-                                processingImage = false
-                                dismiss()
-                            }
-                        }
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                dismiss()
-                            }
-                        }
-                    }
-                    .transition(.asymmetric(
-                        insertion: .identity,
-                        removal: .move(edge: .leading)
-                    ))
-                    .id("camera-\(transitionId)")
-                    
-                case .analyzing:
-                    if let image = capturedImage, let item = item {
-                        ZStack {
-                            ImageAnalysisView(image: image) {
-                                // The ImageAnalysisView will signal when minimum display time has elapsed
-                                // but we only move to details if analysis is actually complete
-                                if analysisComplete {
-                                    print("Analysis view completed and analysis is done")
-                                    withAnimation(transitionAnimation) {
-                                        transitionId = UUID()
-                                        currentStep = .details
+        NavigationView {
+            VStack {
+                ProgressView(value: Double(currentStep.rawValue), total: Double(ItemCreationStep.allCases.count - 1))
+                    .padding(.horizontal)
+
+                TabView(selection: $currentStep) {
+                    Group {
+                        if currentStep == .camera {
+                            VStack { 
+                                Text("Add photos for your new item")
+                                    .font(.headline)
+                                    .padding()
+
+                                if tempLoadedImages.isEmpty {
+                                    PhotoPickerView(
+                                        model: $tempPhotoModel, 
+                                        loadedImages: $tempLoadedImages,
+                                        isLoading: $isLoadingOpenAiResults, 
+                                        showRemoveButton: false 
+                                    ) { showPicker in 
+                                        AddPhotoButton {
+                                            showPicker.wrappedValue = true 
+                                        }
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .aspectRatio(1, contentMode: .fit)
+                                        .background(Color.secondary.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        .foregroundStyle(.secondary)
+                                        .padding()
                                     }
-                                } else if errorMessage != nil {
-                                    print("Analysis view completed with error")
-                                    withAnimation(transitionAnimation) {
-                                        transitionId = UUID()
-                                        currentStep = .details
+
+                                } else {
+                                    PhotoGridEditorView(
+                                        model: $tempPhotoModel,
+                                        loadedImages: $tempLoadedImages,
+                                        isLoading: $isLoadingOpenAiResults 
+                                    )
+                                }
+
+                                if !tempLoadedImages.isEmpty {
+                                    Button("Analyze Photo\(tempLoadedImages.count > 1 ? "s" : "")") {
+                                        if settings.shouldShowPaywallForAiScan(currentCount: 0) { 
+                                            showingPaywall = true
+                                        } else {
+                                            Task {
+                                                await startAnalysisFlow()
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .padding()
+                                }
+                            } 
+                        }
+                    }
+                    .tag(ItemCreationStep.camera)
+
+
+                    Group {
+                        if currentStep == .analyzing {
+                            if !tempLoadedImages.isEmpty { 
+                                ZStack {
+                                    ImageAnalysisView(images: tempLoadedImages) { 
+                                        analysisViewReadyToDismiss = true
+                                        checkAndTransitionToDetails()
                                     }
                                 }
-                                // Otherwise, we keep waiting for analysis to complete
+                            } else {
+                                Text("No images to analyze.")
+                                    .onAppear {
+                                        withAnimation(transitionAnimation) {
+                                            transitionId = UUID()
+                                            currentStep = .details
+                                        }
+                                    }
                             }
                         }
-                        .task {
-                            // Only start analysis if we haven't completed it yet
-                            if !analysisComplete && errorMessage == nil {
-                                await performImageAnalysis(item: item, image: image)
-                            }
-                        }
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing),
-                            removal: .move(edge: .leading)
-                        ))
-                        .id("analysis-\(transitionId)")
                     }
-                    
-                case .details:
-                    if let item = item {
-                        InventoryDetailView(
-                            inventoryItemToDisplay: item,
-                            navigationPath: .constant(NavigationPath()),
-                            isEditing: true
-                        ) {
-                            onComplete?()
-                            dismiss()
-                        }
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing),
-                            removal: .opacity
-                        ))
-                        .id("details-\(transitionId)")
-                    } else {
-                        Text("Loading item details...")
-                            .onAppear {
-                                // Fallback in case the item isn't ready
-                                if item == nil {
-                                    dismiss()
+                    .tag(ItemCreationStep.analyzing)
+
+                    Group {
+                        if currentStep == .details {
+                            if let item = item {
+                                InventoryDetailView(
+                                    inventoryItemToDisplay: item,
+                                    navigationPath: .constant(NavigationPath()), 
+                                    showSparklesButton: false, 
+                                    isEditing: true
+                                ) {
+                                    onComplete() 
+                                    dismiss() 
                                 }
+                            } else {
+                                Text("Error: Item not created.")
+                                    .onAppear {
+                                        dismiss()
+                                    }
                             }
+                        }
+                    }
+                    .tag(ItemCreationStep.details)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(nil, value: currentStep) 
+                .disabled(true) 
+
+                .alert("Analysis Error", isPresented: $showError) {
+                    Button("OK") {
+                        withAnimation(transitionAnimation) {
+                            transitionId = UUID()
+                            currentStep = .details
+                        }
+                    }
+                } message: {
+                    Text(errorMessage ?? "An unknown error occurred during analysis.")
+                }
+            }
+            .navigationTitle(currentStep.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
                     }
                 }
             }
-            .animation(transitionAnimation, value: currentStep)
-            .interactiveDismissDisabled(currentStep != .camera || processingImage)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .onChange(of: analysisComplete) { _, newValue in
-            if newValue && currentStep == .analyzing {
-                print("Analysis complete changed to true")
-                // Transition after a slight delay for smoother UX
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    withAnimation(transitionAnimation) {
-                        transitionId = UUID()
-                        currentStep = .details
+            .sheet(isPresented: $showingPaywall) {
+                revenueCatManager.presentPaywall(
+                    isPresented: $showingPaywall,
+                    onCompletion: {
+                        settings.isPro = true
+                        Task {
+                            await startAnalysisFlow()
+                        }
+                    },
+                    onDismiss: {
+                        withAnimation(transitionAnimation) {
+                            transitionId = UUID()
+                            currentStep = .details
+                        }
                     }
+                )
+            }
+            .task(id: initialImages.count) {
+                if !initialImages.isEmpty && tempLoadedImages.isEmpty {
+                    isLoadingOpenAiResults = true 
+                    defer { isLoadingOpenAiResults = false }
+
+                    tempLoadedImages = initialImages
+
+                    tempPhotoModel.imageURLs = initialImages.compactMap { _ in URL(string: "temp://dummy")! } 
+                    tempPhotoModel.primaryImageIndex = 0 
+
+                    currentStep = .analyzing 
+
+                    await startAnalysisFlow()
                 }
             }
-        }
-        .onChange(of: errorMessage) { _, newValue in
-            if newValue != nil && currentStep == .analyzing {
-                print("Error message set, moving to details")
-                // Transition after a slight delay for smoother UX
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    withAnimation(transitionAnimation) {
-                        transitionId = UUID()
-                        currentStep = .details
-                    }
-                }
-            }
-        }
-        .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
-            Button("Go to Settings", action: openSettings)
-            Button("Cancel", role: .cancel) { dismiss() }
-        } message: {
-            Text("Please grant camera access in Settings to use this feature.")
-        }
-        .alert(errorMessage ?? "Error", isPresented: .init(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("Continue Anyway", role: .none) {
-                withAnimation(transitionAnimation) {
-                    currentStep = .details
-                }
-            }
-        } message: {
-            Text(errorMessage ?? "An unknown error occurred during image analysis.")
+            .onChange(of: analysisComplete) { _, _ in checkAndTransitionToDetails() }
+            .onChange(of: analysisViewReadyToDismiss) { _, _ in checkAndTransitionToDetails() }
         }
     }
-    
-    private func handleCapturedImage(_ image: UIImage) async {
-        await MainActor.run {
-            capturedImage = image
-        }
-        
-        // Create the item first
-        let newItem = InventoryItem(
-            title: "",
-            quantityString: "1",
-            quantityInt: 1,
-            desc: "",
-            serial: "",
-            model: "",
-            make: "",
-            location: location,
-            label: nil,
-            price: Decimal.zero,
-            insured: false,
-            assetId: "",
-            notes: "",
-            showInvalidQuantityAlert: false
-        )
-        
-        // Save the image
-        let id = UUID().uuidString
-        
-        do {
-            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-            
-            await MainActor.run {
-                newItem.imageURL = imageURL
-                modelContext.insert(newItem)
-                try? modelContext.save()
-                TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
-                self.item = newItem
+
+    private func checkAndTransitionToDetails() {
+        print("Checking transition conditions: analysisComplete = \(analysisComplete), analysisViewReadyToDismiss = \(analysisViewReadyToDismiss)")
+        if analysisComplete && analysisViewReadyToDismiss {
+            print("Both conditions met, transitioning to details.")
+            withAnimation(transitionAnimation) {
+                transitionId = UUID()
+                currentStep = .details
             }
-        } catch {
-            print("Error processing image: \(error)")
+        } else {
+            print("Conditions not met yet.")
         }
     }
-    
-    private func performImageAnalysis(item: InventoryItem, image: UIImage) async {
-        print("Starting image analysis...")
-        
-        // Reset flags to ensure proper state
-        await MainActor.run {
-            analysisComplete = false
-            errorMessage = nil
+
+    private func startAnalysisFlow() async {
+        guard !tempLoadedImages.isEmpty else {
+            errorMessage = "No images to analyze."
+            showError = true
+            return
         }
-        
+
+        isLoadingOpenAiResults = true 
+        defer { isLoadingOpenAiResults = false }
+
+        analysisComplete = false
+        analysisViewReadyToDismiss = false
+
+        let newItem = InventoryItem() 
+        newItem.location = location 
+
+        let savedImageURLs = await saveLoadedImages()
+        newItem.imageURLs = savedImageURLs 
+        newItem.primaryImageIndex = tempPhotoModel.primaryImageIndex 
+
+        modelContext.insert(newItem)
+        item = newItem 
+        try? modelContext.save() 
+
+        guard let itemForAnalysis = item,
+              let primaryImageURL = itemForAnalysis.primaryImageURL,
+              let photo = await OptimizedImageManager.shared.loadImage(url: primaryImageURL)
+        else {
+            errorMessage = "Unable to load primary image for analysis."
+            showError = true
+            analysisComplete = true 
+            checkAndTransitionToDetails()
+            return
+        }
+
+        guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: photo) else {
+            errorMessage = "Failed to prepare image for AI."
+            showError = true
+            analysisComplete = true 
+            checkAndTransitionToDetails()
+            return
+        }
+
+        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
+
+        TelemetryManager.shared.trackCameraAnalysisUsed()
+
         do {
-            // Prepare image for AI
-            guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: image) else {
-                throw OpenAIError.invalidData
-            }
-            
-            // Create OpenAI service and get image details
-            let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
-            TelemetryManager.shared.trackCameraAnalysisUsed()
-            
-            print("Calling OpenAI for image analysis...")
             let imageDetails = try await openAi.getImageDetails()
-            print("OpenAI analysis complete, updating item...")
-            
-            // Update the item with the results
-            await MainActor.run {
-                updateItemWithImageDetails(item: item, imageDetails: imageDetails)
-                item.hasUsedAI = true // Mark as analyzed by AI
-                try? modelContext.save()
-                
-                // Set processing flag to false
-                processingImage = false
-                
-                // Set analysis complete flag to trigger UI update
-                analysisComplete = true
-                print("Analysis complete, item updated")
-            }
-        } catch let openAIError as OpenAIError {
-            await MainActor.run {
-                switch openAIError {
-                case .invalidURL:
-                    errorMessage = "Invalid URL configuration"
-                case .invalidResponse:
-                    errorMessage = "Error communicating with AI service"
-                case .invalidData:
-                    errorMessage = "Unable to process AI response"
-                case .rateLimitExceeded:
-                    errorMessage = "Rate limit exceeded, please try again later"
-                case .serverError(_):
-                    errorMessage = "Server error: \(openAIError.localizedDescription)"
-                @unknown default:
-                    errorMessage = "Unknown AI service error"
-                }
-                processingImage = false
-                print("Analysis error: \(errorMessage ?? "unknown")")
-            }
+            updateUIWithImageDetails(imageDetails)
+            analysisComplete = true 
+            print("Analysis complete, moving to details.")
+            checkAndTransitionToDetails()
+
+        } catch OpenAIError.invalidURL {
+            errorMessage = "Invalid URL configuration."
+            showError = true
+            analysisComplete = true 
+            checkAndTransitionToDetails()
+        } catch OpenAIError.invalidResponse {
+            errorMessage = "Error communicating with AI service."
+            showError = true
+            analysisComplete = true 
+            checkAndTransitionToDetails()
+        } catch OpenAIError.invalidData {
+            errorMessage = "Unable to process AI response."
+            showError = true
+            analysisComplete = true 
+            checkAndTransitionToDetails()
         } catch {
-            await MainActor.run {
-                errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                processingImage = false
-                print("Analysis exception: \(error)")
-            }
+            errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+            showError = true
+            analysisComplete = true 
+            checkAndTransitionToDetails()
         }
     }
-    
-    private func updateItemWithImageDetails(item: InventoryItem, imageDetails: ImageDetails) {
-        // Get all labels for category matching
-        let labels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>())
-        
-        // Get all locations for location matching
-        let locations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>())
-        
+
+    private func saveLoadedImages() async -> [URL] {
+        var urls: [URL] = []
+        for image in tempLoadedImages { 
+            do {
+                let id = UUID().uuidString
+                if let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id) {
+                    urls.append(imageURL)
+                }
+            } catch {
+                print("Error saving loaded image: \(error)")
+            }
+        }
+        return urls
+    }
+
+    private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
+        guard let item = item else { return }
         item.title = imageDetails.title
-        item.quantityString = imageDetails.quantity
-        item.label = labels?.first { $0.name == imageDetails.category }
         item.desc = imageDetails.description
         item.make = imageDetails.make
-        item.model = imageDetails.model
-        
-        if item.location == nil {
-            item.location = locations?.first { $0.name == imageDetails.location }
-        }
-        
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        if let price = Decimal(string: priceString) {
-            item.price = price
-        }
-    }
-    
-    private func openSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
-        }
+        item.model = imageDetails.model 
+        item.price = Decimal(string: imageDetails.price) ?? 0.0
+        item.hasUsedAI = true
+        try? modelContext.save()
     }
 }
 
 #Preview {
-    ItemCreationFlowView(location: nil, onComplete: nil)
+    ItemCreationFlowView(location: nil) {
+        print("Item creation flow completed")
+    }
         .modelContainer(try! ModelContainer(for: InventoryLocation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
         .environmentObject(Router())
         .environmentObject(SettingsManager())
+        .environmentObject(RevenueCatManager.shared)
 }

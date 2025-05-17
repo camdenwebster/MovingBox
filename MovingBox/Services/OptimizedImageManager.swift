@@ -39,7 +39,6 @@ final class OptimizedImageManager {
         }
     }
     
-    // ADD: Monitor iCloud URL changes
     private func setupUbiquityURLMonitoring() {
         NotificationCenter.default.addObserver(
             self,
@@ -73,12 +72,12 @@ final class OptimizedImageManager {
     
     // MARK: - Image Saving and Loading
     
-    func saveImage(_ image: UIImage, id: String) async throws -> URL {
+    func saveImage(_ image: UIImage, id: String) async throws -> URL? {
         let imageURL = imagesDirectoryURL.appendingPathComponent("\(id).jpg")
         
         let optimizedImage = await optimizeImage(image)
         guard let data = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
-            throw ImageError.compressionFailed
+            return nil
         }
         
         var error: NSError?
@@ -100,7 +99,7 @@ final class OptimizedImageManager {
         return imageURL
     }
     
-    func loadImage(url: URL) async throws -> UIImage {
+    func loadImage(url: URL) async -> UIImage? {
         var error: NSError?
         var loadedImage: UIImage?
         
@@ -115,15 +114,11 @@ final class OptimizedImageManager {
             }
         }
         
-        if let error {
-            throw error
+        if error != nil {
+            return nil
         }
         
-        guard let image = loadedImage else {
-            throw ImageError.invalidImageData
-        }
-        
-        return image
+        return loadedImage
     }
     
     // MARK: - Thumbnail Management
@@ -234,7 +229,6 @@ final class OptimizedImageManager {
         return imageData.base64EncodedString()
     }
     
-    // ADD: Public method to get image URL
     func getImageURL(for id: String) -> URL {
         return imagesDirectoryURL.appendingPathComponent("\(id).jpg")
     }

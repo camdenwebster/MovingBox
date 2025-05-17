@@ -23,6 +23,7 @@ struct EditLocationView: View {
     ]) private var locations: [InventoryLocation]
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
+    @State private var loadedImages: [UIImage] = []
     @State private var isLoading = false
     @State private var loadingError: Error?
     @State private var showPhotoSourceAlert = false
@@ -62,9 +63,16 @@ struct EditLocationView: View {
                                 if isEditingEnabled {
                                     PhotoPickerView(
                                         model: $locationInstance,
-                                        loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
+                                        loadedImages: $loadedImages,
                                         isLoading: $isLoading
-                                    )
+                                    ) { showSourceAlert in
+                                        AddPhotoButton {
+                                            showSourceAlert.wrappedValue = true
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: UIScreen.main.bounds.height / 3)
+                                        .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                     } else if isLoading {
@@ -74,11 +82,11 @@ struct EditLocationView: View {
                     } else if isEditingEnabled {
                         PhotoPickerView(
                             model: $locationInstance,
-                            loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
+                            loadedImages: $loadedImages,
                             isLoading: $isLoading
-                        ) { showPhotoSourceAlert in
+                        ) { showSourceAlert in
                             AddPhotoButton {
-                                showPhotoSourceAlert.wrappedValue = true
+                                showSourceAlert.wrappedValue = true
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)

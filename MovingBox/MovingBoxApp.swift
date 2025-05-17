@@ -11,6 +11,7 @@ import SwiftData
 import SwiftUI
 import TelemetryDeck
 import UIKit
+import os.log
 
 @main
 struct MovingBoxApp: App {
@@ -60,9 +61,11 @@ struct MovingBoxApp: App {
         telemetryConfig.defaultSignalPrefix = "App."
         telemetryConfig.defaultParameterPrefix = "MyApp."
         TelemetryDeck.initialize(config: telemetryConfig)
+        Logger.info("TelemetryDeck initialized with app ID: \(appId)", category: .analytics)
         
         // Configure RevenueCat
         Purchases.configure(withAPIKey: AppConfig.revenueCatAPIKey)
+        Logger.info("RevenueCat configured with API key", category: .subscription)
         
         #if DEBUG
         Purchases.logLevel = .debug
@@ -72,15 +75,12 @@ struct MovingBoxApp: App {
         do {
             let dsn = "https://\(AppConfig.sentryDsn)"
             guard dsn != "missing-sentry-dsn" else {
-                #if DEBUG
-                print("⚠️ Error: Missing Sentry DSN configuration")
-                #endif
+                Logger.warning("Missing Sentry DSN configuration", category: .app)
                 return
             }
             
             SentrySDK.start { options in
                 options.dsn = dsn
-//                options.debug = AppConfig.shared.configuration == .debug
                 options.tracesSampleRate = 0.2
                 
                 options.configureProfiling = {
@@ -91,6 +91,7 @@ struct MovingBoxApp: App {
                 options.sessionReplay.onErrorSampleRate = 0.8
                 options.sessionReplay.sessionSampleRate = 0.1
             }
+            Logger.info("Sentry initialized successfully", category: .app)
         }
     }
     
@@ -118,12 +119,17 @@ struct MovingBoxApp: App {
                     EditLabelView(label: label, isEditing: isEditing)
                 case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
                     InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
-                case .addInventoryItemView(let location):
-                    AddInventoryItemView(location: location)
-                case .locationsSettingsView:
-                    LocationSettingsView()
+                case .addItemView(let location):
+                    NewItemPhotoPickerView(location: location)
                 case .subscriptionSettingsView:
                     SubscriptionSettingsView()
+                case .locationsSettingsView:
+                    Text("Locations Settings View Placeholder")
+                        .navigationTitle("Location Settings")
+                case .itemCreationFlow(let location, let initialImages):
+                    ItemCreationFlowView(location: location, initialImages: initialImages) {
+                        print("Item creation flow completed in MovingBoxApp")
+                    }
                 }
             }
         )
@@ -148,29 +154,35 @@ struct MovingBoxApp: App {
             }
             .task {
                 // Initialize container
+                Logger.info("Initializing model container", category: .database)
                 await containerManager.initialize()
                 
                 // Check RevenueCat subscription status
                 do {
+                    Logger.info("Checking RevenueCat subscription status", category: .subscription)
                     try await revenueCatManager.updateCustomerInfo()
                 } catch {
-                    print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
+                    Logger.error("Error checking RevenueCat status: \(error)", category: .subscription)
                 }
                 
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                    Logger.info("Loading test data due to launch argument", category: .database)
                     await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
                     settings.hasLaunched = true
                     appState = .main
                 } else {
                     // Determine if we should show the welcome screen
-                    appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
+                    let shouldShowWelcome = OnboardingManager.shouldShowWelcome()
+                    Logger.info("Should show welcome screen: \(shouldShowWelcome)", category: .ui)
+                    appState = shouldShowWelcome ? .onboarding : .main
                 }
                 
                 // Record that we've launched
                 settings.hasLaunched = true
 
                 // Send launched signal to TD
+                Logger.info("Sending app launched telemetry signal", category: .analytics)
                 TelemetryDeck.signal("appLaunched")
             }
             .modelContainer(containerManager.container)
@@ -191,7 +203,7 @@ struct SplashView: View {
     }
     
     private var textColor: Color {
-        colorScheme == .dark ? .splashTextDark : .splashTextLight
+        colorScheme == .dark ? .white : .black
     }
     
     var body: some View {
@@ -200,39 +212,15 @@ struct SplashView: View {
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
-            
-            VStack(spacing: 20) {
-                if let appIcon = Bundle.main.icon {
-                    Image(uiImage: appIcon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-                
-                VStack {
-                    Text("MovingBox")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(textColor)
-                    Text("Home inventory, simplified")
-                        .fontWeight(.light)
-                        .foregroundColor(textColor)
-                }
+            VStack {
+                Image("MovingBox")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 100)
+                ProgressView()
+                    .tint(textColor)
             }
         }
-    }
-}
-
-extension Bundle {
-    var icon: UIImage? {
-        if let icons = infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
-           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
-           let lastIcon = iconFiles.last {
-            return UIImage(named: lastIcon)
-        }
-        return nil
     }
 }
 
@@ -265,7 +253,7 @@ struct MainTabView: View {
             .tag(Router.Tab.locations)
             
             NavigationStack(path: router.path(for: .addItem)) {
-                AddInventoryItemView(location: nil)
+                NewItemPhotoPickerView(location: nil)
                     .navigationDestination(for: Router.Destination.self) { destination in
                         destinationView(destination, router.path(for: .addItem))
                     }

@@ -9,7 +9,7 @@ struct OnboardingHomeView: View {
     @EnvironmentObject private var settings: SettingsManager
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
     @State private var homeName = ""
-    @State private var loadedImage: UIImage?
+    @State private var loadedImages: [UIImage] = []
     @State private var loadingError: Error?
     @State private var isLoading = false
     @State private var tempHome = Home()
@@ -23,7 +23,7 @@ struct OnboardingHomeView: View {
         if let existingHome = activeHome {
             homeName = existingHome.name
             do {
-                loadedImage = try await existingHome.photo
+                // Removed loadedImage
             } catch {
                 loadingError = error
                 print("Failed to load home photo: \(error)")
@@ -42,8 +42,8 @@ struct OnboardingHomeView: View {
                             OnboardingDescriptionText(text: "Add some details about your home to customize your experience")
                             
                             Group {
-                                if let uiImage = loadedImage {
-                                    Image(uiImage: uiImage)
+                                if !loadedImages.isEmpty {
+                                    Image(uiImage: loadedImages.first ?? UIImage())
                                         .resizable()
                                         .scaledToFill()
                                         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
@@ -57,9 +57,16 @@ struct OnboardingHomeView: View {
                                                         tempHome = newValue
                                                     }
                                                 ),
-                                                loadedImage: $loadedImage,
+                                                loadedImages: $loadedImages,
                                                 isLoading: $isLoading
-                                            )
+                                            ) { showSourceAlert in
+                                                AddPhotoButton {
+                                                    showSourceAlert.wrappedValue = true
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: UIScreen.main.bounds.height / 3)
+                                                .foregroundStyle(.secondary)
+                                            }
                                         }
                                 } else if isLoading {
                                     ProgressView()
@@ -73,19 +80,15 @@ struct OnboardingHomeView: View {
                                                 tempHome = newValue
                                             }
                                         ),
-                                        loadedImage: $loadedImage,
+                                        loadedImages: $loadedImages,
                                         isLoading: $isLoading
-                                    ) { isPresented in
+                                    ) { showSourceAlert in
                                         AddPhotoButton {
-                                            isPresented.wrappedValue = true
+                                            showSourceAlert.wrappedValue = true
                                         }
-                                        .accessibilityIdentifier("onboarding-home-add-photo-button")
-                                        .padding()
-                                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                                        .background {
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .fill(.ultraThinMaterial)
-                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: UIScreen.main.bounds.height / 3)
+                                        .foregroundStyle(.secondary)
                                     }
                                 }
                             }

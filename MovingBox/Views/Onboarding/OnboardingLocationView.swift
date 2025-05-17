@@ -13,7 +13,7 @@ struct OnboardingLocationView: View {
     @State private var locationInstance = InventoryLocation()
     @State private var locationName = ""
     @State private var locationDesc = ""
-    @State private var tempUIImage: UIImage?
+    @State private var loadedImages: [UIImage] = []
     @State private var isLoading = false
     
     private func loadExistingData() async {
@@ -23,7 +23,7 @@ struct OnboardingLocationView: View {
             locationInstance = existingLocation
             do {
                 if let photo = try await existingLocation.photo {
-                    tempUIImage = photo
+                    loadedImages = [photo]
                 }
             } catch {
                 print("Failed to load location photo: \(error)")
@@ -44,8 +44,8 @@ struct OnboardingLocationView: View {
                             
                             // Photo Section
                             Group {
-                                if let uiImage = tempUIImage {
-                                    Image(uiImage: uiImage)
+                                if !loadedImages.isEmpty {
+                                    Image(uiImage: loadedImages[0])
                                         .resizable()
                                         .scaledToFill()
                                         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
@@ -53,10 +53,20 @@ struct OnboardingLocationView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
-                                                model: $locationInstance,
-                                                loadedImage: $tempUIImage,
+                                                model: Binding(
+                                                    get: { self.locationInstance },
+                                                    set: { self.locationInstance = $0 }
+                                                ),
+                                                loadedImages: $loadedImages,
                                                 isLoading: $isLoading
-                                            )
+                                            ) { showSourceAlert in
+                                                AddPhotoButton {
+                                                    showSourceAlert.wrappedValue = true
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: UIScreen.main.bounds.height / 3)
+                                                .foregroundStyle(.secondary)
+                                            }
                                         }
                                 } else if isLoading {
                                     ProgressView()
@@ -64,20 +74,19 @@ struct OnboardingLocationView: View {
                                         .frame(height: UIScreen.main.bounds.height / 3)
                                 } else {
                                     PhotoPickerView(
-                                        model: $locationInstance,
-                                        loadedImage: $tempUIImage,
+                                        model: Binding(
+                                            get: { self.locationInstance },
+                                            set: { self.locationInstance = $0 }
+                                        ),
+                                        loadedImages: $loadedImages,
                                         isLoading: $isLoading
-                                    ) { showPhotoSourceAlert in
+                                    ) { showSourceAlert in
                                         AddPhotoButton {
-                                            showPhotoSourceAlert.wrappedValue = true
+                                            showSourceAlert.wrappedValue = true
                                         }
-                                        .accessibilityIdentifier("onboarding-location-add-photo-button")
-                                        .padding()
-                                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                                        .background {
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .fill(.ultraThinMaterial)
-                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: UIScreen.main.bounds.height / 3)
+                                        .foregroundStyle(.secondary)
                                     }
                                 }
                             }
