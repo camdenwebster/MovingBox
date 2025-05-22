@@ -12,31 +12,29 @@ struct SimpleCameraView: View {
     }
     
     var body: some View {
-        Group {
-            if isMockCamera {
-                MockSimpleCameraView(image: $capturedImage)
-                    .onChange(of: capturedImage) { _, newImage in
-                        if newImage != nil {
-                            dismiss()
-                        }
-                    }
-            } else {
-                ImagePicker(image: $capturedImage, sourceType: .camera) { authorized in
-                    if !authorized {
-                        showingPermissionDenied = true
-                    }
-                }
+        if isMockCamera {
+            MockSimpleCameraView(image: $capturedImage)
                 .onChange(of: capturedImage) { _, newImage in
                     if newImage != nil {
                         dismiss()
                     }
                 }
-                .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
-                    Button("Go to Settings", action: openSettings)
-                    Button("Cancel", role: .cancel) { dismiss() }
-                } message: {
-                    Text("Please grant camera access in Settings to use this feature.")
+        } else {
+            CustomCameraView(capturedImage: $capturedImage) { authorized in
+                if !authorized {
+                    showingPermissionDenied = true
                 }
+            }
+            .onChange(of: capturedImage) { _, newImage in
+                if newImage != nil {
+                    dismiss()
+                }
+            }
+            .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
+                Button("Go to Settings", action: openSettings)
+                Button("Cancel", role: .cancel) { dismiss() }
+            } message: {
+                Text("Please grant camera access in Settings to use this feature.")
             }
         }
     }
