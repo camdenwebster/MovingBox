@@ -51,7 +51,7 @@ import SwiftData
                 "message": {
                     "function_call": {
                         "name": "process_inventory_item",
-                        "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\"}"
+                        "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\",\\"serialNumber\\":\\"SN123456\\"}"
                     }
                 }
             }]
@@ -71,6 +71,7 @@ import SwiftData
         #expect(details.category == "None")
         #expect(details.location == "None")
         #expect(details.price == "$99.99")
+        #expect(details.serialNumber == "SN123456")
     }
     
     @Test("Test complete integration flow")
@@ -155,7 +156,7 @@ import SwiftData
                 "message": {
                     "function_call": {
                         "name": "process_inventory_item",
-                        "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\"}"
+                        "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\",\\"serialNumber\\":\\"SN789\\"}"
                     }
                 }
             }]

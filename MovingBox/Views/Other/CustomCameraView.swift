@@ -1,15 +1,68 @@
 import SwiftUI
 import AVFoundation
 
+enum CameraMode {
+    case singlePhoto
+    case multiPhoto(maxPhotos: Int = 5)
+}
+
 struct CustomCameraView: View {
     @StateObject private var model = CameraViewModel()
     @Binding var capturedImage: UIImage?
+    @Binding var capturedImages: [UIImage]
+    let mode: CameraMode
     let onPermissionCheck: (Bool) -> Void
+    let onComplete: (([UIImage]) -> Void)?
+    let onCancel: (() -> Void)?
+    
+    // Single photo mode initializer (backward compatible)
+    init(
+        capturedImage: Binding<UIImage?>,
+        onPermissionCheck: @escaping (Bool) -> Void,
+        onCancel: (() -> Void)? = nil
+    ) {
+        self._capturedImage = capturedImage
+        self._capturedImages = .constant([])
+        self.mode = .singlePhoto
+        self.onPermissionCheck = onPermissionCheck
+        self.onComplete = nil
+        self.onCancel = onCancel
+    }
+    
+    // Multi photo mode initializer
+    init(
+        capturedImages: Binding<[UIImage]>,
+        mode: CameraMode = .multiPhoto(),
+        onPermissionCheck: @escaping (Bool) -> Void,
+        onComplete: @escaping ([UIImage]) -> Void,
+        onCancel: (() -> Void)? = nil
+    ) {
+        self._capturedImage = .constant(nil)
+        self._capturedImages = capturedImages
+        self.mode = mode
+        self.onPermissionCheck = onPermissionCheck
+        self.onComplete = onComplete
+        self.onCancel = onCancel
+    }
     
     private let aspectRatio: CGFloat = 4.0 / 3.0
     private static let barHeightFactor = 0.15
     
     var body: some View {
+        switch mode {
+        case .singlePhoto:
+            singlePhotoView
+        case .multiPhoto(let maxPhotos):
+            MultiPhotoCameraView(
+                capturedImages: $capturedImages,
+                onPermissionCheck: onPermissionCheck,
+                onComplete: onComplete ?? { _ in },
+                onCancel: onCancel
+            )
+        }
+    }
+    
+    private var singlePhotoView: some View {
         GeometryReader { geometry in
             ZStack {
                 // Camera preview
