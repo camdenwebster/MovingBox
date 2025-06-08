@@ -11,6 +11,9 @@ struct MultiPhotoCameraView: View {
     
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var showingPhotoPicker = false
+    @State private var animatingImage: UIImage?
+    @State private var showingCaptureAnimation = false
+    @State private var showingFlashAnimation = false
     
     // Default initializer with onCancel parameter
     init(
@@ -49,6 +52,7 @@ struct MultiPhotoCameraView: View {
                 let availableHeight = geometry.size.height - 100 - 200 // Account for top and bottom UI areas
                 let squareSize = min(geometry.size.width - 40, availableHeight) // Add some padding
                 let centerY = geometry.size.height / 2
+                let cameraRect = CGRect(x: (geometry.size.width - squareSize) / 2, y: centerY - squareSize / 2, width: squareSize, height: squareSize)
                 
                 SquareCameraPreviewView(session: model.session)
                     .frame(width: squareSize, height: squareSize)
@@ -133,6 +137,21 @@ struct MultiPhotoCameraView: View {
                 
                 Spacer()
                 
+                // Flash animation overlay
+                if showingFlashAnimation {
+                    FlashAnimationView(isVisible: $showingFlashAnimation)
+                }
+                
+                // Capture animation overlay
+                if showingCaptureAnimation, let animatingImage = animatingImage {
+                    CaptureAnimationView(
+                        image: animatingImage,
+                        startRect: cameraRect,
+                        endRect: calculateThumbnailDestination(geometry: geometry),
+                        isVisible: $showingCaptureAnimation
+                    )
+                }
+                
                 // Bottom controls area
                 VStack(spacing: 20) {
                     // Shutter controls row
@@ -216,8 +235,38 @@ struct MultiPhotoCameraView: View {
                 await processSelectedPhotos(newItems)
             }
         }
-        .onChange(of: model.capturedImages) { _, newImages in
+        .onChange(of: model.capturedImages) { oldImages, newImages in
             capturedImages = newImages
+            
+            // Trigger animation when a new image is added
+            if newImages.count > oldImages.count, let newImage = newImages.last {
+                triggerCaptureAnimation(with: newImage)
+            }
+        }
+    }
+    
+    private func calculateThumbnailDestination(geometry: GeometryProxy) -> CGRect {
+        // Calculate where the new thumbnail will appear
+        // From the screenshot: thumbnails are positioned much lower, around 60% down
+        let thumbnailAreaY: CGFloat = geometry.size.height * -0.11 // Based on the top of the camera feed
+        
+        let thumbnailX = 20 + CGFloat(model.capturedImages.count - 1) * 68 // 60 width + 8 spacing
+        
+        let destination = CGRect(x: thumbnailX, y: thumbnailAreaY, width: 60, height: 60)
+        print("🎥 Animation destination: \(destination) (screen height: \(geometry.size.height))")
+        return destination
+    }
+    
+    private func triggerCaptureAnimation(with image: UIImage) {
+        animatingImage = image
+        showingCaptureAnimation = true
+        
+        print("🎥 Starting capture animation")
+        
+        // Hide animation after completion
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            showingCaptureAnimation = false
+            animatingImage = nil
         }
     }
     
@@ -607,6 +656,49 @@ struct PhotoThumbnailView: View {
         onPermissionCheck: { _ in },
         onComplete: { _ in }
     )
+}
+
+// MARK: - Capture Animation View
+
+struct CaptureAnimationView: View {
+    let image: UIImage
+    let startRect: CGRect
+    let endRect: CGRect
+    @Binding var isVisible: Bool
+    
+    @State private var animationProgress: CGFloat = 0
+    @State private var opacity: Double = 1
+    
+    var body: some View {
+        if isVisible {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(
+                    width: interpolate(from: startRect.width, to: endRect.width, progress: animationProgress),
+                    height: interpolate(from: startRect.height, to: endRect.height, progress: animationProgress)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: interpolate(from: 0, to: 8, progress: animationProgress)))
+                .position(
+                    x: interpolate(from: startRect.midX, to: endRect.midX, progress: animationProgress),
+                    y: interpolate(from: startRect.midY, to: endRect.midY, progress: animationProgress)
+                )
+                .opacity(opacity)
+                .onAppear {
+                    withAnimation(.easeOut(duration: 0.6)) {
+                        animationProgress = 1.0
+                    }
+                    
+                    withAnimation(.easeOut(duration: 0.2).delay(0.6)) {
+                        opacity = 0
+                    }
+                }
+        }
+    }
+    
+    private func interpolate(from start: CGFloat, to end: CGFloat, progress: CGFloat) -> CGFloat {
+        return start + (end - start) * progress
+    }
 }
 
 // MARK: - Square Camera Preview View
