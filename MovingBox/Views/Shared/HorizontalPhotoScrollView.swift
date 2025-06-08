@@ -248,24 +248,6 @@ struct ThumbnailView: View {
             }
             .buttonStyle(.plain)
             
-            // Primary badge
-            if isPrimary {
-                VStack {
-                    HStack {
-                        Text("Primary")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(.blue)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                .padding(4)
-            }
             
             // Delete button (only show in edit mode)
             if isEditing {

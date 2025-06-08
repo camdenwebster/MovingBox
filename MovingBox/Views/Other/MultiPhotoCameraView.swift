@@ -25,16 +25,35 @@ struct MultiPhotoCameraView: View {
         self.onCancel = onCancel
     }
     
-    // Square aspect ratio for viewfinder
-    private let aspectRatio: CGFloat = 1.0
-    private static let barHeightFactor = 0.15
+    // Layout constants
+    private let topBarHeight: CGFloat = 60
+    private let bottomControlsHeight: CGFloat = 200
+    
+    private var flashModeText: String {
+        switch model.flashMode {
+        case .auto: return "Auto"
+        case .on: return "On"
+        case .off: return "Off"
+        @unknown default: return "Off"
+        }
+    }
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Camera preview
-                CameraPreviewView(session: model.session)
+                // Black background
+                Color.black
                     .ignoresSafeArea()
+                
+                // Square camera preview in center
+                let availableHeight = geometry.size.height - 100 - 200 // Account for top and bottom UI areas
+                let squareSize = min(geometry.size.width - 40, availableHeight) // Add some padding
+                let centerY = geometry.size.height / 2
+                
+                SquareCameraPreviewView(session: model.session)
+                    .frame(width: squareSize, height: squareSize)
+                    .clipShape(Rectangle())
+                    .position(x: geometry.size.width / 2, y: centerY)
                     .onAppear {
                         Task {
                             await model.checkPermissions(completion: onPermissionCheck)
@@ -46,109 +65,85 @@ struct MultiPhotoCameraView: View {
                         }
                     }
                 
-                // Calculate layout dimensions
-                let topControlsHeight: CGFloat = 44 + 20 // top padding + controls
-                let thumbnailHeight: CGFloat = model.capturedImages.isEmpty ? 0 : 100 // thumbnail area when photos exist
-                let viewfinderSize = geometry.size.width - 32
-                let viewfinderTop = topControlsHeight + thumbnailHeight + 20
-                let viewfinderCenter = viewfinderTop + (viewfinderSize / 2)
-                
-                // Top black bar - covers area above viewfinder
-                Color.black
-                    .opacity(0.75)
-                    .frame(height: viewfinderTop)
-                    .frame(maxWidth: .infinity)
-                    .position(x: geometry.size.width / 2, y: viewfinderTop / 2)
-                    .ignoresSafeArea()
-                
-                // Bottom black bar - covers entire area below viewfinder to bottom
-                Color.black
-                    .opacity(0.75)
-                    .frame(height: geometry.size.height - (viewfinderTop + viewfinderSize))
-                    .frame(maxWidth: .infinity)
-                    .position(x: geometry.size.width / 2, y: (viewfinderTop + viewfinderSize + geometry.size.height) / 2)
-                    .ignoresSafeArea()
-                
-                // Square viewfinder border - positioned based on calculated top
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white, lineWidth: 2)
-                    .frame(width: viewfinderSize, height: viewfinderSize)
-                    .position(x: geometry.size.width / 2, y: viewfinderCenter)
-                
-                // Camera controls
-                VStack {
-                    // Top controls
-                    HStack {
-                        // Cancel button
-                        if let onCancel = onCancel {
-                            Button("Cancel") {
-                                onCancel()
-                            }
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
+                // UI Controls
+                VStack(spacing: 0) {
+                // Top bar
+                HStack {
+                    // Flash button
+                    Button {
+                        model.cycleFlash()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: model.flashIcon)
+                                .font(.system(size: 16))
+                            Text(flashModeText)
+                                .font(.system(size: 16, weight: .medium))
                         }
-                        
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 44)
-                    
-                    // Thumbnails scroll view (positioned below top controls)
-                    if !model.capturedImages.isEmpty {
-                        PhotoThumbnailScrollView(
-                            images: model.capturedImages,
-                            onDelete: { index in
-                                model.removeImage(at: index)
-                            }
-                        )
-                        .padding(.top, 10)
+                        .foregroundColor(.white)
                     }
                     
                     Spacer()
                     
-                    // Zoom control (positioned above bottom controls)
+                    // Camera switcher
                     Button {
-                        model.cycleZoom()
+                        Task {
+                            await model.switchCamera()
+                        }
                     } label: {
-                        Text(model.currentZoomText)
-                            .font(.system(size: 16, weight: .semibold))
+                        Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            .font(.system(size: 20))
                             .foregroundColor(.white)
-                            .frame(width: 50, height: 28)
-                            .background(.black.opacity(0.25))
-                            .cornerRadius(14)
                     }
-                    .padding(.bottom, 20)
                     
-                    // Bottom controls
-                    HStack {
-                        // Left side - Photo count and camera roll button
-                        VStack(spacing: 8) {
-                            // Photo count indicator
-                            Text("\(model.capturedImages.count)/5")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(.black.opacity(0.5))
-                                .cornerRadius(12)
-                            
-                            // Photo picker button
-                            Button {
-                                showingPhotoPicker = true
-                            } label: {
-                                Image(systemName: "photo.on.rectangle.angled")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(.black.opacity(0.25))
-                                    .clipShape(Circle())
+                    Spacer()
+                    
+                    // Done button
+                    Button("Done") {
+                        onComplete(model.capturedImages)
+                    }
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.blue)
+                    .disabled(model.capturedImages.isEmpty)
+                    .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 50)
+                .padding(.bottom, 10)
+                
+                // Thumbnails (moved above camera feed)
+                if !model.capturedImages.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(model.capturedImages.enumerated()), id: \.offset) { index, image in
+                                PhotoThumbnailView(
+                                    image: image,
+                                    index: index,
+                                    onDelete: { index in
+                                        model.removeImage(at: index)
+                                    }
+                                )
+                                .frame(width: 60, height: 60)
                             }
                         }
-                        .frame(width: 60)
+                        .padding(.horizontal, 20)
+                    }
+                    .frame(height: 60)
+                    .padding(.vertical, 10)
+                }
+                
+                Spacer()
+                
+                // Bottom controls area
+                VStack(spacing: 20) {
+                    // Shutter controls row
+                    HStack(spacing: 50) {
+                        // Photo count
+                        Text("\(model.capturedImages.count) of 5")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: 60)
                         
-                        Spacer()
-                        
-                        // Center - Shutter button
+                        // Shutter button
                         Button {
                             if model.capturedImages.count >= 5 {
                                 model.showPhotoLimitAlert = true
@@ -158,60 +153,50 @@ struct MultiPhotoCameraView: View {
                         } label: {
                             ZStack {
                                 Circle()
-                                    .strokeBorder(.white, lineWidth: 3)
-                                    .frame(width: 62, height: 62)
+                                    .fill(model.capturedImages.isEmpty ? .white : .blue)
+                                    .frame(width: 70, height: 70)
                                 Circle()
-                                    .fill(.white)
-                                    .frame(width: 50, height: 50)
+                                    .strokeBorder(.white, lineWidth: 5)
+                                    .frame(width: 76, height: 76)
                             }
+                        }
+                        
+                        // Photo picker button
+                        Button {
+                            showingPhotoPicker = true
+                        } label: {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.system(size: 22))
+                                .foregroundColor(.white)
+                                .frame(width: 60)
+                        }
+                    }
+                    .padding(.bottom, 30)
+                    }
+                }
+                
+                // Cancel button overlay (if provided)
+                if let onCancel = onCancel {
+                    VStack {
+                        HStack {
+                            Button {
+                                onCancel()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.black.opacity(0.3))
+                                    .clipShape(Circle())
+                            }
+                            .padding(.leading, 10)
+                            .padding(.top, 50)
+                            
+                            Spacer()
                         }
                         
                         Spacer()
-                        
-                        // Right side - Camera controls and Done button
-                        VStack(spacing: 12) {
-                            // Camera controls stacked horizontally
-                            HStack(spacing: 8) {
-                                // Camera switcher
-                                Button {
-                                    Task {
-                                        await model.switchCamera()
-                                    }
-                                } label: {
-                                    Image(systemName: "arrow.triangle.2.circlepath.camera")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(.white)
-                                        .frame(width: 36, height: 36)
-                                        .background(.black.opacity(0.25))
-                                        .clipShape(Circle())
-                                }
-                                
-                                // Flash control
-                                Button {
-                                    model.cycleFlash()
-                                } label: {
-                                    Image(systemName: model.flashIcon)
-                                        .font(.system(size: 18))
-                                        .foregroundColor(.white)
-                                        .frame(width: 36, height: 36)
-                                        .background(.black.opacity(0.25))
-                                        .clipShape(Circle())
-                                }
-                            }
-                            
-                            // Done button
-                            Button("Done") {
-                                onComplete(model.capturedImages)
-                            }
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                            .disabled(model.capturedImages.isEmpty)
-                            .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
-                        }
-                        .frame(width: 80)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
                 }
             }
         }
@@ -490,22 +475,41 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     }
     
     private func cropToSquare(image: UIImage) async -> UIImage {
-        let size = image.size
-        let sideLength = min(size.width, size.height)
-        
-        let x = (size.width - sideLength) / 2
-        let y = (size.height - sideLength) / 2
-        let cropRect = CGRect(x: x, y: y, width: sideLength, height: sideLength)
-        
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                guard let cgImage = image.cgImage,
-                      let croppedCGImage = cgImage.cropping(to: cropRect) else {
+                guard let cgImage = image.cgImage else {
                     continuation.resume(returning: image)
                     return
                 }
                 
-                let croppedImage = UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
+                let originalSize = CGSize(width: cgImage.width, height: cgImage.height)
+                print("📐 CGImage size: \(originalSize) (UIImage size: \(image.size), orientation: \(image.imageOrientation.rawValue))")
+                
+                // Use the CGImage dimensions directly to avoid orientation confusion
+                let sideLength = min(originalSize.width, originalSize.height)
+                
+                // Calculate crop rectangle to get the center square from the CGImage
+                let x = (originalSize.width - sideLength) / 2
+                let y = (originalSize.height - sideLength) / 2
+                let cropRect = CGRect(x: x, y: y, width: sideLength, height: sideLength)
+                
+                print("📐 Crop rect: \(cropRect) from CGImage size: \(originalSize)")
+                
+                guard let croppedCGImage = cgImage.cropping(to: cropRect) else {
+                    print("❌ Failed to crop CGImage")
+                    continuation.resume(returning: image)
+                    return
+                }
+                
+                print("📐 Cropped CGImage size: \(croppedCGImage.width)x\(croppedCGImage.height)")
+                
+                let croppedImage = UIImage(
+                    cgImage: croppedCGImage,
+                    scale: image.scale,
+                    orientation: image.imageOrientation
+                )
+                
+                print("📐 Final UIImage size: \(croppedImage.size)")
                 continuation.resume(returning: croppedImage)
             }
         }
@@ -603,6 +607,44 @@ struct PhotoThumbnailView: View {
         onPermissionCheck: { _ in },
         onComplete: { _ in }
     )
+}
+
+// MARK: - Square Camera Preview View
+
+struct SquareCameraPreviewView: UIViewRepresentable {
+    let session: AVCaptureSession
+    
+    class SquarePreviewView: UIView {
+        override class var layerClass: AnyClass {
+            AVCaptureVideoPreviewLayer.self
+        }
+        
+        var previewLayer: AVCaptureVideoPreviewLayer {
+            layer as! AVCaptureVideoPreviewLayer
+        }
+        
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            
+            // Ensure the preview layer fills the view and maintains square aspect
+            previewLayer.frame = bounds
+            
+            // Set video gravity to show what will actually be captured
+            previewLayer.videoGravity = .resizeAspectFill
+        }
+    }
+    
+    func makeUIView(context: Context) -> SquarePreviewView {
+        let view = SquarePreviewView()
+        view.previewLayer.session = session
+        view.previewLayer.videoGravity = .resizeAspectFill
+        view.previewLayer.connection?.videoOrientation = .portrait
+        return view
+    }
+    
+    func updateUIView(_ uiView: SquarePreviewView, context: Context) {
+        uiView.previewLayer.session = session
+    }
 }
 
 #Preview("Photo Thumbnails") {
