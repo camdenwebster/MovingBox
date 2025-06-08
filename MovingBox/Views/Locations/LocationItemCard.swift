@@ -14,7 +14,7 @@ struct LocationItemCard: View {
     @State private var loadingError: Error?
     
     private var totalReplacementCost: Decimal {
-        location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
+        location.inventoryItems?.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) }) ?? 0
     }
     
     var body: some View {

@@ -14,7 +14,7 @@ struct LabelItemCard: View {
     @State private var loadingError: Error?
     
     private var totalReplacementCost: Decimal {
-        label.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
+        label.inventoryItems?.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) }) ?? 0
     }
     
     var body: some View {
