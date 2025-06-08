@@ -13,7 +13,8 @@ struct MultiPhotoCameraView: View {
     @State private var showingPhotoPicker = false
     @State private var animatingImage: UIImage?
     @State private var showingCaptureAnimation = false
-    @State private var showingFlashAnimation = false
+    @State private var focusPoint: CGPoint?
+    @State private var showingFocusIndicator = false
     
     // Default initializer with onCancel parameter
     init(
@@ -54,10 +55,15 @@ struct MultiPhotoCameraView: View {
                 let centerY = geometry.size.height / 2
                 let cameraRect = CGRect(x: (geometry.size.width - squareSize) / 2, y: centerY - squareSize / 2, width: squareSize, height: squareSize)
                 
-                SquareCameraPreviewView(session: model.session)
-                    .frame(width: squareSize, height: squareSize)
-                    .clipShape(Rectangle())
-                    .position(x: geometry.size.width / 2, y: centerY)
+                SquareCameraPreviewView(
+                    session: model.session,
+                    onTapToFocus: { point in
+                        handleTapToFocus(point: point, in: cameraRect)
+                    }
+                )
+                .frame(width: squareSize, height: squareSize)
+                .clipShape(Rectangle())
+                .position(x: geometry.size.width / 2, y: centerY)
                     .onAppear {
                         Task {
                             await model.checkPermissions(completion: onPermissionCheck)
@@ -137,9 +143,10 @@ struct MultiPhotoCameraView: View {
                 
                 Spacer()
                 
-                // Flash animation overlay
-                if showingFlashAnimation {
-                    FlashAnimationView(isVisible: $showingFlashAnimation)
+                // Focus indicator overlay
+                if showingFocusIndicator, let focusPoint = focusPoint {
+                    FocusIndicatorView()
+                        .position(focusPoint)
                 }
                 
                 // Capture animation overlay
@@ -267,6 +274,28 @@ struct MultiPhotoCameraView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             showingCaptureAnimation = false
             animatingImage = nil
+        }
+    }
+    
+    private func handleTapToFocus(point: CGPoint, in cameraRect: CGRect) {
+        // Convert tap point to camera coordinate system
+        let relativeX = (point.x - cameraRect.minX) / cameraRect.width
+        let relativeY = (point.y - cameraRect.minY) / cameraRect.height
+        
+        // Clamp values to 0-1 range
+        let clampedX = max(0, min(1, relativeX))
+        let clampedY = max(0, min(1, relativeY))
+        
+        // Set focus point for camera
+        model.setFocusPoint(CGPoint(x: clampedX, y: clampedY))
+        
+        // Show focus indicator at tap location
+        focusPoint = point
+        showingFocusIndicator = true
+        
+        // Hide focus indicator after animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            showingFocusIndicator = false
         }
     }
     
@@ -438,6 +467,28 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
             }
             session.commitConfiguration()
             
+            // Configure initial focus settings
+            do {
+                try device.lockForConfiguration()
+                
+                // Set up continuous autofocus if supported
+                if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                    print("✅ Initial focus mode set to continuous autofocus")
+                }
+                
+                // Set up continuous auto exposure if supported
+                if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                    print("✅ Initial exposure mode set to continuous auto exposure")
+                }
+                
+                device.unlockForConfiguration()
+                print("📹 Camera focus capabilities: focus POI supported: \(device.isFocusPointOfInterestSupported)")
+            } catch {
+                print("❌ Error configuring initial focus settings: \(error)")
+            }
+            
             isConfigured = true
         }
     }
@@ -491,6 +542,55 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     func removeImage(at index: Int) {
         guard index >= 0 && index < capturedImages.count else { return }
         capturedImages.remove(at: index)
+    }
+    
+    func setFocusPoint(_ point: CGPoint) {
+        guard let device = device else {
+            print("❌ No camera device available")
+            return
+        }
+        
+        do {
+            try device.lockForConfiguration()
+            
+            print("🎯 Attempting to set focus to point: \(point)")
+            print("📹 Focus supported: \(device.isFocusPointOfInterestSupported)")
+            print("📹 Current focus mode: \(device.focusMode.rawValue)")
+            
+            // Set focus point and mode
+            if device.isFocusPointOfInterestSupported {
+                device.focusPointOfInterest = point
+                
+                // Use continuous autofocus for video preview
+                if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                    print("✅ Set to continuous autofocus")
+                } else if device.isFocusModeSupported(.autoFocus) {
+                    device.focusMode = .autoFocus
+                    print("✅ Set to autofocus")
+                }
+            } else {
+                print("❌ Focus point of interest not supported")
+            }
+            
+            // Set exposure point and mode
+            if device.isExposurePointOfInterestSupported {
+                device.exposurePointOfInterest = point
+                
+                if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                    print("✅ Set to continuous auto exposure")
+                } else if device.isExposureModeSupported(.autoExpose) {
+                    device.exposureMode = .autoExpose
+                    print("✅ Set to auto exposure")
+                }
+            }
+            
+            device.unlockForConfiguration()
+            print("✅ Focus configuration complete")
+        } catch {
+            print("❌ Error setting focus point: \(error)")
+        }
     }
     
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
@@ -701,10 +801,34 @@ struct CaptureAnimationView: View {
     }
 }
 
+// MARK: - Focus Indicator View
+
+struct FocusIndicatorView: View {
+    @State private var scale: CGFloat = 1.5
+    @State private var opacity: Double = 1.0
+    
+    var body: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .stroke(Color.yellow, lineWidth: 2)
+            .frame(width: 80, height: 80)
+            .scaleEffect(scale)
+            .opacity(opacity)
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    scale = 1.0
+                }
+                withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
+                    opacity = 0
+                }
+            }
+    }
+}
+
 // MARK: - Square Camera Preview View
 
 struct SquareCameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
+    let onTapToFocus: ((CGPoint) -> Void)?
     
     class SquarePreviewView: UIView {
         override class var layerClass: AnyClass {
@@ -731,11 +855,34 @@ struct SquareCameraPreviewView: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         view.previewLayer.connection?.videoOrientation = .portrait
+        
+        // Add tap gesture for focus
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        view.addGestureRecognizer(tapGesture)
+        view.isUserInteractionEnabled = true
+        
         return view
     }
     
     func updateUIView(_ uiView: SquarePreviewView, context: Context) {
         uiView.previewLayer.session = session
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject {
+        let parent: SquareCameraPreviewView
+        
+        init(_ parent: SquareCameraPreviewView) {
+            self.parent = parent
+        }
+        
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            let point = gesture.location(in: gesture.view)
+            parent.onTapToFocus?(point)
+        }
     }
 }
 
