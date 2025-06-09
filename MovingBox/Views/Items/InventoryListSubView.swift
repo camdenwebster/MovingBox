@@ -17,6 +17,8 @@ struct InventoryListSubView: View {
     let location: InventoryLocation?
     let searchString: String
     let sortOrder: [SortDescriptor<InventoryItem>]
+    let isSelectionMode: Bool
+    @Binding var selectedItems: Set<InventoryItem>
     
     var body: some View {
         Group {
@@ -30,12 +32,31 @@ struct InventoryListSubView: View {
                 } else {
                     Section {
                         ForEach(items) { inventoryItem in
-                            NavigationLink(value: inventoryItem) {
-                                InventoryItemRow(item: inventoryItem)
-                                    .listRowInsets(EdgeInsets())
+                            if isSelectionMode {
+                                HStack {
+                                    Button(action: {
+                                        toggleSelection(for: inventoryItem)
+                                    }) {
+                                        Image(systemName: selectedItems.contains(inventoryItem) ? "checkmark.circle.fill" : "circle")
+                                            .foregroundColor(selectedItems.contains(inventoryItem) ? .blue : .gray)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    
+                                    InventoryItemRow(item: inventoryItem)
+                                        .listRowInsets(EdgeInsets())
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            toggleSelection(for: inventoryItem)
+                                        }
+                                }
+                            } else {
+                                NavigationLink(value: inventoryItem) {
+                                    InventoryItemRow(item: inventoryItem)
+                                        .listRowInsets(EdgeInsets())
+                                }
                             }
                         }
-                        .onDelete(perform: deleteItems)
+                        .onDelete(perform: isSelectionMode ? nil : deleteItems)
                     }
                 }
             }
@@ -50,10 +71,20 @@ struct InventoryListSubView: View {
         }
     }
     
-    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [SortDescriptor(\InventoryItem.title)]) {
+    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [SortDescriptor(\InventoryItem.title)], isSelectionMode: Bool = false, selectedItems: Binding<Set<InventoryItem>> = .constant([])) {
         self.location = location
         self.searchString = searchString
         self.sortOrder = sortOrder
+        self.isSelectionMode = isSelectionMode
+        self._selectedItems = selectedItems
+    }
+    
+    private func toggleSelection(for item: InventoryItem) {
+        if selectedItems.contains(item) {
+            selectedItems.remove(item)
+        } else {
+            selectedItems.insert(item)
+        }
     }
     
     @MainActor
