@@ -69,13 +69,6 @@ struct ItemCreationFlowView: View {
                             }
                         }
                     )
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                dismiss()
-                            }
-                        }
-                    }
                     .transition(.asymmetric(
                         insertion: .identity,
                         removal: .move(edge: .leading)
