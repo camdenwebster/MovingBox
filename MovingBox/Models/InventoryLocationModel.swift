@@ -14,6 +14,7 @@ class InventoryLocation: PhotoManageable {
     var name: String = ""
     var desc: String = ""
     var imageURL: URL?
+    var secondaryPhotoURLs: [String] = []
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
     // ADD: Legacy Support

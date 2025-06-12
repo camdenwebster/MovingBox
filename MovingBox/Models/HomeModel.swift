@@ -21,6 +21,7 @@ class Home: PhotoManageable {
     var purchaseDate: Date = Date()
     var purchasePrice: Decimal = 0.00
     var imageURL: URL?
+    var secondaryPhotoURLs: [String] = []
     var insurancePolicy: InsurancePolicy?
     
     // MARK: - Legacy Support

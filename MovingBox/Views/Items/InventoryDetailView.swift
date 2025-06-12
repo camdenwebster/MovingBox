@@ -27,7 +27,7 @@ struct InventoryDetailView: View {
     @Query private var allItems: [InventoryItem]
     @FocusState private var isPriceFieldFocused: Bool
     @State private var displayPriceString: String = ""
-    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "")
+    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "", serialNumber: "")
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
@@ -44,6 +44,10 @@ struct InventoryDetailView: View {
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
     @State private var loadingError: Error?
+    @State private var showingMultiPhotoCamera = false
+    @State private var capturedImages: [UIImage] = []
+    @State private var loadedImages: [UIImage] = []
+    @State private var selectedImageIndex: Int = 0
     
     var showSparklesButton = false
 
@@ -77,50 +81,50 @@ struct InventoryDetailView: View {
 
     var body: some View {
         Form {
-            Section {
-                if let uiImage = tempUIImage ?? loadedImage {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                        .clipped()
-                        .listRowInsets(EdgeInsets())
-                        .overlay(alignment: .bottomTrailing) {
-                            if isEditing {
-                                PhotoPickerView(
-                                    model: Binding(
-                                        get: { self.inventoryItemToDisplay },
-                                        set: { _ in }
-                                    ),
-                                    loadedImage: $loadedImage,
-                                    isLoading: $isLoading
-                                )
-                            }
+            // Primary Photo Section
+            if inventoryItemToDisplay.imageURL != nil || !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
+                Section {
+                    HStack {
+                        Spacer()
+                        if !loadedImages.isEmpty && selectedImageIndex < loadedImages.count {
+                            Image(uiImage: loadedImages[selectedImageIndex])
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxHeight: 300)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                } else if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: UIScreen.main.bounds.height / 3)
-                } else {
-                    if isEditing {
-                        PhotoPickerView(
-                            model: Binding(
-                                get: { self.inventoryItemToDisplay },
-                                set: { _ in }
-                            ),
-                            loadedImage: $loadedImage,
-                            isLoading: $isLoading
-                        ) { showPhotoSourceAlert in
-                            AddPhotoButton {
-                                showPhotoSourceAlert.wrappedValue = true
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .foregroundStyle(.secondary)
-                        }
+                        Spacer()
                     }
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+            
+            // Thumbnails Section
+            if inventoryItemToDisplay.imageURL != nil || !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty || isEditing {
+                Section {
+                    HorizontalPhotoScrollView(
+                        item: inventoryItemToDisplay,
+                        isEditing: isEditing,
+                        onAddPhoto: {
+                            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+                            if currentPhotoCount < 5 {
+                                showingMultiPhotoCamera = true
+                            }
+                        },
+                        onDeletePhoto: { urlString in
+                            Task {
+                                await deletePhoto(urlString: urlString)
+                            }
+                        },
+                        showOnlyThumbnails: true,
+                        onThumbnailTap: { index in
+                            selectedImageIndex = index
+                        }
+                    )
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             }
             
             // AI Button Section
@@ -351,6 +355,29 @@ struct InventoryDetailView: View {
                 onDismiss: nil
             )
         }
+        .sheet(isPresented: $showingMultiPhotoCamera) {
+            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+            let maxPhotosToAdd = max(1, 5 - currentPhotoCount)
+            CustomCameraView(
+                capturedImages: $capturedImages,
+                mode: .multiPhoto(maxPhotos: maxPhotosToAdd),
+                onPermissionCheck: { granted in
+                    if !granted {
+                        // Handle permission denied
+                        print("Camera permission denied")
+                    }
+                },
+                onComplete: { images in
+                    Task {
+                        await handleNewPhotos(images)
+                        showingMultiPhotoCamera = false
+                    }
+                },
+                onCancel: {
+                    showingMultiPhotoCamera = false
+                }
+            )
+        }
         .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
             Button("Analyze Image", role: .none) {
                 Task {
@@ -399,14 +426,11 @@ struct InventoryDetailView: View {
             Text("Do you want to save your changes before going back?")
         }
         .task(id: inventoryItemToDisplay.imageURL) {
-            guard inventoryItemToDisplay.modelContext != nil else { return }
-            isLoading = true
-            defer { isLoading = false }
-            
-            do {
-                loadedImage = try await inventoryItemToDisplay.photo
-            } catch {
-                print("Failed to load image: \(error)")
+            await loadAllImages()
+        }
+        .onChange(of: inventoryItemToDisplay.secondaryPhotoURLs) { _, _ in
+            Task {
+                await loadAllImages()
             }
         }
     }
@@ -415,15 +439,24 @@ struct InventoryDetailView: View {
         isLoadingOpenAiResults = true
         defer { isLoadingOpenAiResults = false }
         
-        guard let photo = try await inventoryItemToDisplay.photo else {
+        // Use all loaded images for AI analysis
+        guard !loadedImages.isEmpty else {
             throw OpenAIError.invalidData
         }
         
-        guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: photo) else {
+        // Prepare all images for AI analysis
+        var imageBase64Array: [String] = []
+        for image in loadedImages {
+            if let base64 = await OptimizedImageManager.shared.prepareImageForAI(from: image) {
+                imageBase64Array.append(base64)
+            }
+        }
+        
+        guard !imageBase64Array.isEmpty else {
             throw OpenAIError.invalidData
         }
         
-        let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
+        let openAi = OpenAIService(imageBase64Array: imageBase64Array, settings: settings, modelContext: modelContext)
         
         TelemetryManager.shared.trackCameraAnalysisUsed()
         
@@ -441,6 +474,7 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.desc = imageDetails.description
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
+        inventoryItemToDisplay.serial = imageDetails.serialNumber
         
         if inventoryItemToDisplay.location == nil {
             inventoryItemToDisplay.location = locations.first { $0.name == imageDetails.location }
@@ -481,6 +515,133 @@ struct InventoryDetailView: View {
         let label = InventoryLabel()
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label, isEditing: true))
+    }
+    
+    private func handleNewPhotos(_ images: [UIImage]) async {
+        guard !images.isEmpty else { return }
+        
+        do {
+            if inventoryItemToDisplay.imageURL == nil {
+                // No primary image yet, save the first image as primary
+                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(images.first!, id: inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId)
+                
+                await MainActor.run {
+                    inventoryItemToDisplay.imageURL = primaryImageURL
+                    if inventoryItemToDisplay.assetId.isEmpty {
+                        inventoryItemToDisplay.assetId = primaryImageURL.lastPathComponent
+                    }
+                }
+                
+                // Save remaining images as secondary photos
+                if images.count > 1 {
+                    let secondaryImages = Array(images.dropFirst())
+                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: inventoryItemToDisplay.assetId)
+                    
+                    await MainActor.run {
+                        inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
+                    }
+                }
+            } else {
+                // Primary image exists, add all new images as secondary photos
+                let itemId = inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId
+                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(images, itemId: itemId)
+                
+                await MainActor.run {
+                    if inventoryItemToDisplay.assetId.isEmpty {
+                        inventoryItemToDisplay.assetId = itemId
+                    }
+                    inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
+                }
+            }
+            
+            await MainActor.run {
+                try? modelContext.save()
+                TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
+            }
+            
+            // Reload images after adding new photos
+            await loadAllImages()
+        } catch {
+            print("Error saving new photos: \(error)")
+        }
+    }
+    
+    private func deletePhoto(urlString: String) async {
+        guard URL(string: urlString) != nil else { return }
+        
+        do {
+            // Delete from storage
+            try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: urlString)
+            
+            await MainActor.run {
+                if inventoryItemToDisplay.imageURL?.absoluteString == urlString {
+                    // Deleting primary image
+                    inventoryItemToDisplay.imageURL = nil
+                    
+                    // If there are secondary photos, promote the first one to primary
+                    if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
+                        if let firstSecondaryURL = URL(string: inventoryItemToDisplay.secondaryPhotoURLs.first!) {
+                            inventoryItemToDisplay.imageURL = firstSecondaryURL
+                            inventoryItemToDisplay.secondaryPhotoURLs.removeFirst()
+                        }
+                    }
+                } else {
+                    // Deleting secondary image
+                    inventoryItemToDisplay.secondaryPhotoURLs.removeAll { $0 == urlString }
+                }
+                
+                try? modelContext.save()
+                
+                // Reload images after deletion
+                Task {
+                    await loadAllImages()
+                }
+            }
+        } catch {
+            print("Error deleting photo: \(error)")
+        }
+    }
+    
+    private func loadAllImages() async {
+        guard inventoryItemToDisplay.modelContext != nil else { return }
+        
+        await MainActor.run {
+            isLoading = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
+        var images: [UIImage] = []
+        
+        // Load primary image
+        if let imageURL = inventoryItemToDisplay.imageURL {
+            do {
+                let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
+                images.append(image)
+            } catch {
+                print("Failed to load primary image: \(error)")
+            }
+        }
+        
+        // Load secondary images
+        if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
+            do {
+                let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: inventoryItemToDisplay.secondaryPhotoURLs)
+                images.append(contentsOf: secondaryImages)
+            } catch {
+                print("Failed to load secondary images: \(error)")
+            }
+        }
+        
+        await MainActor.run {
+            loadedImages = images
+            if selectedImageIndex >= images.count {
+                selectedImageIndex = max(0, images.count - 1)
+            }
+        }
     }
     
     private func formatInitialPrice(_ price: Decimal) -> String {

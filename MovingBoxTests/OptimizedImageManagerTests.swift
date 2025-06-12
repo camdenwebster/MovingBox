@@ -108,6 +108,116 @@ import SwiftUI
         }
     }
     
+    @Test("Multiple images can be saved and loaded")
+    func multipleImageManagement() async throws {
+        // Given
+        let testImages = [
+            createTestImage(size: CGSize(width: 100, height: 100)),
+            createTestImage(size: CGSize(width: 200, height: 200)),
+            createTestImage(size: CGSize(width: 300, height: 300))
+        ]
+        let itemId = "test_item_multi"
+        
+        // When
+        let savedURLs = try await manager.saveSecondaryImages(testImages, itemId: itemId)
+        let loadedImages = try await manager.loadSecondaryImages(from: savedURLs)
+        
+        // Then
+        #expect(savedURLs.count == testImages.count)
+        #expect(loadedImages.count == testImages.count)
+        
+        // Verify all images exist
+        for urlString in savedURLs {
+            guard let url = URL(string: urlString) else { continue }
+            #expect(FileManager.default.fileExists(atPath: url.path))
+        }
+    }
+    
+    @Test("Single secondary image can be added")
+    func addSecondaryImage() async throws {
+        // Given
+        let testImage = createTestImage(size: CGSize(width: 150, height: 150))
+        let itemId = "test_item_single"
+        
+        // When
+        let savedURL = try await manager.addSecondaryImage(testImage, itemId: itemId)
+        
+        // Then
+        #expect(!savedURL.isEmpty)
+        guard let url = URL(string: savedURL) else {
+            #expect(Bool(false), "Invalid URL string returned")
+            return
+        }
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        
+        // Verify it can be loaded
+        let loadedImage = try await manager.loadImage(url: url)
+        #expect(loadedImage.size.width > 0)
+        #expect(loadedImage.size.height > 0)
+    }
+    
+    @Test("Secondary image can be deleted")
+    func deleteSecondaryImage() async throws {
+        // Given
+        let testImage = createTestImage(size: CGSize(width: 100, height: 100))
+        let itemId = "test_item_delete"
+        let savedURL = try await manager.addSecondaryImage(testImage, itemId: itemId)
+        
+        // Verify it exists
+        guard let url = URL(string: savedURL) else {
+            #expect(Bool(false), "Invalid URL string returned")
+            return
+        }
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        
+        // When
+        try await manager.deleteSecondaryImage(urlString: savedURL)
+        
+        // Then
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+    
+    @Test("Multiple images can be prepared for AI")
+    func multipleImagesAIPreparation() async {
+        // Given
+        let testImages = [
+            createTestImage(size: CGSize(width: 1000, height: 1000)),
+            createTestImage(size: CGSize(width: 800, height: 600))
+        ]
+        
+        // When
+        let base64Images = await manager.prepareMultipleImagesForAI(from: testImages)
+        
+        // Then
+        #expect(base64Images.count == testImages.count)
+        for base64String in base64Images {
+            #expect(!base64String.isEmpty)
+            // Verify it's valid base64
+            #expect(Data(base64Encoded: base64String) != nil)
+        }
+    }
+    
+    @Test("Secondary thumbnails can be loaded")
+    func secondaryThumbnailsLoading() async throws {
+        // Given
+        let testImages = [
+            createTestImage(size: CGSize(width: 1000, height: 1000)),
+            createTestImage(size: CGSize(width: 800, height: 600))
+        ]
+        let itemId = "test_item_thumbnails"
+        
+        // When
+        let savedURLs = try await manager.saveSecondaryImages(testImages, itemId: itemId)
+        let thumbnails = await manager.loadSecondaryThumbnails(from: savedURLs)
+        
+        // Then
+        #expect(thumbnails.count == testImages.count)
+        for thumbnail in thumbnails {
+            #expect(thumbnail.size.width <= OptimizedImageManager.ImageConfig.thumbnailSize.width)
+            #expect(thumbnail.size.height <= OptimizedImageManager.ImageConfig.thumbnailSize.height)
+        }
+    }
+    
     // MARK: - Helper Methods
     
     private func createTestImage(size: CGSize) -> UIImage {
