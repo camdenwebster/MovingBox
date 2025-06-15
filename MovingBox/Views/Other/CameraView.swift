@@ -21,16 +21,16 @@ struct CameraView: View {
         Group {
             if isMockCamera {
                 MockCameraView(image: $capturedImage)
-                    .onChange(of: capturedImage) { oldImage, newImage in
+                    .onChange(of: capturedImage) { _, newImage in
                         handleCapturedImage(newImage)
                     }
             } else {
-                ImagePicker(image: $capturedImage, sourceType: .camera) { authorized in
+                CustomCameraView(capturedImage: $capturedImage) { authorized in
                     if !authorized {
                         showingPermissionDenied = true
                     }
                 }
-                .onChange(of: capturedImage) { oldImage, newImage in
+                .onChange(of: capturedImage) { _, newImage in
                     handleCapturedImage(newImage)
                 }
                 .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
@@ -43,7 +43,6 @@ struct CameraView: View {
         }
         .disabled(isProcessingCapture)
         .onDisappear {
-            // Only clear the image if we're not in the middle of processing
             if !isProcessingCapture {
                 capturedImage = nil
             }
@@ -106,65 +105,6 @@ struct MockCameraView: View {
             .foregroundColor(.white)
             .cornerRadius(8)
             .padding(.bottom, 30)
-        }
-    }
-}
-
-struct ImagePicker: UIViewControllerRepresentable {
-    @Binding var image: UIImage?
-    let sourceType: UIImagePickerController.SourceType
-    let onPermissionCheck: (Bool) -> Void
-    
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        checkPermissions()
-        
-        let picker = UIImagePickerController()
-        picker.sourceType = sourceType
-        picker.delegate = context.coordinator
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    private func checkPermissions() {
-        if sourceType == .camera {
-            let status = AVCaptureDevice.authorizationStatus(for: .video)
-            switch status {
-            case .authorized:
-                onPermissionCheck(true)
-            case .notDetermined:
-                AVCaptureDevice.requestAccess(for: .video) { granted in
-                    DispatchQueue.main.async {
-                        onPermissionCheck(granted)
-                    }
-                }
-            default:
-                onPermissionCheck(false)
-            }
-        } else {
-            onPermissionCheck(true)
-        }
-    }
-    
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: ImagePicker
-        
-        init(_ parent: ImagePicker) {
-            self.parent = parent
-        }
-        
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.image = image
-            }
-        }
-        
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            picker.dismiss(animated: true)
         }
     }
 }

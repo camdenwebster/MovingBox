@@ -72,6 +72,7 @@ struct FunctionDefinition: Codable {
 @MainActor
 class OpenAIService {
     var imageBase64: String
+    var imageBase64Array: [String]
     var settings: SettingsManager
     var modelContext: ModelContext
     
@@ -79,6 +80,14 @@ class OpenAIService {
     
     init(imageBase64: String, settings: SettingsManager, modelContext: ModelContext) {
         self.imageBase64 = imageBase64
+        self.imageBase64Array = [imageBase64]
+        self.settings = settings
+        self.modelContext = modelContext
+    }
+    
+    init(imageBase64Array: [String], settings: SettingsManager, modelContext: ModelContext) {
+        self.imageBase64 = imageBase64Array.first ?? ""
+        self.imageBase64Array = imageBase64Array
         self.settings = settings
         self.modelContext = modelContext
     }
@@ -94,11 +103,15 @@ class OpenAIService {
         let categories = DefaultDataManager.getAllLabels(from: modelContext)
         let locations = DefaultDataManager.getAllLocations(from: modelContext)
         
-        let imagePrompt = "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes."
+        let imagePrompt = imageBase64Array.count > 1 
+            ? "Analyze these \(imageBase64Array.count) images which show the same item from different angles and perspectives. Combine all the visual information from all images to create ONE comprehensive description of this single item. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. Return only ONE response that describes the item based on all the photos together."
+            : "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification."
         
         let function = FunctionDefinition(
             name: "process_inventory_item",
-            description: "Process and structure information about an inventory item",
+            description: imageBase64Array.count > 1 
+                ? "Process and structure information about ONE inventory item based on multiple photos. Return only ONE item description that combines information from all images."
+                : "Process and structure information about an inventory item",
             parameters: FunctionDefinition.Parameters(
                 type: "object",
                 properties: [
@@ -113,8 +126,10 @@ class OpenAIService {
                         enum_values: nil
                     ),
                     "description": FunctionParameter(
-                        type: "string",
-                        description: "A slightly longer description of the subject, limited to 160 characters",
+                        type: "string", 
+                        description: imageBase64Array.count > 1 
+                            ? "A single comprehensive description combining details from all \(imageBase64Array.count) photos of this one item, limited to 160 characters"
+                            : "A description of the subject, limited to 160 characters",
                         enum_values: nil
                     ),
                     "make": FunctionParameter(
@@ -141,9 +156,16 @@ class OpenAIService {
                         type: "string",
                         description: "The estimated original price in US dollars (e.g., $10.99). Provide a single value, not a range.",
                         enum_values: nil
+                    ),
+                    "serialNumber": FunctionParameter(
+                        type: "string",
+                        description: imageBase64Array.count > 1 
+                            ? "The serial number, product ID, or model identifier if visible in any of the \(imageBase64Array.count) photos, or empty string if not found"
+                            : "The serial number, product ID, or model identifier if visible in the image, or empty string if not found",
+                        enum_values: nil
                     )
                 ],
-                required: ["title", "quantity", "description", "make", "model", "category", "location", "price"]
+                required: ["title", "quantity", "description", "make", "model", "category", "location", "price", "serialNumber"]
             )
         )
         
@@ -153,9 +175,19 @@ class OpenAIService {
         
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        var messageContent: [MessageContent] = []
+        
+        // Add text prompt
         let textMessage = MessageContent(type: "text", text: imagePrompt, image_url: nil)
-        let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(imageBase64)", detail: "\(settings.isHighDetail ? "high" : "low")"))
-        let message = Message(role: "user", content: [textMessage, imageMessage])
+        messageContent.append(textMessage)
+        
+        // Add all images
+        for base64Image in imageBase64Array {
+            let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(base64Image)", detail: "\(settings.isHighDetail ? "high" : "low")"))
+            messageContent.append(imageMessage)
+        }
+        
+        let message = Message(role: "user", content: messageContent)
         let payload = GPTPayload(
             model: settings.aiModel,
             messages: [message],
@@ -185,7 +217,16 @@ class OpenAIService {
             try generateURLRequest(httpMethod: .post)
         }
         
-        print("🚀 Sending request to: \(urlRequest.url?.absoluteString ?? "unknown URL")")
+        let requestSize = urlRequest.httpBody?.count ?? 0
+        let imageCount = imageBase64Array.count
+        
+        print("🚀 Sending \(imageCount == 1 ? "single" : "multi") image request to: \(urlRequest.url?.absoluteString ?? "unknown URL")")
+        print("📊 Request size: \(Double(requestSize) / 1024.0) KB, Images: \(imageCount)")
+        
+        // Safety check for extremely large requests
+        if requestSize > 20_000_000 { // 20MB limit
+            throw OpenAIError.serverError("Request too large: \(Double(requestSize) / 1_000_000.0) MB. Please use smaller images.")
+        }
         
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
@@ -218,20 +259,55 @@ class OpenAIService {
             // First try to parse as a Lambda error response
             if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
                let errorMessage = errorResponse["error"] {
+                print("❌ Lambda error response: \(errorMessage)")
                 throw OpenAIError.serverError(errorMessage)
             }
             
             // If not an error, try to parse as GPTResponse
             let gptResponse = try JSONDecoder().decode(GPTResponse.self, from: data)
             
-            guard let functionCall = gptResponse.choices.first?.message.function_call,
-                  let responseData = functionCall.arguments.data(using: .utf8) else {
+            print("✅ Received GPT response with \(gptResponse.choices.count) choices")
+            
+            guard let choice = gptResponse.choices.first else {
+                print("❌ No choices in response")
+                throw OpenAIError.invalidData
+            }
+            
+            guard let functionCall = choice.message.function_call else {
+                print("❌ No function call in response")
+                print("📝 Response message: \(choice.message)")
+                throw OpenAIError.invalidData
+            }
+            
+            print("🎯 Function call received: \(functionCall.name)")
+            print("📄 Arguments length: \(functionCall.arguments.count) characters")
+            
+            guard let responseData = functionCall.arguments.data(using: .utf8) else {
+                print("❌ Cannot convert function arguments to data")
+                print("📄 Raw arguments: \(functionCall.arguments)")
                 throw OpenAIError.invalidData
             }
             
             return try JSONDecoder().decode(ImageDetails.self, from: responseData)
+        } catch DecodingError.dataCorrupted(let context) {
+            print("❌ Data corruption error: \(context)")
+            print("📄 Response data: \(responseString)")
+            throw OpenAIError.invalidData
+        } catch DecodingError.keyNotFound(let key, let context) {
+            print("❌ Key not found: \(key) in \(context)")
+            print("📄 Response data: \(responseString)")
+            throw OpenAIError.invalidData
+        } catch DecodingError.typeMismatch(let type, let context) {
+            print("❌ Type mismatch: \(type) in \(context)")
+            print("📄 Response data: \(responseString)")
+            throw OpenAIError.invalidData
+        } catch DecodingError.valueNotFound(let type, let context) {
+            print("❌ Value not found: \(type) in \(context)")
+            print("📄 Response data: \(responseString)")
+            throw OpenAIError.invalidData
         } catch {
             print("❌ Error processing response: \(error)")
+            print("📄 Response data: \(responseString)")
             if error is OpenAIError {
                 throw error
             }
@@ -302,4 +378,5 @@ struct ImageDetails: Decodable {
     let category: String
     let location: String
     let price: String
+    let serialNumber: String
 }
