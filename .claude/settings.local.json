@@ -9,7 +9,8 @@
       "Bash(rg:*)",
       "Bash(xcodebuild:*)",
       "Bash(xcrun devicectl list:*)",
-      "Bash(xcrun xcodebuild:*)"
+      "Bash(xcrun xcodebuild:*)",
+      "Bash(swiftc:*)"
     ],
     "deny": []
   }

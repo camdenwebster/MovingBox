@@ -54,6 +54,7 @@ struct InventoryDetailView: View {
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
 
     var onSave: (() -> Void)?
+    
 
     init(inventoryItemToDisplay: InventoryItem,
          navigationPath: Binding<NavigationPath>,
@@ -78,162 +79,285 @@ struct InventoryDetailView: View {
         case description
         case notes
     }
-
-    var body: some View {
-        Form {
-            // Primary Photo Section
-            if inventoryItemToDisplay.imageURL != nil || !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
-                Section {
-                    HStack {
-                        Spacer()
-                        if !loadedImages.isEmpty && selectedImageIndex < loadedImages.count {
-                            Image(uiImage: loadedImages[selectedImageIndex])
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxHeight: 300)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        Spacer()
-                    }
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            }
-            
-            // Thumbnails Section - only show when editing OR when multiple photos exist
-            if (isEditing && (inventoryItemToDisplay.imageURL != nil || !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty)) || 
-               (!isEditing && loadedImages.count > 1) {
-                Section {
-                    HorizontalPhotoScrollView(
-                        item: inventoryItemToDisplay,
-                        isEditing: isEditing,
-                        onAddPhoto: {
-                            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
-                            if currentPhotoCount < 5 {
-                                showingMultiPhotoCamera = true
-                            }
-                        },
-                        onDeletePhoto: { urlString in
-                            Task {
-                                await deletePhoto(urlString: urlString)
-                            }
-                        },
-                        showOnlyThumbnails: true,
-                        onThumbnailTap: { index in
-                            selectedImageIndex = index
-                        }
-                    )
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            } else if isEditing && inventoryItemToDisplay.imageURL == nil && inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
-                // Show placeholder when editing and no photos exist
-                Section {
-                    HorizontalPhotoScrollView(
-                        item: inventoryItemToDisplay,
-                        isEditing: isEditing,
-                        onAddPhoto: {
+    
+    // MARK: - View Components
+    
+    @ViewBuilder
+    private var photoSection: some View {
+        // Photo banner section
+        if !loadedImages.isEmpty {
+            ZStack {
+                FullScreenPhotoCarouselView(
+                    images: loadedImages,
+                    selectedIndex: $selectedImageIndex,
+                    screenWidth: UIScreen.main.bounds.width,
+                    isEditing: isEditing,
+                    onAddPhoto: {
+                        let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+                        if currentPhotoCount < 5 {
                             showingMultiPhotoCamera = true
-                        },
-                        onDeletePhoto: { _ in },
-                        showOnlyThumbnails: false
-                    )
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            }
-            
-            // AI Button Section
-            if isEditing && !inventoryItemToDisplay.hasUsedAI && inventoryItemToDisplay.imageURL != nil {
-                Section {
-                    Button {
-                        guard !isLoadingOpenAiResults else { return }
-                        if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
-                            showingPaywall = true
-                        } else {
-                                Task {
-                                    do {
-                                        let imageDetails = try await callOpenAI()
-                                        updateUIWithImageDetails(imageDetails)
-                                    } catch OpenAIError.invalidURL {
-                                        errorMessage = "Invalid URL configuration"
-                                        showingErrorAlert = true
-                                    } catch OpenAIError.invalidResponse {
-                                        errorMessage = "Error communicating with AI service"
-                                        showingErrorAlert = true
-                                    } catch OpenAIError.invalidData {
-                                        errorMessage = "Unable to process AI response"
-                                        showingErrorAlert = true
-                                    } catch {
-                                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                                        showingErrorAlert = true
-                                    }
+                        }
+                    },
+                    onDeletePhoto: { index in
+                        Task {
+                            let urlString: String
+                            if index == 0 {
+                                // Deleting primary image
+                                if let imageURL = inventoryItemToDisplay.imageURL {
+                                    urlString = imageURL.absoluteString
+                                } else {
+                                    return
+                                }
+                            } else {
+                                // Deleting secondary image
+                                let secondaryIndex = index - 1
+                                if secondaryIndex < inventoryItemToDisplay.secondaryPhotoURLs.count {
+                                    urlString = inventoryItemToDisplay.secondaryPhotoURLs[secondaryIndex]
+                                } else {
+                                    return
                                 }
                             }
-                    } label: {
-                        HStack {
-                            if isLoadingOpenAiResults {
-                                ProgressView()
-                            } else {
-                                Image(systemName: "wand.and.sparkles")
-                                Text("Analyze with AI")
-                            }
+                            await deletePhoto(urlString: urlString)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .foregroundColor(.white)
-                        .background(Color.accentColor)
-                        .cornerRadius(8)
                     }
-                    .buttonStyle(.automatic)
-                    .disabled(isLoadingOpenAiResults)
-                    .accessibilityIdentifier("analyzeWithAi")
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                )
+                
+                // Black gradient overlay at the top for navigation visibility
+                VStack {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.black.opacity(0.8),
+                            Color.black.opacity(0.3),
+                            Color.clear
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                    
+                    Spacer()
                 }
-                .listRowBackground(Color.clear)
-                .listSectionSpacing(16)
             }
-
-            // Details Section
-            Section("Details") {
+            .frame(height: 400)
+            .clipped()
+        } else {
+            // Show placeholder when no photos exist (both editing and viewing)
+            PhotoPlaceholderView(
+                isEditing: isEditing,
+                onAddPhoto: {
+                    showingMultiPhotoCamera = true
+                }
+            )
+            .frame(height: 250)
+        }
+    }
+    
+    @ViewBuilder
+    private var formContent: some View {
+        VStack(spacing: 0) {
+            // AI Button Section
+            if isEditing && !inventoryItemToDisplay.hasUsedAI && inventoryItemToDisplay.imageURL != nil {
+                VStack(spacing: 0) {
+                    aiButtonView
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                }
+            }
+            
+            // Form sections
+            VStack(spacing: 32) {
+                detailsSection
+                
+                if isEditing || inventoryItemToDisplay.quantityInt > 1 {
+                    quantitySection
+                }
+                
+                if isEditing || !inventoryItemToDisplay.desc.isEmpty {
+                    descriptionSection
+                }
+                
+                priceSection
+                locationsAndLabelsSection
+                
+                if isEditing || !inventoryItemToDisplay.notes.isEmpty {
+                    notesSection
+                }
+                
+                if isEditing {
+                    clearFieldsSection
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 32)
+        }
+    }
+    
+    @ViewBuilder
+    private var aiButtonView: some View {
+        Button {
+            guard !isLoadingOpenAiResults else { return }
+            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
+                showingPaywall = true
+            } else {
+                Task {
+                    do {
+                        let imageDetails = try await callOpenAI()
+                        updateUIWithImageDetails(imageDetails)
+                    } catch OpenAIError.invalidURL {
+                        errorMessage = "Invalid URL configuration"
+                        showingErrorAlert = true
+                    } catch OpenAIError.invalidResponse {
+                        errorMessage = "Error communicating with AI service"
+                        showingErrorAlert = true
+                    } catch OpenAIError.invalidData {
+                        errorMessage = "Unable to process AI response"
+                        showingErrorAlert = true
+                    } catch {
+                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                        showingErrorAlert = true
+                    }
+                }
+            }
+        } label: {
+            HStack {
+                if isLoadingOpenAiResults {
+                    ProgressView()
+                } else {
+                    Image(systemName: "wand.and.sparkles")
+                    Text("Analyze with AI")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .foregroundColor(.white)
+            .background(Color.accentColor)
+            .cornerRadius(8)
+        }
+        .buttonStyle(.automatic)
+        .disabled(isLoadingOpenAiResults)
+        .accessibilityIdentifier("analyzeWithAi")
+    }
+    
+    @ViewBuilder
+    private var detailsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Details")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 16)
+            
+            VStack(spacing: 0) {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
                     FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, isEditing: $isEditing, placeholder: "Desktop Computer")
                         .focused($focusedField, equals: .title)
                         .accessibilityIdentifier("titleField")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    
+                    if (isEditing || !inventoryItemToDisplay.serial.isEmpty) || 
+                       (isEditing || !inventoryItemToDisplay.make.isEmpty) || 
+                       (isEditing || !inventoryItemToDisplay.model.isEmpty) {
+                        Divider()
+                            .padding(.leading, 16)
+                    }
                 }
+                
                 if isEditing || !inventoryItemToDisplay.serial.isEmpty {
                     FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, isEditing: $isEditing, placeholder: "SN-12345")
                         .focused($focusedField, equals: .serial)
                         .accessibilityIdentifier("serialField")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    
+                    if (isEditing || !inventoryItemToDisplay.make.isEmpty) || 
+                       (isEditing || !inventoryItemToDisplay.model.isEmpty) {
+                        Divider()
+                            .padding(.leading, 16)
+                    }
                 }
+                
                 if isEditing || !inventoryItemToDisplay.make.isEmpty {
                     FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, isEditing: $isEditing, placeholder: "Apple")
                         .focused($focusedField, equals: .make)
                         .accessibilityIdentifier("makeField")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    
+                    if isEditing || !inventoryItemToDisplay.model.isEmpty {
+                        Divider()
+                            .padding(.leading, 16)
+                    }
                 }
+                
                 if isEditing || !inventoryItemToDisplay.model.isEmpty {
                     FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, isEditing: $isEditing, placeholder: "Mac Mini")
                         .focused($focusedField, equals: .model)
                         .accessibilityIdentifier("modelField")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                 }
             }
-            if isEditing || inventoryItemToDisplay.quantityInt > 1 {
-                Section("Quantity") {
-                    Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
-                        .disabled(!isEditing)
-                }
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+        }
+    }
+    
+    @ViewBuilder
+    private var quantitySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Quantity")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 16)
+            
+            VStack(spacing: 0) {
+                Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
+                    .disabled(!isEditing)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
             }
-            if isEditing || !inventoryItemToDisplay.desc.isEmpty {
-                Section("Description") {
-                    TextEditor(text: $inventoryItemToDisplay.desc)
-                        .focused($focusedField, equals: .description)
-                        .frame(height: 60)
-                        .disabled(!isEditing)
-                        .accessibilityIdentifier("descriptionField")
-                        .foregroundColor(isEditing ? .primary : .secondary)
-                }
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+        }
+    }
+    
+    @ViewBuilder
+    private var descriptionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Description")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 16)
+            
+            VStack(spacing: 0) {
+                TextEditor(text: $inventoryItemToDisplay.desc)
+                    .focused($focusedField, equals: .description)
+                    .frame(height: 60)
+                    .disabled(!isEditing)
+                    .accessibilityIdentifier("descriptionField")
+                    .foregroundColor(isEditing ? .primary : .secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
             }
-            Section("Purchase Price") {
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+        }
+    }
+    
+    @ViewBuilder
+    private var priceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Purchase Price")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 16)
+            
+            VStack(spacing: 0) {
                 PriceFieldRow(
                     priceString: $displayPriceString,
                     priceDecimal: $inventoryItemToDisplay.price,
@@ -242,68 +366,145 @@ struct InventoryDetailView: View {
                 .disabled(!isEditing)
                 .accessibilityIdentifier("priceField")
                 .foregroundColor(isEditing ? .primary : .secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                
+                Divider()
+                    .padding(.leading, 16)
+                
                 Toggle(isOn: $inventoryItemToDisplay.insured, label: {
                     Text("Insured")
                 })
                 .disabled(!isEditing)
                 .accessibilityIdentifier("insuredToggle")
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
-            Section("Locations & Labels") {
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+        }
+    }
+    
+    @ViewBuilder
+    private var locationsAndLabelsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Locations & Labels")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 16)
+            
+            VStack(spacing: 0) {
                 if isEditing || inventoryItemToDisplay.location != nil {
-                        Picker("Location", selection: $inventoryItemToDisplay.location) {
-                            Text("None")
-                                .tag(Optional<InventoryLocation>.none)
-                            
-                            if locations.isEmpty == false {
-                                Divider()
-                                ForEach(locations) { location in
-                                    Text(location.name)
+                    Picker("Location", selection: $inventoryItemToDisplay.location) {
+                        Text("None")
+                            .tag(Optional<InventoryLocation>.none)
+                        
+                        if locations.isEmpty == false {
+                            Divider()
+                            ForEach(locations) { location in
+                                Text(location.name)
                                     .tag(Optional(location))
-                                }
                             }
                         }
+                    }
                     .disabled(!isEditing)
                     .accessibilityIdentifier("locationPicker")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    
+                    if isEditing || inventoryItemToDisplay.label != nil {
+                        Divider()
+                            .padding(.leading, 16)
+                    }
                 }
+                
                 if isEditing || inventoryItemToDisplay.label != nil {
-                        Picker("Label", selection: $inventoryItemToDisplay.label) {
-                            Text("None")
-                                .tag(Optional<InventoryLabel>.none)
-                            
-                            if labels.isEmpty == false {
-                                Divider()
-                                ForEach(labels) { label in
-                                    Text("\(label.emoji) \(label.name)")
+                    Picker("Label", selection: $inventoryItemToDisplay.label) {
+                        Text("None")
+                            .tag(Optional<InventoryLabel>.none)
+                        
+                        if labels.isEmpty == false {
+                            Divider()
+                            ForEach(labels) { label in
+                                Text("\(label.emoji) \(label.name)")
                                     .tag(Optional(label))
-                                }
                             }
                         }
+                    }
                     .disabled(!isEditing)
                     .accessibilityIdentifier("labelPicker")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
             }
-            if isEditing || !inventoryItemToDisplay.notes.isEmpty {
-                Section("Notes") {
-                    TextEditor(text: $inventoryItemToDisplay.notes)
-                        .foregroundColor(isEditing ? .primary : .secondary)
-                        .focused($focusedField, equals: .notes)
-                        .frame(height: 100)
-                        .disabled(!isEditing)
-                        .accessibilityIdentifier("notesField")
-                }
-            }
-            if isEditing {
-                Section {
-                    Button("Clear All Fields") {
-                        showingClearAllAlert = true
-                    }
-                .accessibilityIdentifier("clearAllFields")
-                }
-            }
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
         }
-        .navigationTitle(inventoryItemToDisplay.title.isEmpty ? "New Item" : inventoryItemToDisplay.title)
+    }
+    
+    @ViewBuilder
+    private var notesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Notes")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 16)
+            
+            VStack(spacing: 0) {
+                TextEditor(text: $inventoryItemToDisplay.notes)
+                    .foregroundColor(isEditing ? .primary : .secondary)
+                    .focused($focusedField, equals: .notes)
+                    .frame(height: 100)
+                    .disabled(!isEditing)
+                    .accessibilityIdentifier("notesField")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+            }
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+        }
+    }
+    
+    @ViewBuilder
+    private var clearFieldsSection: some View {
+        VStack(spacing: 0) {
+            Button("Clear All Fields") {
+                showingClearAllAlert = true
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.secondarySystemGroupedBackground))
+            .foregroundColor(.red)
+            .accessibilityIdentifier("clearAllFields")
+        }
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    photoSection
+                        .frame(height: 400)
+                        .offset(y: -geometry.safeAreaInsets.top)
+                        .padding(.top, geometry.safeAreaInsets.top)
+                    
+                    formContent
+                        .background(Color(.systemGroupedBackground))
+                }
+            }
+            .background(Color(.systemGroupedBackground))
+            .ignoresSafeArea(edges: .top)
+        }
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isEditing)
+//        .toolbarBackground(.hidden, for: .navigationBar)
+//        .toolbarColorScheme(.dark)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isEditing && OnboardingManager.hasCompletedOnboarding() {
@@ -328,7 +529,7 @@ struct InventoryDetailView: View {
                             }
                         }) {
                             Image(systemName: "wand.and.sparkles")
-                        }
+                                    }
                         .disabled(isLoadingOpenAiResults)
                         .accessibilityIdentifier("sparkles")
                     }
@@ -348,13 +549,13 @@ struct InventoryDetailView: View {
                             onSave?()
                         }
                         .fontWeight(.bold)
-                        .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+                            .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
                         .accessibilityIdentifier("save")
                     } else {
                         Button("Edit") {
                             isEditing = true
                         }
-                        .accessibilityIdentifier("edit")
+                            .accessibilityIdentifier("edit")
                     }
                 }
             }
@@ -665,15 +866,201 @@ struct InventoryDetailView: View {
     }
 }
 
+// MARK: - Full Screen Photo Carousel View
+
+struct FullScreenPhotoCarouselView: View {
+    let images: [UIImage]
+    @Binding var selectedIndex: Int
+    let screenWidth: CGFloat
+    let isEditing: Bool
+    let onAddPhoto: () -> Void
+    let onDeletePhoto: (Int) -> Void
+    
+    var body: some View {
+        ZStack {
+            // Photo carousel with swipe navigation
+            TabView(selection: $selectedIndex) {
+                ForEach(Array(images.enumerated()), id: \.offset) { index, image in
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: screenWidth)
+                        .clipped()
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            
+            // Dot indicators (only show if multiple photos)
+            if images.count > 1 {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach(0..<images.count, id: \.self) { index in
+                            Circle()
+                                .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.5))
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    .padding(.bottom, 20)
+                }
+            }
+            
+            // Photo count badge (like Vrbo)
+            if images.count > 1 {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Image(systemName: "photo")
+                                .font(.caption)
+                            Text("\(selectedIndex + 1) / \(images.count)")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.6))
+                        .clipShape(Capsule())
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 20)
+                    }
+                }
+            }
+            
+            // Edit mode controls overlay
+            if isEditing {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 16) {
+                        // Delete photo button
+                        if !images.isEmpty {
+                            Button(action: {
+                                onDeletePhoto(selectedIndex)
+                            }) {
+                                Image(systemName: "trash")
+                                    .font(.title3)
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(.red.opacity(0.8))
+                                    .clipShape(Circle())
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Add photo button
+                        if images.count < 5 {
+                            Button(action: onAddPhoto) {
+                                Image(systemName: "plus")
+                                    .font(.title3)
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(.blue.opacity(0.8))
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 60)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Photo Placeholder View
+
+struct PhotoPlaceholderView: View {
+    let isEditing: Bool
+    let onAddPhoto: () -> Void
+    
+    var body: some View {
+        ZStack {
+            Color.gray.opacity(0.1)
+            
+            VStack(spacing: 20) {
+                Image(systemName: "photo")
+                    .font(.system(size: 60))
+                    .foregroundColor(.gray)
+                
+                Text("No photos yet")
+                    .font(.title2)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                
+                if isEditing {
+                    Button(action: onAddPhoto) {
+                        HStack {
+                            Image(systemName: "camera")
+                            Text("Add Photo")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(.blue)
+                        .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+    }
+}
+
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return InventoryDetailView(inventoryItemToDisplay: previewer.inventoryItem, navigationPath: .constant(NavigationPath()), isEditing: true)
-            .modelContainer(previewer.container)
+    struct PreviewWrapper: View {
+        @State private var previewItem: InventoryItem
+        
+        init() {
+            let item = InventoryItem(
+                title: "MacBook Pro",
+                quantityString: "1",
+                quantityInt: 1,
+                desc: "16-inch 2023 Model",
+                serial: "SN12345ABC",
+                model: "MacBook Pro M2",
+                make: "Apple",
+                location: nil,
+                label: nil,
+                price: Decimal(2499.99),
+                insured: false,
+                assetId: "macbook-preview",
+                notes: "Purchased for work and personal projects. Excellent condition with original box and charger.",
+                showInvalidQuantityAlert: false,
+                hasUsedAI: true
+            )
+            self._previewItem = State(initialValue: item)
+        }
+        
+        var body: some View {
+            InventoryDetailView(
+                inventoryItemToDisplay: previewItem,
+                navigationPath: .constant(NavigationPath()),
+                isEditing: false
+            )
             .environmentObject(Router())
             .environmentObject(SettingsManager())
             .environmentObject(OnboardingManager())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+            .task {
+                // Use the same approach as TestData.swift
+                guard let image = UIImage(named: "macbook") else {
+                    print("❌ Could not load image: macbook")
+                    return
+                }
+                
+                do {
+                    let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: "macbook-preview")
+                    previewItem.imageURL = imageURL
+                    print("✅ Successfully loaded preview image: macbook")
+                } catch {
+                    print("❌ Failed to setup preview image: \(error)")
+                }
+            }
+        }
     }
+    
+    return PreviewWrapper()
 }
