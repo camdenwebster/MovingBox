@@ -100,8 +100,9 @@ struct InventoryDetailView: View {
                 .listRowInsets(EdgeInsets())
             }
             
-            // Thumbnails Section
-            if inventoryItemToDisplay.imageURL != nil || !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty || isEditing {
+            // Thumbnails Section - only show when editing OR when multiple photos exist
+            if (isEditing && (inventoryItemToDisplay.imageURL != nil || !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty)) || 
+               (!isEditing && loadedImages.count > 1) {
                 Section {
                     HorizontalPhotoScrollView(
                         item: inventoryItemToDisplay,
@@ -121,6 +122,21 @@ struct InventoryDetailView: View {
                         onThumbnailTap: { index in
                             selectedImageIndex = index
                         }
+                    )
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            } else if isEditing && inventoryItemToDisplay.imageURL == nil && inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
+                // Show placeholder when editing and no photos exist
+                Section {
+                    HorizontalPhotoScrollView(
+                        item: inventoryItemToDisplay,
+                        isEditing: isEditing,
+                        onAddPhoto: {
+                            showingMultiPhotoCamera = true
+                        },
+                        onDeletePhoto: { _ in },
+                        showOnlyThumbnails: false
                     )
                 }
                 .listRowBackground(Color.clear)
@@ -296,7 +312,6 @@ struct InventoryDetailView: View {
                             showUnsavedChangesAlert = true
                         } else {
                             isEditing = false
-                            dismiss()
                         }
                     }
                     .accessibilityIdentifier("backButton")
@@ -331,7 +346,6 @@ struct InventoryDetailView: View {
                             try? modelContext.save()
                             isEditing = false
                             onSave?()
-                            dismiss()
                         }
                         .fontWeight(.bold)
                         .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
@@ -407,23 +421,21 @@ struct InventoryDetailView: View {
             Button("Cancel", role: .cancel) { }
         }
         .alert("Unsaved Changes", isPresented: $showUnsavedChangesAlert) {
-            Button("Save & Go Back", role: .none) {
+            Button("Save & Stay", role: .none) {
                 try? modelContext.save()
                 isEditing = false
-                dismiss()
             }
             
             Button("Discard Changes", role: .destructive) {
                 modelContext.rollback()
                 isEditing = false
-                dismiss()
             }
             
             Button("Cancel", role: .cancel) {
                 showUnsavedChangesAlert = false
             }
         } message: {
-            Text("Do you want to save your changes before going back?")
+            Text("Do you want to save your changes before exiting edit mode?")
         }
         .task(id: inventoryItemToDisplay.imageURL) {
             await loadAllImages()

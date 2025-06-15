@@ -89,6 +89,7 @@
 		198958B12BF9AEF900C52CAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1995E01B2DB98CEE004E4914 /* MovingBoxScreenshots.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxScreenshots.xctestplan; path = "Test Plans/MovingBoxScreenshots.xctestplan"; sourceTree = "<group>"; };
 		19AD60802D934BA900465BFF /* WhatToTest.en-US.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "WhatToTest.en-US.txt"; sourceTree = "<group>"; };
+		19B22B922DFD1AAD000437DE /* MovingBox_Features_Overview.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MovingBox_Features_Overview.md; sourceTree = "<group>"; };
 		19B7D96F2D9B112200690F64 /* MovingBoxUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19B7D9902D9B362E00690F64 /* MovingBoxUITests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxUITests.xctestplan; path = "Test Plans/MovingBoxUITests.xctestplan"; sourceTree = "<group>"; };
 		19B7D9912D9B364800690F64 /* MovingBoxTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxTests.xctestplan; path = "Test Plans/MovingBoxTests.xctestplan"; sourceTree = "<group>"; };
@@ -177,6 +178,7 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				19B22B922DFD1AAD000437DE /* MovingBox_Features_Overview.md */,
 				19DA1E132DED54A400F0B8BB /* ai-dev-tasks */,
 				196A7F3E2DB49BA000C5C4E8 /* fastlane */,
 				1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */,

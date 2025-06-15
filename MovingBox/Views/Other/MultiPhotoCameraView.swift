@@ -45,35 +45,47 @@ struct MultiPhotoCameraView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Black background
-                Color.black
-                    .ignoresSafeArea()
+                // Full-screen camera preview (extends to edges, ignoring safe areas)
+                FullScreenCameraPreviewView(
+                    session: model.session,
+                    onTapToFocus: { point in
+                        // For full-screen tap-to-focus, convert point directly
+                        let relativeX = point.x / geometry.size.width
+                        let relativeY = point.y / geometry.size.height
+                        let clampedX = max(0, min(1, relativeX))
+                        let clampedY = max(0, min(1, relativeY))
+                        model.setFocusPoint(CGPoint(x: clampedX, y: clampedY))
+                        focusPoint = point
+                        showingFocusIndicator = true
+                        
+                        // Hide focus indicator after animation
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            showingFocusIndicator = false
+                        }
+                    }
+                )
+                .ignoresSafeArea(.all)
+                .onAppear {
+                    Task {
+                        await model.checkPermissions(completion: onPermissionCheck)
+                    }
+                }
+                .onDisappear {
+                    Task {
+                        await model.stopSession()
+                    }
+                }
                 
-                // Square camera preview in center
+                // Square crop overlay in center (visual guide for what will be captured)
                 let availableHeight = geometry.size.height - 100 - 200 // Account for top and bottom UI areas
                 let squareSize = min(geometry.size.width - 40, availableHeight) // Add some padding
                 let centerY = geometry.size.height / 2
                 let cameraRect = CGRect(x: (geometry.size.width - squareSize) / 2, y: centerY - squareSize / 2, width: squareSize, height: squareSize)
                 
-                SquareCameraPreviewView(
-                    session: model.session,
-                    onTapToFocus: { point in
-                        handleTapToFocus(point: point, in: cameraRect)
-                    }
-                )
-                .frame(width: squareSize, height: squareSize)
-                .clipShape(Rectangle())
-                .position(x: geometry.size.width / 2, y: centerY)
-                    .onAppear {
-                        Task {
-                            await model.checkPermissions(completion: onPermissionCheck)
-                        }
-                    }
-                    .onDisappear {
-                        Task {
-                            await model.stopSession()
-                        }
-                    }
+                Rectangle()
+                    .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                    .frame(width: squareSize, height: squareSize)
+                    .position(x: geometry.size.width / 2, y: centerY)
                 
                 // UI Controls
                 VStack(spacing: 0) {
@@ -876,6 +888,68 @@ struct SquareCameraPreviewView: UIViewRepresentable {
         let parent: SquareCameraPreviewView
         
         init(_ parent: SquareCameraPreviewView) {
+            self.parent = parent
+        }
+        
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            let point = gesture.location(in: gesture.view)
+            parent.onTapToFocus?(point)
+        }
+    }
+}
+
+// MARK: - Full Screen Camera Preview View
+
+struct FullScreenCameraPreviewView: UIViewRepresentable {
+    let session: AVCaptureSession
+    let onTapToFocus: ((CGPoint) -> Void)?
+    
+    class FullScreenPreviewView: UIView {
+        override class var layerClass: AnyClass {
+            AVCaptureVideoPreviewLayer.self
+        }
+        
+        var previewLayer: AVCaptureVideoPreviewLayer {
+            layer as! AVCaptureVideoPreviewLayer
+        }
+        
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            
+            // Ensure the preview layer fills the entire view
+            previewLayer.frame = bounds
+            
+            // Set video gravity to fill the entire screen
+            previewLayer.videoGravity = .resizeAspectFill
+        }
+    }
+    
+    func makeUIView(context: Context) -> FullScreenPreviewView {
+        let view = FullScreenPreviewView()
+        view.previewLayer.session = session
+        view.previewLayer.videoGravity = .resizeAspectFill
+        view.previewLayer.connection?.videoOrientation = .portrait
+        
+        // Add tap gesture for focus
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        view.addGestureRecognizer(tapGesture)
+        view.isUserInteractionEnabled = true
+        
+        return view
+    }
+    
+    func updateUIView(_ uiView: FullScreenPreviewView, context: Context) {
+        uiView.previewLayer.session = session
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject {
+        let parent: FullScreenCameraPreviewView
+        
+        init(_ parent: FullScreenCameraPreviewView) {
             self.parent = parent
         }
         
