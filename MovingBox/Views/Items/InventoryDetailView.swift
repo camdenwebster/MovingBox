@@ -86,56 +86,65 @@ struct InventoryDetailView: View {
     private var photoSection: some View {
         // Photo banner section
         if !loadedImages.isEmpty {
-            ZStack {
-                FullScreenPhotoCarouselView(
-                    images: loadedImages,
-                    selectedIndex: $selectedImageIndex,
-                    screenWidth: UIScreen.main.bounds.width,
-                    isEditing: isEditing,
-                    onAddPhoto: {
-                        let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
-                        if currentPhotoCount < 5 {
-                            showingMultiPhotoCamera = true
-                        }
-                    },
-                    onDeletePhoto: { index in
-                        Task {
-                            let urlString: String
-                            if index == 0 {
-                                // Deleting primary image
-                                if let imageURL = inventoryItemToDisplay.imageURL {
-                                    urlString = imageURL.absoluteString
-                                } else {
-                                    return
-                                }
-                            } else {
-                                // Deleting secondary image
-                                let secondaryIndex = index - 1
-                                if secondaryIndex < inventoryItemToDisplay.secondaryPhotoURLs.count {
-                                    urlString = inventoryItemToDisplay.secondaryPhotoURLs[secondaryIndex]
-                                } else {
-                                    return
-                                }
-                            }
-                            await deletePhoto(urlString: urlString)
-                        }
-                    }
-                )
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .global).minY
                 
-                // Black gradient overlay at the top for navigation visibility
-                VStack {
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color.black.opacity(1),
-                            Color.black.opacity(0.5),
-                            Color.clear
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
+                ZStack {
+                    FullScreenPhotoCarouselView(
+                        images: loadedImages,
+                        selectedIndex: $selectedImageIndex,
+                        screenWidth: UIScreen.main.bounds.width,
+                        isEditing: isEditing,
+                        onAddPhoto: {
+                            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+                            if currentPhotoCount < 5 {
+                                showingMultiPhotoCamera = true
+                            }
+                        },
+                        onDeletePhoto: { index in
+                            Task {
+                                let urlString: String
+                                if index == 0 {
+                                    // Deleting primary image
+                                    if let imageURL = inventoryItemToDisplay.imageURL {
+                                        urlString = imageURL.absoluteString
+                                    } else {
+                                        return
+                                    }
+                                } else {
+                                    // Deleting secondary image
+                                    let secondaryIndex = index - 1
+                                    if secondaryIndex < inventoryItemToDisplay.secondaryPhotoURLs.count {
+                                        urlString = inventoryItemToDisplay.secondaryPhotoURLs[secondaryIndex]
+                                    } else {
+                                        return
+                                    }
+                                }
+                                await deletePhoto(urlString: urlString)
+                            }
+                        }
                     )
-                    .frame(height: 200)
+                    .scaledToFill()
+                    .frame(width: proxy.size.width, height: 350 + (scrollY > 0 ? scrollY : 0))
+                    .clipped()
+                    .offset(y: scrollY > 0 ? -scrollY : 0)
                     
-                    Spacer()
+                    
+                    // Black gradient overlay at the top for navigation visibility
+                    VStack {
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.black.opacity(1),
+                                Color.black.opacity(0.5),
+                                Color.clear
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 200)
+                        
+                        Spacer()
+                    }
                 }
             }
             .frame(height: 350)
@@ -486,21 +495,16 @@ struct InventoryDetailView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    photoSection
-                        .offset(y: -geometry.safeAreaInsets.top)
-                        .padding(.top, geometry.safeAreaInsets.top)
-                    
-                    formContent
-                        .offset(y: -geometry.safeAreaInsets.top)
-                        .background(Color(.systemGroupedBackground))
-                }
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                photoSection
+                
+                formContent
+                    .background(Color(.systemGroupedBackground))
             }
-            .background(Color(.systemGroupedBackground))
-            .ignoresSafeArea(edges: .top)
         }
+        .background(Color(.systemGroupedBackground))
+        .ignoresSafeArea(edges: .top)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isEditing)
@@ -967,6 +971,7 @@ struct FullScreenPhotoCarouselView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
