@@ -86,10 +86,10 @@ struct InventoryDetailView: View {
     private var photoSection: some View {
         // Photo banner section
         if !loadedImages.isEmpty {
-            GeometryReader { proxy in
-                let scrollY = proxy.frame(in: .global).minY
-                
-                ZStack {
+            ZStack {
+                GeometryReader { proxy in
+                    let scrollY = proxy.frame(in: .global).minY
+                    
                     FullScreenPhotoCarouselView(
                         images: loadedImages,
                         selectedIndex: $selectedImageIndex,
@@ -124,31 +124,89 @@ struct InventoryDetailView: View {
                             }
                         }
                     )
-                    .scaledToFill()
                     .frame(width: proxy.size.width, height: 350 + (scrollY > 0 ? scrollY : 0))
                     .clipped()
                     .offset(y: scrollY > 0 ? -scrollY : 0)
+                }
+                .frame(height: 350)
+                .clipped()
+                
+                // Black gradient overlay at the top for navigation visibility
+                VStack {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.black.opacity(1),
+                            Color.black.opacity(0.5),
+                            Color.clear
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 200)
                     
-                    
-                    // Black gradient overlay at the top for navigation visibility
+                    Spacer()
+                }
+                
+                // Edit mode controls overlay - positioned at container bottom
+                if isEditing {
                     VStack {
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.black.opacity(1),
-                                Color.black.opacity(0.5),
-                                Color.clear
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 200)
-                        
                         Spacer()
+                        HStack(spacing: 16) {
+                            // Delete photo button
+                            if !loadedImages.isEmpty {
+                                Button(action: {
+                                    Task {
+                                        let urlString: String
+                                        if selectedImageIndex == 0 {
+                                            // Deleting primary image
+                                            if let imageURL = inventoryItemToDisplay.imageURL {
+                                                urlString = imageURL.absoluteString
+                                            } else {
+                                                return
+                                            }
+                                        } else {
+                                            // Deleting secondary image
+                                            let secondaryIndex = selectedImageIndex - 1
+                                            if secondaryIndex < inventoryItemToDisplay.secondaryPhotoURLs.count {
+                                                urlString = inventoryItemToDisplay.secondaryPhotoURLs[secondaryIndex]
+                                            } else {
+                                                return
+                                            }
+                                        }
+                                        await deletePhoto(urlString: urlString)
+                                    }
+                                }) {
+                                    Image(systemName: "trash")
+                                        .font(.title3)
+                                        .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                        .background(.red.opacity(0.8))
+                                        .clipShape(Circle())
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            // Add photo button
+                            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+                            if currentPhotoCount < 5 {
+                                Button(action: {
+                                    showingMultiPhotoCamera = true
+                                }) {
+                                    Image(systemName: "plus")
+                                        .font(.title3)
+                                        .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                        .background(.blue.opacity(0.8))
+                                        .clipShape(Circle())
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 60)
                     }
                 }
             }
-            .frame(height: 350)
-            .clipped()
         } else {
             // Show placeholder when no photos exist (both editing and viewing)
             PhotoPlaceholderView(
@@ -894,81 +952,44 @@ struct FullScreenPhotoCarouselView: View {
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             
-            // Dot indicators (only show if multiple photos)
-            if images.count > 1 {
-                VStack {
-                    Spacer()
-                    HStack(spacing: 8) {
-                        ForEach(0..<images.count, id: \.self) { index in
-                            Circle()
-                                .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.5))
-                                .frame(width: 8, height: 8)
+            // Overlay container for indicators - aligned to frame bottom
+            VStack {
+                Spacer()
+                
+                // Bottom overlay area
+                ZStack {
+                    // Dot indicators (only show if multiple photos)
+                    if images.count > 1 {
+                        HStack(spacing: 8) {
+                            ForEach(0..<images.count, id: \.self) { index in
+                                Circle()
+                                    .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.5))
+                                    .frame(width: 8, height: 8)
+                            }
                         }
                     }
-                    .padding(.bottom, 20)
-                }
-            }
-            
-            // Photo count badge (like Vrbo)
-            if images.count > 1 {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Image(systemName: "photo")
-                                .font(.caption)
-                            Text("\(selectedIndex + 1) / \(images.count)")
-                                .font(.caption)
-                                .fontWeight(.medium)
+                    
+                    // Photo count badge (like Vrbo) - positioned at frame bottom
+                    if images.count > 1 {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Image(systemName: "photo")
+                                    .font(.caption)
+                                Text("\(selectedIndex + 1) / \(images.count)")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.black.opacity(0.6))
+                            .clipShape(Capsule())
                         }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.black.opacity(0.6))
-                        .clipShape(Capsule())
                         .padding(.trailing, 20)
-                        .padding(.bottom, 20)
                     }
                 }
-            }
-            
-            // Edit mode controls overlay
-            if isEditing {
-                VStack {
-                    Spacer()
-                    HStack(spacing: 16) {
-                        // Delete photo button
-                        if !images.isEmpty {
-                            Button(action: {
-                                onDeletePhoto(selectedIndex)
-                            }) {
-                                Image(systemName: "trash")
-                                    .font(.title3)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(.red.opacity(0.8))
-                                    .clipShape(Circle())
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        // Add photo button
-                        if images.count < 5 {
-                            Button(action: onAddPhoto) {
-                                Image(systemName: "plus")
-                                    .font(.title3)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(.blue.opacity(0.8))
-                                    .clipShape(Circle())
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 60)
-                }
+                .padding(.bottom, 20)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
