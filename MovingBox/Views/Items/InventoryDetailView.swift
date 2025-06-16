@@ -135,14 +135,14 @@ struct InventoryDetailView: View {
                 VStack {
                     LinearGradient(
                         gradient: Gradient(colors: [
-                            Color.black.opacity(1),
+                            Color.black,
                             Color.black.opacity(0.5),
                             Color.clear
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 200)
+                    .frame(height: 75)
                     
                     Spacer()
                 }
@@ -553,19 +553,24 @@ struct InventoryDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                photoSection
-                
-                formContent
-                    .background(Color(.systemGroupedBackground))
+        GeometryReader { geometry in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    photoSection
+                    
+                    formContent
+                        .background(Color(.systemGroupedBackground))
+                }
             }
+            .background(Color(.systemGroupedBackground))
         }
-        .background(Color(.systemGroupedBackground))
-        .ignoresSafeArea(edges: .top)
-        .navigationTitle("")
+        .navigationTitle(inventoryItemToDisplay.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isEditing)
+        
+        .toolbarBackground(.black, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isEditing && OnboardingManager.hasCompletedOnboarding() {
