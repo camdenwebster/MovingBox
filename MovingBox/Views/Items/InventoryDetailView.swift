@@ -126,19 +126,19 @@ struct InventoryDetailView: View {
                 VStack {
                     LinearGradient(
                         gradient: Gradient(colors: [
-                            Color.black.opacity(0.8),
-                            Color.black.opacity(0.3),
+                            Color.black.opacity(1),
+                            Color.black.opacity(0.5),
                             Color.clear
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 120)
+                    .frame(height: 200)
                     
                     Spacer()
                 }
             }
-            .frame(height: 400)
+            .frame(height: 350)
             .clipped()
         } else {
             // Show placeholder when no photos exist (both editing and viewing)
@@ -161,11 +161,12 @@ struct InventoryDetailView: View {
                     aiButtonView
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
+                        .padding(.bottom, 8)
                 }
             }
             
             // Form sections
-            VStack(spacing: 32) {
+            VStack(spacing: 24) {
                 detailsSection
                 
                 if isEditing || inventoryItemToDisplay.quantityInt > 1 {
@@ -188,7 +189,7 @@ struct InventoryDetailView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 24)
+            .padding(.top, 16)
             .padding(.bottom, 32)
         }
     }
@@ -487,13 +488,13 @@ struct InventoryDetailView: View {
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     photoSection
-                        .frame(height: 400)
                         .offset(y: -geometry.safeAreaInsets.top)
                         .padding(.top, geometry.safeAreaInsets.top)
                     
                     formContent
+                        .offset(y: -geometry.safeAreaInsets.top)
                         .background(Color(.systemGroupedBackground))
                 }
             }
@@ -503,8 +504,6 @@ struct InventoryDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isEditing)
-//        .toolbarBackground(.hidden, for: .navigationBar)
-//        .toolbarColorScheme(.dark)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isEditing && OnboardingManager.hasCompletedOnboarding() {
