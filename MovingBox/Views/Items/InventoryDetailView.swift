@@ -48,6 +48,7 @@ struct InventoryDetailView: View {
     @State private var capturedImages: [UIImage] = []
     @State private var loadedImages: [UIImage] = []
     @State private var selectedImageIndex: Int = 0
+    @State private var showingFullScreenPhoto = false
     
     var showSparklesButton = false
 
@@ -121,6 +122,12 @@ struct InventoryDetailView: View {
                                     }
                                 }
                                 await deletePhoto(urlString: urlString)
+                            }
+                        },
+                        onImageTap: { tappedIndex in
+                            if !isEditing {
+                                selectedImageIndex = tappedIndex
+                                showingFullScreenPhoto = true
                             }
                         }
                     )
@@ -712,6 +719,13 @@ struct InventoryDetailView: View {
                 await loadAllImages()
             }
         }
+        .fullScreenCover(isPresented: $showingFullScreenPhoto) {
+            FullScreenPhotoView(
+                images: loadedImages,
+                initialIndex: selectedImageIndex,
+                isPresented: $showingFullScreenPhoto
+            )
+        }
     }
 
     private func callOpenAI() async throws -> ImageDetails {
@@ -941,6 +955,7 @@ struct FullScreenPhotoCarouselView: View {
     let isEditing: Bool
     let onAddPhoto: () -> Void
     let onDeletePhoto: (Int) -> Void
+    let onImageTap: (Int) -> Void
     
     var body: some View {
         ZStack {
@@ -953,6 +968,9 @@ struct FullScreenPhotoCarouselView: View {
                         .frame(width: screenWidth)
                         .clipped()
                         .tag(index)
+                        .onTapGesture {
+                            onImageTap(index)
+                        }
                 }
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
