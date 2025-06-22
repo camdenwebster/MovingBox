@@ -174,6 +174,16 @@ struct SettingsView: View {
             }
             
             Section("Sync & Backup") {
+                NavigationLink(value: "syncSettings") {
+                    Label {
+                        Text("Sync Settings")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "arrow.clockwise.icloud")
+                            .foregroundStyle(Color.customPrimary)
+                    }
+                }
+                
                 NavigationLink(value: "importExport") {
                     Label {
                         Text("Import & Export")
@@ -184,7 +194,8 @@ struct SettingsView: View {
                     }
                 }
                 .accessibilityIdentifier("importExportLink")
-                Text("Your data is automatically synced across all your devices using iCloud")
+                
+                Text("Configure how your data is synchronized across devices")
                     .foregroundStyle(.secondary)
             }
             
@@ -266,6 +277,7 @@ struct SettingsView: View {
                 case "home": EditHomeView()
                 case "locations": LocationSettingsView()
                 case "labels": LabelSettingsView()
+                case "syncSettings": SyncSettingsView()
                 case "importExport": ImportExportSettingsView()
                 default: EmptyView()
             }
