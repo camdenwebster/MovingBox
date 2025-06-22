@@ -74,13 +74,17 @@ class OpenAIService {
     var imageBase64: String
     var settings: SettingsManager
     var modelContext: ModelContext
+    var previousAnalysisAttempts: Int
+    var previousAnalysisContext: String?
     
     private let baseURL = "https://7mc060nx64.execute-api.us-east-2.amazonaws.com/prod"
     
-    init(imageBase64: String, settings: SettingsManager, modelContext: ModelContext) {
+    init(imageBase64: String, settings: SettingsManager, modelContext: ModelContext, previousAnalysisAttempts: Int = 0, previousAnalysisContext: String? = nil) {
         self.imageBase64 = imageBase64
         self.settings = settings
         self.modelContext = modelContext
+        self.previousAnalysisAttempts = previousAnalysisAttempts
+        self.previousAnalysisContext = previousAnalysisContext
     }
     
     internal func generateURLRequest(httpMethod: HTTPMethod) throws -> URLRequest {
@@ -94,7 +98,17 @@ class OpenAIService {
         let categories = DefaultDataManager.getAllLabels(from: modelContext)
         let locations = DefaultDataManager.getAllLocations(from: modelContext)
         
-        let imagePrompt = "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes."
+        // Create base prompt with retry context if this is a subsequent attempt
+        var imagePrompt = "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes."
+        
+        if previousAnalysisAttempts > 0 {
+            imagePrompt += " This is analysis attempt #\(previousAnalysisAttempts + 1). "
+            if let context = previousAnalysisContext {
+                imagePrompt += "The previous analysis did not provide the expected results: \(context). Please try to reason harder about what may have been missed and provide a more accurate analysis."
+            } else {
+                imagePrompt += "The previous analysis did not provide the expected results. Please try to reason harder about what may have been missed and provide a more accurate analysis."
+            }
+        }
         
         let function = FunctionDefinition(
             name: "process_inventory_item",
@@ -153,13 +167,34 @@ class OpenAIService {
         
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        // Determine Pro vs non-Pro settings
+        let isPro = settings.isPro
+        let shouldUseHighQuality = isPro && settings.isHighQualityAnalysis
+        
+        // Pro users: 1248x1248, 4o-mini model, no detail parameter
+        // Non-pro users: 512x512, gpt-4o model, low detail parameter  
+        let modelToUse: String
+        let imageDetail: String?
+        let maxTokens: Int
+        
+        if shouldUseHighQuality {
+            modelToUse = "gpt-4o-mini"
+            imageDetail = nil // No detail parameter for Pro users
+            maxTokens = 300
+        } else {
+            modelToUse = "gpt-4o"
+            imageDetail = "low"
+            maxTokens = settings.maxTokens
+        }
+        
         let textMessage = MessageContent(type: "text", text: imagePrompt, image_url: nil)
-        let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(imageBase64)", detail: "\(settings.isHighDetail ? "high" : "low")"))
+        let imageURL = ImageURL(url: "data:image/png:base64,\(imageBase64)", detail: imageDetail)
+        let imageMessage = MessageContent(type: "image_url", text: nil, image_url: imageURL)
         let message = Message(role: "user", content: [textMessage, imageMessage])
         let payload = GPTPayload(
-            model: settings.aiModel,
+            model: modelToUse,
             messages: [message],
-            max_tokens: settings.maxTokens,
+            max_tokens: maxTokens,
             functions: [function],
             function_call: ["name": "process_inventory_item"]
         )
@@ -265,7 +300,12 @@ struct MessageContent: Codable {
 
 struct ImageURL: Codable {
     let url: String
-    let detail: String
+    let detail: String?
+    
+    init(url: String, detail: String?) {
+        self.url = url
+        self.detail = detail
+    }
 }
 
 struct GPTPayload: Codable {

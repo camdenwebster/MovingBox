@@ -27,6 +27,27 @@ import SwiftData
         return service
     }
     
+    func createProTestService() async throws -> OpenAIService {
+        let testImage = UIImage(systemName: "photo")!
+        let imageData = testImage.pngData()!
+        let base64String = imageData.base64EncodedString()
+        
+        let settings = SettingsManager()
+        settings.apiKey = "test_key_123"
+        settings.aiModel = "gpt-4o-mini"
+        settings.maxTokens = 150
+        settings.isHighDetail = false
+        settings.isPro = true
+        settings.isHighQualityAnalysis = true
+        
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: InventoryItem.self, configurations: config)
+        let context = ModelContext(container)
+        
+        let service = OpenAIService(imageBase64: base64String, settings: settings, modelContext: context)
+        return service
+    }
+    
     @Test("Test URL request generation")
     func testURLRequestGeneration() async throws {
         // Given
@@ -203,5 +224,158 @@ import SwiftData
         } else {
             #expect(Bool(false), "Failed to decode request payload")
         }
+    }
+    
+    // MARK: - Pro Feature Tests
+    
+    @Test("Test Pro user high quality analysis settings")
+    func testProUserHighQualityAnalysis() async throws {
+        // Given
+        let service = try await createProTestService()
+        
+        // When
+        let request = try service.generateURLRequest(httpMethod: .post)
+        
+        // Then
+        #expect(request.httpBody != nil)
+        
+        if let body = request.httpBody,
+           let decoded = try? JSONDecoder().decode(GPTPayload.self, from: body) {
+            
+            // Pro users should use gpt-4o-mini model
+            #expect(decoded.model == "gpt-4o-mini")
+            #expect(decoded.max_tokens == 300) // Pro users get 300 tokens
+            
+            // Pro users should have no detail parameter (nil)
+            let imageMessage = decoded.messages[0].content.last
+            let imageUrl = imageMessage?.image_url
+            #expect(imageUrl?.detail == nil)
+            
+        } else {
+            #expect(Bool(false), "Failed to decode request payload")
+        }
+    }
+    
+    @Test("Test non-Pro user settings")
+    func testNonProUserSettings() async throws {
+        // Given
+        let service = try await createTestService()
+        service.settings.isPro = false
+        service.settings.isHighQualityAnalysis = false
+        
+        // When
+        let request = try service.generateURLRequest(httpMethod: .post)
+        
+        // Then
+        #expect(request.httpBody != nil)
+        
+        if let body = request.httpBody,
+           let decoded = try? JSONDecoder().decode(GPTPayload.self, from: body) {
+            
+            // Non-pro users should use gpt-4o model
+            #expect(decoded.model == "gpt-4o")
+            #expect(decoded.max_tokens == 150) // Non-pro users get settings max tokens
+            
+            // Non-pro users should have low detail parameter
+            let imageMessage = decoded.messages[0].content.last
+            let imageUrl = imageMessage?.image_url
+            #expect(imageUrl?.detail == "low")
+            
+        } else {
+            #expect(Bool(false), "Failed to decode request payload")
+        }
+    }
+    
+    @Test("Test Pro user with high quality disabled")
+    func testProUserHighQualityDisabled() async throws {
+        // Given
+        let service = try await createProTestService()
+        service.settings.isHighQualityAnalysis = false
+        
+        // When
+        let request = try service.generateURLRequest(httpMethod: .post)
+        
+        // Then
+        #expect(request.httpBody != nil)
+        
+        if let body = request.httpBody,
+           let decoded = try? JSONDecoder().decode(GPTPayload.self, from: body) {
+            
+            // Pro users with high quality disabled should use non-pro settings
+            #expect(decoded.model == "gpt-4o")
+            #expect(decoded.max_tokens == 150)
+            
+            // Should have low detail parameter
+            let imageMessage = decoded.messages[0].content.last
+            let imageUrl = imageMessage?.image_url
+            #expect(imageUrl?.detail == "low")
+            
+        } else {
+            #expect(Bool(false), "Failed to decode request payload")
+        }
+    }
+    
+    @Test("Test subsequent analysis context handling")
+    func testSubsequentAnalysisContext() async throws {
+        // Given
+        let testImage = UIImage(systemName: "photo")!
+        let imageData = testImage.pngData()!
+        let base64String = imageData.base64EncodedString()
+        
+        let settings = SettingsManager()
+        settings.isPro = true
+        settings.isHighQualityAnalysis = true
+        
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: InventoryItem.self, configurations: config)
+        let context = ModelContext(container)
+        
+        let service = OpenAIService(
+            imageBase64: base64String,
+            settings: settings,
+            modelContext: context,
+            previousAnalysisAttempts: 1,
+            previousAnalysisContext: "Previous analysis was unclear"
+        )
+        
+        // When
+        let request = try service.generateURLRequest(httpMethod: .post)
+        
+        // Then
+        #expect(request.httpBody != nil)
+        
+        if let body = request.httpBody,
+           let decoded = try? JSONDecoder().decode(GPTPayload.self, from: body) {
+            
+            let textMessage = decoded.messages[0].content.first
+            let prompt = textMessage?.text ?? ""
+            
+            // Should contain context about previous attempt
+            #expect(prompt.contains("This is analysis attempt #2"))
+            #expect(prompt.contains("Previous analysis was unclear"))
+            #expect(prompt.contains("try to reason harder"))
+            
+        } else {
+            #expect(Bool(false), "Failed to decode request payload")
+        }
+    }
+    
+    @Test("Test ImageURL optional detail parameter")
+    func testImageURLOptionalDetail() async throws {
+        // Test with detail parameter
+        let imageUrlWithDetail = ImageURL(url: "test-url", detail: "high")
+        #expect(imageUrlWithDetail.detail == "high")
+        
+        // Test without detail parameter
+        let imageUrlWithoutDetail = ImageURL(url: "test-url", detail: nil)
+        #expect(imageUrlWithoutDetail.detail == nil)
+        
+        // Test JSON encoding with nil detail
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(imageUrlWithoutDetail)
+        let jsonString = String(data: data, encoding: .utf8)!
+        
+        // Should not include detail field when nil
+        #expect(!jsonString.contains("detail"))
     }
 }

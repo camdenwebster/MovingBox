@@ -27,6 +27,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var imageURL: URL?
     var showInvalidQuantityAlert: Bool = false
     var hasUsedAI: Bool = false
+    var aiAnalysisCount: Int = 0
     
     @Attribute(.externalStorage) var data: Data?
     
@@ -52,7 +53,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         }
     }
     
-    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false) {
+    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, aiAnalysisCount: Int = 0) {
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt
@@ -68,6 +69,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.notes = notes
         self.showInvalidQuantityAlert = showInvalidQuantityAlert
         self.hasUsedAI = hasUsedAI
+        self.aiAnalysisCount = aiAnalysisCount
         
         Task {
             try? await migrateImageIfNeeded()

@@ -21,6 +21,7 @@ import Foundation
         #expect(item.assetId == "")
         #expect(item.notes == "")
         #expect(item.hasUsedAI == false)
+        #expect(item.aiAnalysisCount == 0)
     }
     
     @Test("Test item initialization with custom values")
@@ -113,5 +114,60 @@ import Foundation
         item.validateQuantityInput()
         #expect(item.quantityInt == 5)
         #expect(item.showInvalidQuantityAlert == false)
+    }
+    
+    // MARK: - AI Analysis Tracking Tests
+    
+    @Test("Test AI analysis count initialization")
+    func testAiAnalysisCountInitialization() async throws {
+        let item = InventoryItem()
+        
+        // Should start at 0
+        #expect(item.aiAnalysisCount == 0)
+        #expect(item.hasUsedAI == false)
+    }
+    
+    @Test("Test AI analysis count tracking")
+    func testAiAnalysisCountTracking() async throws {
+        let item = InventoryItem()
+        
+        // Simulate first AI analysis
+        item.hasUsedAI = true
+        item.aiAnalysisCount = 1
+        
+        #expect(item.hasUsedAI == true)
+        #expect(item.aiAnalysisCount == 1)
+        
+        // Simulate subsequent analyses
+        item.aiAnalysisCount = 2
+        #expect(item.aiAnalysisCount == 2)
+        
+        item.aiAnalysisCount = 3
+        #expect(item.aiAnalysisCount == 3)
+    }
+    
+    @Test("Test AI analysis count with custom initialization")
+    func testAiAnalysisCountCustomInit() async throws {
+        let item = InventoryItem(
+            title: "Test Item",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "Test",
+            serial: "",
+            model: "",
+            make: "",
+            location: nil,
+            label: nil,
+            price: 0,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false,
+            hasUsedAI: true,
+            aiAnalysisCount: 5
+        )
+        
+        #expect(item.hasUsedAI == true)
+        #expect(item.aiAnalysisCount == 5)
     }
 }

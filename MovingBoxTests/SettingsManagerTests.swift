@@ -66,6 +66,10 @@ import Foundation
             didSet { defaults.set(isHighDetail, forKey: "isHighDetail") }
         }
         
+        @Published var isHighQualityAnalysis: Bool {
+            didSet { defaults.set(isHighQualityAnalysis, forKey: "isHighQualityAnalysis") }
+        }
+        
         @Published var hasLaunched: Bool {
             didSet { defaults.set(hasLaunched, forKey: "hasLaunched") }
         }
@@ -81,6 +85,7 @@ import Foundation
             self.maxTokens = 300
             self.apiKey = ""
             self.isHighDetail = false
+            self.isHighQualityAnalysis = true
             self.hasLaunched = false
             self.isPro = false
         }
@@ -91,6 +96,7 @@ import Foundation
             maxTokens = 300
             apiKey = ""
             isHighDetail = false
+            isHighQualityAnalysis = true
             isPro = false
         }
         
@@ -99,11 +105,8 @@ import Foundation
         }
         
         func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-            return !isPro && currentCount >= SettingsManager.AppConstants.maxFreeAiScans
-        }
-        
-        func canUseMoreAiScans(currentCount: Int) -> Bool {
-            return isPro || currentCount < SettingsManager.AppConstants.maxFreeAiScans
+            // Always return false since we're removing the 50-analysis limit
+            return false
         }
     }
     
@@ -125,6 +128,7 @@ import Foundation
         #expect(manager.maxTokens == 300)
         #expect(manager.apiKey == "")
         #expect(manager.isHighDetail == false)
+        #expect(manager.isHighQualityAnalysis == true) // New property, defaults to true
         #expect(manager.hasLaunched == false)
         #expect(manager.isPro == false)
     }
@@ -143,6 +147,7 @@ import Foundation
         manager.maxTokens = 500
         manager.apiKey = "test-key"
         manager.isHighDetail = true
+        manager.isHighQualityAnalysis = false
         manager.hasLaunched = true
         
         // Then verify the values were saved
@@ -151,6 +156,7 @@ import Foundation
         #expect(defaults.integer(forKey: "maxTokens") == 500)
         #expect(defaults.string(forKey: "apiKey") == "test-key")
         #expect(defaults.bool(forKey: "isHighDetail") == true)
+        #expect(defaults.bool(forKey: "isHighQualityAnalysis") == false)
         #expect(defaults.bool(forKey: "hasLaunched") == true)
     }
     
@@ -161,7 +167,7 @@ import Foundation
         
         // When - Free tier
         #expect(manager.shouldShowPaywall() == true)
-        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == true)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false) // No longer limiting AI scans
         
         // When - Pro tier
         manager.isPro = true
@@ -203,5 +209,51 @@ import Foundation
         
         // Cleanup
         manager.resetToDefaults()
+    }
+    
+    // MARK: - High Quality Analysis Tests
+    
+    @Test("Test high quality analysis default value")
+    func testHighQualityAnalysisDefault() async {
+        // Given
+        let (manager, _) = createTestEnvironment()
+        
+        // Then - Default should be true for Pro users
+        #expect(manager.isHighQualityAnalysis == true)
+    }
+    
+    @Test("Test high quality analysis persistence")
+    func testHighQualityAnalysisPersistence() async {
+        // Given
+        let (manager, defaults) = createTestEnvironment()
+        
+        // When - Change value
+        manager.isHighQualityAnalysis = false
+        
+        // Then - Should be persisted
+        #expect(defaults.bool(forKey: "isHighQualityAnalysis") == false)
+        
+        // When - Change back
+        manager.isHighQualityAnalysis = true
+        
+        // Then - Should be persisted
+        #expect(defaults.bool(forKey: "isHighQualityAnalysis") == true)
+    }
+    
+    @Test("Test AI scan limit removal")
+    func testAiScanLimitRemoval() async {
+        // Given
+        let (manager, _) = createTestEnvironment()
+        
+        // Then - Should never show paywall for AI scans regardless of count
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 0) == false)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 100) == false)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 1000) == false)
+        
+        // Even for non-pro users
+        manager.isPro = false
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 100) == false)
     }
 }
