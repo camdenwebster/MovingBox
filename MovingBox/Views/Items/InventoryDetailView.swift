@@ -52,6 +52,9 @@ struct InventoryDetailView: View {
     @State private var loadedImages: [UIImage] = []
     @State private var selectedImageIndex: Int = 0
     @State private var showingFullScreenPhoto = false
+    @State private var showPhotoSourceAlert = false
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotosPickerItems: [PhotosPickerItem] = []
     
     var showSparklesButton = false
 
@@ -102,7 +105,7 @@ struct InventoryDetailView: View {
                         onAddPhoto: {
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
                             if currentPhotoCount < 5 {
-                                showingSimpleCamera = true
+                                showPhotoSourceAlert = true
                             }
                         },
                         onDeletePhoto: { index in
@@ -205,7 +208,7 @@ struct InventoryDetailView: View {
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
                             if currentPhotoCount < 5 {
                                 Button(action: {
-                                    showingSimpleCamera = true
+                                    showPhotoSourceAlert = true
                                 }) {
                                     Image(systemName: "plus")
                                         .font(.title3)
@@ -226,7 +229,7 @@ struct InventoryDetailView: View {
             PhotoPlaceholderView(
                 isEditing: isEditing,
                 onAddPhoto: {
-                    showingSimpleCamera = true
+                    showPhotoSourceAlert = true
                 }
             )
             .frame(height: 250)
@@ -704,6 +707,14 @@ struct InventoryDetailView: View {
             Button("Clear All Fields", role: .destructive) { clearFields() }
             Button("Cancel", role: .cancel) { }
         }
+        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
+            Button("Take Photo") {
+                showingSimpleCamera = true
+            }
+            Button("Choose from Library") {
+                showPhotoPicker = true
+            }
+        }
         .alert("Unsaved Changes", isPresented: $showUnsavedChangesAlert) {
             Button("Save & Stay", role: .none) {
                 try? modelContext.save()
@@ -739,12 +750,23 @@ struct InventoryDetailView: View {
         .fullScreenCover(isPresented: $showingSimpleCamera) {
             SimpleCameraView(capturedImage: $capturedSingleImage)
         }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhotosPickerItems,
+            maxSelectionCount: max(1, 5 - ((inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count)),
+            matching: .images
+        )
         .onChange(of: capturedSingleImage) { _, newImage in
             if let image = newImage {
                 Task {
                     await handleNewPhotos([image])
                     capturedSingleImage = nil
                 }
+            }
+        }
+        .onChange(of: selectedPhotosPickerItems) { _, newItems in
+            Task {
+                await processSelectedPhotos(newItems)
             }
         }
     }
@@ -964,6 +986,28 @@ struct InventoryDetailView: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         return formatter.string(from: NSDecimalNumber(decimal: price)) ?? "0.00"
+    }
+    
+    private func processSelectedPhotos(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty else { return }
+        
+        var images: [UIImage] = []
+        
+        for item in items {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                images.append(image)
+            }
+        }
+        
+        if !images.isEmpty {
+            await handleNewPhotos(images)
+        }
+        
+        // Clear selected items after processing
+        await MainActor.run {
+            selectedPhotosPickerItems = []
+        }
     }
 }
 
