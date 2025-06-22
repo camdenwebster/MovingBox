@@ -14,6 +14,7 @@ import SwiftUI
 struct InventoryDetailView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject private var onboardingManager: OnboardingManager
@@ -45,7 +46,9 @@ struct InventoryDetailView: View {
     @State private var isLoading = false
     @State private var loadingError: Error?
     @State private var showingMultiPhotoCamera = false
+    @State private var showingSimpleCamera = false
     @State private var capturedImages: [UIImage] = []
+    @State private var capturedSingleImage: UIImage?
     @State private var loadedImages: [UIImage] = []
     @State private var selectedImageIndex: Int = 0
     @State private var showingFullScreenPhoto = false
@@ -99,7 +102,7 @@ struct InventoryDetailView: View {
                         onAddPhoto: {
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
                             if currentPhotoCount < 5 {
-                                showingMultiPhotoCamera = true
+                                showingSimpleCamera = true
                             }
                         },
                         onDeletePhoto: { index in
@@ -138,21 +141,25 @@ struct InventoryDetailView: View {
                 .frame(height: 350)
                 .clipped()
                 
-                // Black gradient overlay at the top for navigation visibility
-                VStack {
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color.black,
-                            Color.black.opacity(0.5),
-                            Color.clear
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 75)
-                    
-                    Spacer()
-                }
+                // Gradient overlay at the top for navigation visibility
+//                VStack {
+//                    LinearGradient(
+//                        gradient: Gradient(colors: colorScheme == .dark ? [
+//                            Color.black,
+//                            Color.black.opacity(0.5),
+//                            Color.clear
+//                        ] : [
+//                            Color.white,
+//                            Color.white.opacity(0.5),
+//                            Color.clear
+//                        ]),
+//                        startPoint: .top,
+//                        endPoint: .bottom
+//                    )
+//                    .frame(height: 75)
+//                    
+//                    Spacer()
+//                }
                 
                 // Edit mode controls overlay - positioned at container bottom
                 if isEditing {
@@ -198,7 +205,7 @@ struct InventoryDetailView: View {
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
                             if currentPhotoCount < 5 {
                                 Button(action: {
-                                    showingMultiPhotoCamera = true
+                                    showingSimpleCamera = true
                                 }) {
                                     Image(systemName: "plus")
                                         .font(.title3)
@@ -219,7 +226,7 @@ struct InventoryDetailView: View {
             PhotoPlaceholderView(
                 isEditing: isEditing,
                 onAddPhoto: {
-                    showingMultiPhotoCamera = true
+                    showingSimpleCamera = true
                 }
             )
             .frame(height: 250)
@@ -559,7 +566,8 @@ struct InventoryDetailView: View {
         .cornerRadius(12)
     }
 
-    var body: some View {
+    @ViewBuilder
+    private var mainContent: some View {
         GeometryReader { geometry in
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -571,14 +579,16 @@ struct InventoryDetailView: View {
             }
             .background(Color(.systemGroupedBackground))
         }
-        .navigationTitle(inventoryItemToDisplay.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(isEditing)
-        
-        .toolbarBackground(.black, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbar {
+    }
+    
+    var body: some View {
+        mainContent
+            .applyNavigationSettings(
+                title: inventoryItemToDisplay.title,
+                isEditing: isEditing,
+                colorScheme: colorScheme
+            )
+            .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isEditing && OnboardingManager.hasCompletedOnboarding() {
                     Button("Back") {
@@ -725,6 +735,17 @@ struct InventoryDetailView: View {
                 initialIndex: selectedImageIndex,
                 isPresented: $showingFullScreenPhoto
             )
+        }
+        .fullScreenCover(isPresented: $showingSimpleCamera) {
+            SimpleCameraView(capturedImage: $capturedSingleImage)
+        }
+        .onChange(of: capturedSingleImage) { _, newImage in
+            if let image = newImage {
+                Task {
+                    await handleNewPhotos([image])
+                    capturedSingleImage = nil
+                }
+            }
         }
     }
 
@@ -1111,4 +1132,18 @@ struct PhotoPlaceholderView: View {
     }
     
     return PreviewWrapper()
+}
+
+// MARK: - View Extensions
+
+extension View {
+    func applyNavigationSettings(title: String, isEditing: Bool, colorScheme: ColorScheme) -> some View {
+        self
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(isEditing)
+            .toolbarBackground(colorScheme == .dark ? .black : .white, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+    }
 }

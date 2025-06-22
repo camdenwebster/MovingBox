@@ -124,6 +124,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		190B05F92E079A4100F23E05 /* .claude */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = .claude; sourceTree = "<group>"; };
 		196A7F3E2DB49BA000C5C4E8 /* fastlane */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = fastlane; sourceTree = "<group>"; };
 		19B7D9702D9B112200690F64 /* MovingBoxUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxUITests; sourceTree = "<group>"; };
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1981B5C92D9ACB6A007AD7F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
@@ -178,6 +179,7 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				190B05F92E079A4100F23E05 /* .claude */,
 				19B22B922DFD1AAD000437DE /* MovingBox_Features_Overview.md */,
 				19DA1E132DED54A400F0B8BB /* ai-dev-tasks */,
 				196A7F3E2DB49BA000C5C4E8 /* fastlane */,
