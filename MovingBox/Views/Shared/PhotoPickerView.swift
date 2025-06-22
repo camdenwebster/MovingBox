@@ -89,7 +89,7 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                 }
             }
         }
-        .sheet(isPresented: $showCamera) {
+        .fullScreenCover(isPresented: $showCamera) {
             SimpleCameraView(capturedImage: $cameraImage)
         }
         .onChange(of: cameraImage) { _, newImage in

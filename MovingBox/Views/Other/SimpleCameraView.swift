@@ -12,32 +12,55 @@ struct SimpleCameraView: View {
     }
     
     var body: some View {
-        Group {
-            if isMockCamera {
-                MockSimpleCameraView(image: $capturedImage)
-                    .onChange(of: capturedImage) { _, newImage in
-                        if newImage != nil {
-                            dismiss()
-                        }
-                    }
-            } else {
-                ImagePicker(image: $capturedImage, sourceType: .camera) { authorized in
-                    if !authorized {
-                        showingPermissionDenied = true
-                    }
-                }
+        if isMockCamera {
+            MockSimpleCameraView(image: $capturedImage)
                 .onChange(of: capturedImage) { _, newImage in
                     if newImage != nil {
                         dismiss()
                     }
                 }
-                .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
-                    Button("Go to Settings", action: openSettings)
-                    Button("Cancel", role: .cancel) { dismiss() }
-                } message: {
-                    Text("Please grant camera access in Settings to use this feature.")
+        } else {
+            ZStack {
+                // Check permissions first
+                Color.clear
+                    .onAppear {
+                        checkCameraPermission()
+                    }
+                
+                // Show camera if permissions are granted
+                if AVCaptureDevice.authorizationStatus(for: .video) == .authorized {
+                    NativeCameraView(capturedImage: $capturedImage) {
+                        dismiss()
+                    }
                 }
             }
+            .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
+                Button("Go to Settings", action: openSettings)
+                Button("Cancel", role: .cancel) { dismiss() }
+            } message: {
+                Text("Please grant camera access in Settings to use this feature.")
+            }
+        }
+    }
+    
+    private func checkCameraPermission() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            // Camera already authorized, NativeCameraView will show
+            break
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if !granted {
+                        showingPermissionDenied = true
+                    }
+                    // If granted, the view will update automatically
+                }
+            }
+        case .denied, .restricted:
+            showingPermissionDenied = true
+        @unknown default:
+            showingPermissionDenied = true
         }
     }
     
@@ -47,6 +70,50 @@ struct SimpleCameraView: View {
         }
     }
 }
+
+// MARK: - Native Camera View
+
+struct NativeCameraView: UIViewControllerRepresentable {
+    @Binding var capturedImage: UIImage?
+    let onDismiss: () -> Void
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
+        // No updates needed
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: NativeCameraView
+        
+        init(_ parent: NativeCameraView) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.capturedImage = image
+            }
+            parent.onDismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onDismiss()
+        }
+    }
+}
+
+// MARK: - Mock Camera View
 
 struct MockSimpleCameraView: View {
     @Binding var image: UIImage?

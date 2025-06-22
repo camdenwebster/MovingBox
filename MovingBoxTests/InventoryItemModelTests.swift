@@ -52,6 +52,190 @@ import Foundation
         #expect(testItem.notes == "Test notes")
     }
     
+    @Test("Test secondary photos array initialization")
+    func testSecondaryPhotosInitialization() async throws {
+        let item = InventoryItem()
+        
+        // Should be initialized as empty array
+        #expect(item.secondaryPhotoURLs.isEmpty == true)
+        #expect(item.secondaryPhotoURLs.count == 0)
+    }
+    
+    @Test("Test secondary photos array with custom values")
+    func testSecondaryPhotosCustomValues() async throws {
+        let testURLs = ["url1", "url2", "url3"]
+        let item = InventoryItem(
+            title: "Test Item",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: nil,
+            label: nil,
+            price: 0,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false,
+            hasUsedAI: false,
+            secondaryPhotoURLs: testURLs
+        )
+        
+        #expect(item.secondaryPhotoURLs.count == 3)
+        #expect(item.secondaryPhotoURLs == testURLs)
+    }
+    
+    @Test("Test adding secondary photo URLs")
+    func testAddSecondaryPhotoURL() async throws {
+        let item = InventoryItem()
+        
+        // Add first URL
+        item.addSecondaryPhotoURL("url1")
+        #expect(item.secondaryPhotoURLs.count == 1)
+        #expect(item.secondaryPhotoURLs.contains("url1"))
+        
+        // Add second URL
+        item.addSecondaryPhotoURL("url2")
+        #expect(item.secondaryPhotoURLs.count == 2)
+        #expect(item.secondaryPhotoURLs.contains("url2"))
+        
+        // Try to add duplicate URL (should be ignored)
+        item.addSecondaryPhotoURL("url1")
+        #expect(item.secondaryPhotoURLs.count == 2)
+        
+        // Try to add empty URL (should be ignored)
+        item.addSecondaryPhotoURL("")
+        #expect(item.secondaryPhotoURLs.count == 2)
+    }
+    
+    @Test("Test removing secondary photo URLs")
+    func testRemoveSecondaryPhotoURL() async throws {
+        let item = InventoryItem()
+        
+        // Add some URLs
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        item.addSecondaryPhotoURL("url3")
+        #expect(item.secondaryPhotoURLs.count == 3)
+        
+        // Remove middle URL
+        item.removeSecondaryPhotoURL("url2")
+        #expect(item.secondaryPhotoURLs.count == 2)
+        #expect(!item.secondaryPhotoURLs.contains("url2"))
+        #expect(item.secondaryPhotoURLs.contains("url1"))
+        #expect(item.secondaryPhotoURLs.contains("url3"))
+        
+        // Try to remove non-existent URL (should be ignored)
+        item.removeSecondaryPhotoURL("nonexistent")
+        #expect(item.secondaryPhotoURLs.count == 2)
+    }
+    
+    @Test("Test removing secondary photo by index")
+    func testRemoveSecondaryPhotoAtIndex() async throws {
+        let item = InventoryItem()
+        
+        // Add some URLs
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        item.addSecondaryPhotoURL("url3")
+        #expect(item.secondaryPhotoURLs.count == 3)
+        
+        // Remove at index 1 (url2)
+        item.removeSecondaryPhotoAt(index: 1)
+        #expect(item.secondaryPhotoURLs.count == 2)
+        #expect(item.secondaryPhotoURLs[0] == "url1")
+        #expect(item.secondaryPhotoURLs[1] == "url3")
+        
+        // Try to remove at invalid index (should be ignored)
+        item.removeSecondaryPhotoAt(index: 10)
+        #expect(item.secondaryPhotoURLs.count == 2)
+        
+        item.removeSecondaryPhotoAt(index: -1)
+        #expect(item.secondaryPhotoURLs.count == 2)
+    }
+    
+    @Test("Test photo count and validation methods")
+    func testPhotoCountMethods() async throws {
+        let item = InventoryItem()
+        
+        // Initially no photos
+        #expect(item.getTotalPhotoCount() == 0)
+        #expect(item.getSecondaryPhotoCount() == 0)
+        #expect(item.hasSecondaryPhotos() == false)
+        #expect(item.canAddMorePhotos() == true)
+        #expect(item.getRemainingPhotoSlots() == 5)
+        
+        // Add primary photo
+        item.imageURL = URL(string: "primary.jpg")
+        #expect(item.getTotalPhotoCount() == 1)
+        #expect(item.getSecondaryPhotoCount() == 0)
+        #expect(item.canAddMorePhotos() == true)
+        #expect(item.getRemainingPhotoSlots() == 4)
+        
+        // Add secondary photos
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        #expect(item.getTotalPhotoCount() == 3)
+        #expect(item.getSecondaryPhotoCount() == 2)
+        #expect(item.hasSecondaryPhotos() == true)
+        #expect(item.canAddMorePhotos() == true)
+        #expect(item.getRemainingPhotoSlots() == 2)
+        
+        // Add more to reach limit
+        item.addSecondaryPhotoURL("url3")
+        item.addSecondaryPhotoURL("url4")
+        #expect(item.getTotalPhotoCount() == 5)
+        #expect(item.getSecondaryPhotoCount() == 4)
+        #expect(item.canAddMorePhotos() == false)
+        #expect(item.getRemainingPhotoSlots() == 0)
+        
+        // Try to add beyond limit (should be ignored)
+        item.addSecondaryPhotoURL("url5")
+        #expect(item.getSecondaryPhotoCount() == 4) // Should remain 4
+    }
+    
+    @Test("Test getting all photo URLs")
+    func testGetAllPhotoURLs() async throws {
+        let item = InventoryItem()
+        
+        // No photos
+        #expect(item.getAllPhotoURLs().isEmpty)
+        
+        // Add primary photo only
+        item.imageURL = URL(string: "primary.jpg")
+        let urlsWithPrimary = item.getAllPhotoURLs()
+        #expect(urlsWithPrimary.count == 1)
+        #expect(urlsWithPrimary[0] == "primary.jpg")
+        
+        // Add secondary photos
+        item.addSecondaryPhotoURL("secondary1.jpg")
+        item.addSecondaryPhotoURL("secondary2.jpg")
+        let allUrls = item.getAllPhotoURLs()
+        #expect(allUrls.count == 3)
+        #expect(allUrls[0] == "primary.jpg") // Primary should be first
+        #expect(allUrls.contains("secondary1.jpg"))
+        #expect(allUrls.contains("secondary2.jpg"))
+    }
+    
+    @Test("Test clearing all secondary photos")
+    func testClearAllSecondaryPhotos() async throws {
+        let item = InventoryItem()
+        
+        // Add some secondary photos
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        item.addSecondaryPhotoURL("url3")
+        #expect(item.secondaryPhotoURLs.count == 3)
+        
+        // Clear all
+        item.clearAllSecondaryPhotos()
+        #expect(item.secondaryPhotoURLs.isEmpty)
+        #expect(item.getSecondaryPhotoCount() == 0)
+        #expect(item.hasSecondaryPhotos() == false)
+    }
+    
     @Test("Test quantity validation with invalid input")
     func testInvalidQuantityValidation() async throws {
         let item = InventoryItem()

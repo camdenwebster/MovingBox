@@ -126,6 +126,87 @@ final class OptimizedImageManager {
         return image
     }
     
+    // MARK: - Multiple Image Management
+    
+    func saveSecondaryImages(_ images: [UIImage], itemId: String) async throws -> [String] {
+        var savedURLs: [String] = []
+        
+        for (index, image) in images.enumerated() {
+            let secondaryId = "\(itemId)_secondary_\(index)_\(UUID().uuidString.prefix(8))"
+            let imageURL = try await saveImage(image, id: secondaryId)
+            savedURLs.append(imageURL.absoluteString)
+        }
+        
+        print("📸 OptimizedImageManager - Saved \(savedURLs.count) secondary images for item: \(itemId)")
+        return savedURLs
+    }
+    
+    func addSecondaryImage(_ image: UIImage, itemId: String) async throws -> String {
+        let secondaryId = "\(itemId)_secondary_\(UUID().uuidString.prefix(8))"
+        let imageURL = try await saveImage(image, id: secondaryId)
+        
+        print("📸 OptimizedImageManager - Added secondary image for item: \(itemId)")
+        return imageURL.absoluteString
+    }
+    
+    func loadSecondaryImages(from urlStrings: [String]) async throws -> [UIImage] {
+        var images: [UIImage] = []
+        
+        for urlString in urlStrings {
+            guard let url = URL(string: urlString) else { continue }
+            do {
+                let image = try await loadImage(url: url)
+                images.append(image)
+            } catch {
+                print("📸 OptimizedImageManager - Failed to load secondary image from \(urlString): \(error)")
+                continue
+            }
+        }
+        
+        return images
+    }
+    
+    func deleteSecondaryImage(urlString: String) async throws {
+        guard let url = URL(string: urlString) else {
+            throw ImageError.invalidImageData
+        }
+        
+        var error: NSError?
+        fileCoordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &error) { url in
+            do {
+                try fileManager.removeItem(at: url)
+                print("📸 OptimizedImageManager - Deleted secondary image: \(url)")
+            } catch {
+                print("📸 OptimizedImageManager - Error deleting secondary image: \(error.localizedDescription)")
+            }
+        }
+        
+        if let error {
+            throw error
+        }
+        
+        // Also delete thumbnail if it exists
+        let imageId = url.deletingPathExtension().lastPathComponent
+        let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(imageId)_thumb.jpg")
+        if fileManager.fileExists(atPath: thumbnailURL.path) {
+            try? fileManager.removeItem(at: thumbnailURL)
+            cache.removeObject(forKey: "\(imageId)_thumb" as NSString)
+        }
+    }
+    
+    func prepareMultipleImagesForAI(from images: [UIImage]) async -> [String] {
+        var base64Images: [String] = []
+        
+        for image in images {
+            if let base64String = await prepareImageForAI(from: image) {
+                base64Images.append(base64String)
+            }
+        }
+        
+        print("📸 OptimizedImageManager - Prepared \(base64Images.count) images for AI analysis")
+        return base64Images
+    }
+    
     // MARK: - Thumbnail Management
     
     private func saveThumbnail(_ image: UIImage, id: String) async {
@@ -184,6 +265,25 @@ final class OptimizedImageManager {
         
         cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
         return thumbnail
+    }
+    
+    func loadSecondaryThumbnails(from urlStrings: [String]) async -> [UIImage] {
+        var thumbnails: [UIImage] = []
+        
+        for urlString in urlStrings {
+            guard let url = URL(string: urlString) else { continue }
+            let imageId = url.deletingPathExtension().lastPathComponent
+            
+            do {
+                let thumbnail = try await loadThumbnail(id: imageId)
+                thumbnails.append(thumbnail)
+            } catch {
+                print("📸 OptimizedImageManager - Failed to load thumbnail for \(imageId): \(error)")
+                continue
+            }
+        }
+        
+        return thumbnails
     }
     
     // MARK: - Image Optimization
