@@ -95,30 +95,45 @@ struct MultiPhotoCameraView: View {
                 VStack(spacing: 0) {
                 // Top bar
                 HStack {
-                    // Flash button
+                    // Close button
                     Button {
-                        model.cycleFlash()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: model.flashIcon)
-                                .font(.system(size: 16))
-                            Text(flashModeText)
-                                .font(.system(size: 16, weight: .medium))
+                        if let onCancel = onCancel {
+                            onCancel()
                         }
-                        .foregroundColor(.white)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
                     }
                     
                     Spacer()
                     
-                    // Camera switcher
-                    Button {
-                        Task {
-                            await model.switchCamera()
-                        }
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath.camera")
-                            .font(.system(size: 20))
+                    // Center controls: Flash and Camera switcher
+                    HStack(spacing: 20) {
+                        // Flash button
+                        Button {
+                            model.cycleFlash()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: model.flashIcon)
+                                    .font(.system(size: 16))
+                                Text(flashModeText)
+                                    .font(.system(size: 16, weight: .medium))
+                            }
                             .foregroundColor(.white)
+                        }
+                        
+                        // Camera switcher
+                        Button {
+                            Task {
+                                await model.switchCamera()
+                            }
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath.camera")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                        }
                     }
                     
                     Spacer()
@@ -218,29 +233,6 @@ struct MultiPhotoCameraView: View {
                     }
                 }
                 
-                // Cancel button overlay (if provided)
-                if let onCancel = onCancel {
-                    VStack {
-                        HStack {
-                            Button {
-                                onCancel()
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.black.opacity(0.3))
-                                    .clipShape(Circle())
-                            }
-                            .padding(.leading, 10)
-                            .padding(.top, 50)
-                            
-                            Spacer()
-                        }
-                        
-                        Spacer()
-                    }
-                }
             }
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {

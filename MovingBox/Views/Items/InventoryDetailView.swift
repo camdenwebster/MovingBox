@@ -61,19 +61,22 @@ struct InventoryDetailView: View {
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
 
     var onSave: (() -> Void)?
+    var onCancel: (() -> Void)?
     
 
     init(inventoryItemToDisplay: InventoryItem,
          navigationPath: Binding<NavigationPath>,
          showSparklesButton: Bool = false,
          isEditing: Bool = false,
-         onSave: (() -> Void)? = nil) {
+         onSave: (() -> Void)? = nil,
+         onCancel: (() -> Void)? = nil) {
         self.inventoryItemToDisplay = inventoryItemToDisplay
         self._navigationPath = navigationPath
         self.showSparklesButton = showSparklesButton
         self._isEditing = State(initialValue: isEditing)
         self._displayPriceString = State(initialValue: formatInitialPrice(inventoryItemToDisplay.price))
         self.onSave = onSave
+        self.onCancel = onCancel
     }
 
     @FocusState private var focusedField: Field?
@@ -143,26 +146,6 @@ struct InventoryDetailView: View {
                 }
                 .frame(height: 350)
                 .clipped()
-                
-                // Gradient overlay at the top for navigation visibility
-//                VStack {
-//                    LinearGradient(
-//                        gradient: Gradient(colors: colorScheme == .dark ? [
-//                            Color.black,
-//                            Color.black.opacity(0.5),
-//                            Color.clear
-//                        ] : [
-//                            Color.white,
-//                            Color.white.opacity(0.5),
-//                            Color.clear
-//                        ]),
-//                        startPoint: .top,
-//                        endPoint: .bottom
-//                    )
-//                    .frame(height: 75)
-//                    
-//                    Spacer()
-//                }
                 
                 // Edit mode controls overlay - positioned at container bottom
                 if isEditing {
@@ -268,9 +251,9 @@ struct InventoryDetailView: View {
                     notesSection
                 }
                 
-                if isEditing {
-                    clearFieldsSection
-                }
+//                if isEditing {
+//                    clearFieldsSection
+//                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -425,6 +408,8 @@ struct InventoryDetailView: View {
                     .disabled(!isEditing)
                     .accessibilityIdentifier("descriptionField")
                     .foregroundColor(isEditing ? .primary : .secondary)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
             }
@@ -544,6 +529,8 @@ struct InventoryDetailView: View {
                     .frame(height: 100)
                     .disabled(!isEditing)
                     .accessibilityIdentifier("notesField")
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
             }
@@ -552,22 +539,22 @@ struct InventoryDetailView: View {
         }
     }
     
-    @ViewBuilder
-    private var clearFieldsSection: some View {
-        VStack(spacing: 0) {
-            Button("Clear All Fields") {
-                showingClearAllAlert = true
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(.secondarySystemGroupedBackground))
-            .foregroundColor(.red)
-            .accessibilityIdentifier("clearAllFields")
-        }
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
-    }
+//    @ViewBuilder
+//    private var clearFieldsSection: some View {
+//        VStack(spacing: 0) {
+//            Button("Clear All Fields") {
+//                showingClearAllAlert = true
+//            }
+//            .frame(maxWidth: .infinity)
+//            .padding(.horizontal, 16)
+//            .padding(.vertical, 12)
+//            .background(Color(.secondarySystemGroupedBackground))
+//            .foregroundColor(.red)
+//            .accessibilityIdentifier("clearAllFields")
+//        }
+//        .background(Color(.secondarySystemGroupedBackground))
+//        .cornerRadius(12)
+//    }
 
     @ViewBuilder
     private var mainContent: some View {
@@ -593,15 +580,21 @@ struct InventoryDetailView: View {
             )
             .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                if isEditing && OnboardingManager.hasCompletedOnboarding() {
-                    Button("Back") {
-                        if modelContext.hasChanges {
-                            showUnsavedChangesAlert = true
-                        } else {
-                            isEditing = false
+                if isEditing {
+                    Button("Cancel") {
+                        if let onCancel = onCancel {
+                            // During onboarding - delete the item and close the sheet
+                            deleteItemAndCloseSheet()
+                        } else if OnboardingManager.hasCompletedOnboarding() {
+                            // Normal editing mode - handle unsaved changes
+                            if modelContext.hasChanges {
+                                showUnsavedChangesAlert = true
+                            } else {
+                                isEditing = false
+                            }
                         }
                     }
-                    .accessibilityIdentifier("backButton")
+                    .accessibilityIdentifier("cancelButton")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -703,10 +696,10 @@ struct InventoryDetailView: View {
         } message: {
             Text(errorMessage)
         }
-        .alert("Are you sure?", isPresented: $showingClearAllAlert) {
-            Button("Clear All Fields", role: .destructive) { clearFields() }
-            Button("Cancel", role: .cancel) { }
-        }
+//        .alert("Are you sure?", isPresented: $showingClearAllAlert) {
+//            Button("Clear All Fields", role: .destructive) { clearFields() }
+//            Button("Cancel", role: .cancel) { }
+//        }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showingSimpleCamera = true
@@ -758,13 +751,17 @@ struct InventoryDetailView: View {
         )
         .onChange(of: capturedSingleImage) { _, newImage in
             if let image = newImage {
+                print("📷 onChange(capturedSingleImage): New image captured")
                 Task {
                     await handleNewPhotos([image])
                     capturedSingleImage = nil
                 }
+            } else {
+                print("📷 onChange(capturedSingleImage): Image cleared or nil")
             }
         }
         .onChange(of: selectedPhotosPickerItems) { _, newItems in
+            print("📱 onChange(selectedPhotosPickerItems): \(newItems.count) items selected")
             Task {
                 await processSelectedPhotos(newItems)
             }
@@ -827,17 +824,17 @@ struct InventoryDetailView: View {
         try? modelContext.save()
     }
     
-    private func clearFields() {
-        print("Clear fields button tapped")
-        inventoryItemToDisplay.title = ""
-        inventoryItemToDisplay.label = nil
-        inventoryItemToDisplay.desc = ""
-        inventoryItemToDisplay.make = ""
-        inventoryItemToDisplay.model = ""
-        inventoryItemToDisplay.location = nil
-        inventoryItemToDisplay.price = 0
-        inventoryItemToDisplay.notes = ""
-    }
+//    private func clearFields() {
+//        print("Clear fields button tapped")
+//        inventoryItemToDisplay.title = ""
+//        inventoryItemToDisplay.label = nil
+//        inventoryItemToDisplay.desc = ""
+//        inventoryItemToDisplay.make = ""
+//        inventoryItemToDisplay.model = ""
+//        inventoryItemToDisplay.location = nil
+//        inventoryItemToDisplay.price = 0
+//        inventoryItemToDisplay.notes = ""
+//    }
     
     private func addLocation() {
         let location = InventoryLocation()
@@ -854,51 +851,68 @@ struct InventoryDetailView: View {
     }
     
     private func handleNewPhotos(_ images: [UIImage]) async {
-        guard !images.isEmpty else { return }
+        guard !images.isEmpty else { 
+            print("❌ handleNewPhotos: No images provided")
+            return 
+        }
+        
+        print("📷 handleNewPhotos: Starting with \(images.count) images")
+        print("📷 handleNewPhotos: Current state - imageURL: \(inventoryItemToDisplay.imageURL?.absoluteString ?? "nil"), assetId: '\(inventoryItemToDisplay.assetId)', secondaryURLs: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
         
         do {
+            // Ensure we have a consistent itemId for all operations
+            let itemId = inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId
+            print("📷 handleNewPhotos: Using itemId: \(itemId)")
+            
             if inventoryItemToDisplay.imageURL == nil {
+                print("📷 handleNewPhotos: No primary image yet, saving first image as primary")
                 // No primary image yet, save the first image as primary
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(images.first!, id: inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId)
+                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(images.first!, id: itemId)
+                print("📷 handleNewPhotos: Saved primary image to: \(primaryImageURL.absoluteString)")
                 
                 await MainActor.run {
                     inventoryItemToDisplay.imageURL = primaryImageURL
-                    if inventoryItemToDisplay.assetId.isEmpty {
-                        inventoryItemToDisplay.assetId = primaryImageURL.lastPathComponent
-                    }
+                    inventoryItemToDisplay.assetId = itemId
+                    print("📷 handleNewPhotos: Updated item - imageURL: \(primaryImageURL.absoluteString), assetId: \(itemId)")
                 }
                 
                 // Save remaining images as secondary photos
                 if images.count > 1 {
+                    print("📷 handleNewPhotos: Saving \(images.count - 1) remaining images as secondary")
                     let secondaryImages = Array(images.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: inventoryItemToDisplay.assetId)
+                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: itemId)
+                    print("📷 handleNewPhotos: Saved secondary images: \(secondaryURLs)")
                     
                     await MainActor.run {
                         inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
+                        print("📷 handleNewPhotos: Updated secondaryPhotoURLs count: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
                     }
                 }
             } else {
+                print("📷 handleNewPhotos: Primary image exists, adding all \(images.count) images as secondary")
                 // Primary image exists, add all new images as secondary photos
-                let itemId = inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId
                 let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(images, itemId: itemId)
+                print("📷 handleNewPhotos: Saved secondary images: \(secondaryURLs)")
                 
                 await MainActor.run {
-                    if inventoryItemToDisplay.assetId.isEmpty {
-                        inventoryItemToDisplay.assetId = itemId
-                    }
+                    inventoryItemToDisplay.assetId = itemId
                     inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
+                    print("📷 handleNewPhotos: Updated secondaryPhotoURLs count: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
                 }
             }
             
             await MainActor.run {
                 try? modelContext.save()
+                print("📷 handleNewPhotos: Saved to model context")
                 TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
             }
             
+            print("📷 handleNewPhotos: About to reload images...")
             // Reload images after adding new photos
             await loadAllImages()
+            print("📷 handleNewPhotos: Completed")
         } catch {
-            print("Error saving new photos: \(error)")
+            print("❌ handleNewPhotos: Error saving new photos: \(error)")
         }
     }
     
@@ -939,7 +953,11 @@ struct InventoryDetailView: View {
     }
     
     private func loadAllImages() async {
-        guard inventoryItemToDisplay.modelContext != nil else { return }
+        // Use the view's modelContext instead of the item's modelContext
+        // The item's modelContext can become nil after saving
+        print("🔄 loadAllImages: Using view's modelContext")
+        
+        print("🔄 loadAllImages: Starting - imageURL: \(inventoryItemToDisplay.imageURL?.absoluteString ?? "nil"), secondaryURLs: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
         
         await MainActor.run {
             isLoading = true
@@ -954,25 +972,34 @@ struct InventoryDetailView: View {
         
         // Load primary image
         if let imageURL = inventoryItemToDisplay.imageURL {
+            print("📸 loadAllImages: Loading primary image from \(imageURL.absoluteString)")
             do {
                 let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
                 images.append(image)
+                print("✅ loadAllImages: Successfully loaded primary image")
             } catch {
-                print("Failed to load primary image: \(error)")
+                print("❌ loadAllImages: Failed to load primary image: \(error)")
             }
+        } else {
+            print("📸 loadAllImages: No primary image URL")
         }
         
         // Load secondary images
         if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
+            print("📸 loadAllImages: Loading \(inventoryItemToDisplay.secondaryPhotoURLs.count) secondary images")
             do {
                 let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: inventoryItemToDisplay.secondaryPhotoURLs)
                 images.append(contentsOf: secondaryImages)
+                print("✅ loadAllImages: Successfully loaded \(secondaryImages.count) secondary images")
             } catch {
-                print("Failed to load secondary images: \(error)")
+                print("❌ loadAllImages: Failed to load secondary images: \(error)")
             }
+        } else {
+            print("📸 loadAllImages: No secondary images")
         }
         
         await MainActor.run {
+            print("🔄 loadAllImages: Setting loadedImages to \(images.count) images")
             loadedImages = images
             if selectedImageIndex >= images.count {
                 selectedImageIndex = max(0, images.count - 1)
@@ -989,7 +1016,12 @@ struct InventoryDetailView: View {
     }
     
     private func processSelectedPhotos(_ items: [PhotosPickerItem]) async {
-        guard !items.isEmpty else { return }
+        guard !items.isEmpty else { 
+            print("❌ processSelectedPhotos: No items provided")
+            return 
+        }
+        
+        print("📱 processSelectedPhotos: Starting with \(items.count) PhotosPicker items")
         
         var images: [UIImage] = []
         
@@ -997,16 +1029,50 @@ struct InventoryDetailView: View {
             if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
                 images.append(image)
+                print("✅ processSelectedPhotos: Successfully loaded image from PhotosPicker")
+            } else {
+                print("❌ processSelectedPhotos: Failed to load image from PhotosPicker item")
             }
         }
         
+        print("📱 processSelectedPhotos: Loaded \(images.count) images from PhotosPicker")
+        
         if !images.isEmpty {
             await handleNewPhotos(images)
+        } else {
+            print("❌ processSelectedPhotos: No images to handle")
         }
         
         // Clear selected items after processing
         await MainActor.run {
             selectedPhotosPickerItems = []
+            print("📱 processSelectedPhotos: Cleared selectedPhotosPickerItems")
+        }
+    }
+    
+    private func deleteItemAndCloseSheet() {
+        // Delete any saved images for this item
+        Task {
+            do {
+                if let imageURL = inventoryItemToDisplay.imageURL {
+                    try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: imageURL.absoluteString)
+                }
+                
+                for photoURL in inventoryItemToDisplay.secondaryPhotoURLs {
+                    try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: photoURL)
+                }
+            } catch {
+                print("Error deleting images during cancellation: \(error)")
+            }
+            
+            await MainActor.run {
+                // Remove the item from the model context
+                modelContext.delete(inventoryItemToDisplay)
+                try? modelContext.save()
+                
+                // Call the onCancel callback to close the sheet
+                onCancel?()
+            }
         }
     }
 }

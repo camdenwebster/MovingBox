@@ -36,9 +36,8 @@ struct ItemCreationFlowView: View {
             ZStack {
                 switch currentStep {
                 case .camera:
-                    CustomCameraView(
+                    MultiPhotoCameraView(
                         capturedImages: $capturedImages,
-                        mode: .multiPhoto(maxPhotos: 5),
                         onPermissionCheck: { granted in
                             if !granted {
                                 showingPermissionDenied = true
@@ -67,6 +66,9 @@ struct ItemCreationFlowView: View {
                                     }
                                 }
                             }
+                        },
+                        onCancel: {
+                            dismiss()
                         }
                     )
                     .transition(.asymmetric(
@@ -115,11 +117,15 @@ struct ItemCreationFlowView: View {
                         InventoryDetailView(
                             inventoryItemToDisplay: item,
                             navigationPath: .constant(NavigationPath()),
-                            isEditing: true
-                        ) {
-                            onComplete?()
-                            dismiss()
-                        }
+                            isEditing: true,
+                            onSave: {
+                                onComplete?()
+                                dismiss()
+                            },
+                            onCancel: {
+                                dismiss()
+                            }
+                        )
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing),
                             removal: .opacity
