@@ -14,6 +14,10 @@ class SettingsManager: ObservableObject {
         static let isHighDetail = "isHighDetail"
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
+        static let syncServiceType = "syncServiceType"
+        static let homeBoxServerURL = "homeBoxServerURL"
+        static let homeBoxUsername = "homeBoxUsername"
+        static let syncEnabled = "syncEnabled"
     }
     
     // Published properties that will update the UI
@@ -61,6 +65,33 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    // MARK: - Sync Properties
+    
+    @Published var syncServiceType: SyncServiceType {
+        didSet {
+            UserDefaults.standard.set(syncServiceType.rawValue, forKey: Keys.syncServiceType)
+            updateSyncManager()
+        }
+    }
+    
+    @Published var homeBoxServerURL: String {
+        didSet {
+            UserDefaults.standard.set(homeBoxServerURL, forKey: Keys.homeBoxServerURL)
+        }
+    }
+    
+    @Published var homeBoxUsername: String {
+        didSet {
+            UserDefaults.standard.set(homeBoxUsername, forKey: Keys.homeBoxUsername)
+        }
+    }
+    
+    @Published var syncEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(syncEnabled, forKey: Keys.syncEnabled)
+        }
+    }
+    
     // Pro feature constants
     public struct AppConstants: Sendable {
         static let maxFreeAiScans = 50
@@ -75,6 +106,10 @@ class SettingsManager: ObservableObject {
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
     private let hasLaunchedDefault = false
+    private let defaultSyncServiceType = SyncServiceType.icloud
+    private let defaultHomeBoxServerURL = ""
+    private let defaultHomeBoxUsername = ""
+    private let defaultSyncEnabled = true
     
     init() {
         print("📱 SettingsManager - Starting initialization")
@@ -88,6 +123,10 @@ class SettingsManager: ObservableObject {
         self.isHighDetail = isHighDetailDefault
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
+        self.syncServiceType = defaultSyncServiceType
+        self.homeBoxServerURL = defaultHomeBoxServerURL
+        self.homeBoxUsername = defaultHomeBoxUsername
+        self.syncEnabled = defaultSyncEnabled
         
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
         
@@ -122,6 +161,13 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
+        
+        // Load sync properties from UserDefaults
+        let syncServiceString = UserDefaults.standard.string(forKey: Keys.syncServiceType) ?? defaultSyncServiceType.rawValue
+        self.syncServiceType = SyncServiceType(rawValue: syncServiceString) ?? defaultSyncServiceType
+        self.homeBoxServerURL = UserDefaults.standard.string(forKey: Keys.homeBoxServerURL) ?? defaultHomeBoxServerURL
+        self.homeBoxUsername = UserDefaults.standard.string(forKey: Keys.homeBoxUsername) ?? defaultHomeBoxUsername
+        self.syncEnabled = UserDefaults.standard.object(forKey: Keys.syncEnabled) as? Bool ?? defaultSyncEnabled
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
@@ -201,6 +247,20 @@ class SettingsManager: ObservableObject {
         // Customer info will be updated via notification
     }
 
+    // MARK: - Sync Management
+    
+    /// Update the sync manager when sync service type changes
+    private func updateSyncManager() {
+        Task {
+            do {
+                try await SyncManager.shared.configureSyncService(syncServiceType)
+                print("📱 SettingsManager - Successfully configured sync service: \(syncServiceType)")
+            } catch {
+                print("⚠️ SettingsManager - Failed to configure sync service: \(error)")
+            }
+        }
+    }
+    
     // MARK: - Reset Settings
     
     func resetToDefaults() {
@@ -211,6 +271,12 @@ class SettingsManager: ObservableObject {
         isHighDetail = isHighDetailDefault
         hasLaunched = hasLaunchedDefault
         isPro = false
+        
+        // Reset sync properties
+        syncServiceType = defaultSyncServiceType
+        homeBoxServerURL = defaultHomeBoxServerURL
+        homeBoxUsername = defaultHomeBoxUsername
+        syncEnabled = defaultSyncEnabled
         
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
