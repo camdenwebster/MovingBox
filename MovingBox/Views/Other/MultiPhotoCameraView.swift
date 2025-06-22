@@ -45,11 +45,14 @@ struct MultiPhotoCameraView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Full-screen camera preview (extends to edges, ignoring safe areas)
+                // Black background
+                Color.black.ignoresSafeArea(.all)
+                
+                // Camera preview with 3:4 aspect ratio
                 FullScreenCameraPreviewView(
                     session: model.session,
                     onTapToFocus: { point in
-                        // For full-screen tap-to-focus, convert point directly
+                        // For aspect-fit tap-to-focus, convert point directly
                         let relativeX = point.x / geometry.size.width
                         let relativeY = point.y / geometry.size.height
                         let clampedX = max(0, min(1, relativeX))
@@ -64,7 +67,8 @@ struct MultiPhotoCameraView: View {
                         }
                     }
                 )
-                .ignoresSafeArea(.all)
+                .aspectRatio(3/4, contentMode: .fit)
+                .clipped()
                 .onAppear {
                     Task {
                         await model.checkPermissions(completion: onPermissionCheck)
