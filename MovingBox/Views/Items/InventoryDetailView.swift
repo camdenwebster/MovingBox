@@ -751,17 +751,13 @@ struct InventoryDetailView: View {
         )
         .onChange(of: capturedSingleImage) { _, newImage in
             if let image = newImage {
-                print("📷 onChange(capturedSingleImage): New image captured")
                 Task {
                     await handleNewPhotos([image])
                     capturedSingleImage = nil
                 }
-            } else {
-                print("📷 onChange(capturedSingleImage): Image cleared or nil")
             }
         }
         .onChange(of: selectedPhotosPickerItems) { _, newItems in
-            print("📱 onChange(selectedPhotosPickerItems): \(newItems.count) items selected")
             Task {
                 await processSelectedPhotos(newItems)
             }
@@ -851,68 +847,49 @@ struct InventoryDetailView: View {
     }
     
     private func handleNewPhotos(_ images: [UIImage]) async {
-        guard !images.isEmpty else { 
-            print("❌ handleNewPhotos: No images provided")
-            return 
-        }
-        
-        print("📷 handleNewPhotos: Starting with \(images.count) images")
-        print("📷 handleNewPhotos: Current state - imageURL: \(inventoryItemToDisplay.imageURL?.absoluteString ?? "nil"), assetId: '\(inventoryItemToDisplay.assetId)', secondaryURLs: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
+        guard !images.isEmpty else { return }
         
         do {
             // Ensure we have a consistent itemId for all operations
             let itemId = inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId
-            print("📷 handleNewPhotos: Using itemId: \(itemId)")
             
             if inventoryItemToDisplay.imageURL == nil {
-                print("📷 handleNewPhotos: No primary image yet, saving first image as primary")
                 // No primary image yet, save the first image as primary
                 let primaryImageURL = try await OptimizedImageManager.shared.saveImage(images.first!, id: itemId)
-                print("📷 handleNewPhotos: Saved primary image to: \(primaryImageURL.absoluteString)")
                 
                 await MainActor.run {
                     inventoryItemToDisplay.imageURL = primaryImageURL
                     inventoryItemToDisplay.assetId = itemId
-                    print("📷 handleNewPhotos: Updated item - imageURL: \(primaryImageURL.absoluteString), assetId: \(itemId)")
                 }
                 
                 // Save remaining images as secondary photos
                 if images.count > 1 {
-                    print("📷 handleNewPhotos: Saving \(images.count - 1) remaining images as secondary")
                     let secondaryImages = Array(images.dropFirst())
                     let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: itemId)
-                    print("📷 handleNewPhotos: Saved secondary images: \(secondaryURLs)")
                     
                     await MainActor.run {
                         inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
-                        print("📷 handleNewPhotos: Updated secondaryPhotoURLs count: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
                     }
                 }
             } else {
-                print("📷 handleNewPhotos: Primary image exists, adding all \(images.count) images as secondary")
                 // Primary image exists, add all new images as secondary photos
                 let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(images, itemId: itemId)
-                print("📷 handleNewPhotos: Saved secondary images: \(secondaryURLs)")
                 
                 await MainActor.run {
                     inventoryItemToDisplay.assetId = itemId
                     inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
-                    print("📷 handleNewPhotos: Updated secondaryPhotoURLs count: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
                 }
             }
             
             await MainActor.run {
                 try? modelContext.save()
-                print("📷 handleNewPhotos: Saved to model context")
                 TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
             }
             
-            print("📷 handleNewPhotos: About to reload images...")
             // Reload images after adding new photos
             await loadAllImages()
-            print("📷 handleNewPhotos: Completed")
         } catch {
-            print("❌ handleNewPhotos: Error saving new photos: \(error)")
+            print("Error saving new photos: \(error)")
         }
     }
     
@@ -955,9 +932,6 @@ struct InventoryDetailView: View {
     private func loadAllImages() async {
         // Use the view's modelContext instead of the item's modelContext
         // The item's modelContext can become nil after saving
-        print("🔄 loadAllImages: Using view's modelContext")
-        
-        print("🔄 loadAllImages: Starting - imageURL: \(inventoryItemToDisplay.imageURL?.absoluteString ?? "nil"), secondaryURLs: \(inventoryItemToDisplay.secondaryPhotoURLs.count)")
         
         await MainActor.run {
             isLoading = true
@@ -972,34 +946,25 @@ struct InventoryDetailView: View {
         
         // Load primary image
         if let imageURL = inventoryItemToDisplay.imageURL {
-            print("📸 loadAllImages: Loading primary image from \(imageURL.absoluteString)")
             do {
                 let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
                 images.append(image)
-                print("✅ loadAllImages: Successfully loaded primary image")
             } catch {
-                print("❌ loadAllImages: Failed to load primary image: \(error)")
+                print("Failed to load primary image: \(error)")
             }
-        } else {
-            print("📸 loadAllImages: No primary image URL")
         }
         
         // Load secondary images
         if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
-            print("📸 loadAllImages: Loading \(inventoryItemToDisplay.secondaryPhotoURLs.count) secondary images")
             do {
                 let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: inventoryItemToDisplay.secondaryPhotoURLs)
                 images.append(contentsOf: secondaryImages)
-                print("✅ loadAllImages: Successfully loaded \(secondaryImages.count) secondary images")
             } catch {
-                print("❌ loadAllImages: Failed to load secondary images: \(error)")
+                print("Failed to load secondary images: \(error)")
             }
-        } else {
-            print("📸 loadAllImages: No secondary images")
         }
         
         await MainActor.run {
-            print("🔄 loadAllImages: Setting loadedImages to \(images.count) images")
             loadedImages = images
             if selectedImageIndex >= images.count {
                 selectedImageIndex = max(0, images.count - 1)
@@ -1016,12 +981,7 @@ struct InventoryDetailView: View {
     }
     
     private func processSelectedPhotos(_ items: [PhotosPickerItem]) async {
-        guard !items.isEmpty else { 
-            print("❌ processSelectedPhotos: No items provided")
-            return 
-        }
-        
-        print("📱 processSelectedPhotos: Starting with \(items.count) PhotosPicker items")
+        guard !items.isEmpty else { return }
         
         var images: [UIImage] = []
         
@@ -1029,24 +989,16 @@ struct InventoryDetailView: View {
             if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
                 images.append(image)
-                print("✅ processSelectedPhotos: Successfully loaded image from PhotosPicker")
-            } else {
-                print("❌ processSelectedPhotos: Failed to load image from PhotosPicker item")
             }
         }
         
-        print("📱 processSelectedPhotos: Loaded \(images.count) images from PhotosPicker")
-        
         if !images.isEmpty {
             await handleNewPhotos(images)
-        } else {
-            print("❌ processSelectedPhotos: No images to handle")
         }
         
         // Clear selected items after processing
         await MainActor.run {
             selectedPhotosPickerItems = []
-            print("📱 processSelectedPhotos: Cleared selectedPhotosPickerItems")
         }
     }
     

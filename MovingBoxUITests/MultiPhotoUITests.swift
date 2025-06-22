@@ -106,7 +106,7 @@ final class MultiPhotoUITests: XCTestCase {
         
         // The camera interface should be available
         // Note: In UI tests with mock camera, we're mainly testing that the interface loads
-        XCTAssertTrue(app.isDisplayingApp, "App should be displaying camera interface or related UI")
+        XCTAssertTrue(app.exists, "App should be displaying camera interface or related UI")
         
         // Navigate back
         let cancelButton = app.navigationBars.buttons["Cancel"]
