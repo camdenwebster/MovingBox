@@ -10,11 +10,21 @@ import SwiftData
 import SwiftUI
 
 @Model
-class InventoryLocation: PhotoManageable {
+class InventoryLocation: PhotoManageable, Syncable {
+    var id: UUID = UUID()
     var name: String = ""
     var desc: String = ""
     var imageURL: URL?
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
+    
+    // MARK: - Sync Properties
+    var remoteId: String?
+    var lastModified: Date = Date()
+    var lastSynced: Date?
+    var needsSync: Bool = false
+    var isDeleted: Bool = false
+    var syncServiceType: SyncServiceType?
+    var version: Int = 1
     
     // ADD: Legacy Support
     @Attribute(.externalStorage) var data: Data?
@@ -43,9 +53,20 @@ class InventoryLocation: PhotoManageable {
         self.name = name
         self.desc = desc
         
+        // Mark new locations for sync
+        self.needsSync = true
+        self.lastModified = Date()
+        
         // Attempt migration on init
         Task {
             try? await migrateImageIfNeeded()
         }
+    }
+    
+    /// Mark the location as requiring sync due to local changes
+    func markForSync() {
+        self.needsSync = true
+        self.lastModified = Date()
+        self.version += 1
     }
 }

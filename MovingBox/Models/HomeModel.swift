@@ -10,7 +10,8 @@ import SwiftData
 import SwiftUI
 
 @Model
-class Home: PhotoManageable {
+class Home: PhotoManageable, Syncable {
+    var id: UUID = UUID()
     var name: String = ""
     var address1: String = ""
     var address2: String = ""
@@ -22,6 +23,15 @@ class Home: PhotoManageable {
     var purchasePrice: Decimal = 0.00
     var imageURL: URL?
     var insurancePolicy: InsurancePolicy?
+    
+    // MARK: - Sync Properties
+    var remoteId: String?
+    var lastModified: Date = Date()
+    var lastSynced: Date?
+    var needsSync: Bool = false
+    var isDeleted: Bool = false
+    var syncServiceType: SyncServiceType?
+    var version: Int = 1
     
     // MARK: - Legacy Support
     @Attribute(.externalStorage) var data: Data?
@@ -81,9 +91,20 @@ class Home: PhotoManageable {
         self.purchasePrice = purchasePrice
         self.insurancePolicy = insurancePolicy
         
+        // Mark new homes for sync
+        self.needsSync = true
+        self.lastModified = Date()
+        
         // Attempt migration on init
         Task {
             try? await migrateImageIfNeeded()
         }
+    }
+    
+    /// Mark the home as requiring sync due to local changes
+    func markForSync() {
+        self.needsSync = true
+        self.lastModified = Date()
+        self.version += 1
     }
 }

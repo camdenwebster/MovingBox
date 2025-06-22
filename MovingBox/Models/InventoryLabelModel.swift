@@ -52,12 +52,22 @@ final class UIColorValueTransformer: ValueTransformer {
 }
 
 @Model
-class InventoryLabel {
+class InventoryLabel: Syncable {
+    var id: UUID = UUID()
     var name: String = ""
     var desc: String = ""
     @Attribute(.transformable(by: UIColorValueTransformer.self)) var color: UIColor?
     var emoji: String = "🏷️" // Default emoji
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
+    
+    // MARK: - Sync Properties
+    var remoteId: String?
+    var lastModified: Date = Date()
+    var lastSynced: Date?
+    var needsSync: Bool = false
+    var isDeleted: Bool = false
+    var syncServiceType: SyncServiceType?
+    var version: Int = 1
     
     init(name: String = "", desc: String = "", color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil, emoji: String = "🏷️") {
         self.name = name
@@ -65,6 +75,17 @@ class InventoryLabel {
         self.color = color
         self.inventoryItems = inventoryItems
         self.emoji = emoji
+        
+        // Mark new labels for sync
+        self.needsSync = true
+        self.lastModified = Date()
+    }
+    
+    /// Mark the label as requiring sync due to local changes
+    func markForSync() {
+        self.needsSync = true
+        self.lastModified = Date()
+        self.version += 1
     }
 
 }

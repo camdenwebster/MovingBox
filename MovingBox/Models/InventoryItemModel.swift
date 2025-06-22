@@ -10,7 +10,8 @@ import SwiftData
 import SwiftUI
 
 @Model
-final class InventoryItem: ObservableObject, PhotoManageable {
+final class InventoryItem: ObservableObject, PhotoManageable, Syncable {
+    var id: UUID = UUID()
     var title: String = ""
     var quantityString: String = "1"
     var quantityInt: Int = 1
@@ -27,6 +28,15 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var imageURL: URL?
     var showInvalidQuantityAlert: Bool = false
     var hasUsedAI: Bool = false
+    
+    // MARK: - Sync Properties
+    var remoteId: String?
+    var lastModified: Date = Date()
+    var lastSynced: Date?
+    var needsSync: Bool = false
+    var isDeleted: Bool = false
+    var syncServiceType: SyncServiceType?
+    var version: Int = 1
     
     @Attribute(.externalStorage) var data: Data?
     
@@ -47,6 +57,9 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     }
     
     init() {
+        self.needsSync = true
+        self.lastModified = Date()
+        
         Task {
             try? await migrateImageIfNeeded()
         }
@@ -69,6 +82,10 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.showInvalidQuantityAlert = showInvalidQuantityAlert
         self.hasUsedAI = hasUsedAI
         
+        // Mark new items for sync
+        self.needsSync = true
+        self.lastModified = Date()
+        
         Task {
             try? await migrateImageIfNeeded()
         }
@@ -84,6 +101,14 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         } else {
             self.quantityInt = Int(quantityString) ?? 1
             showInvalidQuantityAlert = false
+            markForSync()
         }
+    }
+    
+    /// Mark the inventory item as requiring sync due to local changes
+    func markForSync() {
+        self.needsSync = true
+        self.lastModified = Date()
+        self.version += 1
     }
 }
