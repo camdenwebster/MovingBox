@@ -39,6 +39,7 @@ struct EditHomeView: View {
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
+    @State private var cachedImageURL: URL?
     
     @State private var tempHome = Home()
     @State private var tempPolicy = InsurancePolicy()
@@ -78,7 +79,12 @@ struct EditHomeView: View {
                                         model: Binding(
                                             get: { activeHome ?? tempHome },
                                             set: { newValue in
-                                                tempHome = newValue
+                                                if let existingHome = activeHome {
+                                                    existingHome.imageURL = newValue.imageURL
+                                                    try? modelContext.save()
+                                                } else {
+                                                    tempHome = newValue
+                                                }
                                             }
                                         ),
                                         loadedImage: $loadedImage,
@@ -95,7 +101,12 @@ struct EditHomeView: View {
                             model: Binding(
                                 get: { activeHome ?? tempHome },
                                 set: { newValue in
-                                    tempHome = newValue
+                                    if let existingHome = activeHome {
+                                        existingHome.imageURL = newValue.imageURL
+                                        try? modelContext.save()
+                                    } else {
+                                        tempHome = newValue
+                                    }
                                 }
                             ),
                             loadedImage: $loadedImage,
@@ -226,15 +237,41 @@ struct EditHomeView: View {
             }
         }
         .task(id: activeHome?.imageURL) {
-            guard let home = activeHome else { return }
-            isLoading = true
-            defer { isLoading = false }
+            guard let home = activeHome, 
+                  let imageURL = home.imageURL, 
+                  !isLoading else { return }
+            
+            // If the imageURL changed, clear the cached image
+            if cachedImageURL != imageURL {
+                await MainActor.run {
+                    loadedImage = nil
+                    cachedImageURL = imageURL
+                }
+            }
+            
+            // Only load if we don't have a cached image for this URL
+            guard loadedImage == nil else { return }
+            
+            await MainActor.run {
+                isLoading = true
+            }
+            
+            defer {
+                Task { @MainActor in
+                    isLoading = false
+                }
+            }
             
             do {
-                loadedImage = try await home.photo
+                let photo = try await home.photo
+                await MainActor.run {
+                    loadedImage = photo
+                }
             } catch {
-                loadingError = error
-                print("Failed to load image: \(error)")
+                await MainActor.run {
+                    loadingError = error
+                    print("Failed to load image: \(error)")
+                }
             }
         }
         .onAppear {
