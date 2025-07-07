@@ -9,6 +9,11 @@ struct MultiPhotoCameraView: View {
     let onComplete: ([UIImage]) -> Void
     let onCancel: (() -> Void)?
     
+    // Check if we're in UI testing mode
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
+    }
+    
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var showingPhotoPicker = false
     @State private var animatingImage: UIImage?
@@ -48,37 +53,63 @@ struct MultiPhotoCameraView: View {
                 // Black background
                 Color.black.ignoresSafeArea(.all)
                 
-                // Camera preview with 3:4 aspect ratio
-                FullScreenCameraPreviewView(
-                    session: model.session,
-                    onTapToFocus: { point in
-                        // For aspect-fit tap-to-focus, convert point directly
-                        let relativeX = point.x / geometry.size.width
-                        let relativeY = point.y / geometry.size.height
-                        let clampedX = max(0, min(1, relativeX))
-                        let clampedY = max(0, min(1, relativeY))
-                        model.setFocusPoint(CGPoint(x: clampedX, y: clampedY))
-                        focusPoint = point
-                        showingFocusIndicator = true
-                        
-                        // Hide focus indicator after animation
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            showingFocusIndicator = false
+                // Camera preview with 3:4 aspect ratio or static image for UI testing
+                Group {
+                    if isUITesting {
+                        // Use static tablet image for UI testing
+                        Image("tablet", bundle: .main)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                            .onTapGesture { location in
+                                // Simulate focus tap for UI testing
+                                focusPoint = location
+                                showingFocusIndicator = true
+                                
+                                // Hide focus indicator after animation
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                    showingFocusIndicator = false
+                                }
+                            }
+                            .onAppear {
+                                // Simulate successful permissions for UI testing
+                                onPermissionCheck(true)
+                            }
+                    } else {
+                        // Real camera preview
+                        FullScreenCameraPreviewView(
+                            session: model.session,
+                            onTapToFocus: { point in
+                                // For aspect-fit tap-to-focus, convert point directly
+                                let relativeX = point.x / geometry.size.width
+                                let relativeY = point.y / geometry.size.height
+                                let clampedX = max(0, min(1, relativeX))
+                                let clampedY = max(0, min(1, relativeY))
+                                model.setFocusPoint(CGPoint(x: clampedX, y: clampedY))
+                                focusPoint = point
+                                showingFocusIndicator = true
+                                
+                                // Hide focus indicator after animation
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                    showingFocusIndicator = false
+                                }
+                            }
+                        )
+                        .onAppear {
+                            Task {
+                                await model.checkPermissions(completion: onPermissionCheck)
+                            }
+                        }
+                        .onDisappear {
+                            Task {
+                                await model.stopSession()
+                            }
                         }
                     }
-                )
+                }
                 .aspectRatio(3/4, contentMode: .fit)
                 .clipped()
-                .onAppear {
-                    Task {
-                        await model.checkPermissions(completion: onPermissionCheck)
-                    }
-                }
-                .onDisappear {
-                    Task {
-                        await model.stopSession()
-                    }
-                }
                 
                 // Square crop overlay in center (visual guide for what will be captured)
                 let availableHeight = geometry.size.height - 100 - 200 // Account for top and bottom UI areas
@@ -106,6 +137,7 @@ struct MultiPhotoCameraView: View {
                             .foregroundColor(.white)
                             .frame(width: 32, height: 32)
                     }
+                    .accessibilityIdentifier("cameraCloseButton")
                     
                     Spacer()
                     
@@ -146,6 +178,7 @@ struct MultiPhotoCameraView: View {
                     .foregroundColor(.customPrimary)
                     .disabled(model.capturedImages.isEmpty)
                     .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
+                    .accessibilityIdentifier("cameraDoneButton")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 50)
@@ -200,13 +233,18 @@ struct MultiPhotoCameraView: View {
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white)
                             .frame(width: 60)
+                            .accessibilityIdentifier("cameraPhotoCount")
                         
                         // Shutter button
                         Button {
                             if model.capturedImages.count >= 5 {
                                 model.showPhotoLimitAlert = true
                             } else {
-                                model.capturePhoto()
+                                if isUITesting {
+                                    model.captureTestPhoto()
+                                } else {
+                                    model.capturePhoto()
+                                }
                             }
                         } label: {
                             ZStack {
@@ -218,6 +256,7 @@ struct MultiPhotoCameraView: View {
                                     .frame(width: 76, height: 76)
                             }
                         }
+                        .accessibilityIdentifier("cameraShutterButton")
                         
                         // Photo picker button
                         Button {
@@ -546,6 +585,25 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         let settings = AVCapturePhotoSettings()
         settings.flashMode = flashMode
         output.capturePhoto(with: settings, delegate: self)
+    }
+    
+    func captureTestPhoto() {
+        // For UI testing, use the tablet image from TestAssets
+        guard let testImage = UIImage(named: "tablet") else {
+            print("❌ Could not load tablet test image")
+            return
+        }
+        
+        Task { @MainActor in
+            // Crop to square aspect ratio
+            let croppedImage = await cropToSquare(image: testImage)
+            
+            // Optimize image immediately for memory management
+            let optimizedImage = await OptimizedImageManager.shared.optimizeImage(croppedImage)
+            
+            self.capturedImages.append(optimizedImage)
+            print("📸 MultiPhotoCameraView - Captured test photo \(self.capturedImages.count)/5")
+        }
     }
     
     func removeImage(at index: Int) {
