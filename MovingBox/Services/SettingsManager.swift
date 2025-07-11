@@ -12,6 +12,7 @@ class SettingsManager: ObservableObject {
         static let maxTokens = "maxTokens"
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
+        static let isHighQualityAnalysis = "isHighQualityAnalysis"
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
     }
@@ -47,6 +48,12 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    @Published var isHighQualityAnalysis: Bool {
+        didSet {
+            UserDefaults.standard.set(isHighQualityAnalysis, forKey: Keys.isHighQualityAnalysis)
+        }
+    }
+    
     @Published var hasLaunched: Bool {
         didSet {
             UserDefaults.standard.set(hasLaunched, forKey: Keys.hasLaunched)
@@ -61,9 +68,9 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    // Pro feature constants
+    // Pro feature constants (removed maxFreeAiScans as per requirements)
     public struct AppConstants: Sendable {
-        static let maxFreeAiScans = 50
+        // No longer limiting AI scans for non-pro users
     }
     
     private let revenueCatManager = RevenueCatManager.shared
@@ -74,6 +81,7 @@ class SettingsManager: ObservableObject {
     private let defaultMaxTokens = 300
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
+    private let isHighQualityAnalysisDefault = true // Default to true for Pro users
     private let hasLaunchedDefault = false
     
     init() {
@@ -86,6 +94,7 @@ class SettingsManager: ObservableObject {
         self.maxTokens = defaultMaxTokens
         self.apiKey = defaultApiKey
         self.isHighDetail = isHighDetailDefault
+        self.isHighQualityAnalysis = isHighQualityAnalysisDefault
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         
@@ -121,6 +130,8 @@ class SettingsManager: ObservableObject {
         self.maxTokens = UserDefaults.standard.integer(forKey: Keys.maxTokens)
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
+        self.isHighQualityAnalysis = UserDefaults.standard.contains(key: Keys.isHighQualityAnalysis) ? 
+            UserDefaults.standard.bool(forKey: Keys.isHighQualityAnalysis) : isHighQualityAnalysisDefault
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
@@ -174,11 +185,10 @@ class SettingsManager: ObservableObject {
         !isPro
     }
     
+    // Removed AI scan limit - no longer showing paywall for AI scans based on count
     func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-        print("📱 SettingsManager - Checking hasReachedAiScanLimit")
-        print("📱 SettingsManager - Current isPro: \(isPro)")
-        print("📱 SettingsManager - Current count of items which have used AI scan: \(currentCount)")
-        return !isPro && currentCount >= AppConstants.maxFreeAiScans
+        // Always return false since we're removing the 50-analysis limit for non-pro users
+        return false
     }
     
     // MARK: - Purchase Flow
@@ -209,6 +219,7 @@ class SettingsManager: ObservableObject {
         maxTokens = defaultMaxTokens
         apiKey = defaultApiKey
         isHighDetail = isHighDetailDefault
+        isHighQualityAnalysis = isHighQualityAnalysisDefault
         hasLaunched = hasLaunchedDefault
         isPro = false
         

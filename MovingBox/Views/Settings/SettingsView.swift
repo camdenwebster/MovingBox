@@ -33,10 +33,7 @@ struct SettingsView: View {
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
     
-    // ADD: State property for tracking analyzed items count
-    @State private var analyzedItemsCount: Int = 0
-    
-    // ADD: Query for all inventory items
+    // Query for all inventory items (keeping for potential future use)
     @Query private var allItems: [InventoryItem]
     
     private let externalLinks: [String: ExternalLink] = [
@@ -85,31 +82,8 @@ struct SettingsView: View {
 
     var body: some View {
         List {
+            // Remove the 50-analysis limit section for non-pro users as per requirements
             if !revenueCatManager.isProSubscriptionActive {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("AI Analysis Usage")
-                                .font(.headline)
-                            Spacer()
-                            Text("\(analyzedItemsCount)/50")
-                                .foregroundColor(.secondary)
-                                .font(.subheadline)
-                        }
-                        
-                        ProgressView(value: Double(analyzedItemsCount), total: 50)
-                            .tint(progressTintColor)
-                            .background(Color(.systemGray5))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                            .padding(.bottom, 5)
-                        
-                        Text("\(50 - analyzedItemsCount) free image analyses remaining")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 10)
-                }
-                
                 Section {
                     Button(action: {
                         showingPaywall = true
@@ -171,6 +145,28 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+            
+            // AI Analysis Settings Section
+            Section(
+                header: Text("AI Analysis"),
+                footer: Text("High quality analysis uses advanced image processing (1248x1248 resolution) and may take longer but provides more detailed results. This feature is available for Pro users only.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            ) {
+                HStack {
+                    Label {
+                        Text("High Quality Analysis")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "brain.head.profile")
+                            .foregroundStyle(Color.customPrimary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $settingsManager.isHighQualityAnalysis)
+                        .disabled(!revenueCatManager.isProSubscriptionActive)
+                }
+                .opacity(revenueCatManager.isProSubscriptionActive ? 1.0 : 0.6)
             }
             
             Section("Sync & Backup") {
@@ -255,12 +251,6 @@ struct SettingsView: View {
                 onDismiss: nil
             )
         }
-        .onAppear {
-            updateAnalyzedItemsCount()
-        }
-        .onChange(of: allItems) { _, _ in
-            updateAnalyzedItemsCount()
-        }
         .navigationDestination(for: String.self) { value in
             switch value {
                 case "home": EditHomeView()
@@ -272,23 +262,6 @@ struct SettingsView: View {
         }
     }
     
-    private var progressTintColor: Color {
-        let percentage = Double(analyzedItemsCount) / 50.0
-        
-        if percentage < 0.5 {
-            return .green
-        } else if percentage < 0.8 {
-            return .orange
-        } else {
-            return .red
-        }
-    }
-    
-    // ADD: Function to count analyzed items from SwiftData
-    private func updateAnalyzedItemsCount() {
-        // Count items that have hasUsedAi = true
-        analyzedItemsCount = allItems.filter { $0.hasUsedAI == true }.count
-    }
     
     private struct FeatureRow: View {
         let icon: String
