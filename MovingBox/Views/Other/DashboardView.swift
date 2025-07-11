@@ -53,7 +53,7 @@ struct DashboardView: View {
     }
     
     private var totalReplacementCost: Decimal {
-        items.reduce(0, { $0 + $1.price })
+        items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
     }
 
     private let columns = [
