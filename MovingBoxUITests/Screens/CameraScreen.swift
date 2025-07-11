@@ -8,15 +8,23 @@ class CameraScreen {
     let captureButton: XCUIElement
     let switchCameraButton: XCUIElement
     let dismissButton: XCUIElement
+    let doneButton: XCUIElement
+    let flashButton: XCUIElement
+    let photoPickerButton: XCUIElement
+    let photoCountLabel: XCUIElement
     
     init(app: XCUIApplication, testCase: XCTestCase) {
         self.app = app
         self.testCase = testCase
         
-        // Initialize camera controls
-        self.captureButton = app.buttons["takePhotoButton"]
-        self.switchCameraButton = app.buttons["switchCamera"]
-        self.dismissButton = app.buttons["dismissCamera"]
+        // Initialize camera controls based on MultiPhotoCameraView structure
+        self.captureButton = app.buttons["cameraShutterButton"]
+        self.switchCameraButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'arrow.triangle.2.circlepath.camera'")).element
+        self.dismissButton = app.buttons["cameraCloseButton"]
+        self.doneButton = app.buttons["cameraDoneButton"]
+        self.flashButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'bolt'")).element
+        self.photoPickerButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'photo.on.rectangle'")).element
+        self.photoCountLabel = app.staticTexts["cameraPhotoCount"]
         
         // Set up interruption monitor for camera permissions
         addCameraPermissionsHandler()
@@ -39,9 +47,10 @@ class CameraScreen {
     
     func waitForCamera(timeout: TimeInterval = 5) -> Bool {
         app.tap()
-        let captureButtonExists = captureButton.waitForExistence(timeout: timeout)
+        // In UI testing mode, we should see the mock tablet image
+        let cameraReady = doneButton.waitForExistence(timeout: timeout) || captureButton.waitForExistence(timeout: timeout)
         
-        return captureButtonExists
+        return cameraReady
     }
     
     func takePhoto(timeout: TimeInterval = 5) {
@@ -50,14 +59,14 @@ class CameraScreen {
             return
         }
         print("📸 Taking photo")
-        captureButton.tap()
         
-        let expectation = testCase.expectation(
-            for: NSPredicate(format: "exists == false"),
-            evaluatedWith: captureButton,
-            handler: nil
-        )
-        _ = XCTWaiter.wait(for: [expectation], timeout: timeout)
+        if captureButton.waitForExistence(timeout: 2) {
+            captureButton.tap()
+        } else {
+            // Fallback to coordinate tap
+            let centerButton = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+            centerButton.tap()
+        }
     }
     
     func switchCamera(timeout: TimeInterval = 5) {
@@ -66,7 +75,34 @@ class CameraScreen {
             return
         }
         print("🔄 Switching camera")
-        switchCameraButton.tap()
+        if switchCameraButton.waitForExistence(timeout: 2) {
+            switchCameraButton.tap()
+        }
+    }
+    
+    func toggleFlash() {
+        if flashButton.waitForExistence(timeout: 2) {
+            flashButton.tap()
+        }
+    }
+    
+    func openPhotoLibrary() {
+        if photoPickerButton.waitForExistence(timeout: 2) {
+            photoPickerButton.tap()
+        }
+    }
+    
+    func getPhotoCount() -> String? {
+        if photoCountLabel.waitForExistence(timeout: 2) {
+            return photoCountLabel.label
+        }
+        return nil
+    }
+    
+    func finishCapture() {
+        if doneButton.waitForExistence(timeout: 2) {
+            doneButton.tap()
+        }
     }
     
     func dismiss() {

@@ -106,6 +106,7 @@ struct ItemAnalysisDetailView: View {
         item.desc = imageDetails.description
         item.make = imageDetails.make
         item.model = imageDetails.model
+        item.serial = imageDetails.serialNumber
         item.hasUsedAI = true
         
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)

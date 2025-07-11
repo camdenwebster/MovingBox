@@ -18,14 +18,14 @@ struct InventoryItemRow: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: 80, maxHeight: 60)
+                        .frame(maxWidth: 60, maxHeight: 60)
                         .clipped()
                         .cornerRadius(8)
                 } else {
                     Image(systemName: "photo")
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: 80, maxHeight: 60)
+                        .frame(maxWidth: 60, maxHeight: 60)
                         .clipped()
                         .cornerRadius(8)
                 }
@@ -39,14 +39,20 @@ struct InventoryItemRow: View {
             }
             VStack(alignment: .leading) {
                 Text(item.title)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 //                if item.make != "" {
 //                    Text("Make: \(item.make)")
+//                        .lineLimit(1)
+//                        .truncationMode(.tail)
 //                        .detailLabelStyle()
 //                } else {
 //                    EmptyView()
 //                }
 //                if item.model != "" {
 //                    Text("Model: \(item.model)")
+//                        .lineLimit(1)
+//                        .truncationMode(.tail)
 //                        .detailLabelStyle()
 //                } else {
 //                    EmptyView()

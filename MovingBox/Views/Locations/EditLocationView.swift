@@ -25,6 +25,7 @@ struct EditLocationView: View {
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
     @State private var loadingError: Error?
+    @State private var cachedImageURL: URL?
     @State private var showPhotoSourceAlert = false
 
     init(location: InventoryLocation? = nil,
@@ -148,15 +149,41 @@ struct EditLocationView: View {
             }
         }
         .task(id: location?.imageURL) {
-            guard let location = location else { return }
-            isLoading = true
-            defer { isLoading = false }
+            guard let location = location, 
+                  let imageURL = location.imageURL, 
+                  !isLoading else { return }
+            
+            // If the imageURL changed, clear the cached image
+            if cachedImageURL != imageURL {
+                await MainActor.run {
+                    loadedImage = nil
+                    cachedImageURL = imageURL
+                }
+            }
+            
+            // Only load if we don't have a cached image for this URL
+            guard loadedImage == nil else { return }
+            
+            await MainActor.run {
+                isLoading = true
+            }
+            
+            defer {
+                Task { @MainActor in
+                    isLoading = false
+                }
+            }
             
             do {
-                loadedImage = try await location.photo
+                let photo = try await location.photo
+                await MainActor.run {
+                    loadedImage = photo
+                }
             } catch {
-                loadingError = error
-                print("Failed to load image: \(error)")
+                await MainActor.run {
+                    loadingError = error
+                    print("Failed to load image: \(error)")
+                }
             }
         }
     }

@@ -52,6 +52,190 @@ import Foundation
         #expect(testItem.notes == "Test notes")
     }
     
+    @Test("Test secondary photos array initialization")
+    func testSecondaryPhotosInitialization() async throws {
+        let item = InventoryItem()
+        
+        // Should be initialized as empty array
+        #expect(item.secondaryPhotoURLs.isEmpty == true)
+        #expect(item.secondaryPhotoURLs.count == 0)
+    }
+    
+    @Test("Test secondary photos array with custom values")
+    func testSecondaryPhotosCustomValues() async throws {
+        let testURLs = ["url1", "url2", "url3"]
+        let item = InventoryItem(
+            title: "Test Item",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: nil,
+            label: nil,
+            price: 0,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false,
+            hasUsedAI: false,
+            secondaryPhotoURLs: testURLs
+        )
+        
+        #expect(item.secondaryPhotoURLs.count == 3)
+        #expect(item.secondaryPhotoURLs == testURLs)
+    }
+    
+    @Test("Test adding secondary photo URLs")
+    func testAddSecondaryPhotoURL() async throws {
+        let item = InventoryItem()
+        
+        // Add first URL
+        item.addSecondaryPhotoURL("url1")
+        #expect(item.secondaryPhotoURLs.count == 1)
+        #expect(item.secondaryPhotoURLs.contains("url1"))
+        
+        // Add second URL
+        item.addSecondaryPhotoURL("url2")
+        #expect(item.secondaryPhotoURLs.count == 2)
+        #expect(item.secondaryPhotoURLs.contains("url2"))
+        
+        // Try to add duplicate URL (should be ignored)
+        item.addSecondaryPhotoURL("url1")
+        #expect(item.secondaryPhotoURLs.count == 2)
+        
+        // Try to add empty URL (should be ignored)
+        item.addSecondaryPhotoURL("")
+        #expect(item.secondaryPhotoURLs.count == 2)
+    }
+    
+    @Test("Test removing secondary photo URLs")
+    func testRemoveSecondaryPhotoURL() async throws {
+        let item = InventoryItem()
+        
+        // Add some URLs
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        item.addSecondaryPhotoURL("url3")
+        #expect(item.secondaryPhotoURLs.count == 3)
+        
+        // Remove middle URL
+        item.removeSecondaryPhotoURL("url2")
+        #expect(item.secondaryPhotoURLs.count == 2)
+        #expect(!item.secondaryPhotoURLs.contains("url2"))
+        #expect(item.secondaryPhotoURLs.contains("url1"))
+        #expect(item.secondaryPhotoURLs.contains("url3"))
+        
+        // Try to remove non-existent URL (should be ignored)
+        item.removeSecondaryPhotoURL("nonexistent")
+        #expect(item.secondaryPhotoURLs.count == 2)
+    }
+    
+    @Test("Test removing secondary photo by index")
+    func testRemoveSecondaryPhotoAtIndex() async throws {
+        let item = InventoryItem()
+        
+        // Add some URLs
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        item.addSecondaryPhotoURL("url3")
+        #expect(item.secondaryPhotoURLs.count == 3)
+        
+        // Remove at index 1 (url2)
+        item.removeSecondaryPhotoAt(index: 1)
+        #expect(item.secondaryPhotoURLs.count == 2)
+        #expect(item.secondaryPhotoURLs[0] == "url1")
+        #expect(item.secondaryPhotoURLs[1] == "url3")
+        
+        // Try to remove at invalid index (should be ignored)
+        item.removeSecondaryPhotoAt(index: 10)
+        #expect(item.secondaryPhotoURLs.count == 2)
+        
+        item.removeSecondaryPhotoAt(index: -1)
+        #expect(item.secondaryPhotoURLs.count == 2)
+    }
+    
+    @Test("Test photo count and validation methods")
+    func testPhotoCountMethods() async throws {
+        let item = InventoryItem()
+        
+        // Initially no photos
+        #expect(item.getTotalPhotoCount() == 0)
+        #expect(item.getSecondaryPhotoCount() == 0)
+        #expect(item.hasSecondaryPhotos() == false)
+        #expect(item.canAddMorePhotos() == true)
+        #expect(item.getRemainingPhotoSlots() == 5)
+        
+        // Add primary photo
+        item.imageURL = URL(string: "primary.jpg")
+        #expect(item.getTotalPhotoCount() == 1)
+        #expect(item.getSecondaryPhotoCount() == 0)
+        #expect(item.canAddMorePhotos() == true)
+        #expect(item.getRemainingPhotoSlots() == 4)
+        
+        // Add secondary photos
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        #expect(item.getTotalPhotoCount() == 3)
+        #expect(item.getSecondaryPhotoCount() == 2)
+        #expect(item.hasSecondaryPhotos() == true)
+        #expect(item.canAddMorePhotos() == true)
+        #expect(item.getRemainingPhotoSlots() == 2)
+        
+        // Add more to reach limit
+        item.addSecondaryPhotoURL("url3")
+        item.addSecondaryPhotoURL("url4")
+        #expect(item.getTotalPhotoCount() == 5)
+        #expect(item.getSecondaryPhotoCount() == 4)
+        #expect(item.canAddMorePhotos() == false)
+        #expect(item.getRemainingPhotoSlots() == 0)
+        
+        // Try to add beyond limit (should be ignored)
+        item.addSecondaryPhotoURL("url5")
+        #expect(item.getSecondaryPhotoCount() == 4) // Should remain 4
+    }
+    
+    @Test("Test getting all photo URLs")
+    func testGetAllPhotoURLs() async throws {
+        let item = InventoryItem()
+        
+        // No photos
+        #expect(item.getAllPhotoURLs().isEmpty)
+        
+        // Add primary photo only
+        item.imageURL = URL(string: "primary.jpg")
+        let urlsWithPrimary = item.getAllPhotoURLs()
+        #expect(urlsWithPrimary.count == 1)
+        #expect(urlsWithPrimary[0] == "primary.jpg")
+        
+        // Add secondary photos
+        item.addSecondaryPhotoURL("secondary1.jpg")
+        item.addSecondaryPhotoURL("secondary2.jpg")
+        let allUrls = item.getAllPhotoURLs()
+        #expect(allUrls.count == 3)
+        #expect(allUrls[0] == "primary.jpg") // Primary should be first
+        #expect(allUrls.contains("secondary1.jpg"))
+        #expect(allUrls.contains("secondary2.jpg"))
+    }
+    
+    @Test("Test clearing all secondary photos")
+    func testClearAllSecondaryPhotos() async throws {
+        let item = InventoryItem()
+        
+        // Add some secondary photos
+        item.addSecondaryPhotoURL("url1")
+        item.addSecondaryPhotoURL("url2")
+        item.addSecondaryPhotoURL("url3")
+        #expect(item.secondaryPhotoURLs.count == 3)
+        
+        // Clear all
+        item.clearAllSecondaryPhotos()
+        #expect(item.secondaryPhotoURLs.isEmpty)
+        #expect(item.getSecondaryPhotoCount() == 0)
+        #expect(item.hasSecondaryPhotos() == false)
+    }
+    
     @Test("Test quantity validation with invalid input")
     func testInvalidQuantityValidation() async throws {
         let item = InventoryItem()
@@ -113,5 +297,104 @@ import Foundation
         item.validateQuantityInput()
         #expect(item.quantityInt == 5)
         #expect(item.showInvalidQuantityAlert == false)
+    }
+    
+    @Test("Test dashboard total value calculation with multiple items")
+    func testDashboardTotalValueCalculation() async throws {
+        // Create test items with different quantities and prices
+        let item1 = InventoryItem()
+        item1.price = Decimal(string: "10.00")!
+        item1.quantityInt = 2
+        
+        let item2 = InventoryItem()
+        item2.price = Decimal(string: "25.50")!
+        item2.quantityInt = 3
+        
+        let item3 = InventoryItem()
+        item3.price = Decimal(string: "100.00")!
+        item3.quantityInt = 1
+        
+        let items = [item1, item2, item3]
+        
+        // Simulate the dashboard calculation logic
+        let totalValue = items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
+        
+        // Expected: (10.00 * 2) + (25.50 * 3) + (100.00 * 1) = 20.00 + 76.50 + 100.00 = 196.50
+        let expectedTotal = Decimal(string: "196.50")!
+        #expect(totalValue == expectedTotal)
+    }
+    
+    @Test("Test dashboard total value calculation with single item")
+    func testDashboardSingleItemValueCalculation() async throws {
+        // Test the example from the issue: 50 forks at $1 each should be $50
+        let forks = InventoryItem()
+        forks.title = "Forks"
+        forks.price = Decimal(string: "1.00")!
+        forks.quantityInt = 50
+        
+        let items = [forks]
+        
+        // Simulate the dashboard calculation logic
+        let totalValue = items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
+        
+        // Expected: 1.00 * 50 = 50.00
+        let expectedTotal = Decimal(string: "50.00")!
+        #expect(totalValue == expectedTotal)
+    }
+    
+    @Test("Test dashboard total value calculation with zero quantity")
+    func testDashboardZeroQuantityValueCalculation() async throws {
+        let item = InventoryItem()
+        item.price = Decimal(string: "10.00")!
+        item.quantityInt = 0
+        
+        let items = [item]
+        
+        // Simulate the dashboard calculation logic
+        let totalValue = items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
+        
+        // Expected: 10.00 * 0 = 0.00
+        let expectedTotal = Decimal.zero
+        #expect(totalValue == expectedTotal)
+    }
+    
+    @Test("Test location value calculation with multiple items")
+    func testLocationValueCalculation() async throws {
+        let item1 = InventoryItem()
+        item1.price = Decimal(string: "15.00")!
+        item1.quantityInt = 2
+        
+        let item2 = InventoryItem()
+        item2.price = Decimal(string: "30.00")!
+        item2.quantityInt = 4
+        
+        let items = [item1, item2]
+        
+        // Simulate the location calculation logic
+        let totalValue = items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
+        
+        // Expected: (15.00 * 2) + (30.00 * 4) = 30.00 + 120.00 = 150.00
+        let expectedTotal = Decimal(string: "150.00")!
+        #expect(totalValue == expectedTotal)
+    }
+    
+    @Test("Test label value calculation with multiple items")
+    func testLabelValueCalculation() async throws {
+        let item1 = InventoryItem()
+        item1.price = Decimal(string: "5.00")!
+        item1.quantityInt = 10
+        
+        let item2 = InventoryItem()
+        item2.price = Decimal(string: "12.50")!
+        item2.quantityInt = 8
+        
+        let items = [item1, item2]
+        
+        // Simulate the label calculation logic
+        let totalValue = items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
+        
+        // Expected: (5.00 * 10) + (12.50 * 8) = 50.00 + 100.00 = 150.00
+        let expectedTotal = Decimal(string: "150.00")!
+        #expect(totalValue == expectedTotal)
     }
 }
