@@ -49,14 +49,14 @@ struct ImageAnalysisView: View {
                                         .aspectRatio(contentMode: .fit)
                                         .frame(maxWidth: min(geometry.size.width, geometry.size.height) * 0.8)
                                         .frame(maxWidth: .infinity)
-                                        .transition(.opacity)
+                                        .transition(.slide)
                                 } else if let fallbackImage = images[safe: currentImageIndex] {
                                     Image(uiImage: fallbackImage)
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
                                         .frame(maxWidth: min(geometry.size.width, geometry.size.height) * 0.8)
                                         .frame(maxWidth: .infinity)
-                                        .transition(.opacity)
+                                        .transition(.slide)
                                 }
                                 
                                 // Photo indicator dots
@@ -68,10 +68,12 @@ struct ImageAnalysisView: View {
                                             .animation(.easeInOut(duration: 0.2), value: currentImageIndex)
                                     }
                                 }
+                                .transition(.slide)
                                 
                                 Text("\(currentImageIndex + 1) of \(images.count) photos")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                    .transition(.slide)
                             }
                         } else {
                             // Single image display (backward compatibility)
@@ -82,7 +84,7 @@ struct ImageAnalysisView: View {
                                     .frame(maxWidth: min(geometry.size.width, geometry.size.height))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical)
-                                    .transition(.opacity)
+                                    .transition(.slide)
                             } else if let fallbackImage = image {
                                 Image(uiImage: fallbackImage)
                                     .resizable()
@@ -90,7 +92,7 @@ struct ImageAnalysisView: View {
                                     .frame(maxWidth: min(geometry.size.width, geometry.size.height))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical)
-                                    .transition(.opacity)
+                                    .transition(.slide)
                             }
                         }
                     }
