@@ -457,59 +457,71 @@ struct InventoryDetailView: View {
     
     @ViewBuilder
     private var locationsAndLabelsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Locations & Labels")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-                .padding(.horizontal, 16)
-            
-            VStack(spacing: 0) {
-                if isEditing || inventoryItemToDisplay.location != nil {
-                    Picker("Location", selection: $inventoryItemToDisplay.location) {
-                        Text("None")
-                            .tag(Optional<InventoryLocation>.none)
-                        
-                        if locations.isEmpty == false {
-                            Divider()
-                            ForEach(locations) { location in
-                                Text(location.name)
-                                    .tag(Optional(location))
+        if inventoryItemToDisplay.location != nil || inventoryItemToDisplay.label != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Locations & Labels")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 16)
+                
+                VStack(spacing: 0) {
+                    if isEditing || inventoryItemToDisplay.location != nil {
+                        HStack {
+                            Text("Location")
+                            Spacer()
+                            Picker("Location", selection: $inventoryItemToDisplay.location) {
+                                Text("None")
+                                    .tag(Optional<InventoryLocation>.none)
+                                
+                                if locations.isEmpty == false {
+                                    Divider()
+                                    ForEach(locations) { location in
+                                        Text(location.name)
+                                            .tag(Optional(location))
+                                    }
+                                }
                             }
+
+                        }
+                        .disabled(!isEditing)
+                        .accessibilityIdentifier("locationPicker")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        if isEditing || inventoryItemToDisplay.label != nil {
+                            Divider()
+                                .padding(.leading, 16)
                         }
                     }
-                    .disabled(!isEditing)
-                    .accessibilityIdentifier("locationPicker")
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
                     
                     if isEditing || inventoryItemToDisplay.label != nil {
-                        Divider()
-                            .padding(.leading, 16)
-                    }
-                }
-                
-                if isEditing || inventoryItemToDisplay.label != nil {
-                    Picker("Label", selection: $inventoryItemToDisplay.label) {
-                        Text("None")
-                            .tag(Optional<InventoryLabel>.none)
-                        
-                        if labels.isEmpty == false {
-                            Divider()
-                            ForEach(labels) { label in
-                                Text("\(label.emoji) \(label.name)")
-                                    .tag(Optional(label))
+                        HStack {
+                            Text("Label")
+                            Spacer()
+                            Picker("Label", selection: $inventoryItemToDisplay.label) {
+                                Text("None")
+                                    .tag(Optional<InventoryLabel>.none)
+                                
+                                if labels.isEmpty == false {
+                                    Divider()
+                                    ForEach(labels) { label in
+                                        Text("\(label.emoji) \(label.name)")
+                                            .tag(Optional(label))
+                                    }
+                                }
                             }
+
                         }
+                        .disabled(!isEditing)
+                        .accessibilityIdentifier("labelPicker")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
-                    .disabled(!isEditing)
-                    .accessibilityIdentifier("labelPicker")
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
                 }
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
             }
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
         }
     }
     
@@ -582,7 +594,7 @@ struct InventoryDetailView: View {
             ToolbarItem(placement: .topBarLeading) {
                 if isEditing {
                     Button("Cancel") {
-                        if let onCancel = onCancel {
+                        if onCancel != nil {
                             // During onboarding - delete the item and close the sheet
                             deleteItemAndCloseSheet()
                         } else if OnboardingManager.hasCompletedOnboarding() {
@@ -1146,6 +1158,7 @@ struct PhotoPlaceholderView: View {
         @State private var previewItem: InventoryItem
         
         init() {
+            let location = InventoryLocation(name: "Office", desc: "My office")
             let item = InventoryItem(
                 title: "MacBook Pro",
                 quantityString: "1",
@@ -1154,7 +1167,7 @@ struct PhotoPlaceholderView: View {
                 serial: "SN12345ABC",
                 model: "MacBook Pro M2",
                 make: "Apple",
-                location: nil,
+                location: location,
                 label: nil,
                 price: Decimal(2499.99),
                 insured: false,
