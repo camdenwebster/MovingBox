@@ -39,14 +39,20 @@ struct InventoryItemRow: View {
             }
             VStack(alignment: .leading) {
                 Text(item.title)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 //                if item.make != "" {
 //                    Text("Make: \(item.make)")
+//                        .lineLimit(1)
+//                        .truncationMode(.tail)
 //                        .detailLabelStyle()
 //                } else {
 //                    EmptyView()
 //                }
 //                if item.model != "" {
 //                    Text("Model: \(item.model)")
+//                        .lineLimit(1)
+//                        .truncationMode(.tail)
 //                        .detailLabelStyle()
 //                } else {
 //                    EmptyView()
