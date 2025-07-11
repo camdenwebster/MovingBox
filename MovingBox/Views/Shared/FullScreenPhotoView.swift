@@ -113,17 +113,6 @@ struct FullScreenPhotoView: View {
                         }
                     }
                     .padding(.bottom, 50)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.clear,
-                                Color.black.opacity(0.3)
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 100)
-                    )
                 }
                 .opacity(showUI ? 1 : 0)
                 .animation(.easeInOut(duration: 0.3), value: showUI)

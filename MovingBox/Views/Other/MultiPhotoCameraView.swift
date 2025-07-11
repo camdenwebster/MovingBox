@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import PhotosUI
+import UIKit
 
 struct MultiPhotoCameraView: View {
     @StateObject private var model = MultiPhotoCameraViewModel()
@@ -20,6 +21,7 @@ struct MultiPhotoCameraView: View {
     @State private var showingCaptureAnimation = false
     @State private var focusPoint: CGPoint?
     @State private var showingFocusIndicator = false
+    @State private var orientation = UIDeviceOrientation.portrait
     
     // Default initializer with onCancel parameter
     init(
@@ -80,6 +82,7 @@ struct MultiPhotoCameraView: View {
                         // Real camera preview
                         FullScreenCameraPreviewView(
                             session: model.session,
+                            orientation: orientation,
                             onTapToFocus: { point in
                                 // For aspect-fit tap-to-focus, convert point directly
                                 let relativeX = point.x / geometry.size.width
@@ -100,10 +103,79 @@ struct MultiPhotoCameraView: View {
                             Task {
                                 await model.checkPermissions(completion: onPermissionCheck)
                             }
+                            // Start orientation monitoring on iPad
+                            if UIDevice.current.userInterfaceIdiom == .pad {
+                                // Get current orientation first
+                                UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+                                let currentOrientation = UIDevice.current.orientation
+                                
+                                // Always prefer interface orientation on iPad for better reliability
+                                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                                    let interfaceOrientation = windowScene.interfaceOrientation
+                                    print("📱 Interface orientation: \(interfaceOrientation)")
+                                    
+                                    switch interfaceOrientation {
+                                    case .portrait:
+                                        orientation = .portrait
+                                    case .portraitUpsideDown:
+                                        orientation = .portraitUpsideDown
+                                    case .landscapeLeft:
+                                        orientation = .landscapeRight  // Interface landscape left = device landscape right
+                                    case .landscapeRight:
+                                        orientation = .landscapeLeft   // Interface landscape right = device landscape left
+                                    default:
+                                        orientation = .portrait
+                                    }
+                                } else {
+                                    // Fallback to device orientation if interface orientation is unavailable
+                                    if currentOrientation != .unknown && currentOrientation != .faceUp && currentOrientation != .faceDown {
+                                        orientation = currentOrientation
+                                    } else {
+                                        orientation = .portrait
+                                    }
+                                }
+                                
+                                // Log the orientation info
+                                let interfaceOrientationString: String
+                                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                                    interfaceOrientationString = "\(windowScene.interfaceOrientation)"
+                                } else {
+                                    interfaceOrientationString = "unknown"
+                                }
+                                print("📱 Camera initial orientation: device=\(currentOrientation), interface=\(interfaceOrientationString), using=\(orientation)")
+                                
+                                // Force an update of the camera preview orientation after a brief delay
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    // Trigger a state change to force the camera preview to update
+                                    let currentOrientationValue = orientation
+                                    orientation = .portrait
+                                    orientation = currentOrientationValue
+                                    print("📱 Forced camera orientation update to: \(orientation)")
+                                }
+                                
+                                // Then start monitoring for changes
+                                NotificationCenter.default.addObserver(
+                                    forName: UIDevice.orientationDidChangeNotification,
+                                    object: nil,
+                                    queue: .main
+                                ) { _ in
+                                    let newOrientation = UIDevice.current.orientation
+                                    // Only update if it's a valid orientation
+                                    if newOrientation != .unknown && newOrientation != .faceUp && newOrientation != .faceDown {
+                                        orientation = newOrientation
+                                        print("📱 Camera orientation changed to: \(newOrientation)")
+                                    }
+                                }
+                            }
                         }
                         .onDisappear {
                             Task {
                                 await model.stopSession()
+                            }
+                            // Stop orientation monitoring on iPad
+                            if UIDevice.current.userInterfaceIdiom == .pad {
+                                UIDevice.current.endGeneratingDeviceOrientationNotifications()
+                                NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
                             }
                         }
                     }
@@ -957,6 +1029,7 @@ struct SquareCameraPreviewView: UIViewRepresentable {
 
 struct FullScreenCameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
+    let orientation: UIDeviceOrientation
     let onTapToFocus: ((CGPoint) -> Void)?
     
     class FullScreenPreviewView: UIView {
@@ -983,7 +1056,9 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
         let view = FullScreenPreviewView()
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
-        view.previewLayer.connection?.videoOrientation = .portrait
+        
+        // Set initial orientation
+        updateVideoOrientation(for: view.previewLayer)
         
         // Add tap gesture for focus
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -995,6 +1070,83 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
     
     func updateUIView(_ uiView: FullScreenPreviewView, context: Context) {
         uiView.previewLayer.session = session
+        
+        // Update orientation if on iPad
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            updateVideoOrientation(for: uiView.previewLayer)
+        }
+    }
+    
+    private func updateVideoOrientation(for previewLayer: AVCaptureVideoPreviewLayer) {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            // Keep portrait for iPhone
+            if #available(iOS 17.0, *) {
+                previewLayer.connection?.videoRotationAngle = 0
+            } else {
+                previewLayer.connection?.videoOrientation = .portrait
+            }
+            return
+        }
+        
+        // Map device orientation to rotation angle for iPad
+        let rotationAngle: Double
+        switch orientation {
+        case .portrait:
+            rotationAngle = 0
+        case .portraitUpsideDown:
+            rotationAngle = 180
+        case .landscapeLeft:
+            rotationAngle = 270
+        case .landscapeRight:
+            rotationAngle = 90
+        default:
+            rotationAngle = 0
+        }
+        
+        if #available(iOS 17.0, *) {
+            // Check if the rotation angle is supported before setting it
+            if let connection = previewLayer.connection {
+                if connection.isVideoRotationAngleSupported(rotationAngle) {
+                    connection.videoRotationAngle = rotationAngle
+                    print("📹 Set video rotation angle: \(rotationAngle)° for orientation: \(orientation)")
+                } else {
+                    print("📹 Video rotation angle \(rotationAngle)° not supported, using fallback")
+                    // Fall back to the legacy orientation API
+                    let videoOrientation: AVCaptureVideoOrientation
+                    switch orientation {
+                    case .portrait:
+                        videoOrientation = .portrait
+                    case .portraitUpsideDown:
+                        videoOrientation = .portraitUpsideDown
+                    case .landscapeLeft:
+                        videoOrientation = .landscapeRight
+                    case .landscapeRight:
+                        videoOrientation = .landscapeLeft
+                    default:
+                        videoOrientation = .portrait
+                    }
+                    connection.videoOrientation = videoOrientation
+                    print("📹 Fallback: Set video orientation: \(videoOrientation) for device orientation: \(orientation)")
+                }
+            }
+        } else {
+            // Fallback for older iOS versions
+            let videoOrientation: AVCaptureVideoOrientation
+            switch orientation {
+            case .portrait:
+                videoOrientation = .portrait
+            case .portraitUpsideDown:
+                videoOrientation = .portraitUpsideDown
+            case .landscapeLeft:
+                videoOrientation = .landscapeRight
+            case .landscapeRight:
+                videoOrientation = .landscapeLeft
+            default:
+                videoOrientation = .portrait
+            }
+            previewLayer.connection?.videoOrientation = videoOrientation
+            print("📹 Set video orientation: \(videoOrientation) for device orientation: \(orientation)")
+        }
     }
     
     func makeCoordinator() -> Coordinator {
