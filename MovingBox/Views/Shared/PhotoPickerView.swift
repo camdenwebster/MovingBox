@@ -82,53 +82,83 @@ struct PhotoPickerView<T: PhotoManageable>: View {
             photoLibrary: .shared()
         )
         .onChange(of: selectedPhoto) { _, newValue in
-            Task {
-                if let photo = newValue {
+            if let photo = newValue {
+                Task {
                     await loadPhoto(from: photo)
                     selectedPhoto = nil
                 }
             }
         }
-        .sheet(isPresented: $showCamera) {
+        .fullScreenCover(isPresented: $showCamera) {
             SimpleCameraView(capturedImage: $cameraImage)
         }
         .onChange(of: cameraImage) { _, newImage in
             if let image = newImage {
                 Task {
+                    await MainActor.run {
+                        isLoading = true
+                    }
+                    
                     await handleNewImage(image)
-                    cameraImage = nil
-                    showCamera = false
+                    
+                    await MainActor.run {
+                        isLoading = false
+                        cameraImage = nil
+                        showCamera = false
+                    }
                 }
             }
         }
     }
     
     private func handleNewImage(_ image: UIImage) async {
-        isLoading = true
-        defer { isLoading = false }
-        
         do {
             let id = UUID().uuidString
             let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-            model.imageURL = imageURL
-            loadedImage = image
-            try? modelContext.save()
+            
+            await MainActor.run {
+                // Update the loaded image first to ensure immediate UI feedback
+                loadedImage = image
+                // Then update the model
+                model.imageURL = imageURL
+                try? modelContext.save()
+            }
         } catch {
-            print("Failed to save image: \(error)")
+            await MainActor.run {
+                print("Failed to save image: \(error)")
+            }
         }
     }
     
     private func loadPhoto(from item: PhotosPickerItem) async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let uiImage = UIImage(data: data) {
-                await handleNewImage(uiImage)
+            // Load the photo data (this may take time for iCloud downloads)
+            let data = try await item.loadTransferable(type: Data.self)
+            
+            guard let data = data, let uiImage = UIImage(data: data) else {
+                await MainActor.run {
+                    print("Failed to create UIImage from photo data")
+                }
+                return
             }
+            
+            // Process the image
+            await handleNewImage(uiImage)
+            
         } catch {
-            print("Failed to load photo: \(error)")
+            await MainActor.run {
+                print("Failed to load photo: \(error)")
+            }
         }
     }
 }

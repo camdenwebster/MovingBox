@@ -429,6 +429,87 @@ extension SnapshotTests {
         await cleanup()
     }
     
+    @Test("Inventory Detail View - Multi-Photo Display")
+    func inventoryDetailViewMultiPhotoSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let descriptor = FetchDescriptor<InventoryItem>(
+            sortBy: [SortDescriptor(\.title)]
+        )
+        let items = try container.mainContext.fetch(descriptor)
+        let item = items.first ?? InventoryItem()
+        
+        // Add mock secondary photos for testing
+        item.secondaryPhotoURLs = [
+            "file:///mock/path/secondary1.jpg",
+            "file:///mock/path/secondary2.jpg",
+            "file:///mock/path/secondary3.jpg"
+        ]
+        
+        let view = configureViewForSnapshot(
+            InventoryDetailView(
+                inventoryItemToDisplay: item,
+                navigationPath: .constant(NavigationPath()),
+                isEditing: false
+            )
+                .modelContainer(container)
+                .environmentObject(Router())
+                .environmentObject(SettingsManager())
+                .environmentObject(OnboardingManager())
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "inventory_detail_view_multi_photo\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Inventory Detail View - Multi-Photo Edit Mode")
+    func inventoryDetailViewMultiPhotoEditSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let descriptor = FetchDescriptor<InventoryItem>(
+            sortBy: [SortDescriptor(\.title)]
+        )
+        let items = try container.mainContext.fetch(descriptor)
+        let item = items.first ?? InventoryItem()
+        
+        // Add mock secondary photos for testing
+        item.secondaryPhotoURLs = [
+            "file:///mock/path/secondary1.jpg",
+            "file:///mock/path/secondary2.jpg"
+        ]
+        
+        let view = configureViewForSnapshot(
+            InventoryDetailView(
+                inventoryItemToDisplay: item,
+                navigationPath: .constant(NavigationPath()),
+                isEditing: true
+            )
+                .modelContainer(container)
+                .environmentObject(Router())
+                .environmentObject(SettingsManager())
+                .environmentObject(OnboardingManager())
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "inventory_detail_view_multi_photo_edit\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
     @Test("Settings View Layout")
     func settingsViewSnapshot() async throws {
         let container = try await createTestContainer()

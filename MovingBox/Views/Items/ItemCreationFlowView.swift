@@ -17,6 +17,7 @@ struct ItemCreationFlowView: View {
     
     @State private var currentStep: ItemCreationStep = .camera
     @State private var capturedImage: UIImage?
+    @State private var capturedImages: [UIImage] = []
     @State private var item: InventoryItem?
     @State private var showingPermissionDenied = false
     @State private var processingImage = false
@@ -35,41 +36,41 @@ struct ItemCreationFlowView: View {
             ZStack {
                 switch currentStep {
                 case .camera:
-                    CameraView(
-                        showingImageAnalysis: .constant(false),
-                        analyzingImage: .constant(nil)
-                    ) { image, needsAnalysis, completion async -> Void in
-                        // Set processing flag to prevent premature dismissal
-                        processingImage = true
-                        
-                        // Process the image
-                        await handleCapturedImage(image)
-                        
-                        // Complete the camera operation but stay in the sheet
-                        await completion()
-                        
-                        // Transition to next step
-                        if self.item != nil {
-                            await MainActor.run {
-                                withAnimation(transitionAnimation) {
-                                    transitionId = UUID()
-                                    currentStep = .analyzing
+                    MultiPhotoCameraView(
+                        capturedImages: $capturedImages,
+                        onPermissionCheck: { granted in
+                            if !granted {
+                                showingPermissionDenied = true
+                            }
+                        },
+                        onComplete: { images in
+                            // Set processing flag to prevent premature dismissal
+                            processingImage = true
+                            
+                            Task {
+                                // Process the images
+                                await handleCapturedImages(images)
+                                
+                                // Transition to next step
+                                if self.item != nil {
+                                    await MainActor.run {
+                                        withAnimation(transitionAnimation) {
+                                            transitionId = UUID()
+                                            currentStep = .analyzing
+                                        }
+                                    }
+                                } else {
+                                    await MainActor.run {
+                                        processingImage = false
+                                        dismiss()
+                                    }
                                 }
                             }
-                        } else {
-                            await MainActor.run {
-                                processingImage = false
-                                dismiss()
-                            }
+                        },
+                        onCancel: {
+                            dismiss()
                         }
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                dismiss()
-                            }
-                        }
-                    }
+                    )
                     .transition(.asymmetric(
                         insertion: .identity,
                         removal: .move(edge: .leading)
@@ -77,9 +78,9 @@ struct ItemCreationFlowView: View {
                     .id("camera-\(transitionId)")
                     
                 case .analyzing:
-                    if let image = capturedImage, let item = item {
+                    if !capturedImages.isEmpty, let item = item {
                         ZStack {
-                            ImageAnalysisView(image: image) {
+                            ImageAnalysisView(images: capturedImages) {
                                 // The ImageAnalysisView will signal when minimum display time has elapsed
                                 // but we only move to details if analysis is actually complete
                                 if analysisComplete {
@@ -101,7 +102,7 @@ struct ItemCreationFlowView: View {
                         .task {
                             // Only start analysis if we haven't completed it yet
                             if !analysisComplete && errorMessage == nil {
-                                await performImageAnalysis(item: item, image: image)
+                                await performMultiImageAnalysis(item: item, images: capturedImages)
                             }
                         }
                         .transition(.asymmetric(
@@ -116,11 +117,15 @@ struct ItemCreationFlowView: View {
                         InventoryDetailView(
                             inventoryItemToDisplay: item,
                             navigationPath: .constant(NavigationPath()),
-                            isEditing: true
-                        ) {
-                            onComplete?()
-                            dismiss()
-                        }
+                            isEditing: true,
+                            onSave: {
+                                onComplete?()
+                                dismiss()
+                            },
+                            onCancel: {
+                                dismiss()
+                            }
+                        )
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing),
                             removal: .opacity
@@ -182,9 +187,10 @@ struct ItemCreationFlowView: View {
         }
     }
     
-    private func handleCapturedImage(_ image: UIImage) async {
+    private func handleCapturedImages(_ images: [UIImage]) async {
         await MainActor.run {
-            capturedImage = image
+            capturedImages = images
+            capturedImage = images.first // For backward compatibility
         }
         
         // Create the item first
@@ -205,22 +211,37 @@ struct ItemCreationFlowView: View {
             showInvalidQuantityAlert: false
         )
         
-        // Save the image
-        let id = UUID().uuidString
+        // Generate a unique ID for this item
+        let itemId = UUID().uuidString
         
         do {
-            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
+            if let primaryImage = images.first {
+                // Save the primary image
+                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(primaryImage, id: itemId)
+                newItem.imageURL = primaryImageURL
+                
+                // Save secondary images if there are more than one
+                if images.count > 1 {
+                    let secondaryImages = Array(images.dropFirst())
+                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: itemId)
+                    newItem.secondaryPhotoURLs = secondaryURLs
+                }
+            }
             
             await MainActor.run {
-                newItem.imageURL = imageURL
                 modelContext.insert(newItem)
                 try? modelContext.save()
                 TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
                 self.item = newItem
             }
         } catch {
-            print("Error processing image: \(error)")
+            print("Error processing images: \(error)")
         }
+    }
+    
+    // Legacy method for backward compatibility (keep for now)
+    private func handleCapturedImage(_ image: UIImage) async {
+        await handleCapturedImages([image])
     }
     
     private func performImageAnalysis(item: InventoryItem, image: UIImage) async {
@@ -287,6 +308,72 @@ struct ItemCreationFlowView: View {
         }
     }
     
+    private func performMultiImageAnalysis(item: InventoryItem, images: [UIImage]) async {
+        print("Starting multi-image analysis with \(images.count) images...")
+        
+        // Reset flags to ensure proper state
+        await MainActor.run {
+            analysisComplete = false
+            errorMessage = nil
+        }
+        
+        do {
+            // Prepare all images for AI
+            let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: images)
+            
+            guard !imageBase64Array.isEmpty else {
+                throw OpenAIError.invalidData
+            }
+            
+            // Create OpenAI service with multiple images and get image details
+            let openAi = OpenAIService(imageBase64Array: imageBase64Array, settings: settings, modelContext: modelContext)
+            TelemetryManager.shared.trackCameraAnalysisUsed()
+            
+            print("Calling OpenAI for multi-image analysis...")
+            let imageDetails = try await openAi.getImageDetails()
+            print("OpenAI multi-image analysis complete, updating item...")
+            
+            // Update the item with the results
+            await MainActor.run {
+                updateItemWithImageDetails(item: item, imageDetails: imageDetails)
+                item.hasUsedAI = true // Mark as analyzed by AI
+                try? modelContext.save()
+                
+                // Set processing flag to false
+                processingImage = false
+                
+                // Set analysis complete flag to trigger UI update
+                analysisComplete = true
+                print("Multi-image analysis complete, item updated")
+            }
+        } catch let openAIError as OpenAIError {
+            await MainActor.run {
+                switch openAIError {
+                case .invalidURL:
+                    errorMessage = "Invalid URL configuration"
+                case .invalidResponse:
+                    errorMessage = "Error communicating with AI service"
+                case .invalidData:
+                    errorMessage = "Unable to process AI response"
+                case .rateLimitExceeded:
+                    errorMessage = "Rate limit exceeded, please try again later"
+                case .serverError(_):
+                    errorMessage = "Server error: \(openAIError.localizedDescription)"
+                @unknown default:
+                    errorMessage = "Unknown AI service error"
+                }
+                processingImage = false
+                print("Multi-image analysis error: \(errorMessage ?? "unknown")")
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                processingImage = false
+                print("Multi-image analysis exception: \(error)")
+            }
+        }
+    }
+    
     private func updateItemWithImageDetails(item: InventoryItem, imageDetails: ImageDetails) {
         // Get all labels for category matching
         let labels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>())
@@ -300,6 +387,7 @@ struct ItemCreationFlowView: View {
         item.desc = imageDetails.description
         item.make = imageDetails.make
         item.model = imageDetails.model
+        item.serial = imageDetails.serialNumber
         
         if item.location == nil {
             item.location = locations?.first { $0.name == imageDetails.location }
