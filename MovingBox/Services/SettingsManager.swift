@@ -96,6 +96,9 @@ class SettingsManager: ObservableObject {
             UserDefaults.standard.set(true, forKey: Keys.isPro)
         }
         
+        // Set up subscription monitoring to listen for RevenueCat changes
+        setupSubscriptionMonitoring()
+        
         Task {
             await setupInitialState()
         }

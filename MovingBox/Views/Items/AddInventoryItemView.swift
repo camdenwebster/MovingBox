@@ -50,7 +50,8 @@ struct AddInventoryItemView: View {
             revenueCatManager.presentPaywall(
                 isPresented: $showingPaywall,
                 onCompletion: {
-                    settings.isPro = true
+                    // Pro status will be updated automatically via NotificationCenter
+                    print("📱 AddInventoryItemView - Purchase completed, status will update automatically")
                 },
                 onDismiss: nil
             )
