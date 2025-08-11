@@ -19,12 +19,24 @@ struct LocationsListView: View {
     @State private var showingCamera = false
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
+    @State private var searchText = ""
     
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     
+    // Use @Query with sort descriptor for efficient loading
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
-    ]) var locations: [InventoryLocation]
+    ]) private var locations: [InventoryLocation]
+    
+    // Filtered locations based on search
+    private var filteredLocations: [InventoryLocation] {
+        if searchText.isEmpty {
+            return locations
+        }
+        return locations.filter { location in
+            location.name.localizedCaseInsensitiveContains(searchText)
+        }
+    }
     
     private var columns: [GridItem] {
         let minimumCardWidth: CGFloat = 160
@@ -34,32 +46,39 @@ struct LocationsListView: View {
     
     var body: some View {
         Group {
-            if locations.isEmpty {
+            if filteredLocations.isEmpty && searchText.isEmpty {
                 ContentUnavailableView(
                     "No Locations",
                     systemImage: "map",
                     description: Text("Add locations to organize your items by room or area.")
                 )
                 .toolbar {
-                    ToolbarItemGroup(placement: .primaryAction) {
-                        Button {
-                            addLocation()
-                        } label: {
-                            Label("Add Location", systemImage: "plus")
-                        }
-                        .accessibilityIdentifier("addLocation")
-                        
+                    ToolbarItem {
                         Button {
                             router.navigate(to: .locationsSettingsView)
                         } label: {
                             Text("Edit")
                         }
                     }
+                    ToolbarItem {
+                        Button {
+                            addLocation()
+                        } label: {
+                            Label("Add Location", systemImage: "plus")
+                        }
+                        .accessibilityIdentifier("addLocation")
+                    }
                 }
+            } else if filteredLocations.isEmpty {
+                ContentUnavailableView(
+                    "No Results",
+                    systemImage: "magnifyingglass",
+                    description: Text("No locations found matching '\(searchText)'")
+                )
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(locations) { location in
+                        ForEach(filteredLocations) { location in
                             NavigationLink(value: location) {
                                 LocationItemCard(location: location)
                                     .frame(maxWidth: 180)
@@ -91,6 +110,7 @@ struct LocationsListView: View {
         }
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $searchText, prompt: "Search locations")
         .background(Color(.systemGroupedBackground))
         .onAppear {
             print("LocationsListView: Total number of locations: \(locations.count)")
@@ -104,7 +124,7 @@ struct LocationsListView: View {
     private func deleteLocations(at offsets: IndexSet) {
         Task {
             for index in offsets {
-                let location = locations[index]
+                let location = filteredLocations[index]
                 modelContext.delete(location)
             }
             try? modelContext.save()

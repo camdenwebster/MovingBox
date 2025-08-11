@@ -249,7 +249,7 @@ struct MainTabView: View {
                     }
             }
             .tabItem {
-                Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
+                Label("Home", systemImage: "house")
             }
             .tag(Router.Tab.dashboard)
             

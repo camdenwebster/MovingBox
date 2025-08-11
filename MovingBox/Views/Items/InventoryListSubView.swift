@@ -1,5 +1,5 @@
 //
-//  InventoryList.swift
+//  InventoryListSubView.swift
 //  MovingBox
 //
 //  Created by Camden Webster on 4/9/24.
@@ -9,145 +9,163 @@ import SwiftData
 import SwiftUI
 
 struct InventoryListSubView: View {
-    @Environment(\.modelContext) var modelContext
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
-    @State private var items: [InventoryItem] = []
-    @State private var isLoading = false
     
     let location: InventoryLocation?
     let searchString: String
     let sortOrder: [SortDescriptor<InventoryItem>]
     let isSelectionMode: Bool
-    @Binding var selectedItems: Set<InventoryItem>
+    @Binding var selectedItemIDs: Set<PersistentIdentifier>
+    
+    // Use @Query for lazy loading with dynamic predicate and sort
+    @Query private var items: [InventoryItem]
     
     var body: some View {
-        Group {
-            List {
-                if items.isEmpty {
-                    ContentUnavailableView(
-                        "No Items",
-                        systemImage: "list.bullet",
-                        description: Text("Start by adding items to your inventory.")
-                    )
-                } else {
-                    Section {
-                        ForEach(items) { inventoryItem in
-                            if isSelectionMode {
-                                HStack {
-                                    Button(action: {
-                                        toggleSelection(for: inventoryItem)
-                                    }) {
-                                        Image(systemName: selectedItems.contains(inventoryItem) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundColor(selectedItems.contains(inventoryItem) ? .blue : .gray)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    
-                                    InventoryItemRow(item: inventoryItem)
-                                        .listRowInsets(EdgeInsets())
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            toggleSelection(for: inventoryItem)
-                                        }
-                                }
-                            } else {
-                                NavigationLink(value: inventoryItem) {
-                                    InventoryItemRow(item: inventoryItem)
-                                        .listRowInsets(EdgeInsets())
-                                }
-                            }
-                        }
-                        .onDelete(perform: isSelectionMode ? nil : deleteItems)
-                    }
-                }
+        listContent
+    }
+    
+    @ViewBuilder
+    private var listContent: some View {
+        List {
+            if filteredItems.isEmpty {
+                emptyStateView
+            } else {
+                itemsSection
             }
-        }
-        .onChange(of: searchString) { _, _ in
-            Task {
-                await loadItems()
-            }
-        }
-        .task {
-            await loadItems()
         }
     }
     
-    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [SortDescriptor(\InventoryItem.title)], isSelectionMode: Bool = false, selectedItems: Binding<Set<InventoryItem>> = .constant([])) {
+    // Computed property for filtered items - performs filtering in-memory only on fetched items
+    private var filteredItems: [InventoryItem] {
+        var result = items
+        
+        // Apply search filtering if needed
+        if !searchString.isEmpty {
+            let lowercasedTerm = searchString.lowercased()
+            result = result.filter { item in
+                item.title.localizedStandardContains(lowercasedTerm) ||
+                item.desc.localizedStandardContains(lowercasedTerm) ||
+                item.notes.localizedStandardContains(lowercasedTerm) ||
+                item.make.localizedStandardContains(lowercasedTerm) ||
+                item.model.localizedStandardContains(lowercasedTerm) ||
+                item.serial.localizedStandardContains(lowercasedTerm)
+            }
+        }
+        
+        return result
+    }
+    
+    @ViewBuilder
+    private var emptyStateView: some View {
+        ContentUnavailableView(
+            "No Items",
+            systemImage: "list.bullet",
+            description: Text("Start by adding items to your inventory.")
+        )
+    }
+    
+    @ViewBuilder
+    private var itemsSection: some View {
+        if isSelectionMode {
+            ForEach(filteredItems) { inventoryItem in
+                itemRowView(for: inventoryItem)
+            }
+        } else {
+            ForEach(filteredItems) { inventoryItem in
+                itemRowView(for: inventoryItem)
+            }
+            .onDelete(perform: deleteItems)
+        }
+    }
+    
+    @ViewBuilder
+    private func itemRowView(for inventoryItem: InventoryItem) -> some View {
+        if isSelectionMode {
+            selectionModeRow(for: inventoryItem)
+        } else {
+            navigationLinkRow(for: inventoryItem)
+        }
+    }
+    
+    @ViewBuilder
+    private func selectionModeRow(for inventoryItem: InventoryItem) -> some View {
+        HStack {
+            selectionButton(for: inventoryItem)
+            
+            InventoryItemRow(item: inventoryItem)
+                .listRowInsets(EdgeInsets())
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    toggleSelection(for: inventoryItem)
+                }
+        }
+    }
+    
+    @ViewBuilder
+    private func selectionButton(for inventoryItem: InventoryItem) -> some View {
+        Button(action: {
+            toggleSelection(for: inventoryItem)
+        }) {
+            let isSelected = selectedItemIDs.contains(inventoryItem.persistentModelID)
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isSelected ? .blue : .gray)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    @ViewBuilder
+    private func navigationLinkRow(for inventoryItem: InventoryItem) -> some View {
+        NavigationLink(value: inventoryItem) {
+            InventoryItemRow(item: inventoryItem)
+                .listRowInsets(EdgeInsets())
+        }
+    }
+    
+    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], isSelectionMode: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
         self.location = location
         self.searchString = searchString
         self.sortOrder = sortOrder
         self.isSelectionMode = isSelectionMode
-        self._selectedItems = selectedItems
+        self._selectedItemIDs = selectedItemIDs
+        
+        // Build predicate based on location
+        let predicate: Predicate<InventoryItem>?
+        if let location = location {
+            let locationID = location.persistentModelID
+            predicate = #Predicate<InventoryItem> { item in
+                item.location?.persistentModelID == locationID
+            }
+        } else {
+            predicate = nil
+        }
+        
+        // Initialize @Query with predicate and sort descriptors
+        let finalSortOrder = sortOrder.isEmpty ? [SortDescriptor(\InventoryItem.title)] : sortOrder
+        _items = Query(filter: predicate, sort: finalSortOrder)
     }
     
     private func toggleSelection(for item: InventoryItem) {
-        if selectedItems.contains(item) {
-            selectedItems.remove(item)
+        let itemID = item.persistentModelID
+        if selectedItemIDs.contains(itemID) {
+            selectedItemIDs.remove(itemID)
         } else {
-            selectedItems.insert(item)
+            selectedItemIDs.insert(itemID)
         }
     }
     
-    @MainActor
-    private func loadItems() async {
-        isLoading = true
-        
-        do {
-            let descriptor = FetchDescriptor<InventoryItem>(sortBy: sortOrder)
-            var allItems = try modelContext.fetch(descriptor)
-            
-            if let location = location {
-                allItems = allItems.filter { item in
-                    item.location?.persistentModelID == location.persistentModelID
-                }
-            }
-            
-            if !searchString.isEmpty {
-                allItems = allItems.filter { item in
-                    let searchTerm = searchString.lowercased()
-                    return item.title.localizedStandardContains(searchTerm) ||
-                           item.desc.localizedStandardContains(searchTerm) ||
-                           item.notes.localizedStandardContains(searchTerm) ||
-                           item.make.localizedStandardContains(searchTerm) ||
-                           item.model.localizedStandardContains(searchTerm) ||
-                           item.serial.localizedStandardContains(searchTerm)
-                }
-            }
-            
-            self.items = allItems
-            self.isLoading = false
-        } catch {
-            print("Error loading items: \(error)")
-            self.isLoading = false
-        }
-    }
     
     @MainActor
-    func deleteItems(at offsets: IndexSet) {
+    private func deleteItems(at offsets: IndexSet) {
         for index in offsets {
-            let itemToDelete = items[index]
+            let itemToDelete = filteredItems[index]
             modelContext.delete(itemToDelete)
         }
-        try? modelContext.save()
         
-        Task {
-            await loadItems()
+        do {
+            try modelContext.save()
+        } catch {
+            print("Error saving after delete: \(error)")
         }
     }
 }
-
-//#Preview {
-//    Group {
-//        do {
-//            let previewer = try Previewer()
-//            InventoryListSubView(location: previewer.location)
-//                .modelContainer(previewer.container)
-//                .environmentObject(Router())
-//        } catch {
-//            ContentUnavailableView(
-//                "Preview Error",
-//                systemImage: "exclamationmark.triangle",
-//                description: Text(error.localizedDescription)
-//            )
-//        }
-//    }
-//}

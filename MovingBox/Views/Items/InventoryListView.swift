@@ -30,179 +30,265 @@ struct InventoryListView: View {
     
     // Selection state
     @State private var isSelectionMode = false
-    @State private var selectedItems: Set<InventoryItem> = []
+    @State private var selectedItemIDs: Set<PersistentIdentifier> = []
+    @State private var isSearchPresented = false
+    @State private var showingBatchAnalysis = false
+    @State private var showingDeleteConfirmation = false
     
     @Query private var allItems: [InventoryItem]
     
     let location: InventoryLocation?
     
+    // Computed property to get actual items from selected IDs
+    private var selectedItems: [InventoryItem] {
+        allItems.filter { selectedItemIDs.contains($0.persistentModelID) }
+    }
+    
+    private var inventoryListContent: some View {
+        // Create a unique view based on sort order to force recreation when sort changes
+        // This is necessary because @Query can't dynamically update its sort descriptor
+        switch sortOrder.first?.order {
+        case .reverse:
+            InventoryListSubView(
+                location: location, 
+                searchString: searchText, 
+                sortOrder: sortOrder,
+                isSelectionMode: isSelectionMode,
+                selectedItemIDs: $selectedItemIDs
+            )
+            .id("reverse-\(sortOrder.hashValue)")
+        default:
+            InventoryListSubView(
+                location: location, 
+                searchString: searchText, 
+                sortOrder: sortOrder,
+                isSelectionMode: isSelectionMode,
+                selectedItemIDs: $selectedItemIDs
+            )
+            .id("forward-\(sortOrder.hashValue)")
+        }
+    }
+    
     var body: some View {
-        InventoryListSubView(
-            location: location, 
-            searchString: searchText, 
-            sortOrder: sortOrder,
-            isSelectionMode: isSelectionMode,
-            selectedItems: $selectedItems
-        )
+        inventoryListContent
             .navigationTitle(location?.name ?? "All Items")
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
-            .toolbar {
-                Menu("Options", systemImage: isSelectionMode ? "checkmark.circle" : "ellipsis.circle") {
-                    Button(action: {
-                        isSelectionMode.toggle()
-                        if !isSelectionMode {
-                            selectedItems.removeAll()
-                        }
-                    }) {
-                        Label(isSelectionMode ? "Cancel Selection" : "Select Items", systemImage: isSelectionMode ? "xmark" : "checkmark.circle")
-                    }
-                    
-                    if !isSelectionMode {
-                        Divider()
-                        Picker("Sort", selection: $sortOrder) {
-                            Text("Title (A-Z)")
-                                .tag([SortDescriptor(\InventoryItem.title)])
-                            Text("Title (Z-A)")
-                                .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
-                        }
-                    }
-                }
-                
-                if !isSelectionMode {
-                    Menu("Add Item", systemImage: "plus") {
-                        Button(action: {
-                            print("📱 InventoryListView - Add Item button tapped")
-                            print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
-                            print("📱 InventoryListView - Items count: \(allItems.count)")
-                            print("📱 InventoryListView - Creating new item")
-                            let newItem = InventoryItem(
-                                title: "",
-                                quantityString: "1",
-                                quantityInt: 1,
-                                desc: "",
-                                serial: "",
-                                model: "",
-                                make: "",
-                                location: location,
-                                label: nil,
-                                price: Decimal.zero,
-                                insured: false,
-                                assetId: "",
-                                notes: "",
-                                showInvalidQuantityAlert: false
-                            )
-                            router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                        }) {
-                            Label("Add Manually", systemImage: "square.and.pencil")
-                        }
-                        .accessibilityIdentifier("createManually")
-                        
-                        Button(action: {
-                            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
-                                showingPaywall = true
-                            } else {
-                                router.navigate(to: .addInventoryItemView(location: location))
-                            }
-                        }) {
-                            Label("Add from Photo", systemImage: "camera")
-                        }
-                        .accessibilityIdentifier("createFromCamera")
-                    }
-                    .accessibilityIdentifier("addItem")
-                }
-            }
-            .searchable(text: $searchText, isPresented: .constant(!isSelectionMode))
-            .toolbar {
-                if isSelectionMode {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        Button(action: selectAllItems) {
-                            Text("Select All")
-                        }
-                        .disabled(selectedItems.count == allItems.count)
-                        
-                        Spacer()
-                        
-                        Button(action: deleteSelectedItems) {
-                            Image(systemName: "trash")
-                        }
-                        .disabled(selectedItems.isEmpty)
-                        
-                        Spacer()
-                        
-                        Menu {
-                            ForEach(getAllLocations(), id: \.self) { location in
-                                Button(action: {
-                                    moveSelectedItems(to: location)
-                                }) {
-                                    Text(location.name)
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "folder")
-                        }
-                        .disabled(selectedItems.isEmpty)
-                        
-                        Spacer()
-                        
-                        Menu {
-                            ForEach(getAllLabels(), id: \.self) { label in
-                                Button(action: {
-                                    updateSelectedItemsLabel(to: label)
-                                }) {
-                                    Text("\(label.emoji) \(label.name)")
-                                }
-                            }
-                            Button(action: {
-                                updateSelectedItemsLabel(to: nil)
-                            }) {
-                                Text("Remove Label")
-                            }
-                        } label: {
-                            Image(systemName: "tag")
-                        }
-                        .disabled(selectedItems.isEmpty)
-                    }
-                }
-            }
-            .sheet(isPresented: $showingPaywall) {
-                revenueCatManager.presentPaywall(
-                    isPresented: $showingPaywall,
-                    onCompletion: {
-                        settings.isPro = true
-                        let newItem = InventoryItem(
-                            title: "",
-                            quantityString: "1",
-                            quantityInt: 1,
-                            desc: "",
-                            serial: "",
-                            model: "",
-                            make: "",
-                            location: location,
-                            label: nil,
-                            price: Decimal.zero,
-                            insured: false,
-                            assetId: "",
-                            notes: "",
-                            showInvalidQuantityAlert: false
-                        )
-                        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
-                    },
-                    onDismiss: nil
-                )
-            }
-            .fullScreenCover(isPresented: $showingImageAnalysis) {
-                if let image = analyzingImage {
-                    ImageAnalysisView(image: image) {
-                        showingImageAnalysis = false
-                        analyzingImage = nil
-                    }
-                }
+            .searchable(text: $searchText, isPresented: $isSearchPresented)
+            .toolbar(content: toolbarContent)
+            .toolbar(content: bottomToolbarContent)
+            .sheet(isPresented: $showingPaywall, content: paywallSheet)
+            .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
+            .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
+            .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive, action: deleteSelectedItems)
+            } message: {
+                Text("Are you sure you want to permanently delete \(selectedItemIDs.count) item\(selectedItemIDs.count == 1 ? "" : "s")? This action cannot be undone.")
             }
     }
     
 
+    
+    @ToolbarContentBuilder
+    private func toolbarContent() -> some ToolbarContent {
+        if isSelectionMode {
+            // Cancel selection button
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel") {
+                    isSelectionMode = false
+                    selectedItemIDs.removeAll()
+                }
+            }
+            
+            // Selection actions menu
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu("Actions", systemImage: "ellipsis.circle") {
+                    Button(action: {
+                        showingDeleteConfirmation = true
+                    }) {
+                        Label("Delete Selected (\(selectedItemIDs.count))", systemImage: "trash")
+                    }
+                    .disabled(selectedItemIDs.isEmpty)
+                    
+                    Menu {
+                        ForEach(getAllLocations(), id: \.self) { location in
+                            Button(action: {
+                                moveSelectedItems(to: location)
+                            }) {
+                                Text(location.name)
+                            }
+                        }
+                    } label: {
+                        Label("Move Selected (\(selectedItemIDs.count))", systemImage: "folder.badge.plus")
+                    }
+                    .disabled(selectedItemIDs.isEmpty)
+                    
+                    Button(action: analyzeSelectedItems) {
+                        Label("Analyze Selected (\(selectedItemIDs.count))", systemImage: "sparkles")
+                    }
+                    .disabled(selectedItemIDs.isEmpty || !hasImagesInSelection())
+                }
+            }
+        } else {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu("Options", systemImage: "ellipsis.circle") {
+                    Button(action: {
+                        isSelectionMode.toggle()
+                        if isSelectionMode {
+                            isSearchPresented = false
+                        }
+                    }) {
+                        Label("Select Items", systemImage: "checkmark.circle")
+                    }
+                    
+                    Divider()
+                    Picker("Sort", selection: $sortOrder) {
+                        Text("Title (A-Z)")
+                            .tag([SortDescriptor(\InventoryItem.title)])
+                        Text("Title (Z-A)")
+                            .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
+                    }
+                }
+            }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu("Add Item", systemImage: "plus") {
+                    Button(action: createManualItem) {
+                        Label("Add Manually", systemImage: "square.and.pencil")
+                    }
+                    .accessibilityIdentifier("createManually")
+                    
+                    Button(action: createFromPhoto) {
+                        Label("Add from Photo", systemImage: "camera")
+                    }
+                    .accessibilityIdentifier("createFromCamera")
+                }
+                .accessibilityIdentifier("addItem")
+            }
+        }
+    }
+    
+    @ToolbarContentBuilder
+    private func bottomToolbarContent() -> some ToolbarContent {
+        if isSelectionMode {
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button(action: selectAllItems) {
+                    Text("Select All")
+                }
+                .disabled(selectedItemIDs.count == allItems.count)
+                
+                Spacer()
+                
+                Text("\(selectedItemIDs.count) selected")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Menu {
+                    ForEach(getAllLabels(), id: \.self) { label in
+                        Button(action: {
+                            updateSelectedItemsLabel(to: label)
+                        }) {
+                            Text("\(label.emoji) \(label.name)")
+                        }
+                    }
+                    Button(action: {
+                        updateSelectedItemsLabel(to: nil)
+                    }) {
+                        Text("Remove Label")
+                    }
+                } label: {
+                    Image(systemName: "tag")
+                }
+                .disabled(selectedItemIDs.isEmpty)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func paywallSheet() -> some View {
+        revenueCatManager.presentPaywall(
+            isPresented: $showingPaywall,
+            onCompletion: {
+                settings.isPro = true
+                let newItem = InventoryItem(
+                    title: "",
+                    quantityString: "1",
+                    quantityInt: 1,
+                    desc: "",
+                    serial: "",
+                    model: "",
+                    make: "",
+                    location: location,
+                    label: nil,
+                    price: Decimal.zero,
+                    insured: false,
+                    assetId: "",
+                    notes: "",
+                    showInvalidQuantityAlert: false
+                )
+                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+            },
+            onDismiss: nil
+        )
+    }
+    
+    @ViewBuilder
+    private func imageAnalysisSheet() -> some View {
+        if let image = analyzingImage {
+            ImageAnalysisView(image: image) {
+                showingImageAnalysis = false
+                analyzingImage = nil
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func batchAnalysisSheet() -> some View {
+        BatchAnalysisView(
+            selectedItems: selectedItems,
+            onDismiss: {
+                showingBatchAnalysis = false
+                isSelectionMode = false
+                selectedItemIDs.removeAll()
+            }
+        )
+    }
+    
+    private func createManualItem() {
+        print("📱 InventoryListView - Add Item button tapped")
+        print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
+        print("📱 InventoryListView - Items count: \(allItems.count)")
+        print("📱 InventoryListView - Creating new item")
+        let newItem = InventoryItem(
+            title: "",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: location,
+            label: nil,
+            price: Decimal.zero,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false
+        )
+        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+    }
+    
+    private func createFromPhoto() {
+        if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
+            showingPaywall = true
+        } else {
+            router.navigate(to: .addInventoryItemView(location: location))
+        }
+    }
     
     func handlePhotoCaptured(_ image: UIImage) {
         analyzingImage = image
@@ -211,15 +297,45 @@ struct InventoryListView: View {
     
     // MARK: - Selection Functions
     func selectAllItems() {
-        selectedItems = Set(allItems)
+        selectedItemIDs = Set(allItems.map { $0.persistentModelID })
     }
     
     func deleteSelectedItems() {
-        for item in selectedItems {
-            modelContext.delete(item)
+        print("🗑️ DeleteSelectedItems called")
+        print("🗑️ Selected item IDs: \(selectedItemIDs)")
+        print("🗑️ All items count: \(allItems.count)")
+        print("🗑️ Selected items count: \(selectedItems.count)")
+        
+        Task { @MainActor in
+            let itemsToDelete = selectedItems
+            print("🗑️ About to delete \(itemsToDelete.count) items:")
+            
+            for item in itemsToDelete {
+                print("🗑️ Deleting item: \(item.title) (ID: \(item.persistentModelID))")
+                modelContext.delete(item)
+            }
+            
+            do {
+                print("🗑️ Attempting to save context...")
+                try modelContext.save()
+                print("🗑️ Context saved successfully")
+                
+                // Small delay to allow SwiftData to update @Query
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                
+                // Verify deletion worked by checking remaining count
+                print("🗑️ Remaining items count after deletion: \(allItems.count)")
+                
+                // Exit selection mode after deletion
+                selectedItemIDs.removeAll()
+                isSelectionMode = false
+                print("🗑️ Exited selection mode")
+                
+            } catch {
+                print("🗑️ Error deleting items: \(error)")
+                // Don't exit selection mode if delete failed
+            }
         }
-        try? modelContext.save()
-        selectedItems.removeAll()
     }
     
     func moveSelectedItems(to location: InventoryLocation) {
@@ -227,7 +343,7 @@ struct InventoryListView: View {
             item.location = location
         }
         try? modelContext.save()
-        selectedItems.removeAll()
+        selectedItemIDs.removeAll()
     }
     
     func updateSelectedItemsLabel(to label: InventoryLabel?) {
@@ -235,7 +351,7 @@ struct InventoryListView: View {
             item.label = label
         }
         try? modelContext.save()
-        selectedItems.removeAll()
+        selectedItemIDs.removeAll()
     }
     
     func getAllLocations() -> [InventoryLocation] {
@@ -256,6 +372,17 @@ struct InventoryListView: View {
             print("Error fetching labels: \(error)")
             return []
         }
+    }
+    
+    // MARK: - New Selection Functions
+    func hasImagesInSelection() -> Bool {
+        return selectedItems.contains { item in
+            item.imageURL != nil || !item.secondaryPhotoURLs.isEmpty
+        }
+    }
+    
+    func analyzeSelectedItems() {
+        showingBatchAnalysis = true
     }
 }
 
