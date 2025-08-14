@@ -90,13 +90,6 @@ struct LocationsListView: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
                         Button {
-                            addLocation()
-                        } label: {
-                            Label("Add Location", systemImage: "plus")
-                        }
-                        .accessibilityIdentifier("addLocation")
-                        
-                        Button {
                             router.navigate(to: .locationsSettingsView)
                         } label: {
                             Text("Edit")

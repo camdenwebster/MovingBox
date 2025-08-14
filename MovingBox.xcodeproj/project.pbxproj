@@ -24,6 +24,7 @@
 		1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6EA2D9DDC56004CF387 /* RevenueCatUI */; };
 		1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */; };
 		1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */; };
+		196450542E4D6DC300918795 /* SwiftUIBackports in Frameworks */ = {isa = PBXBuildFile; productRef = 196450532E4D6DC300918795 /* SwiftUIBackports */; };
 		1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */; };
 		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
 		19750C382DA07FF40056F0FC /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19750C372DA07FF40056F0FC /* OnboardingManager.swift */; };
@@ -145,6 +146,7 @@
 				1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */,
 				4A01539D070041769323F9C9 /* Sentry in Frameworks */,
 				19BA299C2DC465170064C5A9 /* ZIPFoundation in Frameworks */,
+				196450542E4D6DC300918795 /* SwiftUIBackports in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -307,6 +309,7 @@
 			packageProductDependencies = (
 				D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */,
 				19BA299B2DC465170064C5A9 /* ZIPFoundation */,
+				196450532E4D6DC300918795 /* SwiftUIBackports */,
 			);
 			productName = MovingBox;
 			productReference = 1942DC7A2BF391CB00734AF4 /* MovingBox.app */;
@@ -443,6 +446,7 @@
 				1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 				AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -1237,6 +1241,14 @@
 				minimumVersion = 5.20.2;
 			};
 		};
+		196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/superwall/iOS-Backports";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.5;
+			};
+		};
 		1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
@@ -1278,6 +1290,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
 			productName = RevenueCatUI;
+		};
+		196450532E4D6DC300918795 /* SwiftUIBackports */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */;
+			productName = SwiftUIBackports;
 		};
 		1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;

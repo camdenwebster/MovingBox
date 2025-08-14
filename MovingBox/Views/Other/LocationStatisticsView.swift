@@ -11,28 +11,36 @@ import SwiftUI
 struct LocationStatisticsView: View {
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
     private let row = GridItem(.fixed(160))
+    @EnvironmentObject var router: Router
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Location Statistics")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            
+            Button {
+                router.selectedTab = .locations
+            } label: {
+                DashboardSectionLabel(text: "Locations")
+            }
+            .buttonStyle(.plain)
+
             if locations.isEmpty {
-                ContentUnavailableView(
-                    "No Locations",
-                    systemImage: "map",
-                    description: Text("Add locations to organize your items")
-                )
-                .frame(height: 160)
+                ContentUnavailableView {
+                        Label("No Locations", systemImage: "map")
+                    } description: {
+                        Text("Add locations to organize your items")
+                    } actions: {
+                        Button("Add a Location") {
+                            router.navigate(to: .editLocationView(location: nil))
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .frame(height: 160)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {
                         ForEach(locations) { location in
                             NavigationLink(value: Router.Destination.inventoryListView(location: location)) {
                                 LocationItemCard(location: location)
-                                    .frame(width: 150)
+                                    .frame(width: 180)
                             }
                         }
                     }

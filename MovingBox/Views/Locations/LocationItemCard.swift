@@ -25,12 +25,10 @@ struct LocationItemCard: View {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(height: 100)
                         .clipped()
                 } else {
                     Rectangle()
                         .fill(Color(.systemGray5))
-                        .frame(width: 160, height: 100)
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.system(size: 40))
@@ -38,6 +36,7 @@ struct LocationItemCard: View {
                         )
                 }
             }
+            .frame(height: 100)
             .task(id: location.imageURL) {
                 do {
                     thumbnail = try await location.thumbnail

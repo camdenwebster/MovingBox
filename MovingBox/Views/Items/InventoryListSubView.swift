@@ -58,11 +58,16 @@ struct InventoryListSubView: View {
     
     @ViewBuilder
     private var emptyStateView: some View {
-        ContentUnavailableView(
-            "No Items",
-            systemImage: "list.bullet",
-            description: Text("Start by adding items to your inventory.")
-        )
+        ContentUnavailableView {
+                Label("No Items", systemImage: "list.bullet")
+            } description: {
+                Text("Start by adding items to your inventory")
+            } actions: {
+                Button("Take a photo") {
+                    router.navigate(to: .addInventoryItemView(location: nil))
+                }
+                .buttonStyle(.borderedProminent)
+            }
     }
     
     @ViewBuilder

@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import SwiftUIBackports
 import SwiftUI
 import SwiftData
 import PhotosUI
@@ -55,7 +56,7 @@ struct DashboardView: View {
     }
 
     private let columns = [
-        GridItem(.flexible()),
+        GridItem(.flexible(), spacing: 16),
         GridItem(.flexible())
     ]
     
@@ -63,6 +64,7 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView {
+            // MARK: - Sticky Header
             VStack(spacing: 0) {
                 Group {
                     if let uiImage = loadedImage {
@@ -91,6 +93,7 @@ struct DashboardView: View {
                                 .frame(maxWidth: .infinity)
                             }
                             .overlay(alignment: .bottomTrailing) {
+                                // MARK: - Photo picker
                                 if !isLoading {
                                     PhotoPickerView(
                                         model: Binding(
@@ -157,30 +160,37 @@ struct DashboardView: View {
                     }
                 }
                 
+                // MARK: - Inventory Statistics
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Inventory Statistics")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                    Button {
+                        router.selectedTab = .allItems
+                    } label: {
+                        DashboardSectionLabel(text: "Inventory")
+                    }
+                    .buttonStyle(.plain)
                     
                     LazyVGrid(columns: columns, spacing: 16) {
                         StatCard(label: "Number of Items", value: "\(items.count)")
                         StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
+                        StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
+
                     }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
                 .padding(.top, 24)
                 
-                // Lazy-loaded location statistics
+                // MARK: - Location Statistics
                 LocationStatisticsView()
                     .padding(.top, 24)
                 
-                // Lazy-loaded label statistics
+                // MARK: - Label Statistics
                 LabelStatisticsView()
                     .padding(.top, 24)
                     .padding(.bottom, 24)
             }
             .frame(maxWidth: .infinity)
         }
+        .backport.scrollEdgeEffectStyle(.soft, for: .all)
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
         .task(id: home?.imageURL) {
@@ -225,8 +235,7 @@ struct DashboardView: View {
     
     private var dashboardHeader: some View {
         HStack {
-            Text(home?.name != "" ? home?.name ?? "Dashboard" : "Dashboard")
-                .font(.largeTitle)
+            Text((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard")                .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
                 .lineLimit(1)
@@ -247,3 +256,4 @@ struct DashboardView: View {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
 }
+
