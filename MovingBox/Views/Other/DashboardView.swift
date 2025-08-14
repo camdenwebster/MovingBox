@@ -41,14 +41,16 @@ struct DashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     
-    @State private var loadedImage: UIImage?
+    @State private var loadedImage: UIImage? = UIImage(named: "craftsman-home")
     @State private var loadingError: Error?
     @State private var isLoading = false
     @State private var homeInstance = Home()
     @State private var cachedImageURL: URL?
     
     private var home: Home? {
-        homes.last
+        let home = homes.last
+        print("Home in query: \(home?.name ?? "no name found")")
+        return homes.last
     }
     
     private var totalReplacementCost: Decimal {
@@ -252,6 +254,7 @@ struct DashboardView: View {
         let previewer = try Previewer()
         return DashboardView()
             .modelContainer(previewer.container)
+            .environmentObject(Router())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

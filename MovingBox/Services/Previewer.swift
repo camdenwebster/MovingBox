@@ -33,6 +33,7 @@ struct Previewer {
         // Create all models first using local variables
         let newHome = {
             let home = Home()
+            home.name = "My Home"
             home.address1 = "123 Main Street"
             
             if let url = Bundle.main.url(forResource: "craftsman-home", withExtension: "jpg") {
