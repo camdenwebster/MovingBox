@@ -11,7 +11,14 @@
       "Bash(xcrun devicectl list:*)",
       "Bash(xcrun xcodebuild:*)",
       "Bash(swiftc:*)",
-      "Bash(swift build:*)"
+      "Bash(swift build:*)",
+      "mcp__ios-simulator__screenshot",
+      "Bash(xcode-select:*)",
+      "mcp__ios-simulator__get_booted_sim_id",
+      "Bash(xcrun simctl install:*)",
+      "mcp__ios-simulator__ui_tap",
+      "Bash(xcrun simctl launch:*)",
+      "mcp__ios-simulator__ui_swipe"
     ],
     "deny": []
   }
