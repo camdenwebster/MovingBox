@@ -1,0 +1,41 @@
+# Review UI Performance
+
+Analyze SwiftUI views and app performance for optimization opportunities.
+
+## Performance Areas to Check
+
+1. **View Rendering**: Identify expensive computations in view body
+2. **Image Loading**: Check OptimizedImageManager usage and caching
+3. **SwiftData Queries**: Review fetch requests and predicates
+4. **Navigation Performance**: Analyze Router navigation patterns
+5. **Memory Usage**: Check for retain cycles and memory leaks
+
+## Tools and Techniques
+
+1. **Xcode Instruments**: Profile CPU, Memory, and Core Data usage
+2. **SwiftUI Preview Performance**: Check preview compilation times
+3. **App Launch Time**: Measure cold start performance  
+4. **Animation Performance**: Check 60fps maintenance during transitions
+
+## Key Files to Review
+
+- `MovingBox/Views/` - All SwiftUI views for optimization
+- `MovingBox/Services/OptimizedImageManager.swift` - Image performance
+- `MovingBox/Services/Router.swift` - Navigation performance
+- `MovingBox/Models/` - SwiftData model efficiency
+
+## Performance Testing
+
+```bash
+# Run performance tests
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -only-testing:MovingBoxTests/MovingBoxPerformanceTests
+```
+
+## Common Optimizations
+
+- Move expensive operations out of view body
+- Use `@StateObject` vs `@ObservedObject` correctly
+- Implement proper image caching strategies
+- Optimize SwiftData fetch requests with predicates
+- Use lazy loading for large lists
+- Implement proper async/await patterns

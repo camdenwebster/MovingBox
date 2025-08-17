@@ -58,6 +58,13 @@ struct InventoryDetailView: View {
     var onSave: (() -> Void)?
     var onCancel: (() -> Void)?
     
+    private var cornerRadiusValue: CGFloat {
+        if #available(iOS 26, *) {
+            return 25
+        } else {
+            return 12
+        }
+    }
 
     init(inventoryItemToDisplay: InventoryItem,
          navigationPath: Binding<NavigationPath>,
@@ -363,7 +370,7 @@ struct InventoryDetailView: View {
                 }
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .cornerRadius(cornerRadiusValue)
         }
     }
     
@@ -383,7 +390,7 @@ struct InventoryDetailView: View {
                     .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .cornerRadius(cornerRadiusValue)
         }
     }
     
@@ -409,7 +416,7 @@ struct InventoryDetailView: View {
                     .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .cornerRadius(cornerRadiusValue)
         }
     }
     
@@ -446,7 +453,7 @@ struct InventoryDetailView: View {
                 .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .cornerRadius(cornerRadiusValue)
         }
     }
     
@@ -522,7 +529,7 @@ struct InventoryDetailView: View {
                     }
                 }
                 .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
+                .cornerRadius(cornerRadiusValue)
             }
         }
     }
@@ -549,26 +556,9 @@ struct InventoryDetailView: View {
                     .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .cornerRadius(cornerRadiusValue)
         }
     }
-    
-//    @ViewBuilder
-//    private var clearFieldsSection: some View {
-//        VStack(spacing: 0) {
-//            Button("Clear All Fields") {
-//                showingClearAllAlert = true
-//            }
-//            .frame(maxWidth: .infinity)
-//            .padding(.horizontal, 16)
-//            .padding(.vertical, 12)
-//            .background(Color(.secondarySystemGroupedBackground))
-//            .foregroundColor(.red)
-//            .accessibilityIdentifier("clearAllFields")
-//        }
-//        .background(Color(.secondarySystemGroupedBackground))
-//        .cornerRadius(12)
-//    }
 
     @ViewBuilder
     private var mainContent: some View {
@@ -710,10 +700,6 @@ struct InventoryDetailView: View {
         } message: {
             Text(errorMessage)
         }
-//        .alert("Are you sure?", isPresented: $showingClearAllAlert) {
-//            Button("Clear All Fields", role: .destructive) { clearFields() }
-//            Button("Cancel", role: .cancel) { }
-//        }
         .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
             Button("Take Photo") {
                 showingSimpleCamera = true
@@ -1231,3 +1217,4 @@ extension View {
             .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
     }
 }
+
