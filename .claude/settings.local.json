@@ -18,7 +18,15 @@
       "Bash(xcrun simctl install:*)",
       "mcp__ios-simulator__ui_tap",
       "Bash(xcrun simctl launch:*)",
-      "mcp__ios-simulator__ui_swipe"
+      "mcp__ios-simulator__ui_swipe",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "mcp__apple-doc-mcp__list_technologies",
+      "mcp__apple-doc-mcp__search_symbols",
+      "WebSearch",
+      "WebFetch(domain:developer.apple.com)",
+      "mcp__ios-simulator__ui_describe_all"
     ],
     "deny": []
   }
