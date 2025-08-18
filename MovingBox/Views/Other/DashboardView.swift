@@ -81,7 +81,7 @@ struct DashboardView: View {
                     // MARK: - Inventory Statistics
                     VStack(alignment: .leading, spacing: 16) {
                         Button {
-                            router.selectedTab = .allItems
+                            router.navigate(to: .inventoryListView(location: nil))
                         } label: {
                             DashboardSectionLabel(text: "Inventory")
                         }

@@ -23,8 +23,9 @@ struct InventoryListView: View {
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
     @State private var showingPaywall = false
-    @State private var showingCamera = false
+    @State private var showItemCreationFlow = false
     @State private var showingImageAnalysis = false
+    @State private var showingFilteringSheet = false
     @State private var analyzingImage: UIImage?
     @State private var isContextValid = true
     
@@ -34,6 +35,7 @@ struct InventoryListView: View {
     @State private var isSearchPresented = false
     @State private var showingBatchAnalysis = false
     @State private var showingDeleteConfirmation = false
+    
     
     @Query private var allItems: [InventoryItem]
     
@@ -75,12 +77,18 @@ struct InventoryListView: View {
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
+            .navigationBarTitleDisplayMode(.large)
             .searchable(text: $searchText, isPresented: $isSearchPresented)
             .toolbar(content: toolbarContent)
             .toolbar(content: bottomToolbarContent)
             .sheet(isPresented: $showingPaywall, content: paywallSheet)
             .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
             .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
+            .sheet(isPresented: $showItemCreationFlow) {
+                ItemCreationFlowView(location: location) {
+                    // Optional callback when item creation is complete
+                }
+            }
             .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive, action: deleteSelectedItems)
@@ -94,46 +102,28 @@ struct InventoryListView: View {
     @ToolbarContentBuilder
     private func toolbarContent() -> some ToolbarContent {
         if isSelectionMode {
-            // Cancel selection button
+            // Select All Button
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("Cancel") {
+                Button(action: selectAllItems) {
+                    Text("Select All")
+                }
+                .disabled(selectedItemIDs.count == allItems.count)
+            }
+            // Done with selection button
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") {
                     isSelectionMode = false
                     selectedItemIDs.removeAll()
-                }
-            }
-            
-            // Selection actions menu
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu("Actions", systemImage: "ellipsis.circle") {
-                    Button(action: {
-                        showingDeleteConfirmation = true
-                    }) {
-                        Label("Delete Selected (\(selectedItemIDs.count))", systemImage: "trash")
-                    }
-                    .disabled(selectedItemIDs.isEmpty)
-                    
-                    Menu {
-                        ForEach(getAllLocations(), id: \.self) { location in
-                            Button(action: {
-                                moveSelectedItems(to: location)
-                            }) {
-                                Text(location.name)
-                            }
-                        }
-                    } label: {
-                        Label("Move Selected (\(selectedItemIDs.count))", systemImage: "folder.badge.plus")
-                    }
-                    .disabled(selectedItemIDs.isEmpty)
-                    
-                    Button(action: analyzeSelectedItems) {
-                        Label("Analyze Selected (\(selectedItemIDs.count))", systemImage: "sparkles")
-                    }
-                    .disabled(selectedItemIDs.isEmpty || !hasImagesInSelection())
                 }
             }
         } else {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu("Options", systemImage: "ellipsis.circle") {
+                    Button(action: createManualItem) {
+                        Label("Add Manually", systemImage: "square.and.pencil")
+                    }
+                    .accessibilityIdentifier("createManually")
+                    Divider()
                     Button(action: {
                         isSelectionMode.toggle()
                         if isSelectionMode {
@@ -154,18 +144,10 @@ struct InventoryListView: View {
             }
             
             ToolbarItem(placement: .navigationBarTrailing) {
-                Menu("Add Item", systemImage: "plus") {
-                    Button(action: createManualItem) {
-                        Label("Add Manually", systemImage: "square.and.pencil")
-                    }
-                    .accessibilityIdentifier("createManually")
+
                     
-                    Button(action: createFromPhoto) {
-                        Label("Add from Photo", systemImage: "camera")
-                    }
-                    .accessibilityIdentifier("createFromCamera")
-                }
-                .accessibilityIdentifier("addItem")
+
+
             }
         }
     }
@@ -174,36 +156,57 @@ struct InventoryListView: View {
     private func bottomToolbarContent() -> some ToolbarContent {
         if isSelectionMode {
             ToolbarItemGroup(placement: .bottomBar) {
-                Button(action: selectAllItems) {
-                    Text("Select All")
+                // MARK: - Toolbar item group
+                // Share Sheet Button
+                
+                // Change Location Button
+                
+                // Change Label Button
+                
+                // Analyze with AI Button
+                Button(action: analyzeSelectedItems) {
+                    Label("Analyze Selected (\(selectedItemIDs.count))", systemImage: "sparkles")
                 }
-                .disabled(selectedItemIDs.count == allItems.count)
-                
-                Spacer()
-                
-                Text("\(selectedItemIDs.count) selected")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                Menu {
-                    ForEach(getAllLabels(), id: \.self) { label in
-                        Button(action: {
-                            updateSelectedItemsLabel(to: label)
-                        }) {
-                            Text("\(label.emoji) \(label.name)")
-                        }
-                    }
-                    Button(action: {
-                        updateSelectedItemsLabel(to: nil)
-                    }) {
-                        Text("Remove Label")
-                    }
-                } label: {
-                    Image(systemName: "tag")
+                .disabled(selectedItemIDs.isEmpty || !hasImagesInSelection())
+            }
+            
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(placement: .bottomBar)
+            } else {
+                // Fallback on earlier versions
+            }
+
+            ToolbarItem (placement: .bottomBar) {
+                Button(action: {
+                    showingDeleteConfirmation = true
+                }) {
+                    Label("Delete Selected (\(selectedItemIDs.count))", systemImage: "trash")
                 }
                 .disabled(selectedItemIDs.isEmpty)
+            }
+        } else {
+            ToolbarItem(placement: .bottomBar) {
+                Button(action: {
+                    showingFilteringSheet = true
+                }) {
+                    Label("Filter", systemImage: "line.3.horizontal.decrease")
+                }
+            }
+            
+            // Search field here
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(placement: .bottomBar)
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(placement: .bottomBar)
+            }
+            
+
+            // Add new item button
+            ToolbarItem(placement: .bottomBar) {
+                Button(action: createFromPhoto) {
+                    Label("Add from Photo", systemImage: "plus")
+                }
+                .accessibilityIdentifier("createFromCamera")
             }
         }
     }
@@ -286,7 +289,7 @@ struct InventoryListView: View {
         if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
             showingPaywall = true
         } else {
-            router.navigate(to: .addInventoryItemView(location: location))
+            showItemCreationFlow = true
         }
     }
     

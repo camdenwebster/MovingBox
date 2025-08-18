@@ -16,7 +16,7 @@ struct LocationStatisticsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                router.selectedTab = .locations
+                router.navigate(to: .locationsListView)
             } label: {
                 DashboardSectionLabel(text: "Locations")
             }
