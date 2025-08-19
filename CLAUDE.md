@@ -147,7 +147,7 @@ When working on complex features, use specialized Claude instances with subagent
 - **Agent**: `swift-developer` subagent
 - **Purpose**: Execute tasks from technical plan with clean, maintainable code
 - **Process**: Implement tasks incrementally → test thoroughly → commit regularly
-- **Focus**: Follow established patterns, write self-documenting code, ensure quality
+- **Focus**: Follow established patterns, write self-documenting code, ensure quality. Use native SwiftUI components wherever possible (Forms, Lists, etc)
 
 ### Supporting Roles
 

@@ -17,8 +17,7 @@ struct InventoryItemRow: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 60, height: 60)
-                    .clipped()
-                    .cornerRadius(8)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
             } placeholder: {
                 ZStack {
                     Color(.systemGray6)

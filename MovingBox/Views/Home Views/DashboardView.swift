@@ -9,14 +9,18 @@ import SwiftUIBackports
 import SwiftUI
 import SwiftData
 import PhotosUI
+import RevenueCatUI
 
 @MainActor
 struct DashboardView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Query private var items: [InventoryItem]
+    @Query(sort: [SortDescriptor(\InventoryItem.createdAt, order: .reverse)]) private var recentItems: [InventoryItem]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
+    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
@@ -26,6 +30,8 @@ struct DashboardView: View {
     @State private var offset: CGFloat = 0
     @State private var headerContentHeight: CGFloat = 0
     @State private var loadingStartDate: Date? = nil
+    @State private var showingPaywall = false
+    @State private var showItemCreationFlow = false
     
     private var home: Home? {
         return homes.last
@@ -33,6 +39,10 @@ struct DashboardView: View {
     
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
+    }
+    
+    private var topRecentItems: [InventoryItem] {
+        Array(recentItems.prefix(3))
     }
 
     private let columns = [
@@ -98,6 +108,89 @@ struct DashboardView: View {
                     }
                     .padding(.top, 24)
                     
+                    // MARK: - Recently Added Items
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Recently Added")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                            .padding(.horizontal)
+                        //                        Button {
+//                            router.navigate(to: .inventoryListView(location: nil))
+//                        } label: {
+//
+////                            DashboardSectionLabel(text: "Recently Added", useSubTitle: true)
+//                        }
+//                        .buttonStyle(.plain)
+                        
+                        if topRecentItems.isEmpty {
+                            ContentUnavailableView {
+                                Label("No Items Yet", systemImage: "tray")
+                            } description: {
+                                Text("Add your first item to see it here")
+                            } actions: {
+                                Button("Add Item") {
+                                    createFromPhoto()
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .frame(height: 120)
+                            .padding(.horizontal)
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(topRecentItems, id: \.persistentModelID) { item in
+                                    Button {
+                                        router.navigate(to: .inventoryDetailView(item: item, showSparklesButton: true))
+                                    } label: {
+                                        HStack {
+                                            InventoryItemRow(item: item)
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .foregroundStyle(.tertiary)
+                                                .font(.footnote)
+                                                .fontWeight(.medium)
+                                        }
+                                        .padding(.horizontal)
+                                        .padding(.vertical, 8)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    if item.persistentModelID != topRecentItems.last?.persistentModelID {
+                                        Divider()
+                                            .padding(.leading, 92)
+                                    }
+                                }
+                                
+                                Divider()
+                                    .padding(.leading, 16)
+                                
+                                Button {
+                                    router.navigate(to: .inventoryListView(location: nil))
+                                } label: {
+                                    HStack {
+                                        Text("View All Items")
+                                            .foregroundStyle(Color.customPrimary)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundStyle(.tertiary)
+                                            .font(.footnote)
+                                            .fontWeight(.medium)
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 12)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
+                            .padding(.horizontal)
+                            
+                        }
+                    }
+                    .padding(.top, 24)
+                    
                     // MARK: - Location Statistics
                     LocationStatisticsView()
                         .padding(.top, 24)
@@ -119,6 +212,42 @@ struct DashboardView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    router.navigate(to: .settingsView)
+                } label: {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+            }
+            // Search field and spacers
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(placement: .bottomBar)
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(placement: .bottomBar)
+            } else {
+                // For iOS < 26, add spacer to push + button to trailing edge
+                ToolbarItem(placement: .bottomBar) {
+                    Spacer()
+                }
+            }
+            // Add new item button
+            ToolbarItem(placement: .bottomBar) {
+                Button(action: createFromPhoto) {
+                    Label("Add from Photo", systemImage: "plus")
+                }
+                .accessibilityIdentifier("createFromCamera")
+                .buttonStyle(.borderedProminent)
+                .tint(Color.customPrimary)
+                .backport.glassEffect(in: Circle())
+            }
+        }
+        .sheet(isPresented: $showingPaywall, content: paywallSheet)
+        .sheet(isPresented: $showItemCreationFlow) {
+            ItemCreationFlowView(location: nil) {
+                // Optional callback when item creation is complete
+            }
+        }
         .task(id: home?.imageURL) {
             guard let home = home, 
                   let imageURL = home.imageURL, 
@@ -169,15 +298,7 @@ struct DashboardView: View {
     
     private var headerContentView: some View {
         VStack {
-            
-            Button {
-                router.navigate(to: .settingsView)
-            } label: {
-                Label("Settings", systemImage: "gearshape.fill")
-            }
-               
             Spacer()
-            
             ZStack(alignment: .bottom) {
                 LinearGradient(
                     gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
@@ -226,6 +347,26 @@ struct DashboardView: View {
             }
         }
     }
+    
+    private func createFromPhoto() {
+        if settings.shouldShowPaywallForAiScan(currentCount: items.filter({ $0.hasUsedAI}).count) {
+            showingPaywall = true
+        } else {
+            showItemCreationFlow = true
+        }
+    }
+    
+    @ViewBuilder
+    private func paywallSheet() -> some View {
+        revenueCatManager.presentPaywall(
+            isPresented: $showingPaywall,
+            onCompletion: {
+                settings.isPro = true
+                showItemCreationFlow = true
+            },
+            onDismiss: nil
+        )
+    }
 }
 
 struct StatCard: View {
@@ -237,15 +378,19 @@ struct StatCard: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
                 .accessibilityIdentifier("statCardLabel")
             Text(value)
                 .font(.title2)
                 .fontWeight(.medium)
+                .lineLimit(1)
+                .truncationMode(.tail)
                 .accessibilityIdentifier("statCardValue")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(RoundedRectangle(cornerRadius: 12)
+        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
             .fill(Color(.secondarySystemGroupedBackground))
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
     }

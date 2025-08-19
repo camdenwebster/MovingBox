@@ -58,13 +58,6 @@ struct InventoryDetailView: View {
     var onSave: (() -> Void)?
     var onCancel: (() -> Void)?
     
-    private var cornerRadiusValue: CGFloat {
-        if #available(iOS 26, *) {
-            return 25
-        } else {
-            return 12
-        }
-    }
 
     init(inventoryItemToDisplay: InventoryItem,
          navigationPath: Binding<NavigationPath>,
@@ -370,7 +363,7 @@ struct InventoryDetailView: View {
                 }
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(cornerRadiusValue)
+            .cornerRadius(UIConstants.cornerRadius)
         }
     }
     
@@ -390,7 +383,7 @@ struct InventoryDetailView: View {
                     .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(cornerRadiusValue)
+            .cornerRadius(UIConstants.cornerRadius)
         }
     }
     
@@ -416,7 +409,7 @@ struct InventoryDetailView: View {
                     .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(cornerRadiusValue)
+            .cornerRadius(UIConstants.cornerRadius)
         }
     }
     
@@ -453,7 +446,7 @@ struct InventoryDetailView: View {
                 .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(cornerRadiusValue)
+            .cornerRadius(UIConstants.cornerRadius)
         }
     }
     
@@ -529,7 +522,7 @@ struct InventoryDetailView: View {
                     }
                 }
                 .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(cornerRadiusValue)
+                .cornerRadius(UIConstants.cornerRadius)
             }
         }
     }
@@ -556,7 +549,7 @@ struct InventoryDetailView: View {
                     .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(cornerRadiusValue)
+            .cornerRadius(UIConstants.cornerRadius)
         }
     }
 

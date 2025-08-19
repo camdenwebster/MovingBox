@@ -28,6 +28,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var secondaryPhotoURLs: [String] = []
     var showInvalidQuantityAlert: Bool = false
     var hasUsedAI: Bool = false
+    var createdAt: Date = Date()
     
     @Attribute(.externalStorage) var data: Data?
     
@@ -56,6 +57,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     }
     
     init() {
+        self.createdAt = Date()
         migrateSecondaryPhotosIfNeeded()
         Task {
             try? await migrateImageIfNeeded()
@@ -79,6 +81,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.showInvalidQuantityAlert = showInvalidQuantityAlert
         self.hasUsedAI = hasUsedAI
         self.secondaryPhotoURLs = secondaryPhotoURLs
+        self.createdAt = Date()
         
         migrateSecondaryPhotosIfNeeded()
         Task {

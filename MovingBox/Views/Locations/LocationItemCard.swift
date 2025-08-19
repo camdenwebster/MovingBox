@@ -7,6 +7,16 @@
 
 import SwiftUI
 
+extension View {
+    var recommendedCardShape: some Shape {
+        if #available(iOS 16.0, *) {
+            return RoundedRectangle(cornerRadius: 12, style: .continuous)
+        } else {
+            return RoundedRectangle(cornerRadius: 12, style: .circular)
+        }
+    }
+}
+
 struct LocationItemCard: View {
     var location: InventoryLocation
     var showCost: Bool = false
@@ -82,11 +92,11 @@ struct LocationItemCard: View {
                         .foregroundStyle(Color(.label))
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal)
+            .padding(.vertical)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .background(RoundedRectangle(cornerRadius: 12)
+        .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
+        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
             .fill(Color(.secondarySystemGroupedBackground))
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
         .padding(1)

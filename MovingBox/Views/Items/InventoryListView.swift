@@ -98,6 +98,7 @@ struct InventoryListView: View {
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
             .navigationBarTitleDisplayMode(.large)
+            .navigationBarBackButtonHidden(isSelectionMode)
             .searchable(text: $searchText, isPresented: $isSearchPresented)
             .toolbar(content: toolbarContent)
             .toolbar(content: bottomToolbarContent)
@@ -278,6 +279,9 @@ struct InventoryListView: View {
                     Label("Add from Photo", systemImage: "plus")
                 }
                 .accessibilityIdentifier("createFromCamera")
+                .foregroundStyle(Color.customPrimary)
+                .backport.glassEffect(in: Circle())
+
             }
         }
     }
@@ -544,8 +548,7 @@ struct InventoryListView: View {
                 // Create a custom DataManager method for exporting specific items
                 let url = try await DataManager.shared.exportSpecificItems(
                     items: selectedItems,
-                    modelContext: modelContext,
-                    fileName: "Selected-Items-Export"
+                    modelContext: modelContext
                 )
                 
                 exportURL = url
