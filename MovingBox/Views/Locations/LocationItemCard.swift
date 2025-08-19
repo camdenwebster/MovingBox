@@ -22,10 +22,20 @@ struct LocationItemCard: View {
             // Photo section
             Group {
                 if let thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .clipped()
+                    AsyncImage(url: location.thumbnailURL) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipped()
+                    } placeholder: {
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .overlay {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.secondary)
+                            }
+                    }
                 } else {
                     Rectangle()
                         .fill(Color(.systemGray5))

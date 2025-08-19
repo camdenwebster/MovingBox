@@ -15,7 +15,6 @@ struct InventoryListSubView: View {
     let location: InventoryLocation?
     let searchString: String
     let sortOrder: [SortDescriptor<InventoryItem>]
-    let isSelectionMode: Bool
     @Binding var selectedItemIDs: Set<PersistentIdentifier>
     
     // Use @Query for lazy loading with dynamic predicate and sort
@@ -27,7 +26,7 @@ struct InventoryListSubView: View {
     
     @ViewBuilder
     private var listContent: some View {
-        List {
+        List(selection: $selectedItemIDs) {
             if filteredItems.isEmpty {
                 emptyStateView
             } else {
@@ -72,66 +71,25 @@ struct InventoryListSubView: View {
     
     @ViewBuilder
     private var itemsSection: some View {
-        if isSelectionMode {
-            ForEach(filteredItems) { inventoryItem in
-                itemRowView(for: inventoryItem)
-            }
-        } else {
-            ForEach(filteredItems) { inventoryItem in
-                itemRowView(for: inventoryItem)
-            }
-            .onDelete(perform: deleteItems)
+        ForEach(filteredItems) { inventoryItem in
+            itemRowView(for: inventoryItem)
+                .tag(inventoryItem.persistentModelID)
         }
     }
     
     @ViewBuilder
     private func itemRowView(for inventoryItem: InventoryItem) -> some View {
-        if isSelectionMode {
-            selectionModeRow(for: inventoryItem)
-        } else {
-            navigationLinkRow(for: inventoryItem)
-        }
-    }
-    
-    @ViewBuilder
-    private func selectionModeRow(for inventoryItem: InventoryItem) -> some View {
-        HStack {
-            selectionButton(for: inventoryItem)
-            
-            InventoryItemRow(item: inventoryItem)
-                .listRowInsets(EdgeInsets())
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    toggleSelection(for: inventoryItem)
-                }
-        }
-    }
-    
-    @ViewBuilder
-    private func selectionButton(for inventoryItem: InventoryItem) -> some View {
-        Button(action: {
-            toggleSelection(for: inventoryItem)
-        }) {
-            let isSelected = selectedItemIDs.contains(inventoryItem.persistentModelID)
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundColor(isSelected ? .blue : .gray)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-    
-    @ViewBuilder
-    private func navigationLinkRow(for inventoryItem: InventoryItem) -> some View {
         NavigationLink(value: inventoryItem) {
             InventoryItemRow(item: inventoryItem)
                 .listRowInsets(EdgeInsets())
         }
     }
     
-    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], isSelectionMode: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
+    
+    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
         self.location = location
         self.searchString = searchString
         self.sortOrder = sortOrder
-        self.isSelectionMode = isSelectionMode
         self._selectedItemIDs = selectedItemIDs
         
         // Build predicate based on location
@@ -150,27 +108,6 @@ struct InventoryListSubView: View {
         _items = Query(filter: predicate, sort: finalSortOrder)
     }
     
-    private func toggleSelection(for item: InventoryItem) {
-        let itemID = item.persistentModelID
-        if selectedItemIDs.contains(itemID) {
-            selectedItemIDs.remove(itemID)
-        } else {
-            selectedItemIDs.insert(itemID)
-        }
-    }
     
     
-    @MainActor
-    private func deleteItems(at offsets: IndexSet) {
-        for index in offsets {
-            let itemToDelete = filteredItems[index]
-            modelContext.delete(itemToDelete)
-        }
-        
-        do {
-            try modelContext.save()
-        } catch {
-            print("Error saving after delete: \(error)")
-        }
-    }
 }

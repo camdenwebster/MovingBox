@@ -29,8 +29,8 @@ struct InventoryListView: View {
     @State private var analyzingImage: UIImage?
     @State private var isContextValid = true
     
-    // Selection state
-    @State private var isSelectionMode = false
+    // Selection state - using native SwiftUI selection
+    @State private var editMode: EditMode = .inactive
     @State private var selectedItemIDs: Set<PersistentIdentifier> = []
     @State private var isSearchPresented = false
     @State private var showingBatchAnalysis = false
@@ -50,6 +50,11 @@ struct InventoryListView: View {
     @Query private var allItems: [InventoryItem]
     
     let location: InventoryLocation?
+    
+    // Computed properties for selection state
+    private var isSelectionMode: Bool {
+        editMode == .active
+    }
     
     // Optimized: Cache selected items to avoid repeated filtering
     private var selectedItems: [InventoryItem] {
@@ -71,7 +76,6 @@ struct InventoryListView: View {
                 location: location, 
                 searchString: searchText, 
                 sortOrder: sortOrder,
-                isSelectionMode: isSelectionMode,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("reverse-\(sortOrder.hashValue)")
@@ -80,7 +84,6 @@ struct InventoryListView: View {
                 location: location, 
                 searchString: searchText, 
                 sortOrder: sortOrder,
-                isSelectionMode: isSelectionMode,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("forward-\(sortOrder.hashValue)")
@@ -89,6 +92,7 @@ struct InventoryListView: View {
     
     var body: some View {
         inventoryListContent
+            .environment(\.editMode, $editMode)
             .navigationTitle(location?.name ?? "All Items")
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
@@ -162,10 +166,10 @@ struct InventoryListView: View {
                 }
                 .disabled(selectedCount == allItems.count)
             }
-            // Done with selection button
+            // Edit button (native SwiftUI)
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Done") {
-                    isSelectionMode = false
+                    editMode = .inactive
                     selectedItemIDs.removeAll()
                 }
             }
@@ -178,10 +182,8 @@ struct InventoryListView: View {
                     .accessibilityIdentifier("createManually")
                     Divider()
                     Button(action: {
-                        isSelectionMode.toggle()
-                        if isSelectionMode {
-                            isSearchPresented = false
-                        }
+                        editMode = .active
+                        isSearchPresented = false
                     }) {
                         Label("Select Items", systemImage: "checkmark.circle")
                     }
@@ -324,7 +326,7 @@ struct InventoryListView: View {
             selectedItems: selectedItems,
             onDismiss: {
                 showingBatchAnalysis = false
-                isSelectionMode = false
+                editMode = .inactive
                 selectedItemIDs.removeAll()
             }
         )
@@ -471,7 +473,7 @@ struct InventoryListView: View {
                 
                 // Exit selection mode after deletion
                 selectedItemIDs.removeAll()
-                isSelectionMode = false
+                editMode = .inactive
                 print("🗑️ Exited selection mode")
                 
             } catch {
@@ -487,6 +489,7 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
+        editMode = .inactive
     }
     
     func updateSelectedItemsLabel(to label: InventoryLabel?) {
@@ -495,6 +498,7 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
+        editMode = .inactive
     }
     
     func getAllLocations() -> [InventoryLocation] {
@@ -562,7 +566,7 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
-        isSelectionMode = false
+        editMode = .inactive
     }
     
     func changeSelectedItemsLabel(to label: InventoryLabel?) {
@@ -571,7 +575,7 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
-        isSelectionMode = false
+        editMode = .inactive
     }
 }
 
