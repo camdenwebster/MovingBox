@@ -46,6 +46,9 @@ struct InventoryListView: View {
     @State private var selectedNewLabel: InventoryLabel?
     @State private var exportURL: URL?
     @State private var isExporting = false
+    @State private var showingExportProgress = false
+    @State private var exportError: Error?
+    @State private var showingExportError = false
     
     @Query private var allItems: [InventoryItem]
     
@@ -153,12 +156,24 @@ struct InventoryListView: View {
                 let labelName = selectedNewLabel?.name ?? "No Label"
                 Text("Are you sure you want to set the label for \(selectedCount) item\(selectedCount == 1 ? "" : "s") to \(labelName)?")
             }
+            .sheet(isPresented: $showingExportProgress) {
+                exportProgressSheet()
+            }
+            .alert("Export Error", isPresented: $showingExportError) {
+                Button("OK") {
+                    exportError = nil
+                }
+            } message: {
+                Text(exportError?.localizedDescription ?? "An error occurred while exporting items.")
+            }
     }
     
 
     
     @ToolbarContentBuilder
     private func toolbarContent() -> some ToolbarContent {
+
+        
         if isSelectionMode {
             // Select All Button
             ToolbarItem(placement: .navigationBarLeading) {
@@ -423,6 +438,29 @@ struct InventoryListView: View {
         }
     }
     
+    @ViewBuilder
+    private func exportProgressSheet() -> some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                
+                VStack(spacing: 8) {
+                    Text("Exporting Items")
+                        .font(.headline)
+                    Text("Please wait while we prepare your export...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("Export")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
+        }
+    }
+    
     private func createManualItem() {
         print("📱 InventoryListView - Add Item button tapped")
         print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
@@ -543,6 +581,7 @@ struct InventoryListView: View {
         
         Task { @MainActor in
             do {
+                showingExportProgress = true
                 isExporting = true
                 
                 // Create a custom DataManager method for exporting specific items
@@ -551,12 +590,15 @@ struct InventoryListView: View {
                     modelContext: modelContext
                 )
                 
+                showingExportProgress = false
                 exportURL = url
                 showingExportShare = true
                 
             } catch {
+                showingExportProgress = false
+                exportError = error
+                showingExportError = true
                 print("Export error: \(error)")
-                // You could show an error alert here
             }
             
             isExporting = false

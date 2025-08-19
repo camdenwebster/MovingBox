@@ -245,10 +245,6 @@ struct InventoryDetailView: View {
                 if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                     notesSection
                 }
-                
-//                if isEditing {
-//                    clearFieldsSection
-//                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)

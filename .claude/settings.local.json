@@ -32,7 +32,8 @@
       "Bash(xcrun simctl uninstall:*)",
       "Bash(xcrun simctl list:*)",
       "Bash(xcrun simctl boot:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "mcp__ios-simulator__ui_describe_point"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
