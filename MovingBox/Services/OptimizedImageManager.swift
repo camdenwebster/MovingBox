@@ -339,6 +339,10 @@ final class OptimizedImageManager {
         return imagesDirectoryURL.appendingPathComponent("\(id).jpg")
     }
     
+    func getThumbnailURL(for id: String) -> URL {
+        return imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
+    }
+    
     func imageExists(for url: URL?) -> Bool {
         guard let url = url else { return false }
         return fileManager.fileExists(atPath: url.path)

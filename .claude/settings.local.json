@@ -26,7 +26,13 @@
       "mcp__apple-doc-mcp__search_symbols",
       "WebSearch",
       "WebFetch(domain:developer.apple.com)",
-      "mcp__ios-simulator__ui_describe_all"
+      "mcp__ios-simulator__ui_describe_all",
+      "mcp__ios-simulator__ui_view",
+      "Bash(xcrun simctl terminate:*)",
+      "Bash(xcrun simctl uninstall:*)",
+      "Bash(xcrun simctl list:*)",
+      "Bash(xcrun simctl boot:*)",
+      "Bash(open:*)"
     ],
     "deny": []
   }

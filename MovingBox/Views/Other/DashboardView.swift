@@ -45,6 +45,7 @@ struct DashboardView: View {
     var body: some View {
         
         ZStack(alignment: .top) {
+            
             Group {
                 if isLoading {
                     ProgressView("Loading photo...")
@@ -168,7 +169,15 @@ struct DashboardView: View {
     
     private var headerContentView: some View {
         VStack {
+            
+            Button {
+                router.navigate(to: .settingsView)
+            } label: {
+                Label("Settings", systemImage: "gearshape.fill")
+            }
+               
             Spacer()
+            
             ZStack(alignment: .bottom) {
                 LinearGradient(
                     gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
