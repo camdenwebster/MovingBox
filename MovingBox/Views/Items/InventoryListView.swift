@@ -59,10 +59,27 @@ struct InventoryListView: View {
         editMode == .active
     }
     
-    // Optimized: Cache selected items to avoid repeated filtering
+    // Cache for selected items to avoid repeated expensive filtering
+    @State private var cachedSelectedItems: [InventoryItem] = []
+    @State private var cachedSelectionIDs: Set<PersistentIdentifier> = []
+    
+    // Optimized: Use cached selected items with lazy computation
     private var selectedItems: [InventoryItem] {
-        guard !selectedItemIDs.isEmpty else { return [] }
-        return allItems.filter { selectedItemIDs.contains($0.persistentModelID) }
+        guard !selectedItemIDs.isEmpty else { 
+            if !cachedSelectedItems.isEmpty {
+                cachedSelectedItems = []
+                cachedSelectionIDs = []
+            }
+            return [] 
+        }
+        
+        // Only recompute if selection changed
+        if cachedSelectionIDs != selectedItemIDs {
+            cachedSelectedItems = allItems.filter { selectedItemIDs.contains($0.persistentModelID) }
+            cachedSelectionIDs = selectedItemIDs
+        }
+        
+        return cachedSelectedItems
     }
     
     // Memoized count for toolbar performance
@@ -353,89 +370,32 @@ struct InventoryListView: View {
     
     @ViewBuilder
     private func locationPickerSheet() -> some View {
-        NavigationView {
-            List(getAllLocations(), id: \.persistentModelID) { location in
-                Button(action: {
-                    selectedNewLocation = location
-                    showingLocationPicker = false
-                    showingLocationChangeConfirmation = true
-                }) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(location.name)
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                        if !location.desc.isEmpty {
-                            Text(location.desc)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
+        PickerSheet.locationPicker(
+            locations: getAllLocations(),
+            onSelect: { location in
+                selectedNewLocation = location
+                showingLocationPicker = false
+                showingLocationChangeConfirmation = true
+            },
+            onCancel: {
+                showingLocationPicker = false
             }
-            .navigationTitle("Select Location")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel") {
-                        showingLocationPicker = false
-                    }
-                }
-            }
-        }
+        )
     }
     
     @ViewBuilder
     private func labelPickerSheet() -> some View {
-        NavigationView {
-            List {
-                // Option for "No Label"
-                Button(action: {
-                    selectedNewLabel = nil
-                    showingLabelPicker = false
-                    showingLabelChangeConfirmation = true
-                }) {
-                    HStack {
-                        Image(systemName: "minus.circle")
-                            .foregroundColor(.secondary)
-                        Text("No Label")
-                            .foregroundColor(.primary)
-                    }
-                }
-                .buttonStyle(.plain)
-                
-                // Existing labels
-                ForEach(getAllLabels(), id: \.persistentModelID) { label in
-                    Button(action: {
-                        selectedNewLabel = label
-                        showingLabelPicker = false
-                        showingLabelChangeConfirmation = true
-                    }) {
-                        HStack {
-                            Circle()
-                                .fill(Color(label.color ?? .systemBlue))
-                                .frame(width: 16, height: 16)
-                            if !label.emoji.isEmpty {
-                                Text(label.emoji)
-                            }
-                            Text(label.name)
-                                .foregroundColor(.primary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
+        PickerSheet.labelPicker(
+            labels: getAllLabels(),
+            onSelect: { label in
+                selectedNewLabel = label
+                showingLabelPicker = false
+                showingLabelChangeConfirmation = true
+            },
+            onCancel: {
+                showingLabelPicker = false
             }
-            .navigationTitle("Select Label")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel") {
-                        showingLabelPicker = false
-                    }
-                }
-            }
-        }
+        )
     }
     
     @ViewBuilder
@@ -462,10 +422,6 @@ struct InventoryListView: View {
     }
     
     private func createManualItem() {
-        print("📱 InventoryListView - Add Item button tapped")
-        print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
-        print("📱 InventoryListView - Items count: \(allItems.count)")
-        print("📱 InventoryListView - Showing item creation flow")
         showItemCreationFlow = true
     }
     
@@ -488,39 +444,26 @@ struct InventoryListView: View {
     }
     
     func deleteSelectedItems() {
-        print("🗑️ DeleteSelectedItems called")
-        print("🗑️ Selected item IDs: \(selectedItemIDs)")
-        print("🗑️ All items count: \(allItems.count)")
-        print("🗑️ Selected items count: \(selectedItems.count)")
-        
         Task { @MainActor in
             let itemsToDelete = selectedItems
-            print("🗑️ About to delete \(itemsToDelete.count) items:")
             
             for item in itemsToDelete {
-                print("🗑️ Deleting item: \(item.title) (ID: \(item.persistentModelID))")
                 modelContext.delete(item)
             }
             
             do {
-                print("🗑️ Attempting to save context...")
                 try modelContext.save()
-                print("🗑️ Context saved successfully")
                 
                 // Small delay to allow SwiftData to update @Query
                 try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 
-                // Verify deletion worked by checking remaining count
-                print("🗑️ Remaining items count after deletion: \(allItems.count)")
-                
                 // Exit selection mode after deletion
                 selectedItemIDs.removeAll()
                 editMode = .inactive
-                print("🗑️ Exited selection mode")
                 
             } catch {
-                print("🗑️ Error deleting items: \(error)")
                 // Don't exit selection mode if delete failed
+                // Error will be handled by SwiftData's built-in error handling
             }
         }
     }
@@ -598,7 +541,6 @@ struct InventoryListView: View {
                 showingExportProgress = false
                 exportError = error
                 showingExportError = true
-                print("Export error: \(error)")
             }
             
             isExporting = false

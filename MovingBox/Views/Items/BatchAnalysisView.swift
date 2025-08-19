@@ -18,6 +18,8 @@ struct BatchAnalysisView: View {
     @State private var analysisProgress: [PersistentIdentifier: AnalysisState] = [:]
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
+    @State private var currentDelay: TimeInterval = 1.0 // Initial delay
+    @State private var consecutiveErrors = 0
     
     enum AnalysisState {
         case pending
@@ -141,6 +143,8 @@ struct BatchAnalysisView: View {
     private func performBatchAnalysis() async {
         isAnalyzing = true
         errorMessage = nil
+        currentDelay = 1.0 // Reset delay
+        consecutiveErrors = 0 // Reset error counter
         
         // Initialize all items as pending
         for item in itemsWithImages {
@@ -153,18 +157,28 @@ struct BatchAnalysisView: View {
             do {
                 try await analyzeItem(item)
                 analysisProgress[item.persistentModelID] = .completed
+                
+                // Success: reset consecutive errors and reduce delay slightly
+                consecutiveErrors = 0
+                currentDelay = max(0.5, currentDelay * 0.9) // Reduce delay but keep minimum of 0.5s
+                
             } catch {
                 analysisProgress[item.persistentModelID] = .failed(error.localizedDescription)
+                
+                // Error: increase consecutive error count and apply exponential backoff
+                consecutiveErrors += 1
+                currentDelay = min(10.0, currentDelay * pow(2.0, Double(min(consecutiveErrors, 4)))) // Cap at 10 seconds
             }
             
-            // Small delay between requests to be respectful to the API
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            // Adaptive delay between requests based on success/failure rate
+            let delayNanoseconds = UInt64(currentDelay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
         }
         
         isAnalyzing = false
         
         // Show completion message for a moment, then dismiss
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             onDismiss()
         }
     }
@@ -179,7 +193,7 @@ struct BatchAnalysisView: View {
                 let base64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: [image])
                 imageBase64Array.append(contentsOf: base64Array)
             } catch {
-                print("Failed to load primary image for item \(item.title): \(error)")
+                // Failed to load primary image - continue with secondary images
             }
         }
         
@@ -190,7 +204,7 @@ struct BatchAnalysisView: View {
                 let base64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: secondaryImages)
                 imageBase64Array.append(contentsOf: base64Array)
             } catch {
-                print("Failed to load secondary images for item \(item.title): \(error)")
+                // Failed to load secondary images - continue with available images
             }
         }
         
