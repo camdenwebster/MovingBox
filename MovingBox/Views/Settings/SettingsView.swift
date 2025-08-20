@@ -479,8 +479,6 @@ struct AISettingsView: View {
     }
 }
 
-
-
 struct LocationSettingsView: View {
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @Environment(\.modelContext) var modelContext
@@ -512,16 +510,13 @@ struct LocationSettingsView: View {
         .navigationTitle("Location Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 EditButton()
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 Button("Add Location", systemImage: "plus") {
                     addLocation()
                 }
                 .accessibilityIdentifier("addLocation")
             }
-
         }
     }
     

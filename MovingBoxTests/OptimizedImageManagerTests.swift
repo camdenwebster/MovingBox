@@ -5,11 +5,42 @@ import SwiftUI
 @MainActor
 @Suite struct OptimizedImageManagerTests {
     
-    let manager = OptimizedImageManager.shared
+    let manager: OptimizedImageManager
     let testImageId = "test_image"
+    let testDirectory: URL
+    
+    init() {
+        // Create isolated test directory for this test suite
+        let testDirectoryName = "OptimizedImageManagerTests-\(UUID().uuidString)"
+        self.testDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(testDirectoryName)
+        
+        // Create isolated manager instance
+        self.manager = OptimizedImageManager(testDirectory: testDirectory)
+        
+        // Create test directory
+        try? FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
+    }
+    
+    
+    private func cleanupTestFiles() {
+        // Since we have an isolated directory, just remove all contents
+        if FileManager.default.fileExists(atPath: testDirectory.path) {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        // Recreate the directory
+        try? FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
+    }
+    
+    // Clean up after each test to prevent pollution
+    private func cleanupAfterTest() {
+        manager.clearCache()
+        // For isolated tests, we don't need aggressive cleanup between tests
+        // since each test suite has its own directory
+    }
     
     @Test("Image save and load validates data integrity")
     func imageDataIntegrity() async throws {
+        
         // Given
         let size = CGSize(width: 100, height: 100)
         let testImage = createTestImage(size: size)

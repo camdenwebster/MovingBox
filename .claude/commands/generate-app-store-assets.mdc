@@ -1,0 +1,47 @@
+# Generate App Store Assets
+
+Generate screenshots and marketing assets for App Store submission using FastLane.
+
+## Screenshots Generation
+
+1. Use FastLane snapshot tool with configured devices
+2. Generate both light and dark mode variants
+3. Include key user flows: Dashboard, Item Analysis, Location Management
+
+## Commands
+
+```bash
+# Generate all screenshots
+fastlane screenshots
+
+# Build and generate specific device screenshots  
+fastlane snapshot --devices "iPhone 14 Pro,iPhone 14 Pro Max,iPad Pro (12.9-inch) (4th generation)"
+```
+
+## Key Screenshots to Capture
+
+1. **Dashboard View** - Show inventory overview with stats
+2. **Item Analysis** - Before and after AI analysis 
+3. **Location Management** - Room/location organization
+4. **Item List View** - Clean inventory browsing
+5. **Multi-Photo Feature** - Showcase batch analysis
+
+## Asset Requirements
+
+- iPhone: 6.7", 6.5", 5.5" displays
+- iPad: 12.9", 11" displays  
+- Light and dark mode variants
+- Localized for supported languages
+
+## Configuration Files
+
+- `fastlane/Snapfile` - Device and language configuration
+- `MovingBoxUITests/FastlaneSnapshots.swift` - Screenshot automation
+- `fastlane/screenshots/` - Generated assets directory
+
+## Quality Checklist
+
+- Screenshots show real content, not placeholder data
+- Text is readable and properly localized
+- Dark mode variants look polished
+- Key features are highlighted effectively

@@ -48,7 +48,7 @@ struct OnboardingHomeView: View {
                                         .scaledToFill()
                                         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                                         .frame(height: UIScreen.main.bounds.height / 3)
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
                                                 model: Binding(
@@ -83,7 +83,7 @@ struct OnboardingHomeView: View {
                                         .padding()
                                         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                                         .background {
-                                            RoundedRectangle(cornerRadius: 12)
+                                            RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
                                                 .fill(.ultraThinMaterial)
                                         }
                                     }

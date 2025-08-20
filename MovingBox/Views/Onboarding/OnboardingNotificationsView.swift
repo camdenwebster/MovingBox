@@ -47,7 +47,7 @@ struct OnboardingNotificationsView: View {
                             }
                             .padding(20)
                             .background {
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
                                     .fill(.ultraThinMaterial)
                             }
                             .padding(.horizontal)

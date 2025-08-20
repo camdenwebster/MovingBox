@@ -623,6 +623,137 @@ actor DataManager {
         let csvString = csvLines.joined(separator: "\n")
         try csvString.data(using: .utf8)?.write(to: url)
     }
+    
+    /// Exports specific InventoryItems (and their photos) along with all locations and labels into a zip file
+    @MainActor
+    func exportSpecificItems(items: [InventoryItem], modelContext: ModelContext, fileName: String? = nil) async throws -> URL {
+        guard !items.isEmpty else { throw DataError.nothingToExport }
+        
+        // Get all locations and labels (as requested)
+        let allLocations = try modelContext.fetch(FetchDescriptor<InventoryLocation>())
+        let allLabels = try modelContext.fetch(FetchDescriptor<InventoryLabel>())
+        
+        let itemData = items.map { item in
+            (
+                title: item.title,
+                desc: item.desc,
+                locationName: item.location?.name ?? "",
+                labelName: item.label?.name ?? "",
+                quantity: item.quantityInt,
+                serial: item.serial,
+                model: item.model,
+                make: item.make,
+                price: item.price,
+                insured: item.insured,
+                notes: item.notes,
+                imageURL: item.imageURL,
+                hasUsedAI: item.hasUsedAI
+            )
+        }
+        
+        let locationData = allLocations.map { location in
+            (
+                name: location.name,
+                desc: location.desc,
+                imageURL: location.imageURL
+            )
+        }
+        
+        let labelData = allLabels.map { label in
+            (
+                name: label.name,
+                desc: label.desc,
+                color: label.color,
+                emoji: label.emoji
+            )
+        }
+
+        let archiveName = fileName ?? "Selected-Items-export-\(DateFormatter.exportDateFormatter.string(from: .init()))".replacingOccurrences(of: " ", with: "-") + ".zip"
+
+        // Working directory in tmp
+        let workingRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export-\(UUID().uuidString)", isDirectory: true)
+        let photosDir = workingRoot.appendingPathComponent("photos", isDirectory: true)
+        try FileManager.default.createDirectory(at: photosDir,
+                                             withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([
+            .posixPermissions: 0o755
+        ], ofItemAtPath: photosDir.path)
+
+        // Write CSV files
+        if !itemData.isEmpty {
+            let itemsCSVURL = workingRoot.appendingPathComponent("inventory.csv")
+            try await writeCSV(items: itemData, to: itemsCSVURL)
+        }
+        
+        if !locationData.isEmpty {
+            let locationsCSVURL = workingRoot.appendingPathComponent("locations.csv")
+            try await writeLocationsCSV(locations: locationData, to: locationsCSVURL)
+        }
+        
+        if !labelData.isEmpty {
+            let labelsCSVURL = workingRoot.appendingPathComponent("labels.csv")
+            try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
+        }
+
+        // Copy photos from selected items
+        var photoFileNames: Set<String> = []
+        for item in itemData {
+            if let imageURL = item.imageURL,
+               FileManager.default.fileExists(atPath: imageURL.path) {
+                let fileName = imageURL.lastPathComponent
+                let destURL = photosDir.appendingPathComponent(fileName)
+                
+                // Avoid duplicate copies
+                if !photoFileNames.contains(fileName) {
+                    try FileManager.default.copyItem(at: imageURL, to: destURL)
+                    photoFileNames.insert(fileName)
+                }
+            }
+        }
+        
+        // Copy photos from all locations  
+        for location in locationData {
+            if let imageURL = location.imageURL,
+               FileManager.default.fileExists(atPath: imageURL.path) {
+                let fileName = imageURL.lastPathComponent
+                let destURL = photosDir.appendingPathComponent(fileName)
+                
+                // Avoid duplicate copies
+                if !photoFileNames.contains(fileName) {
+                    try FileManager.default.copyItem(at: imageURL, to: destURL)
+                    photoFileNames.insert(fileName)
+                }
+            }
+        }
+
+        // Create ZIP archive
+        let archiveURL = FileManager.default.temporaryDirectory.appendingPathComponent(archiveName)
+        
+        // Remove existing file
+        try? FileManager.default.removeItem(at: archiveURL)
+        
+        let archive = try Archive(url: archiveURL, accessMode: .create)
+
+        // Add all files to ZIP
+        let workingRootPath = workingRoot.path
+        let enumerator = FileManager.default.enumerator(atPath: workingRootPath)
+        
+        while let relativePath = enumerator?.nextObject() as? String {
+            let fullPath = workingRoot.appendingPathComponent(relativePath)
+            var isDir: ObjCBool = false
+            
+            if FileManager.default.fileExists(atPath: fullPath.path, isDirectory: &isDir),
+               !isDir.boolValue {
+                try archive.addEntry(with: relativePath, relativeTo: workingRoot)
+            }
+        }
+
+        // Clean up working directory
+        try? FileManager.default.removeItem(at: workingRoot)
+        
+        return archiveURL
+    }
 }
 
 private extension DateFormatter {

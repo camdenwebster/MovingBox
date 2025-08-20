@@ -1,0 +1,51 @@
+# Create Snapshot Test
+
+Create comprehensive snapshot tests for a SwiftUI view following MovingBox patterns.
+
+## Test Structure
+
+1. Create test function in `MovingBoxTests/SnapshotTests.swift`
+2. Use both light and dark mode variants
+3. Include mock data variants where applicable
+4. Use proper device configuration (iPhone 14 Pro for snapshots)
+
+## Template
+
+```swift
+@Test("ViewName Snapshot") 
+func viewNameSnapshot() async throws {
+    let view = ViewName()
+        .environmentObject(mockSettingsManager)
+        .environmentObject(mockOnboardingManager)
+        .environmentObject(mockRevenueCatManager)
+        .modelContainer(testModelContainer)
+    
+    // Light mode
+    let lightImage = try await view
+        .environment(\.colorScheme, .light)
+        .snapshot(precision: 0.95)
+    
+    // Dark mode  
+    let darkImage = try await view
+        .environment(\.colorScheme, .dark)
+        .snapshot(precision: 0.95)
+    
+    // With mock data
+    let mockDataImage = try await view
+        .environment(\.colorScheme, .light)
+        .environment(\.launchArguments, ["Mock-Data"])
+        .snapshot(precision: 0.95)
+        
+    let mockDataDarkImage = try await view
+        .environment(\.colorScheme, .dark)
+        .environment(\.launchArguments, ["Mock-Data"])  
+        .snapshot(precision: 0.95)
+}
+```
+
+## Important Notes
+
+- Always use 0.95 precision for consistency
+- Include environment objects that views depend on
+- Test both with and without mock data when relevant
+- Use consistent naming: `viewNameSnapshot` function name pattern

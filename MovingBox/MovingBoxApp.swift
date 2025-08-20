@@ -21,25 +21,6 @@ struct MovingBoxApp: App {
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var appState: AppState = .splash
     
-    enum TabDestination: Hashable {
-        case dashboard
-        case locations
-        case addItem
-        case allItems
-        case settings
-        case location(PersistentIdentifier)
-        
-        var title: String {
-            switch self {
-            case .dashboard: return "Dashboard"
-            case .locations: return "Locations"
-            case .addItem: return "Add Item"
-            case .allItems: return "All Items"
-            case .settings: return "Settings"
-            case .location: return "Location"
-            }
-        }
-    }
     
     private enum AppState {
         case splash
@@ -142,8 +123,34 @@ struct MovingBoxApp: App {
                     ))
                     .environment(\.disableAnimations, disableAnimations)
                 case .main:
-                    MainTabView(destinationView: destinationView)
-                        .environment(\.disableAnimations, disableAnimations)
+                    NavigationStack(path: $router.navigationPath) {
+                        DashboardView()
+                            .navigationDestination(for: Router.Destination.self) { destination in
+                                destinationView(for: destination, navigationPath: $router.navigationPath)
+                            }
+                            .navigationDestination(for: String.self) { destination in
+                                Group {
+                                    switch destination {
+                                    case "appearance":
+                                        AppearanceSettingsView()
+                                    case "notifications":
+                                        NotificationSettingsView()
+                                    case "ai":
+                                        AISettingsView(settings: settings)
+                                    case "locations":
+                                        LocationSettingsView()
+                                    case "labels":
+                                        LabelSettingsView()
+                                    case "home":
+                                        EditHomeView()
+                                    default:
+                                        EmptyView()
+                                    }
+                                }
+                                .tint(Color.customPrimary)
+                            }
+                    }
+                    .environment(\.disableAnimations, disableAnimations)
                 }
             }
             .task {
@@ -159,7 +166,7 @@ struct MovingBoxApp: App {
                 
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
-                    await DefaultDataManager.populateTestData(modelContext: containerManager.container.mainContext)
+                    await TestData.loadTestData(modelContext: containerManager.container.mainContext)
                     settings.hasLaunched = true
                     appState = .main
                 } else {
@@ -236,91 +243,3 @@ extension Bundle {
     }
 }
 
-struct MainTabView: View {
-    @EnvironmentObject var router: Router
-    let destinationView: (Router.Destination, Binding<NavigationPath>) -> AnyView
-    
-    var body: some View {
-        TabView(selection: $router.selectedTab) {
-            NavigationStack(path: router.path(for: .dashboard)) {
-                DashboardView()
-                    .navigationDestination(for: Router.Destination.self) { destination in
-                        destinationView(destination, router.path(for: .dashboard))
-                    }
-            }
-            .tabItem {
-                Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
-            }
-            .tag(Router.Tab.dashboard)
-            
-            NavigationStack(path: router.path(for: .locations)) {
-                LocationsListView()
-                    .navigationDestination(for: Router.Destination.self) { destination in
-                        destinationView(destination, router.path(for: .locations))
-                    }
-            }
-            .tabItem {
-                Label("Locations", systemImage: "map")
-            }
-            .tag(Router.Tab.locations)
-            
-            NavigationStack(path: router.path(for: .addItem)) {
-                AddInventoryItemView(location: nil)
-                    .navigationDestination(for: Router.Destination.self) { destination in
-                        destinationView(destination, router.path(for: .addItem))
-                    }
-            }
-            .tabItem {
-                Label("Add Item", systemImage: "camera.viewfinder")
-            }
-            .tag(Router.Tab.addItem)
-            
-            NavigationStack(path: router.path(for: .allItems)) {
-                InventoryListView(location: nil)
-                    .navigationDestination(for: Router.Destination.self) { destination in
-                        destinationView(destination, router.path(for: .allItems))
-                    }
-            }
-            .tabItem {
-                Label("All Items", systemImage: "list.bullet")
-            }
-            .tag(Router.Tab.allItems)
-            
-            NavigationStack(path: router.path(for: .settings)) {
-                SettingsView()
-                    .navigationDestination(for: Router.Destination.self) { destination in
-                        destinationView(destination, router.path(for: .settings))
-                            .tint(Color.customPrimary)
-                    }
-                    .navigationDestination(for: String.self) { destination in
-                        Group {
-                            switch destination {
-                            case "appearance":
-                                AppearanceSettingsView()
-                            case "notifications":
-                                NotificationSettingsView()
-                            case "ai":
-                                AISettingsView(settings: SettingsManager())
-                            case "locations":
-                                LocationSettingsView()
-                            case "labels":
-                                LabelSettingsView()
-                            case "home":
-                                EditHomeView()
-                            default:
-                                EmptyView()
-                            }
-                        }
-                        .tint(Color.customPrimary)
-                    }
-                    .tint(Color.customPrimary)
-            }
-            .tabItem {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .tag(Router.Tab.settings)
-        }
-        .tabViewStyle(.sidebarAdaptable)
-        .tint(Color.customPrimary)
-    }
-}

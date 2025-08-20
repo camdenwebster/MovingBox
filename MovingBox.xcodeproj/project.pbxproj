@@ -11,7 +11,6 @@
 		191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191FEA602D6D04E5006FF067 /* SettingsManager.swift */; };
 		1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 1920B0D52D88B13000CFA1E9 /* TelemetryDeck */; };
 		1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */; };
-		1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */ = {isa = PBXBuildFile; fileRef = 1927DDF92D8B1FEF00BEFD9D /* download_images.py */; };
 		1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */; };
 		194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195652DA4805B008CABAA /* ModelContainerManager.swift */; };
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
@@ -24,6 +23,7 @@
 		1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6EA2D9DDC56004CF387 /* RevenueCatUI */; };
 		1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */; };
 		1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */; };
+		196450542E4D6DC300918795 /* SwiftUIBackports in Frameworks */ = {isa = PBXBuildFile; productRef = 196450532E4D6DC300918795 /* SwiftUIBackports */; };
 		1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */; };
 		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
 		19750C382DA07FF40056F0FC /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19750C372DA07FF40056F0FC /* OnboardingManager.swift */; };
@@ -36,6 +36,8 @@
 		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
 		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
 		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
+		19E37DFD2E56168500FB73D8 /* MovingBox.icon in Resources */ = {isa = PBXBuildFile; fileRef = 19E37DFC2E56168500FB73D8 /* MovingBox.icon */; };
+		19E37DFF2E56198200FB73D8 /* MovingBox-beta.icon in Resources */ = {isa = PBXBuildFile; fileRef = 19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */; };
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
@@ -100,6 +102,8 @@
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
 		19D3759A2E0822C0005B7816 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		19E37DFC2E56168500FB73D8 /* MovingBox.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MovingBox.icon; sourceTree = "<group>"; };
+		19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MovingBox-beta.icon"; sourceTree = "<group>"; };
 		19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
 		19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxSnapshotTests.xctestplan; path = "Test Plans/MovingBoxSnapshotTests.xctestplan"; sourceTree = "<group>"; };
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
@@ -112,6 +116,21 @@
 			membershipExceptions = (
 				Base.template.xcconfig,
 				Base.xcconfig,
+				local_config.sh,
+			);
+			target = 1942DC792BF391CB00734AF4 /* MovingBox */;
+		};
+		19A5419C2E5397C1005EBEB0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CLAUDE.md,
+			);
+			target = 1942DC792BF391CB00734AF4 /* MovingBox */;
+		};
+		19A5419D2E5397C2005EBEB0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CLAUDE.md,
 			);
 			target = 1942DC792BF391CB00734AF4 /* MovingBox */;
 		};
@@ -129,10 +148,9 @@
 		196A7F3E2DB49BA000C5C4E8 /* fastlane */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = fastlane; sourceTree = "<group>"; };
 		19B7D9702D9B112200690F64 /* MovingBoxUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxUITests; sourceTree = "<group>"; };
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1981B5C92D9ACB6A007AD7F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
-		19D133A82D72BFB2002448A9 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
-		19D133BC2D72BFB8002448A9 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
+		19D133A82D72BFB2002448A9 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19A5419D2E5397C2005EBEB0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
+		19D133BC2D72BFB8002448A9 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19A5419C2E5397C1005EBEB0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
 		19D133CA2D75455B002448A9 /* MovingBoxTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19F2CC3E2D9D83580053050B /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MovingBoxTests; sourceTree = "<group>"; };
-		19DA1E132DED54A400F0B8BB /* ai-dev-tasks */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "ai-dev-tasks"; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -146,6 +164,7 @@
 				1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */,
 				4A01539D070041769323F9C9 /* Sentry in Frameworks */,
 				19BA299C2DC465170064C5A9 /* ZIPFoundation in Frameworks */,
+				196450542E4D6DC300918795 /* SwiftUIBackports in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -183,7 +202,6 @@
 				19D3759A2E0822C0005B7816 /* CLAUDE.md */,
 				190B05F92E079A4100F23E05 /* .claude */,
 				19B22B922DFD1AAD000437DE /* MovingBox_Features_Overview.md */,
-				19DA1E132DED54A400F0B8BB /* ai-dev-tasks */,
 				196A7F3E2DB49BA000C5C4E8 /* fastlane */,
 				1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */,
 				1961C6FB2D9EBB5F004CF387 /* StoreKitTestCertificate.cer */,
@@ -222,6 +240,8 @@
 		1942DC7C2BF391CB00734AF4 /* MovingBox */ = {
 			isa = PBXGroup;
 			children = (
+				19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */,
+				19E37DFC2E56168500FB73D8 /* MovingBox.icon */,
 				19C01D602D93157A00773DA4 /* Configuration */,
 				1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */,
 				1927DDF92D8B1FEF00BEFD9D /* download_images.py */,
@@ -309,6 +329,7 @@
 			packageProductDependencies = (
 				D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */,
 				19BA299B2DC465170064C5A9 /* ZIPFoundation */,
+				196450532E4D6DC300918795 /* SwiftUIBackports */,
 			);
 			productName = MovingBox;
 			productReference = 1942DC7A2BF391CB00734AF4 /* MovingBox.app */;
@@ -445,6 +466,7 @@
 				1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 				AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -463,10 +485,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */,
-				1927DDFA2D8B1FEF00BEFD9D /* download_images.py in Resources */,
 				1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */,
+				19E37DFF2E56198200FB73D8 /* MovingBox-beta.icon in Resources */,
 				1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */,
 				1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */,
+				19E37DFD2E56168500FB73D8 /* MovingBox.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -690,8 +713,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "MovingBox-beta";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "MovingBox-beta";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
@@ -731,8 +754,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = MovingBox;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = MovingBox;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
@@ -839,8 +862,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon.beta;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon.beta;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "MovingBox-beta";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "MovingBox-beta";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
@@ -990,8 +1013,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon.beta;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon.beta;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "MovingBox-beta";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "MovingBox-beta";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
@@ -1239,6 +1262,14 @@
 				minimumVersion = 5.20.2;
 			};
 		};
+		196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/superwall/iOS-Backports";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.5;
+			};
+		};
 		1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
@@ -1280,6 +1311,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
 			productName = RevenueCatUI;
+		};
+		196450532E4D6DC300918795 /* SwiftUIBackports */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */;
+			productName = SwiftUIBackports;
 		};
 		1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;

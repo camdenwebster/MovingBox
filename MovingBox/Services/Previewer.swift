@@ -14,6 +14,7 @@ struct Previewer {
     let container: ModelContainer
     let home: Home
     let location: InventoryLocation
+    let newLocation2: InventoryLocation
     let label: InventoryLabel
     let inventoryItem: InventoryItem
     let policy: InsurancePolicy
@@ -32,6 +33,7 @@ struct Previewer {
         // Create all models first using local variables
         let newHome = {
             let home = Home()
+            home.name = "My Home"
             home.address1 = "123 Main Street"
             
             if let url = Bundle.main.url(forResource: "craftsman-home", withExtension: "jpg") {
@@ -46,6 +48,17 @@ struct Previewer {
             location.desc = "Camden's office"
             
             if let url = Bundle.main.url(forResource: "home-office", withExtension: "jpg") {
+                location.imageURL = url
+            }
+            return location
+        }()
+        
+        let newLocation2 = {
+            let location = InventoryLocation()
+            location.name = "Bedroom"
+            location.desc = "Camden's bedroom"
+            
+            if let url = Bundle.main.url(forResource: "bed-frame", withExtension: "jpg") {
                 location.imageURL = url
             }
             return location
@@ -94,6 +107,7 @@ struct Previewer {
         // Insert all models into the container
         container.mainContext.insert(newHome)
         container.mainContext.insert(newLocation)
+        container.mainContext.insert(newLocation2)
         container.mainContext.insert(newLabel)
         container.mainContext.insert(newItem)
         container.mainContext.insert(newPolicy)
@@ -101,6 +115,7 @@ struct Previewer {
         // Assign to properties
         self.home = newHome
         self.location = newLocation
+        self.newLocation2 = newLocation2
         self.label = newLabel
         self.inventoryItem = newItem
         self.policy = newPolicy

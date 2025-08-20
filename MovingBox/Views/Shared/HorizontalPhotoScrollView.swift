@@ -92,7 +92,7 @@ struct HorizontalPhotoScrollView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxHeight: primaryImageHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                 }
                 
                 // Thumbnail scroll view
@@ -137,7 +137,7 @@ struct HorizontalPhotoScrollView: View {
             } else if isEditing {
                 // Show add photo button when no photos exist
                 VStack(spacing: 16) {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
                         .fill(Color.gray.opacity(0.1))
                         .frame(height: primaryImageHeight)
                         .overlay(
