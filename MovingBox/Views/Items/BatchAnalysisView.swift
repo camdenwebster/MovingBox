@@ -28,16 +28,68 @@ struct BatchAnalysisView: View {
         case failed(String)
     }
     
+    @State private var filteredItemsWithImages: [InventoryItem] = []
+    @State private var isFilteringItems = true
+    
     private var itemsWithImages: [InventoryItem] {
-        selectedItems.filter { item in
-            item.imageURL != nil || !item.secondaryPhotoURLs.isEmpty
+        filteredItemsWithImages
+    }
+    
+    private func hasAnalyzableImage(_ item: InventoryItem) -> Bool {
+        // Check primary image URL
+        if let imageURL = item.imageURL, !imageURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
         }
+        
+        // Check secondary photo URLs (filter out empty strings)
+        if !item.secondaryPhotoURLs.isEmpty {
+            let validURLs = item.secondaryPhotoURLs.filter { url in
+                !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            if !validURLs.isEmpty {
+                return true
+            }
+        }
+        
+        // Check legacy data property (for items that haven't migrated yet)
+        if let data = item.data, !data.isEmpty {
+            return true
+        }
+        
+        return false
+    }
+    
+    @MainActor
+    private func filterItemsWithImages() async {
+        isFilteringItems = true
+        
+        var itemsWithValidImages: [InventoryItem] = []
+        
+        for item in selectedItems {
+            let hasImages = await item.hasAnalyzableImageAfterMigration()
+            if hasImages {
+                itemsWithValidImages.append(item)
+            }
+        }
+        
+        filteredItemsWithImages = itemsWithValidImages
+        isFilteringItems = false
+    }
+    
+    private func getImageCount(for item: InventoryItem) -> Int {
+        let primaryCount = (item.imageURL != nil && !item.imageURL!.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ? 1 : 0
+        let secondaryCount = item.secondaryPhotoURLs.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        let legacyCount = (item.data != nil && !item.data!.isEmpty) ? 1 : 0
+        return primaryCount + secondaryCount + legacyCount
     }
     
     var body: some View {
         NavigationView {
             VStack {
-                if itemsWithImages.isEmpty {
+                if isFilteringItems {
+                    ProgressView("Checking for images...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if itemsWithImages.isEmpty {
                     ContentUnavailableView(
                         "No Images Found",
                         systemImage: "photo.badge.exclamationmark",
@@ -60,7 +112,7 @@ struct BatchAnalysisView: View {
                                         Text(item.title.isEmpty ? "Untitled Item" : item.title)
                                             .font(.headline)
                                         
-                                        let imageCount = (item.imageURL != nil ? 1 : 0) + item.secondaryPhotoURLs.count
+                                        let imageCount = getImageCount(for: item)
                                         Text("\(imageCount) image\(imageCount == 1 ? "" : "s")")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
@@ -108,6 +160,9 @@ struct BatchAnalysisView: View {
                             .scaleEffect(0.8)
                     }
                 }
+            }
+            .task {
+                await filterItemsWithImages()
             }
         }
     }
@@ -186,6 +241,9 @@ struct BatchAnalysisView: View {
     private func analyzeItem(_ item: InventoryItem) async throws {
         var imageBase64Array: [String] = []
         
+        // Ensure migration is complete before trying to load images
+        _ = await item.hasAnalyzableImageAfterMigration()
+        
         // Get primary image if exists
         if let imageURL = item.imageURL {
             do {
@@ -206,6 +264,12 @@ struct BatchAnalysisView: View {
             } catch {
                 // Failed to load secondary images - continue with available images
             }
+        }
+        
+        // Handle legacy data if no modern images are available
+        if imageBase64Array.isEmpty, let data = item.data, let image = UIImage(data: data) {
+            let base64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: [image])
+            imageBase64Array.append(contentsOf: base64Array)
         }
         
         // Skip if no images could be loaded

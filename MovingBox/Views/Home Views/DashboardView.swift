@@ -94,7 +94,7 @@ struct DashboardView: View {
                         Button {
                             router.navigate(to: .inventoryListView(location: nil))
                         } label: {
-                            DashboardSectionLabel(text: "Inventory")
+                            DashboardSectionLabel(text: "All Inventory")
                         }
                         .buttonStyle(.plain)
                         
@@ -190,6 +190,7 @@ struct DashboardView: View {
                         }
                     }
                     .padding(.top, 24)
+                    .scrollDisabled(true)
                     
                     // MARK: - Location Statistics
                     LocationStatisticsView()
@@ -219,6 +220,8 @@ struct DashboardView: View {
                 } label: {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
             }
             // Search field and spacers
             if #available(iOS 26.0, *) {

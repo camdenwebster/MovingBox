@@ -32,12 +32,18 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     
     @Attribute(.externalStorage) var data: Data?
     
+    private var isMigrating = false
+    
     func migrateImageIfNeeded() async throws {
         guard let legacyData = data,
               let image = UIImage(data: legacyData),
-              imageURL == nil else {
+              imageURL == nil,
+              !isMigrating else {
             return
         }
+        
+        isMigrating = true
+        defer { isMigrating = false }
         
         let imageId = UUID().uuidString
         
@@ -54,6 +60,40 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         if secondaryPhotoURLs.isEmpty {
             print("📸 InventoryItem - Secondary photos array initialized for item: \(title)")
         }
+    }
+    
+    func hasAnalyzableImageAfterMigration() async -> Bool {
+        // First ensure migration is complete
+        if data != nil && imageURL == nil {
+            do {
+                try await migrateImageIfNeeded()
+            } catch {
+                print("📸 InventoryItem - Failed to migrate image for item: \(title), error: \(error)")
+                // Continue to check other image sources
+            }
+        }
+        
+        // Check primary image URL
+        if let imageURL = imageURL, !imageURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        
+        // Check secondary photo URLs (filter out empty strings)
+        if !secondaryPhotoURLs.isEmpty {
+            let validURLs = secondaryPhotoURLs.filter { url in
+                !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            if !validURLs.isEmpty {
+                return true
+            }
+        }
+        
+        // Check legacy data property (for items that migration failed on)
+        if let data = data, !data.isEmpty {
+            return true
+        }
+        
+        return false
     }
     
     init() {
