@@ -11,7 +11,13 @@
       "Bash(xcrun devicectl list:*)",
       "Bash(xcrun xcodebuild:*)",
       "Bash(swiftc:*)",
-      "Bash(swift build:*)"
+      "Bash(swift build:*)",
+      "Bash(xcrun simctl list:*)",
+      "Bash(swift:*)",
+      "Bash(xcrun simctl boot:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
