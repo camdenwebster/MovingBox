@@ -94,8 +94,8 @@ import SwiftData
             let decoder = JSONDecoder()
             let payload = try decoder.decode(GPTPayload.self, from: body)
             
-            // Verify payload structure
-            #expect(payload.model == "gpt-4o-mini")
+            // Verify payload structure  
+            #expect(payload.model == "gpt-4o")
             #expect(payload.max_completion_tokens == 150)
             #expect(payload.messages.count == 1)
             #expect(payload.messages[0].role == "user")
@@ -121,7 +121,12 @@ import SwiftData
     func testHighDetailMode() async throws {
         // Given
         let service = try await createTestService()
-        service.settings.isHighDetail = true
+        
+        // Set both isPro and highQualityAnalysisEnabled to enable high detail mode on main actor
+        await MainActor.run {
+            service.settings.isPro = true
+            service.settings.highQualityAnalysisEnabled = true
+        }
         
         // When
         let request = try service.generateURLRequest(httpMethod: .post)

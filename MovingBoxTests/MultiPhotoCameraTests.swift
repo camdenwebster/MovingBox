@@ -89,10 +89,10 @@ import AVFoundation
     
     @Test("MultiPhotoCameraView can be instantiated")
     func testViewInstantiation() async throws {
-        @State var capturedImages: [UIImage] = []
+        var capturedImages: [UIImage] = []
         
         let view = MultiPhotoCameraView(
-            capturedImages: $capturedImages,
+            capturedImages: .constant(capturedImages),
             onPermissionCheck: { _ in },
             onComplete: { _ in }
         )

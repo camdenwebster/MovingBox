@@ -22,7 +22,7 @@ import AVFoundation
         switch singleMode {
         case .singlePhoto:
             // Expected case
-            break
+            #expect(true, "Single mode is correctly identified")
         case .multiPhoto:
             #expect(Bool(false), "Single mode should not be multi photo")
         }
@@ -44,13 +44,12 @@ import AVFoundation
     
     @Test("CustomCameraView single photo mode initializer")
     func testSinglePhotoModeInitializer() async throws {
-        @State var capturedImage: UIImage? = nil
-        var permissionResult: Bool? = nil
+        var capturedImage: UIImage? = nil
         
         let view = CustomCameraView(
-            capturedImage: $capturedImage,
+            capturedImage: .constant(capturedImage),
             onPermissionCheck: { granted in
-                permissionResult = granted
+                // Test permission callback
             }
         )
         
@@ -64,15 +63,14 @@ import AVFoundation
     
     @Test("CustomCameraView multi photo mode initializer")
     func testMultiPhotoModeInitializer() async throws {
-        @State var capturedImages: [UIImage] = []
-        var permissionResult: Bool? = nil
+        var capturedImages: [UIImage] = []
         var completionResult: [UIImage]? = nil
         
         let view = CustomCameraView(
-            capturedImages: $capturedImages,
+            capturedImages: .constant(capturedImages),
             mode: .multiPhoto(maxPhotos: 3),
             onPermissionCheck: { granted in
-                permissionResult = granted
+                // Test permission callback
             },
             onComplete: { images in
                 completionResult = images
@@ -93,10 +91,10 @@ import AVFoundation
     func testBackwardCompatibility() async throws {
         // This test ensures that existing code using the old initializer
         // continues to work without changes
-        @State var capturedImage: UIImage? = nil
+        var capturedImage: UIImage? = nil
         
         let view = CustomCameraView(
-            capturedImage: $capturedImage,
+            capturedImage: .constant(capturedImage),
             onPermissionCheck: { _ in }
         )
         
@@ -111,16 +109,16 @@ import AVFoundation
         // We can't directly test the internal behavior, but we can verify
         // that different initializers create views that behave differently
         
-        @State var singleImage: UIImage? = nil
-        @State var multiImages: [UIImage] = []
+        var singleImage: UIImage? = nil
+        var multiImages: [UIImage] = []
         
         let singleModeView = CustomCameraView(
-            capturedImage: $singleImage,
+            capturedImage: .constant(singleImage),
             onPermissionCheck: { _ in }
         )
         
         let multiModeView = CustomCameraView(
-            capturedImages: $multiImages,
+            capturedImages: .constant(multiImages),
             mode: .multiPhoto(),
             onPermissionCheck: { _ in },
             onComplete: { _ in }
