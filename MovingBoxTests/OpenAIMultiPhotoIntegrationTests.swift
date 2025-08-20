@@ -116,9 +116,9 @@ struct OpenAIMultiPhotoIntegrationTests {
         }
         
         // Verify function call structure is the same (should return single response)
-        #expect(payload.functions.count == 1)
-        #expect(payload.functions[0].name == "process_inventory_item")
-        #expect(payload.function_call["name"] == "process_inventory_item")
+        #expect(payload.tools.count == 1)
+        #expect(payload.tools[0].function.name == "process_inventory_item")
+        #expect(payload.tool_choice.function.name == "process_inventory_item")
         
         print("✅ Multi-image request format verified")
         print("📋 Request summary:")
@@ -126,7 +126,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         print("  - Content items: \(message.content.count)")
         print("  - Text prompts: \(textContent.count)")
         print("  - Images: \(imageContents.count)")
-        print("  - Function call: \(payload.function_call)")
+        print("  - Tool choice: \(payload.tool_choice)")
     }
     
     @Test("OpenAI Service - Live Backend Integration (Multi-Photo)", .disabled("Requires live API"))
@@ -186,10 +186,10 @@ struct OpenAIMultiPhotoIntegrationTests {
         let multiPayload = try multiImageService.decodePayload(from: multiRequest.httpBody!)
         
         // Both should have the same function structure (ensuring single response)
-        #expect(singlePayload.functions.count == multiPayload.functions.count)
-        #expect(singlePayload.function_call == multiPayload.function_call)
+        #expect(singlePayload.tools.count == multiPayload.tools.count)
+        #expect(singlePayload.tool_choice.function.name == multiPayload.tool_choice.function.name)
         #expect(singlePayload.model == multiPayload.model)
-        #expect(singlePayload.max_tokens == multiPayload.max_tokens)
+        #expect(singlePayload.max_completion_tokens == multiPayload.max_completion_tokens)
         
         // The key difference should be in message content count and prompt text
         let singleMessage = singlePayload.messages[0]

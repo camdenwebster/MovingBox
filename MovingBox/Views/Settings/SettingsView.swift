@@ -24,7 +24,7 @@ struct ExternalLink {
 
 // MARK: - Main Settings Body
 struct SettingsView: View {
-    @StateObject private var settingsManager = SettingsManager()
+    @EnvironmentObject private var settingsManager: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
@@ -98,47 +98,6 @@ struct SettingsView: View {
                 }
             }
             
-            Section("AI Analysis") {
-                HStack {
-                    Label {
-                        Text("High Quality Analysis")
-                            .foregroundStyle(.primary)
-                    } icon: {
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(Color.customPrimary)
-                    }
-                    
-                    Spacer()
-                    
-                    if settingsManager.isHighQualityToggleAvailable {
-                        Toggle("", isOn: $settingsManager.highQualityAnalysisEnabled)
-                            .onChange(of: settingsManager.highQualityAnalysisEnabled) { _, newValue in
-                                TelemetryManager.shared.trackHighQualityToggleUsed(
-                                    enabled: newValue,
-                                    isProUser: settingsManager.isPro
-                                )
-                            }
-                    } else {
-                        Toggle("", isOn: .constant(false))
-                            .disabled(true)
-                    }
-                }
-                
-                if !settingsManager.isHighQualityToggleAvailable {
-                    Text("High quality analysis with 1250x1250 resolution and advanced AI models is available with MovingBox Pro.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else if settingsManager.highQualityAnalysisEnabled {
-                    Text("Using gpt-5-mini model with 1250x1250 resolution for enhanced accuracy. Disable for faster analysis.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("Using standard gpt-5 model with 512x512 resolution for faster analysis.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
             Section("Home Settings") {
                 Group {
                     NavigationLink(value: "home") {
@@ -198,6 +157,58 @@ struct SettingsView: View {
                 .accessibilityIdentifier("importExportLink")
                 Text("Your data is automatically synced across all your devices using iCloud")
                     .foregroundStyle(.secondary)
+            }
+            
+            Section {
+                HStack {
+                    Label {
+                        Text("High Detail")
+                            .foregroundStyle(settingsManager.isPro ? .primary : .secondary)
+                    } icon: {
+                        Image(systemName: "brain")
+                            .foregroundStyle(settingsManager.isPro ? Color.customPrimary : .secondary)
+                    }
+                    
+                    Spacer()
+                    if !settingsManager.isPro {
+                        Text("Pro")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.yellow)
+                            .cornerRadius(4)
+                    }
+                    if settingsManager.isHighQualityToggleAvailable {
+                        Toggle("", isOn: $settingsManager.highQualityAnalysisEnabled)
+                            .onChange(of: settingsManager.highQualityAnalysisEnabled) { _, newValue in
+                                TelemetryManager.shared.trackHighQualityToggleUsed(
+                                    enabled: newValue,
+                                    isProUser: settingsManager.isPro
+                                )
+                            }
+                    } else {
+                        Toggle("", isOn: .constant(false))
+                            .disabled(true)
+                    }
+                }
+            } header: {
+                Text("AI Analysis")
+            } footer: {
+                if !settingsManager.isHighQualityToggleAvailable {
+                    Text("High quality analysis with 1250x1250 resolution and advanced AI models is available with MovingBox Pro.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if settingsManager.highQualityAnalysisEnabled {
+                    Text("Using 1250x1250 resolution with high detail for enhanced accuracy. Disable for faster image analysis.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Using 512x512 resolution with low detail for faster image analysis.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
             Section("Community & Support") {
@@ -388,7 +399,7 @@ struct NotificationSettingsView: View {
 
 struct AISettingsView: View {
     @State private var isEditing = false
-    @ObservedObject var settings: SettingsManager
+    @EnvironmentObject var settings: SettingsManager
     let models = ["gpt-4o", "gpt-4o-mini"]
     @FocusState private var isApiKeyFieldFocused: Bool
     

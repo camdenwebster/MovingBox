@@ -64,6 +64,7 @@ class SettingsManager: ObservableObject {
     
     @Published var highQualityAnalysisEnabled: Bool {
         didSet {
+            print("📱 SettingsManager - highQualityAnalysisEnabled changed to: \(highQualityAnalysisEnabled)")
             UserDefaults.standard.set(highQualityAnalysisEnabled, forKey: Keys.highQualityAnalysisEnabled)
         }
     }
@@ -79,7 +80,7 @@ class SettingsManager: ObservableObject {
     // Default values
     private let defaultAIModel = "gpt-4o-mini"
     private let defaultTemperature = 0.7
-    private let defaultMaxTokens = 300
+    private let defaultMaxTokens = 1000
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
     private let highQualityAnalysisEnabledDefault = true
@@ -135,9 +136,12 @@ class SettingsManager: ObservableObject {
         
         // Set high quality default based on Pro status, but allow override
         if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {
+            print("📱 SettingsManager - No saved highQualityAnalysisEnabled, setting default: \(self.isPro ? highQualityAnalysisEnabledDefault : false)")
             self.highQualityAnalysisEnabled = self.isPro ? highQualityAnalysisEnabledDefault : false
         } else {
-            self.highQualityAnalysisEnabled = UserDefaults.standard.bool(forKey: Keys.highQualityAnalysisEnabled)
+            let savedValue = UserDefaults.standard.bool(forKey: Keys.highQualityAnalysisEnabled)
+            print("📱 SettingsManager - Loading saved highQualityAnalysisEnabled: \(savedValue)")
+            self.highQualityAnalysisEnabled = savedValue
         }
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
@@ -151,9 +155,19 @@ class SettingsManager: ObservableObject {
                 let isPro = customerInfo.entitlements["Pro"]?.isActive == true
                 print("📱 SettingsManager - RevenueCat status: \(isPro)")
                 self.isPro = isPro
+                
+                // Re-evaluate high quality setting if Pro status changed and no explicit setting exists
+                if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {
+                    self.highQualityAnalysisEnabled = self.isPro ? highQualityAnalysisEnabledDefault : false
+                }
             } catch {
                 print("⚠️ SettingsManager - Error fetching customer info: \(error)")
                 self.isPro = UserDefaults.standard.bool(forKey: Keys.isPro)
+                
+                // Re-evaluate high quality setting if Pro status changed and no explicit setting exists
+                if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {
+                    self.highQualityAnalysisEnabled = self.isPro ? highQualityAnalysisEnabledDefault : false
+                }
             }
         }
         
@@ -192,7 +206,7 @@ class SettingsManager: ObservableObject {
         if isPro && highQualityAnalysisEnabled {
             return "gpt-5-mini"
         }
-        return "gpt-5"
+        return "gpt-4o"
     }
     
     /// Effective image resolution for AI processing based on Pro status and quality settings

@@ -107,8 +107,8 @@ struct OpenAILiveDebugTests {
         print("  Multi:  \(multiText.prefix(100))...")
         
         // Both should use the same function structure
-        #expect(singlePayload.function_call == multiPayload.function_call)
-        #expect(singlePayload.functions[0].name == multiPayload.functions[0].name)
+        #expect(singlePayload.tool_choice.function.name == multiPayload.tool_choice.function.name)
+        #expect(singlePayload.tools[0].function.name == multiPayload.tools[0].function.name)
         
         print("✅ Request comparison completed")
     }

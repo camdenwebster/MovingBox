@@ -57,15 +57,22 @@ struct FunctionParameter: Codable {
     }
 }
 
+struct Tool: Codable {
+    let type: String
+    let function: FunctionDefinition
+}
+
 struct FunctionDefinition: Codable {
     let name: String
     let description: String
     let parameters: Parameters
+    let strict: Bool?
     
     struct Parameters: Codable {
         let type: String
         let properties: [String: FunctionParameter]
         let required: [String]
+        let additionalProperties: Bool
     }
 }
 
@@ -77,6 +84,13 @@ class OpenAIService {
     var modelContext: ModelContext
     
     private let baseURL = "https://7mc060nx64.execute-api.us-east-2.amazonaws.com/prod"
+    
+    private lazy var urlSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 120.0 // 2 minutes
+        config.timeoutIntervalForResource = 180.0 // 3 minutes
+        return URLSession(configuration: config)
+    }()
     
     init(imageBase64: String, settings: SettingsManager, modelContext: ModelContext) {
         self.imageBase64 = imageBase64
@@ -117,7 +131,7 @@ class OpenAIService {
                 properties: [
                     "title": FunctionParameter(
                         type: "string",
-                        description: "A short description of the subject, to help the user identify the item from a list",
+                        description: "A concise name of the subject, to help the user identify the item from a list. Do not include descriptors such as color, instead use make, model or generic name of the item.",
                         enum_values: nil
                     ),
                     "quantity": FunctionParameter(
@@ -128,7 +142,7 @@ class OpenAIService {
                     "description": FunctionParameter(
                         type: "string", 
                         description: imageBase64Array.count > 1 
-                            ? "A single comprehensive description combining details from all \(imageBase64Array.count) photos of this one item, limited to 160 characters"
+                            ? "A single concise description combining details from all \(imageBase64Array.count) photos of this one item, limited to 160 characters"
                             : "A description of the subject, limited to 160 characters",
                         enum_values: nil
                     ),
@@ -165,9 +179,13 @@ class OpenAIService {
                         enum_values: nil
                     )
                 ],
-                required: ["title", "quantity", "description", "make", "model", "category", "location", "price", "serialNumber"]
-            )
+                required: ["title", "quantity", "description", "make", "model", "category", "location", "price", "serialNumber"],
+                additionalProperties: false
+            ),
+            strict: true
         )
+        
+        let tool = Tool(type: "function", function: function)
         
         var urlRequest = URLRequest(url: url)
         
@@ -188,12 +206,13 @@ class OpenAIService {
         }
         
         let message = Message(role: "user", content: messageContent)
+        let toolChoice = ToolChoice(type: "function", function: ToolChoiceFunction(name: "process_inventory_item"))
         let payload = GPTPayload(
             model: settings.effectiveAIModel,
             messages: [message],
-            max_tokens: settings.maxTokens,
-            functions: [function],
-            function_call: ["name": "process_inventory_item"]
+            max_completion_tokens: settings.maxTokens,
+            tools: [tool],
+            tool_choice: toolChoice
         )
         
         let encoder = JSONEncoder()
@@ -241,7 +260,7 @@ class OpenAIService {
         }
         
         let startTime = Date()
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await urlSession.data(for: urlRequest)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse(statusCode: 0, responseData: "Invalid HTTP Response")
@@ -286,18 +305,19 @@ class OpenAIService {
                 throw OpenAIError.invalidData
             }
             
-            guard let functionCall = choice.message.function_call else {
-                print("❌ No function call in response")
+            guard let toolCalls = choice.message.tool_calls, !toolCalls.isEmpty else {
+                print("❌ No tool calls in response")
                 print("📝 Response message: \(choice.message)")
                 throw OpenAIError.invalidData
             }
             
-            print("🎯 Function call received: \(functionCall.name)")
-            print("📄 Arguments length: \(functionCall.arguments.count) characters")
+            let toolCall = toolCalls[0]
+            print("🎯 Tool call received: \(toolCall.function.name)")
+            print("📄 Arguments length: \(toolCall.function.arguments.count) characters")
             
-            guard let responseData = functionCall.arguments.data(using: .utf8) else {
+            guard let responseData = toolCall.function.arguments.data(using: .utf8) else {
                 print("❌ Cannot convert function arguments to data")
-                print("📄 Raw arguments: \(functionCall.arguments)")
+                print("📄 Raw arguments: \(toolCall.function.arguments)")
                 
                 // Track failure
                 let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
@@ -403,9 +423,18 @@ struct ImageURL: Codable {
 struct GPTPayload: Codable {
     let model: String
     let messages: [Message]
-    let max_tokens: Int
-    let functions: [FunctionDefinition]
-    let function_call: [String: String]
+    let max_completion_tokens: Int
+    let tools: [Tool]
+    let tool_choice: ToolChoice
+}
+
+struct ToolChoice: Codable {
+    let type: String
+    let function: ToolChoiceFunction
+}
+
+struct ToolChoiceFunction: Codable {
+    let name: String
 }
 
 struct GPTResponse: Decodable {
@@ -417,7 +446,13 @@ struct GPTCompletionResponse: Decodable {
 }
 
 struct GPTMessageResponse: Decodable {
-    let function_call: FunctionCall?
+    let tool_calls: [ToolCall]?
+}
+
+struct ToolCall: Decodable {
+    let id: String
+    let type: String
+    let function: FunctionCall
 }
 
 struct FunctionCall: Decodable {

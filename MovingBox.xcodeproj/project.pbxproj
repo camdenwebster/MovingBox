@@ -111,7 +111,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Base.template.xcconfig,
-				Base.xcconfig,
 			);
 			target = 1942DC792BF391CB00734AF4 /* MovingBox */;
 		};

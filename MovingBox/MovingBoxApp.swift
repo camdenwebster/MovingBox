@@ -109,7 +109,7 @@ struct MovingBoxApp: App {
                 case .settingsView:
                     SettingsView()
                 case .aISettingsView:
-                    AISettingsView(settings: settings)
+                    AISettingsView()
                 case .inventoryListView(let location):
                     InventoryListView(location: location)
                 case .editLocationView(let location, let isEditing):
@@ -300,7 +300,7 @@ struct MainTabView: View {
                             case "notifications":
                                 NotificationSettingsView()
                             case "ai":
-                                AISettingsView(settings: SettingsManager())
+                                AISettingsView()
                             case "locations":
                                 LocationSettingsView()
                             case "labels":
