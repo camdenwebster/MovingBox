@@ -14,7 +14,9 @@ class ModelContainerManager: ObservableObject {
         InventoryItem.self,
         InventoryLocation.self,
         InsurancePolicy.self,
-        Home.self
+        Home.self,
+        CustomField.self,
+        CustomFieldValue.self
     ])
     
     private init() {

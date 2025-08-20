@@ -59,6 +59,9 @@ class InventoryLabel {
     var emoji: String = "🏷️" // Default emoji
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
     
+    // Custom Fields Relationship
+    var customFields: [CustomField]? = []
+    
     init(name: String = "", desc: String = "", color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil, emoji: String = "🏷️") {
         self.name = name
         self.desc = desc

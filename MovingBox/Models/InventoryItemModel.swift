@@ -29,6 +29,9 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var showInvalidQuantityAlert: Bool = false
     var hasUsedAI: Bool = false
     
+    // Custom Fields Relationship
+    var customFieldValues: [CustomFieldValue]? = []
+    
     @Attribute(.externalStorage) var data: Data?
     
     func migrateImageIfNeeded() async throws {
@@ -184,5 +187,40 @@ final class InventoryItem: ObservableObject, PhotoManageable {
             self.quantityInt = Int(quantityString) ?? 1
             showInvalidQuantityAlert = false
         }
+    }
+    
+    // MARK: - Custom Fields Management
+    
+    func getCustomFieldValue(for field: CustomField) -> CustomFieldValue? {
+        return customFieldValues?.first { $0.customField?.id == field.id }
+    }
+    
+    func setCustomFieldValue(_ value: Any?, for field: CustomField) {
+        // Remove existing value if it exists
+        customFieldValues?.removeAll { $0.customField?.id == field.id }
+        
+        // Add new value if provided
+        if value != nil {
+            let fieldValue = CustomFieldValue(customField: field, inventoryItem: self)
+            fieldValue.setValue(value, for: field.fieldType)
+            
+            if customFieldValues == nil {
+                customFieldValues = []
+            }
+            customFieldValues?.append(fieldValue)
+        }
+    }
+    
+    func removeCustomFieldValue(for field: CustomField) {
+        customFieldValues?.removeAll { $0.customField?.id == field.id }
+    }
+    
+    func hasCustomFieldValue(for field: CustomField) -> Bool {
+        guard let value = getCustomFieldValue(for: field) else { return false }
+        return value.hasValue && !value.isEmpty
+    }
+    
+    func getCustomFieldDisplayValue(for field: CustomField) -> String {
+        return getCustomFieldValue(for: field)?.getDisplayValue() ?? ""
     }
 }
