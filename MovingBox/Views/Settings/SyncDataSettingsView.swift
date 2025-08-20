@@ -198,7 +198,7 @@ struct SyncDataSettingsView: View {
             }
         } header: {
             Text("Sync Settings")
-                .font(.footnote)
+//                .font(.footnote)
         } footer: {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your data is automatically synced across all your devices using iCloud when sync is enabled.")
@@ -214,9 +214,8 @@ struct SyncDataSettingsView: View {
     private var manageDataSection: some View {
         Group {
             Section("Manage Data") {
-                Button {
-                    router.navigate(to: .importDataView)
-                } label: {
+                
+                NavigationLink(value: Router.Destination.importDataView) {
                     Label {
                         Text("Import Data")
                             .foregroundStyle(.primary)
@@ -225,11 +224,9 @@ struct SyncDataSettingsView: View {
                             .foregroundStyle(Color.customPrimary)
                     }
                 }
-                .buttonStyle(.plain)
+                .accessibilityIdentifier("importDataLink")
                 
-                Button {
-                    router.navigate(to: .exportDataView)
-                } label: {
+                NavigationLink(value: Router.Destination.exportDataView) {
                     Label {
                         Text("Export Data")
                             .foregroundStyle(.primary)
@@ -238,7 +235,7 @@ struct SyncDataSettingsView: View {
                             .foregroundStyle(Color.customPrimary)
                     }
                 }
-                .buttonStyle(.plain)
+                .accessibilityIdentifier("exportDataLink")
             }
             
             Section {

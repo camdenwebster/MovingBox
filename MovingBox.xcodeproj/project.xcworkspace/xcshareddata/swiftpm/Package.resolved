@@ -1,6 +1,15 @@
 {
-  "originHash" : "45cc6d4af1c90ea35931deea8dfe91ecdc81e39cf0aa311780d6d2efaef20286",
+  "originHash" : "6d2159294e266919a7d4db764ca9bca0c5ade82ee93d93f4b00b10a932bd0fea",
   "pins" : [
+    {
+      "identity" : "ios-backports",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/superwall/iOS-Backports",
+      "state" : {
+        "revision" : "06fccbe8fd9c16ab967a71abe50db99d272cfaf4",
+        "version" : "0.1.5"
+      }
+    },
     {
       "identity" : "purchases-ios-spm",
       "kind" : "remoteSourceControl",

@@ -100,8 +100,10 @@ struct ImageAnalysisView: View {
                     Spacer()
                     
                     VStack(spacing: 16) {
-                        Label("Thinking...", systemImage: "brain")
-                        .symbolEffect(.pulse)
+                        Image(systemName: "brain" )
+                            .font(.largeTitle)
+                            .foregroundStyle(Color.customPrimary)
+                            .symbolEffect(.pulse)
                         Text("AI Image Analysis in Progress...")
                             .font(.headline)
                             .foregroundStyle(.primary)

@@ -101,8 +101,6 @@ struct DashboardView: View {
                         LazyVGrid(columns: columns, spacing: 16) {
                             StatCard(label: "Number of Items", value: "\(items.count)")
                             StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
-                            StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
-
                         }
                         .padding(.horizontal)
                     }
