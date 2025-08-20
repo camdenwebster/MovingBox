@@ -36,6 +36,8 @@
 		19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C01D5D2D93088300773DA4 /* JWTManager.swift */; };
 		19D133912D72B422002448A9 /* DefaultDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D133902D72B422002448A9 /* DefaultDataManager.swift */; };
 		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
+		19E37DFD2E56168500FB73D8 /* MovingBox.icon in Resources */ = {isa = PBXBuildFile; fileRef = 19E37DFC2E56168500FB73D8 /* MovingBox.icon */; };
+		19E37DFF2E56198200FB73D8 /* MovingBox-beta.icon in Resources */ = {isa = PBXBuildFile; fileRef = 19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */; };
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
@@ -100,6 +102,8 @@
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
 		19D3759A2E0822C0005B7816 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		19E37DFC2E56168500FB73D8 /* MovingBox.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MovingBox.icon; sourceTree = "<group>"; };
+		19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MovingBox-beta.icon"; sourceTree = "<group>"; };
 		19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
 		19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxSnapshotTests.xctestplan; path = "Test Plans/MovingBoxSnapshotTests.xctestplan"; sourceTree = "<group>"; };
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
@@ -236,6 +240,8 @@
 		1942DC7C2BF391CB00734AF4 /* MovingBox */ = {
 			isa = PBXGroup;
 			children = (
+				19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */,
+				19E37DFC2E56168500FB73D8 /* MovingBox.icon */,
 				19C01D602D93157A00773DA4 /* Configuration */,
 				1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */,
 				1927DDF92D8B1FEF00BEFD9D /* download_images.py */,
@@ -480,8 +486,10 @@
 			files = (
 				1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */,
 				1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */,
+				19E37DFF2E56198200FB73D8 /* MovingBox-beta.icon in Resources */,
 				1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */,
 				1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */,
+				19E37DFD2E56168500FB73D8 /* MovingBox.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -705,8 +713,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "MovingBox-beta";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "MovingBox-beta";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
@@ -746,8 +754,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = MovingBox;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = MovingBox;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
@@ -854,8 +862,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon.beta;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon.beta;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "MovingBox-beta";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "MovingBox-beta";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
@@ -1005,8 +1013,8 @@
 			baseConfigurationReferenceAnchor = 19C01D602D93157A00773DA4 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Base.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon.beta;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon.beta;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "MovingBox-beta";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "MovingBox-beta";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = MovingBox/MovingBox.entitlements;
