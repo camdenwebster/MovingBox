@@ -97,6 +97,7 @@ struct DashboardView: View {
                             DashboardSectionLabel(text: "All Inventory")
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("dashboard-all-inventory-button")
                         
                         LazyVGrid(columns: columns, spacing: 16) {
                             StatCard(label: "Number of Items", value: "\(items.count)")
@@ -133,6 +134,7 @@ struct DashboardView: View {
                                     createFromPhoto()
                                 }
                                 .buttonStyle(.borderedProminent)
+                                .accessibilityIdentifier("dashboard-empty-state-add-item-button")
                             }
                             .frame(height: 120)
                             .padding(.horizontal)
@@ -155,6 +157,7 @@ struct DashboardView: View {
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityIdentifier("dashboard-recent-item-\(item.persistentModelID)")
                                     
                                     if item.persistentModelID != topRecentItems.last?.persistentModelID {
                                         Divider()
@@ -182,6 +185,7 @@ struct DashboardView: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier("dashboard-view-all-items-button")
                             }
                             .background(Color(.secondarySystemGroupedBackground))
                             .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
@@ -222,6 +226,7 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
+                .accessibilityIdentifier("dashboard-settings-button")
             }
             // Search field and spacers
             if #available(iOS 26.0, *) {
