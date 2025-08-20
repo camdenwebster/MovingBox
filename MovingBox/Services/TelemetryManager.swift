@@ -32,6 +32,66 @@ class TelemetryManager {
         TelemetryManager.signal("photo-analysis-used")
     }
     
+    // MARK: - AI Analysis Detailed Tracking
+    
+    func trackAIAnalysisStarted(
+        isProUser: Bool,
+        useHighQuality: Bool,
+        model: String,
+        detailLevel: String,
+        imageResolution: CGFloat,
+        imageCount: Int,
+        itemId: String? = nil
+    ) {
+        TelemetryManager.signal("ai-analysis-started", with: [
+            "is_pro_user": isProUser ? "true" : "false",
+            "use_high_quality": useHighQuality ? "true" : "false",
+            "model": model,
+            "detail_level": detailLevel,
+            "image_resolution": String(Int(imageResolution)),
+            "image_count": String(imageCount),
+            "item_id": itemId ?? "unknown"
+        ])
+    }
+    
+    func trackAIAnalysisCompleted(
+        isProUser: Bool,
+        useHighQuality: Bool,
+        model: String,
+        detailLevel: String,
+        imageResolution: CGFloat,
+        imageCount: Int,
+        responseTimeMs: Int,
+        success: Bool,
+        itemId: String? = nil
+    ) {
+        TelemetryManager.signal("ai-analysis-completed", with: [
+            "is_pro_user": isProUser ? "true" : "false",
+            "use_high_quality": useHighQuality ? "true" : "false",
+            "model": model,
+            "detail_level": detailLevel,
+            "image_resolution": String(Int(imageResolution)),
+            "image_count": String(imageCount),
+            "response_time_ms": String(responseTimeMs),
+            "success": success ? "true" : "false",
+            "item_id": itemId ?? "unknown"
+        ])
+    }
+    
+    func trackHighQualityToggleUsed(enabled: Bool, isProUser: Bool) {
+        TelemetryManager.signal("high-quality-toggle-used", with: [
+            "enabled": enabled ? "true" : "false",
+            "is_pro_user": isProUser ? "true" : "false"
+        ])
+    }
+    
+    func trackMultipleAnalysisAttempt(itemId: String, attemptNumber: Int) {
+        TelemetryManager.signal("multiple-analysis-attempt", with: [
+            "item_id": itemId,
+            "attempt_number": String(attemptNumber)
+        ])
+    }
+    
     // MARK: - Settings
     
     func trackLocationCreated(name: String) {

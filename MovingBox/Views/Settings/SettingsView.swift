@@ -33,11 +33,6 @@ struct SettingsView: View {
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
     
-    // ADD: State property for tracking analyzed items count
-    @State private var analyzedItemsCount: Int = 0
-    
-    // ADD: Query for all inventory items
-    @Query private var allItems: [InventoryItem]
     
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -87,30 +82,6 @@ struct SettingsView: View {
         List {
             if !revenueCatManager.isProSubscriptionActive {
                 Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("AI Analysis Usage")
-                                .font(.headline)
-                            Spacer()
-                            Text("\(analyzedItemsCount)/50")
-                                .foregroundColor(.secondary)
-                                .font(.subheadline)
-                        }
-                        
-                        ProgressView(value: Double(analyzedItemsCount), total: 50)
-                            .tint(progressTintColor)
-                            .background(Color(.systemGray5))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                            .padding(.bottom, 5)
-                        
-                        Text("\(50 - analyzedItemsCount) free image analyses remaining")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 10)
-                }
-                
-                Section {
                     Button(action: {
                         showingPaywall = true
                     }) {
@@ -124,6 +95,47 @@ struct SettingsView: View {
                     }
                     .foregroundColor(.customPrimary)
                     .listRowInsets(EdgeInsets())
+                }
+            }
+            
+            Section("AI Analysis") {
+                HStack {
+                    Label {
+                        Text("High Quality Analysis")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(Color.customPrimary)
+                    }
+                    
+                    Spacer()
+                    
+                    if settingsManager.isHighQualityToggleAvailable {
+                        Toggle("", isOn: $settingsManager.highQualityAnalysisEnabled)
+                            .onChange(of: settingsManager.highQualityAnalysisEnabled) { _, newValue in
+                                TelemetryManager.shared.trackHighQualityToggleUsed(
+                                    enabled: newValue,
+                                    isProUser: settingsManager.isPro
+                                )
+                            }
+                    } else {
+                        Toggle("", isOn: .constant(false))
+                            .disabled(true)
+                    }
+                }
+                
+                if !settingsManager.isHighQualityToggleAvailable {
+                    Text("High quality analysis with 1250x1250 resolution and advanced AI models is available with MovingBox Pro.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if settingsManager.highQualityAnalysisEnabled {
+                    Text("Using gpt-5-mini model with 1250x1250 resolution for enhanced accuracy. Disable for faster analysis.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Using standard gpt-5 model with 512x512 resolution for faster analysis.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
             
@@ -255,12 +267,6 @@ struct SettingsView: View {
                 onDismiss: nil
             )
         }
-        .onAppear {
-            updateAnalyzedItemsCount()
-        }
-        .onChange(of: allItems) { _, _ in
-            updateAnalyzedItemsCount()
-        }
         .navigationDestination(for: String.self) { value in
             switch value {
                 case "home": EditHomeView()
@@ -272,23 +278,6 @@ struct SettingsView: View {
         }
     }
     
-    private var progressTintColor: Color {
-        let percentage = Double(analyzedItemsCount) / 50.0
-        
-        if percentage < 0.5 {
-            return .green
-        } else if percentage < 0.8 {
-            return .orange
-        } else {
-            return .red
-        }
-    }
-    
-    // ADD: Function to count analyzed items from SwiftData
-    private func updateAnalyzedItemsCount() {
-        // Count items that have hasUsedAi = true
-        analyzedItemsCount = allItems.filter { $0.hasUsedAI == true }.count
-    }
     
     private struct FeatureRow: View {
         let icon: String

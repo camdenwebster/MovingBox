@@ -318,8 +318,9 @@ struct ItemCreationFlowView: View {
         }
         
         do {
-            // Prepare all images for AI
-            let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: images)
+            // Prepare all images for AI with Pro quality setting
+            let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+            let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: images, useHighQuality: useHighQuality)
             
             guard !imageBase64Array.isEmpty else {
                 throw OpenAIError.invalidData

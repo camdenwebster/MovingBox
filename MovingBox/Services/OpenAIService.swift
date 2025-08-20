@@ -183,13 +183,13 @@ class OpenAIService {
         
         // Add all images
         for base64Image in imageBase64Array {
-            let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(base64Image)", detail: "\(settings.isHighDetail ? "high" : "low")"))
+            let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(base64Image)", detail: settings.effectiveDetailLevel))
             messageContent.append(imageMessage)
         }
         
         let message = Message(role: "user", content: messageContent)
         let payload = GPTPayload(
-            model: settings.aiModel,
+            model: settings.effectiveAIModel,
             messages: [message],
             max_tokens: settings.maxTokens,
             functions: [function],
@@ -219,15 +219,28 @@ class OpenAIService {
         
         let requestSize = urlRequest.httpBody?.count ?? 0
         let imageCount = imageBase64Array.count
+        let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
         
         print("🚀 Sending \(imageCount == 1 ? "single" : "multi") image request to: \(urlRequest.url?.absoluteString ?? "unknown URL")")
         print("📊 Request size: \(Double(requestSize) / 1024.0) KB, Images: \(imageCount)")
+        print("🤖 AI Settings - Model: \(settings.effectiveAIModel), Detail: \(settings.effectiveDetailLevel), Pro: \(settings.isPro), High Quality: \(settings.highQualityAnalysisEnabled)")
+        
+        // Track analysis start
+        TelemetryManager.shared.trackAIAnalysisStarted(
+            isProUser: settings.isPro,
+            useHighQuality: useHighQuality,
+            model: settings.effectiveAIModel,
+            detailLevel: settings.effectiveDetailLevel,
+            imageResolution: settings.effectiveImageResolution,
+            imageCount: imageCount
+        )
         
         // Safety check for extremely large requests
         if requestSize > 20_000_000 { // 20MB limit
             throw OpenAIError.serverError("Request too large: \(Double(requestSize) / 1_000_000.0) MB. Please use smaller images.")
         }
         
+        let startTime = Date()
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -285,10 +298,39 @@ class OpenAIService {
             guard let responseData = functionCall.arguments.data(using: .utf8) else {
                 print("❌ Cannot convert function arguments to data")
                 print("📄 Raw arguments: \(functionCall.arguments)")
+                
+                // Track failure
+                let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
+                TelemetryManager.shared.trackAIAnalysisCompleted(
+                    isProUser: settings.isPro,
+                    useHighQuality: useHighQuality,
+                    model: settings.effectiveAIModel,
+                    detailLevel: settings.effectiveDetailLevel,
+                    imageResolution: settings.effectiveImageResolution,
+                    imageCount: imageCount,
+                    responseTimeMs: responseTime,
+                    success: false
+                )
+                
                 throw OpenAIError.invalidData
             }
             
-            return try JSONDecoder().decode(ImageDetails.self, from: responseData)
+            let result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
+            
+            // Track successful completion
+            let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
+            TelemetryManager.shared.trackAIAnalysisCompleted(
+                isProUser: settings.isPro,
+                useHighQuality: useHighQuality,
+                model: settings.effectiveAIModel,
+                detailLevel: settings.effectiveDetailLevel,
+                imageResolution: settings.effectiveImageResolution,
+                imageCount: imageCount,
+                responseTimeMs: responseTime,
+                success: true
+            )
+            
+            return result
         } catch DecodingError.dataCorrupted(let context) {
             print("❌ Data corruption error: \(context)")
             print("📄 Response data: \(responseString)")
@@ -308,6 +350,20 @@ class OpenAIService {
         } catch {
             print("❌ Error processing response: \(error)")
             print("📄 Response data: \(responseString)")
+            
+            // Track failure for any unhandled errors
+            let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
+            TelemetryManager.shared.trackAIAnalysisCompleted(
+                isProUser: settings.isPro,
+                useHighQuality: useHighQuality,
+                model: settings.effectiveAIModel,
+                detailLevel: settings.effectiveDetailLevel,
+                imageResolution: settings.effectiveImageResolution,
+                imageCount: imageCount,
+                responseTimeMs: responseTime,
+                success: false
+            )
+            
             if error is OpenAIError {
                 throw error
             }
