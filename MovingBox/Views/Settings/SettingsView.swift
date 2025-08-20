@@ -173,19 +173,17 @@ struct SettingsView: View {
                 }
             }
             
-            Section("Sync & Backup") {
-                NavigationLink(value: "importExport") {
+            Section("Data Management") {
+                NavigationLink(value: Router.Destination.syncDataSettingsView) {
                     Label {
-                        Text("Import & Export")
+                        Text("Sync and Data")
                             .foregroundStyle(.primary)
                     } icon: {
-                        Image(systemName: "doc.plaintext")
+                        Image(systemName: "arrow.trianglehead.clockwise.icloud")
                             .foregroundStyle(Color.customPrimary)
                     }
                 }
-                .accessibilityIdentifier("importExportLink")
-                Text("Your data is automatically synced across all your devices using iCloud")
-                    .foregroundStyle(.secondary)
+                .accessibilityIdentifier("syncDataLink")
             }
             
             Section("Community & Support") {
@@ -267,6 +265,19 @@ struct SettingsView: View {
                 case "locations": LocationSettingsView()
                 case "labels": LabelSettingsView()
                 case "importExport": ImportExportSettingsView()
+                case "syncData": SyncDataSettingsView()
+                case "importData": ImportDataView()
+                case "exportData": ExportDataView()
+                case "deleteData": DataDeletionView()
+                default: EmptyView()
+            }
+        }
+        .navigationDestination(for: Router.Destination.self) { destination in
+            switch destination {
+                case .syncDataSettingsView: SyncDataSettingsView()
+                case .importDataView: ImportDataView()
+                case .exportDataView: ExportDataView()
+                case .deleteDataView: DataDeletionView()
                 default: EmptyView()
             }
         }
