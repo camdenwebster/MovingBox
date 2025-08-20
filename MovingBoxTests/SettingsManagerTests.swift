@@ -74,6 +74,10 @@ import Foundation
             didSet { defaults.set(isPro, forKey: "isPro") }
         }
         
+        @Published var highQualityAnalysisEnabled: Bool {
+            didSet { defaults.set(highQualityAnalysisEnabled, forKey: "highQualityAnalysisEnabled") }
+        }
+        
         init(defaults: TestUserDefaults) {
             self.defaults = defaults
             self.aiModel = "gpt-4o-mini"
@@ -83,6 +87,7 @@ import Foundation
             self.isHighDetail = false
             self.hasLaunched = false
             self.isPro = false
+            self.highQualityAnalysisEnabled = true
         }
         
         func resetToDefaults() {
@@ -99,7 +104,8 @@ import Foundation
         }
         
         func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-            return !isPro && currentCount >= SettingsManager.AppConstants.maxFreeAiScans
+            // Updated to match new behavior - no AI scan limit for any users
+            return false
         }
         
         func canUseMoreAiScans(currentCount: Int) -> Bool {
@@ -161,7 +167,7 @@ import Foundation
         
         // When - Free tier
         #expect(manager.shouldShowPaywall() == true)
-        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == true)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false) // Updated: no AI limit
         
         // When - Pro tier
         manager.isPro = true
@@ -203,5 +209,41 @@ import Foundation
         
         // Cleanup
         manager.resetToDefaults()
+    }
+    
+    @Test("Test high quality analysis setting")
+    func testHighQualityAnalysisSetting() async {
+        // Given
+        let (manager, defaults) = createTestEnvironment()
+        
+        // When - Change high quality analysis setting
+        manager.highQualityAnalysisEnabled = false
+        
+        // Then - Verify persistence
+        #expect(defaults.bool(forKey: "highQualityAnalysisEnabled") == false)
+        #expect(manager.highQualityAnalysisEnabled == false)
+        
+        // When - Change back
+        manager.highQualityAnalysisEnabled = true
+        
+        // Then
+        #expect(defaults.bool(forKey: "highQualityAnalysisEnabled") == true)
+        #expect(manager.highQualityAnalysisEnabled == true)
+    }
+    
+    @Test("Test AI limit removal for all users")
+    func testAILimitRemoval() async {
+        // Given
+        let (manager, _) = createTestEnvironment()
+        
+        // When - Test non-Pro user with high scan count
+        manager.isPro = false
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 100) == false)
+        
+        // When - Test Pro user with high scan count
+        manager.isPro = true
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 100) == false)
+        
+        // Both should allow unlimited scans now
     }
 }

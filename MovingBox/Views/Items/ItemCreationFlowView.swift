@@ -254,18 +254,30 @@ struct ItemCreationFlowView: View {
         }
         
         do {
-            // Prepare image for AI
-            guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+            // Prepare image for AI with resolution based on Pro status and quality settings
+            guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: image, resolution: settings.effectiveImageResolution) else {
                 throw OpenAIError.invalidData
             }
             
             // Create OpenAI service and get image details
             let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
             TelemetryManager.shared.trackCameraAnalysisUsed()
+            TelemetryManager.shared.trackItemAnalysisAttempt(itemId: item.id.uuidString)
             
             print("Calling OpenAI for image analysis...")
             let imageDetails = try await openAi.getImageDetails()
             print("OpenAI analysis complete, updating item...")
+            
+            // Track successful analysis
+            TelemetryManager.shared.trackAIAnalysis(
+                itemId: item.id.uuidString,
+                isPro: settings.isPro,
+                model: settings.effectiveAIModel,
+                resolution: settings.effectiveImageResolution,
+                detailLevel: settings.effectiveDetailLevel,
+                imageCount: 1,
+                success: true
+            )
             
             // Update the item with the results
             await MainActor.run {
@@ -281,6 +293,17 @@ struct ItemCreationFlowView: View {
                 print("Analysis complete, item updated")
             }
         } catch let openAIError as OpenAIError {
+            // Track failed single image analysis
+            TelemetryManager.shared.trackAIAnalysis(
+                itemId: item.id.uuidString,
+                isPro: settings.isPro,
+                model: settings.effectiveAIModel,
+                resolution: settings.effectiveImageResolution,
+                detailLevel: settings.effectiveDetailLevel,
+                imageCount: 1,
+                success: false
+            )
+            
             await MainActor.run {
                 switch openAIError {
                 case .invalidURL:
@@ -318,8 +341,8 @@ struct ItemCreationFlowView: View {
         }
         
         do {
-            // Prepare all images for AI
-            let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: images)
+            // Prepare all images for AI with resolution based on Pro status and quality settings
+            let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: images, resolution: settings.effectiveImageResolution)
             
             guard !imageBase64Array.isEmpty else {
                 throw OpenAIError.invalidData
@@ -328,10 +351,22 @@ struct ItemCreationFlowView: View {
             // Create OpenAI service with multiple images and get image details
             let openAi = OpenAIService(imageBase64Array: imageBase64Array, settings: settings, modelContext: modelContext)
             TelemetryManager.shared.trackCameraAnalysisUsed()
+            TelemetryManager.shared.trackItemAnalysisAttempt(itemId: item.id.uuidString)
             
             print("Calling OpenAI for multi-image analysis...")
             let imageDetails = try await openAi.getImageDetails()
             print("OpenAI multi-image analysis complete, updating item...")
+            
+            // Track successful multi-image analysis
+            TelemetryManager.shared.trackAIAnalysis(
+                itemId: item.id.uuidString,
+                isPro: settings.isPro,
+                model: settings.effectiveAIModel,
+                resolution: settings.effectiveImageResolution,
+                detailLevel: settings.effectiveDetailLevel,
+                imageCount: images.count,
+                success: true
+            )
             
             // Update the item with the results
             await MainActor.run {
@@ -347,6 +382,17 @@ struct ItemCreationFlowView: View {
                 print("Multi-image analysis complete, item updated")
             }
         } catch let openAIError as OpenAIError {
+            // Track failed multi-image analysis
+            TelemetryManager.shared.trackAIAnalysis(
+                itemId: item.id.uuidString,
+                isPro: settings.isPro,
+                model: settings.effectiveAIModel,
+                resolution: settings.effectiveImageResolution,
+                detailLevel: settings.effectiveDetailLevel,
+                imageCount: images.count,
+                success: false
+            )
+            
             await MainActor.run {
                 switch openAIError {
                 case .invalidURL:

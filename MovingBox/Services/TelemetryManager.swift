@@ -32,6 +32,34 @@ class TelemetryManager {
         TelemetryManager.signal("photo-analysis-used")
     }
     
+    /// Track detailed AI analysis with metadata
+    func trackAIAnalysis(itemId: String, isPro: Bool, model: String, resolution: CGFloat, detailLevel: String, imageCount: Int, success: Bool) {
+        TelemetryManager.signal("ai-analysis-detailed", with: [
+            "item_id": itemId,
+            "user_type": isPro ? "pro" : "free",
+            "model": model,
+            "resolution": String(format: "%.0f", resolution),
+            "detail_level": detailLevel,
+            "image_count": String(imageCount),
+            "success": success ? "true" : "false"
+        ])
+    }
+    
+    /// Track analysis attempts per item to detect multiple tries
+    func trackItemAnalysisAttempt(itemId: String) {
+        TelemetryManager.signal("item-analysis-attempt", with: [
+            "item_id": itemId
+        ])
+    }
+    
+    /// Track high quality analysis toggle usage
+    func trackHighQualityToggleChanged(enabled: Bool, isPro: Bool) {
+        TelemetryManager.signal("high-quality-toggle-changed", with: [
+            "enabled": enabled ? "true" : "false",
+            "user_type": isPro ? "pro" : "free"
+        ])
+    }
+    
     // MARK: - Settings
     
     func trackLocationCreated(name: String) {

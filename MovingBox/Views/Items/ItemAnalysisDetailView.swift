@@ -74,7 +74,7 @@ struct ItemAnalysisDetailView: View {
     }
     
     private func performAnalysis() async throws {
-        guard let base64ForAI = await OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+        guard let base64ForAI = await OptimizedImageManager.shared.prepareImageForAI(from: image, resolution: settings.effectiveImageResolution) else {
             throw AnalysisError.imagePreparationFailed
         }
         
@@ -88,11 +88,24 @@ struct ItemAnalysisDetailView: View {
             modelContext: modelContext
         )
         
+        TelemetryManager.shared.trackItemAnalysisAttempt(itemId: itemToUpdate.id.uuidString)
+        
         let imageDetails = try await openAi.getImageDetails()
         
         await MainActor.run {
             updateUIWithImageDetails(imageDetails, for: itemToUpdate)
             TelemetryManager.shared.trackCameraAnalysisUsed()
+            
+            // Track successful analysis
+            TelemetryManager.shared.trackAIAnalysis(
+                itemId: itemToUpdate.id.uuidString,
+                isPro: settings.isPro,
+                model: settings.effectiveAIModel,
+                resolution: settings.effectiveImageResolution,
+                detailLevel: settings.effectiveDetailLevel,
+                imageCount: 1,
+                success: true
+            )
         }
     }
     

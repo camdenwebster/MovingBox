@@ -194,16 +194,16 @@ final class OptimizedImageManager {
         }
     }
     
-    func prepareMultipleImagesForAI(from images: [UIImage]) async -> [String] {
+    func prepareMultipleImagesForAI(from images: [UIImage], resolution: CGFloat? = nil) async -> [String] {
         var base64Images: [String] = []
         
         for image in images {
-            if let base64String = await prepareImageForAI(from: image) {
+            if let base64String = await prepareImageForAI(from: image, resolution: resolution) {
                 base64Images.append(base64String)
             }
         }
         
-        print("📸 OptimizedImageManager - Prepared \(base64Images.count) images for AI analysis")
+        print("📸 OptimizedImageManager - Prepared \(base64Images.count) images for AI analysis at \(resolution ?? ImageConfig.aiMaxDimension)px resolution")
         return base64Images
     }
     
@@ -326,8 +326,9 @@ final class OptimizedImageManager {
         }
     }
     
-    func prepareImageForAI(from image: UIImage) async -> String? {
-        let optimizedImage = await optimizeImage(image, maxDimension: ImageConfig.aiMaxDimension)
+    func prepareImageForAI(from image: UIImage, resolution: CGFloat? = nil) async -> String? {
+        let targetResolution = resolution ?? ImageConfig.aiMaxDimension
+        let optimizedImage = await optimizeImage(image, maxDimension: targetResolution)
         guard let imageData = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             return nil
         }

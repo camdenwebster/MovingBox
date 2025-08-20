@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import StoreKit
 import RevenueCat
+import CoreGraphics
 
 @MainActor
 class SettingsManager: ObservableObject {
@@ -12,6 +13,7 @@ class SettingsManager: ObservableObject {
         static let maxTokens = "maxTokens"
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
+        static let highQualityAnalysisEnabled = "highQualityAnalysisEnabled"
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
     }
@@ -47,6 +49,12 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    @Published var highQualityAnalysisEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(highQualityAnalysisEnabled, forKey: Keys.highQualityAnalysisEnabled)
+        }
+    }
+    
     @Published var hasLaunched: Bool {
         didSet {
             UserDefaults.standard.set(hasLaunched, forKey: Keys.hasLaunched)
@@ -74,6 +82,7 @@ class SettingsManager: ObservableObject {
     private let defaultMaxTokens = 300
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
+    private let highQualityAnalysisEnabledDefault = true // Default to true for Pro users
     private let hasLaunchedDefault = false
     
     init() {
@@ -86,6 +95,7 @@ class SettingsManager: ObservableObject {
         self.maxTokens = defaultMaxTokens
         self.apiKey = defaultApiKey
         self.isHighDetail = isHighDetailDefault
+        self.highQualityAnalysisEnabled = highQualityAnalysisEnabledDefault
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         
@@ -121,6 +131,15 @@ class SettingsManager: ObservableObject {
         self.maxTokens = UserDefaults.standard.integer(forKey: Keys.maxTokens)
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
+        
+        // Load high quality analysis setting - default to true for Pro users, false for non-Pro
+        let isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro") || UserDefaults.standard.bool(forKey: Keys.isPro)
+        if UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {
+            self.highQualityAnalysisEnabled = UserDefaults.standard.bool(forKey: Keys.highQualityAnalysisEnabled)
+        } else {
+            self.highQualityAnalysisEnabled = isPro
+        }
+        
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
@@ -168,6 +187,35 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    // MARK: - AI Analysis Configuration
+    
+    /// The effective AI model to use based on Pro status and quality settings
+    var effectiveAIModel: String {
+        if isPro && highQualityAnalysisEnabled {
+            return "gpt-5-mini"
+        } else {
+            return "gpt-5"
+        }
+    }
+    
+    /// The effective detail level to use based on Pro status and quality settings
+    var effectiveDetailLevel: String {
+        if isPro && highQualityAnalysisEnabled {
+            return "high"
+        } else {
+            return "low"
+        }
+    }
+    
+    /// The effective image resolution for AI analysis based on Pro status and quality settings
+    var effectiveImageResolution: CGFloat {
+        if isPro && highQualityAnalysisEnabled {
+            return 1250.0
+        } else {
+            return 512.0
+        }
+    }
+    
     // MARK: - Pro Feature Checks
     
     func shouldShowPaywall() -> Bool {
@@ -178,7 +226,8 @@ class SettingsManager: ObservableObject {
         print("📱 SettingsManager - Checking hasReachedAiScanLimit")
         print("📱 SettingsManager - Current isPro: \(isPro)")
         print("📱 SettingsManager - Current count of items which have used AI scan: \(currentCount)")
-        return !isPro && currentCount >= AppConstants.maxFreeAiScans
+        // Remove AI scan limit for all users as per requirement
+        return false
     }
     
     // MARK: - Purchase Flow
@@ -209,12 +258,14 @@ class SettingsManager: ObservableObject {
         maxTokens = defaultMaxTokens
         apiKey = defaultApiKey
         isHighDetail = isHighDetailDefault
+        highQualityAnalysisEnabled = highQualityAnalysisEnabledDefault
         hasLaunched = hasLaunchedDefault
         isPro = false
         
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             isPro = true
+            highQualityAnalysisEnabled = true
         }
         #endif
     }

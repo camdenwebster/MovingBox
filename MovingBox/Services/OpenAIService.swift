@@ -183,13 +183,13 @@ class OpenAIService {
         
         // Add all images
         for base64Image in imageBase64Array {
-            let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(base64Image)", detail: "\(settings.isHighDetail ? "high" : "low")"))
+            let imageMessage = MessageContent(type: "image_url", text: nil, image_url: ImageURL(url: "data:image/png:base64,\(base64Image)", detail: settings.effectiveDetailLevel))
             messageContent.append(imageMessage)
         }
         
         let message = Message(role: "user", content: messageContent)
         let payload = GPTPayload(
-            model: settings.aiModel,
+            model: settings.effectiveAIModel,
             messages: [message],
             max_tokens: settings.maxTokens,
             functions: [function],
