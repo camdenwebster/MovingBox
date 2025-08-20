@@ -45,7 +45,7 @@ struct MovingBoxPaywallView: View {
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.accentColor)
-                        .cornerRadius(12)
+                        .cornerRadius(UIConstants.cornerRadius)
                 }
                 .accessibilityIdentifier("upgradeButton")
                 .padding(.horizontal)

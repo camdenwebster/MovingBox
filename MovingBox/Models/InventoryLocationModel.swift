@@ -49,4 +49,11 @@ class InventoryLocation: PhotoManageable {
             try? await migrateImageIfNeeded()
         }
     }
+    
+    // Computed property for AsyncImage thumbnail loading
+    var thumbnailURL: URL? {
+        guard let imageURL = imageURL else { return nil }
+        let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
+        return OptimizedImageManager.shared.getThumbnailURL(for: id)
+    }
 }

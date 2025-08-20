@@ -1,0 +1,50 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.20392,0.78039,0.34902,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "BETA-badge.svg",
+          "name" : "BETA-badge",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              174.97607932399018,
+              287.8334687413389
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "image-name" : "LightIcon.svg",
+          "name" : "LightIcon"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

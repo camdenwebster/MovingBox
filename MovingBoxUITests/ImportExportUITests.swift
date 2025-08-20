@@ -3,7 +3,7 @@ import XCTest
 final class ImportExportUITests: XCTestCase {
     var dashboardScreen: DashboardScreen!
     var importExportScreen: ImportExportScreen!
-    var tabBar: TabBar!
+    var navigationHelper: NavigationHelper!
     let app = XCUIApplication()
     
     override func setUpWithError() throws {
@@ -19,7 +19,7 @@ final class ImportExportUITests: XCTestCase {
         // Initialize screen objects
         dashboardScreen = DashboardScreen(app: app)
         importExportScreen = ImportExportScreen(app: app)
-        tabBar = TabBar(app: app)
+        navigationHelper = NavigationHelper(app: app)
         
         app.launch()
     }
@@ -27,7 +27,7 @@ final class ImportExportUITests: XCTestCase {
     override func tearDownWithError() throws {
         dashboardScreen = nil
         importExportScreen = nil
-        tabBar = nil
+        navigationHelper = nil
     }
     
     func testImportExportFlow() throws {
@@ -42,7 +42,7 @@ final class ImportExportUITests: XCTestCase {
                      "Dashboard should show initial test data")
         
         // Navigate to Import/Export settings
-        tabBar.tapSettings()
+        navigationHelper.navigateToSettings()
         app.buttons["importExportLink"].tap()
         
         // Export inventory
@@ -71,8 +71,7 @@ final class ImportExportUITests: XCTestCase {
         
         // Navigate back to dashboard
         app.navigationBars.buttons.firstMatch.tap() // Back to Settings
-        app.navigationBars.buttons.firstMatch.tap() // Back to main view
-        tabBar.tapDashboard()
+        app.navigationBars.buttons.firstMatch.tap() // Back to dashboard
         
         // Verify doubled item count
         XCTAssertEqual(dashboardScreen.statCardValue.label, "106",

@@ -1,0 +1,134 @@
+{
+  "allowedTools": [
+    "Edit",
+    "MultiEdit", 
+    "Read",
+    "Write",
+    "Glob",
+    "Grep", 
+    "LS",
+    "NotebookEdit",
+    "WebFetch",
+    "WebSearch",
+    "TodoWrite",
+    "ExitPlanMode",
+    "Task",
+    "Bash(xcodebuild build:*)",
+    "Bash(xcodebuild test:*)",
+    "Bash(xcodebuild clean:*)",
+    "Bash(xcodebuild archive:*)",
+    "Bash(git add:*)",
+    "Bash(git commit:*)",
+    "Bash(git push:*)",
+    "Bash(git pull:*)",
+    "Bash(git checkout:*)",
+    "Bash(git branch:*)",
+    "Bash(git status:*)",
+    "Bash(git diff:*)",
+    "Bash(git log:*)",
+    "Bash(git merge:*)",
+    "Bash(swift build:*)",
+    "Bash(swift test:*)",
+    "Bash(swift package:*)",
+    "Bash(swiftc:*)",
+    "Bash(xcrun:*)",
+    "Bash(xcode-select:*)",
+    "Bash(fastlane:*)",
+    "Bash(gh:*)",
+    "Bash(mkdir:*)",
+    "Bash(cp:*)",
+    "Bash(mv:*)",
+    "Bash(find:*)",
+    "Bash(grep:*)",
+    "Bash(rg:*)",
+    "Bash(cat:*)",
+    "Bash(head:*)",
+    "Bash(tail:*)",
+    "Bash(ls:*)",
+    "Bash(pwd:*)",
+    "Bash(cd:*)",
+    "Bash(echo:*)",
+    "Bash(open:*)",
+    "mcp__ios-simulator__*"
+  ],
+  "tools": {
+    "iOS Simulator": {
+      "enabled": true,
+      "autoConnect": true,
+      "screenshotOnError": true
+    },
+    "Bash": {
+      "confirmDestructive": true,
+      "timeoutMs": 300000,
+      "workingDirectory": "/Users/camden.webster/dev/MovingBox"
+    },
+    "WebFetch": {
+      "maxRetries": 3,
+      "timeoutMs": 30000
+    }
+  },
+  "shortcuts": {
+    "/build": ".claude/commands/build-project.md",
+    "/test": ".claude/commands/run-tests.md", 
+    "/feature": ".claude/commands/new-feature.md",
+    "/fix": ".claude/commands/fix-bug.md",
+    "/refactor": ".claude/commands/refactor-code.md",
+    "/review": ".claude/commands/review-pr.md",
+    "/boilerplate": ".claude/commands/generate-boilerplate.md",
+    "/unittest": ".claude/commands/write-unit-tests.md"
+  },
+  "environment": {
+    "IOS_SIMULATOR_DEVICE": "iPhone 16 Pro",
+    "XCODE_PROJECT": "MovingBox.xcodeproj",
+    "MAIN_SCHEME": "MovingBox",
+    "TEST_SCHEME": "MovingBoxTests",
+    "UI_TEST_SCHEME": "MovingBoxUITests",
+    "SNAPSHOT_DEVICE": "iPhone 14 Pro"
+  },
+  "workflows": {
+    "fullTest": [
+      "xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'platform=iOS Simulator,name=iPhone 16 Pro'",
+      "xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro'",
+      "xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -testPlan MovingBoxSnapshotTests -destination 'platform=iOS Simulator,name=iPhone 14 Pro'"
+    ],
+    "quickBuild": [
+      "xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'platform=iOS Simulator,name=iPhone 16 Pro'"
+    ],
+    "cleanBuild": [
+      "xcodebuild clean -project MovingBox.xcodeproj -scheme MovingBox",
+      "xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'platform=iOS Simulator,name=iPhone 16 Pro'"
+    ]
+  },
+  "codeStyle": {
+    "swift": {
+      "indentSize": 4,
+      "useSpaces": true,
+      "maxLineLength": 120,
+      "enforceAccessControl": true
+    },
+    "swiftui": {
+      "preferViewBuilders": true,
+      "groupRelatedModifiers": true,
+      "extractComplexViews": true
+    }
+  },
+  "testing": {
+    "preferTDD": true,
+    "mockExternalServices": true,
+    "useInMemoryContainers": true,
+    "disableAnimationsInTests": true,
+    "generateSnapshots": true
+  },
+  "integrations": {
+    "github": {
+      "autoGenerateCommitMessages": true,
+      "enforceConventionalCommits": true,
+      "requireTestsForFeatures": true
+    },
+    "xcode": {
+      "autoManageSchemes": false,
+      "preferXcodebuildOverGUI": true,
+      "enableContinuousIntegration": true
+    }
+  }
+}

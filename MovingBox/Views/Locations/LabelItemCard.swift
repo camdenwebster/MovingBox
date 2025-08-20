@@ -57,8 +57,8 @@ struct LabelItemCard: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .background(RoundedRectangle(cornerRadius: 12)
+        .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
+        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
             .fill(Color(.secondarySystemGroupedBackground))
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
         .padding(1)

@@ -17,8 +17,36 @@
       "Bash(xcrun simctl boot:*)",
       "Bash(git fetch:*)",
       "Bash(git merge:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "mcp__ios-simulator__screenshot",
+      "Bash(xcode-select:*)",
+      "mcp__ios-simulator__get_booted_sim_id",
+      "Bash(xcrun simctl install:*)",
+      "mcp__ios-simulator__ui_tap",
+      "Bash(xcrun simctl launch:*)",
+      "mcp__ios-simulator__ui_swipe",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "mcp__apple-doc-mcp__list_technologies",
+      "mcp__apple-doc-mcp__search_symbols",
+      "WebSearch",
+      "WebFetch(domain:developer.apple.com)",
+      "mcp__ios-simulator__ui_describe_all",
+      "mcp__ios-simulator__ui_view",
+      "Bash(xcrun simctl terminate:*)",
+      "Bash(xcrun simctl uninstall:*)",
+      "Bash(open:*)",
+      "mcp__ios-simulator__ui_describe_point",
+      "Bash(timeout 60 xcodebuild test:*)",
+      "Bash(true)",
+      "Bash(timeout 300 xcodebuild test:*)",
+      "Bash(xcrun xcresulttool:*)",
+      "Bash(pkill:*)",
+      "Bash(timeout 180 xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -only-testing MovingBoxUITests/DashboardNavigationUITests/testStatsDisplayCorrectly)",
+      "Bash(timeout:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

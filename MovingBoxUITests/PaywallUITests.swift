@@ -8,7 +8,7 @@ final class PaywallUITests: XCTestCase {
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
     var paywallScreen: PaywallScreen!
-    var tabBar: TabBar!
+    var navigationHelper: NavigationHelper!
     
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -27,7 +27,7 @@ final class PaywallUITests: XCTestCase {
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
         paywallScreen = PaywallScreen(app: app)
-        tabBar = TabBar(app: app)
+        navigationHelper = NavigationHelper(app: app)
         
         setupSnapshot(app)
     }
@@ -40,7 +40,7 @@ final class PaywallUITests: XCTestCase {
         detailScreen = nil
         cameraScreen = nil
         paywallScreen = nil
-        tabBar = nil
+        navigationHelper = nil
     }
     
     // MARK: - Free Tier Tests
@@ -51,8 +51,8 @@ final class PaywallUITests: XCTestCase {
         app.launch()
         sleep(5)
         
-        // When: User attempts to add item via tab bar camera
-        tabBar.tapAddItem()
+        // When: User attempts to add item via dashboard camera button
+        dashboardScreen.tapAddItemFromCamera()
         
         // Then: Paywall should appear
         XCTAssertTrue(paywallScreen.waitForPaywall(),
@@ -66,7 +66,7 @@ final class PaywallUITests: XCTestCase {
         sleep(5)
         
         // When: User attempts to add item via list view camera option
-        tabBar.tapAllItems()
+        navigationHelper.navigateToAllItems()
         listScreen.tapAddItem()
         listScreen.tapCreateFromCamera()
         
@@ -96,7 +96,7 @@ final class PaywallUITests: XCTestCase {
     func testSettingsViewPaywallButton() throws {
         // Given a user is in the Settings view
         app.launch()
-        tabBar.tapSettings()
+        navigationHelper.navigateToSettings()
         // When the user taps "Get MovingBox Pro"
         
         // Then the paywall should be displayed
@@ -112,7 +112,7 @@ final class PaywallUITests: XCTestCase {
         sleep(5)
         
         // When: User attempts actions that would normally show paywall
-        tabBar.tapAllItems()
+        navigationHelper.navigateToAllItems()
         listScreen.tapAddItem()
         listScreen.tapCreateManually()
         
@@ -130,7 +130,7 @@ final class PaywallUITests: XCTestCase {
         sleep(5)
         
         // When: User attempts actions that would normally show paywall
-        tabBar.tapAllItems()
+        navigationHelper.navigateToAllItems()
         listScreen.tapAddItem()
         listScreen.tapCreateFromCamera()
         
@@ -147,8 +147,8 @@ final class PaywallUITests: XCTestCase {
         app.launch()
         sleep(5)
         
-        // When: User attempts to call the camera view from the tab bar
-        tabBar.tapAddItem()
+        // When: User attempts to call the camera view from the dashboard
+        dashboardScreen.tapAddItemFromCamera()
         
         // Then: Camera should be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),
