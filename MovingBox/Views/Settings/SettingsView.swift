@@ -24,7 +24,7 @@ struct ExternalLink {
 
 // MARK: - Main Settings Body
 struct SettingsView: View {
-    @StateObject private var settingsManager = SettingsManager()
+    @EnvironmentObject private var settingsManager: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
@@ -33,11 +33,6 @@ struct SettingsView: View {
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
     
-    // ADD: State property for tracking analyzed items count
-    @State private var analyzedItemsCount: Int = 0
-    
-    // ADD: Query for all inventory items
-    @Query private var allItems: [InventoryItem]
     
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -86,30 +81,6 @@ struct SettingsView: View {
     var body: some View {
         List {
             if !revenueCatManager.isProSubscriptionActive {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("AI Analysis Usage")
-                                .font(.headline)
-                            Spacer()
-                            Text("\(analyzedItemsCount)/50")
-                                .foregroundColor(.secondary)
-                                .font(.subheadline)
-                        }
-                        
-                        ProgressView(value: Double(analyzedItemsCount), total: 50)
-                            .tint(progressTintColor)
-                            .background(Color(.systemGray5))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                            .padding(.bottom, 5)
-                        
-                        Text("\(50 - analyzedItemsCount) free image analyses remaining")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 10)
-                }
-                
                 Section {
                     Button(action: {
                         showingPaywall = true
@@ -188,6 +159,58 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             
+            Section {
+                HStack {
+                    Label {
+                        Text("High Detail")
+                            .foregroundStyle(settingsManager.isPro ? .primary : .secondary)
+                    } icon: {
+                        Image(systemName: "brain")
+                            .foregroundStyle(settingsManager.isPro ? Color.customPrimary : .secondary)
+                    }
+                    
+                    Spacer()
+                    if !settingsManager.isPro {
+                        Text("Pro")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.yellow)
+                            .cornerRadius(4)
+                    }
+                    if settingsManager.isHighQualityToggleAvailable {
+                        Toggle("", isOn: $settingsManager.highQualityAnalysisEnabled)
+                            .onChange(of: settingsManager.highQualityAnalysisEnabled) { _, newValue in
+                                TelemetryManager.shared.trackHighQualityToggleUsed(
+                                    enabled: newValue,
+                                    isProUser: settingsManager.isPro
+                                )
+                            }
+                    } else {
+                        Toggle("", isOn: .constant(false))
+                            .disabled(true)
+                    }
+                }
+            } header: {
+                Text("AI Analysis")
+            } footer: {
+                if !settingsManager.isHighQualityToggleAvailable {
+                    Text("High quality analysis with 1250x1250 resolution and advanced AI models is available with MovingBox Pro.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if settingsManager.highQualityAnalysisEnabled {
+                    Text("Using 1250x1250 resolution with high detail for enhanced accuracy. Disable for faster image analysis.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Using 512x512 resolution with low detail for faster image analysis.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
             Section("Community & Support") {
                 ForEach([
                     externalLinks["knowledgeBase"]!,
@@ -255,12 +278,6 @@ struct SettingsView: View {
                 onDismiss: nil
             )
         }
-        .onAppear {
-            updateAnalyzedItemsCount()
-        }
-        .onChange(of: allItems) { _, _ in
-            updateAnalyzedItemsCount()
-        }
         .navigationDestination(for: String.self) { value in
             switch value {
                 case "home": EditHomeView()
@@ -272,23 +289,6 @@ struct SettingsView: View {
         }
     }
     
-    private var progressTintColor: Color {
-        let percentage = Double(analyzedItemsCount) / 50.0
-        
-        if percentage < 0.5 {
-            return .green
-        } else if percentage < 0.8 {
-            return .orange
-        } else {
-            return .red
-        }
-    }
-    
-    // ADD: Function to count analyzed items from SwiftData
-    private func updateAnalyzedItemsCount() {
-        // Count items that have hasUsedAi = true
-        analyzedItemsCount = allItems.filter { $0.hasUsedAI == true }.count
-    }
     
     private struct FeatureRow: View {
         let icon: String
@@ -399,7 +399,7 @@ struct NotificationSettingsView: View {
 
 struct AISettingsView: View {
     @State private var isEditing = false
-    @ObservedObject var settings: SettingsManager
+    @EnvironmentObject var settings: SettingsManager
     let models = ["gpt-4o", "gpt-4o-mini"]
     @FocusState private var isApiKeyFieldFocused: Bool
     

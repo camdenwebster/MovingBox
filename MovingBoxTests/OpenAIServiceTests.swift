@@ -49,10 +49,16 @@ import SwiftData
         {
             "choices": [{
                 "message": {
-                    "function_call": {
-                        "name": "process_inventory_item",
-                        "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\",\\"serialNumber\\":\\"SN123456\\"}"
-                    }
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "type": "function",
+                            "function": {
+                                "name": "process_inventory_item",
+                                "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\",\\"serialNumber\\":\\"SN123456\\"}"
+                            }
+                        }
+                    ]
                 }
             }]
         }
@@ -60,7 +66,7 @@ import SwiftData
         
         let data = mockResponse.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(GPTResponse.self, from: data)
-        let functionCallArgs = decoded.choices[0].message.function_call?.arguments ?? ""
+        let functionCallArgs = decoded.choices[0].message.tool_calls?[0].function.arguments ?? ""
         let details = try JSONDecoder().decode(ImageDetails.self, from: functionCallArgs.data(using: .utf8)!)
         
         // Then
@@ -88,14 +94,14 @@ import SwiftData
             let decoder = JSONDecoder()
             let payload = try decoder.decode(GPTPayload.self, from: body)
             
-            // Verify payload structure
-            #expect(payload.model == "gpt-4o-mini")
-            #expect(payload.max_tokens == 150)
+            // Verify payload structure  
+            #expect(payload.model == "gpt-4o")
+            #expect(payload.max_completion_tokens == 150)
             #expect(payload.messages.count == 1)
             #expect(payload.messages[0].role == "user")
             #expect(payload.messages[0].content.count == 2)
-            #expect(payload.functions.count == 1)
-            #expect(payload.function_call["name"] == "process_inventory_item")
+            #expect(payload.tools.count == 1)
+            #expect(payload.tool_choice.function.name == "process_inventory_item")
         }
     }
     
@@ -115,7 +121,12 @@ import SwiftData
     func testHighDetailMode() async throws {
         // Given
         let service = try await createTestService()
-        service.settings.isHighDetail = true
+        
+        // Set both isPro and highQualityAnalysisEnabled to enable high detail mode on main actor
+        await MainActor.run {
+            service.settings.isPro = true
+            service.settings.highQualityAnalysisEnabled = true
+        }
         
         // When
         let request = try service.generateURLRequest(httpMethod: .post)
@@ -154,10 +165,16 @@ import SwiftData
         {
             "choices": [{
                 "message": {
-                    "function_call": {
-                        "name": "process_inventory_item",
-                        "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\",\\"serialNumber\\":\\"SN789\\"}"
-                    }
+                    "tool_calls": [
+                        {
+                            "id": "call_456",
+                            "type": "function",
+                            "function": {
+                                "name": "process_inventory_item",
+                                "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"None\\",\\"location\\":\\"None\\",\\"price\\":\\"$99.99\\",\\"serialNumber\\":\\"SN789\\"}"
+                            }
+                        }
+                    ]
                 }
             }]
         }
@@ -167,7 +184,7 @@ import SwiftData
         
         // When
         let response = try JSONDecoder().decode(GPTResponse.self, from: data)
-        let arguments = response.choices[0].message.function_call?.arguments ?? ""
+        let arguments = response.choices[0].message.tool_calls?[0].function.arguments ?? ""
         let details = try JSONDecoder().decode(ImageDetails.self, from: arguments.data(using: .utf8)!)
         
         // Then

@@ -12,6 +12,7 @@ class SettingsManager: ObservableObject {
         static let maxTokens = "maxTokens"
         static let apiKey = "apiKey"
         static let isHighDetail = "isHighDetail"
+        static let highQualityAnalysisEnabled = "highQualityAnalysisEnabled"
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
     }
@@ -61,9 +62,17 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    @Published var highQualityAnalysisEnabled: Bool {
+        didSet {
+            print("📱 SettingsManager - highQualityAnalysisEnabled changed to: \(highQualityAnalysisEnabled)")
+            UserDefaults.standard.set(highQualityAnalysisEnabled, forKey: Keys.highQualityAnalysisEnabled)
+        }
+    }
+    
     // Pro feature constants
     public struct AppConstants: Sendable {
-        static let maxFreeAiScans = 50
+        // Note: AI analysis limits have been removed as of high-resolution feature
+        static let maxFreeAiScans = -1 // Unlimited for all users
     }
     
     private let revenueCatManager = RevenueCatManager.shared
@@ -71,9 +80,10 @@ class SettingsManager: ObservableObject {
     // Default values
     private let defaultAIModel = "gpt-4o-mini"
     private let defaultTemperature = 0.7
-    private let defaultMaxTokens = 300
+    private let defaultMaxTokens = 1000
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
+    private let highQualityAnalysisEnabledDefault = true
     private let hasLaunchedDefault = false
     
     init() {
@@ -86,6 +96,7 @@ class SettingsManager: ObservableObject {
         self.maxTokens = defaultMaxTokens
         self.apiKey = defaultApiKey
         self.isHighDetail = isHighDetailDefault
+        self.highQualityAnalysisEnabled = highQualityAnalysisEnabledDefault
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         
@@ -123,6 +134,16 @@ class SettingsManager: ObservableObject {
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
         
+        // Set high quality default based on Pro status, but allow override
+        if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {
+            print("📱 SettingsManager - No saved highQualityAnalysisEnabled, setting default: \(self.isPro ? highQualityAnalysisEnabledDefault : false)")
+            self.highQualityAnalysisEnabled = self.isPro ? highQualityAnalysisEnabledDefault : false
+        } else {
+            let savedValue = UserDefaults.standard.bool(forKey: Keys.highQualityAnalysisEnabled)
+            print("📱 SettingsManager - Loading saved highQualityAnalysisEnabled: \(savedValue)")
+            self.highQualityAnalysisEnabled = savedValue
+        }
+        
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
         if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
         
@@ -134,9 +155,19 @@ class SettingsManager: ObservableObject {
                 let isPro = customerInfo.entitlements["Pro"]?.isActive == true
                 print("📱 SettingsManager - RevenueCat status: \(isPro)")
                 self.isPro = isPro
+                
+                // Re-evaluate high quality setting if Pro status changed and no explicit setting exists
+                if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {
+                    self.highQualityAnalysisEnabled = self.isPro ? highQualityAnalysisEnabledDefault : false
+                }
             } catch {
                 print("⚠️ SettingsManager - Error fetching customer info: \(error)")
                 self.isPro = UserDefaults.standard.bool(forKey: Keys.isPro)
+                
+                // Re-evaluate high quality setting if Pro status changed and no explicit setting exists
+                if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {
+                    self.highQualityAnalysisEnabled = self.isPro ? highQualityAnalysisEnabledDefault : false
+                }
             }
         }
         
@@ -168,6 +199,37 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    // MARK: - AI Analysis Configuration
+    
+    /// Effective AI model based on Pro status and quality settings
+    var effectiveAIModel: String {
+        if isPro && highQualityAnalysisEnabled {
+            return "gpt-5-mini"
+        }
+        return "gpt-4o"
+    }
+    
+    /// Effective image resolution for AI processing based on Pro status and quality settings
+    var effectiveImageResolution: CGFloat {
+        if isPro && highQualityAnalysisEnabled {
+            return 1250.0
+        }
+        return 512.0
+    }
+    
+    /// Effective detail parameter for OpenAI API based on Pro status and quality settings
+    var effectiveDetailLevel: String {
+        if isPro && highQualityAnalysisEnabled {
+            return "high"
+        }
+        return "low"
+    }
+    
+    /// Whether high quality analysis toggle should be available (Pro users only)
+    var isHighQualityToggleAvailable: Bool {
+        return isPro
+    }
+    
     // MARK: - Pro Feature Checks
     
     func shouldShowPaywall() -> Bool {
@@ -175,10 +237,8 @@ class SettingsManager: ObservableObject {
     }
     
     func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-        print("📱 SettingsManager - Checking hasReachedAiScanLimit")
-        print("📱 SettingsManager - Current isPro: \(isPro)")
-        print("📱 SettingsManager - Current count of items which have used AI scan: \(currentCount)")
-        return !isPro && currentCount >= AppConstants.maxFreeAiScans
+        // AI analysis is now unlimited for all users
+        return false
     }
     
     // MARK: - Purchase Flow
@@ -209,6 +269,7 @@ class SettingsManager: ObservableObject {
         maxTokens = defaultMaxTokens
         apiKey = defaultApiKey
         isHighDetail = isHighDetailDefault
+        highQualityAnalysisEnabled = false
         hasLaunched = hasLaunchedDefault
         isPro = false
         

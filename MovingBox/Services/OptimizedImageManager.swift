@@ -31,6 +31,7 @@ final class OptimizedImageManager {
         static let jpegQuality: CGFloat = 0.8
         static let thumbnailSize = CGSize(width: 512, height: 512)
         static let aiMaxDimension: CGFloat = 512
+        static let aiHighQualityMaxDimension: CGFloat = 1250
     }
     
     private init() {
@@ -361,8 +362,9 @@ final class OptimizedImageManager {
         }
     }
     
-    func prepareImageForAI(from image: UIImage) async -> String? {
-        let optimizedImage = await optimizeImage(image, maxDimension: ImageConfig.aiMaxDimension)
+    func prepareImageForAI(from image: UIImage, useHighQuality: Bool = false) async -> String? {
+        let maxDimension = useHighQuality ? ImageConfig.aiHighQualityMaxDimension : ImageConfig.aiMaxDimension
+        let optimizedImage = await optimizeImage(image, maxDimension: maxDimension)
         guard let imageData = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             return nil
         }

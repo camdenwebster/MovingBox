@@ -99,11 +99,8 @@ import Foundation
         }
         
         func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-            return !isPro && currentCount >= SettingsManager.AppConstants.maxFreeAiScans
-        }
-        
-        func canUseMoreAiScans(currentCount: Int) -> Bool {
-            return isPro || currentCount < SettingsManager.AppConstants.maxFreeAiScans
+            // AI analysis is now unlimited for all users
+            return false
         }
     }
     
@@ -161,7 +158,7 @@ import Foundation
         
         // When - Free tier
         #expect(manager.shouldShowPaywall() == true)
-        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == true)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false) // AI scans now unlimited
         
         // When - Pro tier
         manager.isPro = true

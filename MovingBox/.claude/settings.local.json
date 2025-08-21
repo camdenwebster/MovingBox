@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:platform.openai.com)",
+      "WebSearch",
+      "Bash(xcodebuild test:*)",
+      "Bash(xcodebuild build:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/Users/camden.webster/dev/claude/issue-170-20250820-0325"
+    ]
+  }
+}
