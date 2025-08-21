@@ -19,9 +19,11 @@ import AVFoundation
         
         // Since we can't directly compare enum cases with associated values,
         // we'll verify by using them in switch statements
-        // Verify single mode by checking it's not multi mode
-        if case .multiPhoto = singleMode {
-            #expect(Bool(false), "Single mode should not be multi photo")
+        // Verify single mode
+        if case .singlePhoto = singleMode {
+            // Test passes - singleMode is correct
+        } else {
+            #expect(Bool(false), "Single mode should be single photo")
         }
         
         // Verify multi mode default value

@@ -9,7 +9,6 @@ import SwiftUI
 import SwiftData
 import SafariServices
 import StoreKit
-import AppStore
 
 enum SettingsSection: Hashable {
     case categories
