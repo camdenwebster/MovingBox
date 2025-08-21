@@ -44,7 +44,13 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     
     // MARK: - Storage & Physical Properties
     var dimensions: String = ""
+    var dimensionLength: String = ""
+    var dimensionWidth: String = ""
+    var dimensionHeight: String = ""
+    var dimensionUnit: String = "inches"
     var weight: String = ""
+    var weightValue: String = ""
+    var weightUnit: String = "lbs"
     var color: String = ""
     var storageRequirements: String = ""
     
@@ -146,7 +152,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         }
     }
     
-    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = [], purchaseDate: Date? = nil, warrantyExpirationDate: Date? = nil, purchaseLocation: String = "", condition: String = "", hasWarranty: Bool = false, depreciationRate: Double? = nil, replacementCost: Decimal? = nil, receiptImageURL: URL? = nil, dimensions: String = "", weight: String = "", color: String = "", storageRequirements: String = "", isFragile: Bool = false, movingPriority: Int = 3, roomDestination: String = "") {
+    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = [], purchaseDate: Date? = nil, warrantyExpirationDate: Date? = nil, purchaseLocation: String = "", condition: String = "", hasWarranty: Bool = false, depreciationRate: Double? = nil, replacementCost: Decimal? = nil, receiptImageURL: URL? = nil, dimensions: String = "", dimensionLength: String = "", dimensionWidth: String = "", dimensionHeight: String = "", dimensionUnit: String = "inches", weight: String = "", weightValue: String = "", weightUnit: String = "lbs", color: String = "", storageRequirements: String = "", isFragile: Bool = false, movingPriority: Int = 3, roomDestination: String = "") {
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt
@@ -175,7 +181,13 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.replacementCost = replacementCost
         self.receiptImageURL = receiptImageURL
         self.dimensions = dimensions
+        self.dimensionLength = dimensionLength
+        self.dimensionWidth = dimensionWidth
+        self.dimensionHeight = dimensionHeight
+        self.dimensionUnit = dimensionUnit
         self.weight = weight
+        self.weightValue = weightValue
+        self.weightUnit = weightUnit
         self.color = color
         self.storageRequirements = storageRequirements
         self.isFragile = isFragile

@@ -105,7 +105,11 @@ struct InventoryDetailView: View {
     
     private var hasAnyPhysicalPropertiesData: Bool {
         !inventoryItemToDisplay.dimensions.isEmpty ||
+        !inventoryItemToDisplay.dimensionLength.isEmpty ||
+        !inventoryItemToDisplay.dimensionWidth.isEmpty ||
+        !inventoryItemToDisplay.dimensionHeight.isEmpty ||
         !inventoryItemToDisplay.weight.isEmpty ||
+        !inventoryItemToDisplay.weightValue.isEmpty ||
         !inventoryItemToDisplay.color.isEmpty ||
         !inventoryItemToDisplay.storageRequirements.isEmpty
     }
@@ -116,6 +120,70 @@ struct InventoryDetailView: View {
         !inventoryItemToDisplay.roomDestination.isEmpty
     }
     
+    // MARK: - Toolbar Components
+    
+    @ViewBuilder
+    private var leadingToolbarButton: some View {
+        if isEditing {
+            Button("Cancel") {
+                if onCancel != nil {
+                    deleteItemAndCloseSheet()
+                } else if OnboardingManager.hasCompletedOnboarding() {
+                    if modelContext.hasChanges {
+                        showUnsavedChangesAlert = true
+                    } else {
+                        isEditing = false
+                    }
+                }
+            }
+            .accessibilityIdentifier("cancelButton")
+        }
+    }
+    
+    @ViewBuilder
+    private var sparklesToolbarButton: some View {
+        if inventoryItemToDisplay.hasUsedAI && showSparklesButton && isEditing {
+            Button(action: {
+                if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
+                    showingPaywall = true
+                } else {
+                    showAIConfirmationAlert = true
+                }
+            }) {
+                Image(systemName: "wand.and.sparkles")
+            }
+            .disabled(isLoadingOpenAiResults)
+            .accessibilityIdentifier("sparkles")
+        }
+    }
+    
+    @ViewBuilder
+    private var trailingToolbarButton: some View {
+        if isLoadingOpenAiResults && !showAIButton {
+            ProgressView()
+        } else {
+            if isEditing {
+                Button("Save") {
+                    if inventoryItemToDisplay.modelContext == nil {
+                        modelContext.insert(inventoryItemToDisplay)
+                    }
+                    try? modelContext.save()
+                    isEditing = false
+                    onSave?()
+                }
+                .fontWeight(.bold)
+                .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+                .accessibilityIdentifier("save")
+            } else {
+                Button("Edit") {
+                    isEditing = true
+                }
+                .accessibilityIdentifier("edit")
+            }
+        }
+    }
+
+
     // MARK: - View Components
     
     @ViewBuilder
@@ -673,7 +741,7 @@ struct InventoryDetailView: View {
                     }
                     
                     if isEditing || !inventoryItemToDisplay.condition.isEmpty {
-                        FormTextFieldRow(label: "Condition", text: $inventoryItemToDisplay.condition, isEditing: $isEditing, placeholder: "Like New")
+                        ConditionPickerRow(condition: $inventoryItemToDisplay.condition, isEditing: $isEditing)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                     }
@@ -696,14 +764,7 @@ struct InventoryDetailView: View {
                 
                 VStack(spacing: 0) {
                     if isEditing || inventoryItemToDisplay.replacementCost != nil {
-                        HStack {
-                            Text("Replacement Cost")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            TextField("$0.00", value: $inventoryItemToDisplay.replacementCost, format: .currency(code: "USD"))
-                                .multilineTextAlignment(.trailing)
-                                .disabled(!isEditing)
-                        }
+                        CurrencyFieldRow(label: "Replacement Cost", value: $inventoryItemToDisplay.replacementCost, isEditing: $isEditing)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         
@@ -714,14 +775,7 @@ struct InventoryDetailView: View {
                     }
                     
                     if isEditing || inventoryItemToDisplay.depreciationRate != nil {
-                        HStack {
-                            Text("Depreciation Rate")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            TextField("0%", value: $inventoryItemToDisplay.depreciationRate, format: .percent)
-                                .multilineTextAlignment(.trailing)
-                                .disabled(!isEditing)
-                        }
+                        PercentageFieldRow(label: "Depreciation Rate", value: $inventoryItemToDisplay.depreciationRate, isEditing: $isEditing)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         
@@ -770,12 +824,18 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
-                    if isEditing || !inventoryItemToDisplay.dimensions.isEmpty {
-                        FormTextFieldRow(label: "Dimensions", text: $inventoryItemToDisplay.dimensions, isEditing: $isEditing, placeholder: "24\" x 16\" x 8\"")
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                    if isEditing || !inventoryItemToDisplay.dimensionLength.isEmpty || !inventoryItemToDisplay.dimensionWidth.isEmpty || !inventoryItemToDisplay.dimensionHeight.isEmpty {
+                        DimensionsFieldRow(
+                            length: $inventoryItemToDisplay.dimensionLength,
+                            width: $inventoryItemToDisplay.dimensionWidth,
+                            height: $inventoryItemToDisplay.dimensionHeight,
+                            unit: $inventoryItemToDisplay.dimensionUnit,
+                            isEditing: $isEditing
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                         
-                        if (isEditing || !inventoryItemToDisplay.weight.isEmpty) ||
+                        if (isEditing || !inventoryItemToDisplay.weightValue.isEmpty) ||
                            (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
                            (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
                             Divider()
@@ -783,10 +843,14 @@ struct InventoryDetailView: View {
                         }
                     }
                     
-                    if isEditing || !inventoryItemToDisplay.weight.isEmpty {
-                        FormTextFieldRow(label: "Weight", text: $inventoryItemToDisplay.weight, isEditing: $isEditing, placeholder: "5.2 lbs")
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                    if isEditing || !inventoryItemToDisplay.weightValue.isEmpty {
+                        WeightFieldRow(
+                            value: $inventoryItemToDisplay.weightValue,
+                            unit: $inventoryItemToDisplay.weightUnit,
+                            isEditing: $isEditing
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                         
                         if (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
                            (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
@@ -901,191 +965,42 @@ struct InventoryDetailView: View {
                 colorScheme: colorScheme
             )
             .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                if isEditing {
-                    Button("Cancel") {
-                        if onCancel != nil {
-                            // During onboarding - delete the item and close the sheet
-                            deleteItemAndCloseSheet()
-                        } else if OnboardingManager.hasCompletedOnboarding() {
-                            // Normal editing mode - handle unsaved changes
-                            if modelContext.hasChanges {
-                                showUnsavedChangesAlert = true
-                            } else {
-                                isEditing = false
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("cancelButton")
+                ToolbarItem(placement: .topBarLeading) {
+                    leadingToolbarButton
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    sparklesToolbarButton
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    trailingToolbarButton
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                if inventoryItemToDisplay.hasUsedAI {
-                    if showSparklesButton && isEditing {
-                        Button(action: {
-                            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
-                                showingPaywall = true
-                            } else {
-                                showAIConfirmationAlert = true
-                            }
-                        }) {
-                            Image(systemName: "wand.and.sparkles")
-                                    }
-                        .disabled(isLoadingOpenAiResults)
-                        .accessibilityIdentifier("sparkles")
-                    }
-                }
+            .sheet(isPresented: $showingPaywall) {
+                revenueCatManager.presentPaywall(
+                    isPresented: $showingPaywall,
+                    onCompletion: { settings.isPro = true },
+                    onDismiss: nil
+                )
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                if isLoadingOpenAiResults && !showAIButton {
-                    ProgressView()
-                } else {
-                    if isEditing {
-                        Button("Save") {
-                            if inventoryItemToDisplay.modelContext == nil {
-                                modelContext.insert(inventoryItemToDisplay)
-                            }
-                            try? modelContext.save()
-                            isEditing = false
-                            onSave?()
-                        }
-                        .fontWeight(.bold)
-                            .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
-                        .accessibilityIdentifier("save")
-                    } else {
-                        Button("Edit") {
-                            isEditing = true
-                        }
-                            .accessibilityIdentifier("edit")
-                    }
-                }
+            .sheet(isPresented: $showingLocationSelection) {
+                LocationSelectionView(selectedLocation: $inventoryItemToDisplay.location)
             }
-        }
-        .sheet(isPresented: $showingPaywall) {
-            revenueCatManager.presentPaywall(
-                isPresented: $showingPaywall,
-                onCompletion: {
-                    settings.isPro = true
-                    // Add any specific post-purchase actions here
-                },
-                onDismiss: nil
-            )
-        }
-        .sheet(isPresented: $showingMultiPhotoCamera) {
-            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
-            let maxPhotosToAdd = max(1, 5 - currentPhotoCount)
-            CustomCameraView(
-                capturedImages: $capturedImages,
-                mode: .multiPhoto(maxPhotos: maxPhotosToAdd),
-                onPermissionCheck: { granted in
-                    if !granted {
-                        // Handle permission denied
-                        print("Camera permission denied")
-                    }
-                },
-                onComplete: { images in
-                    Task {
-                        await handleNewPhotos(images)
-                        showingMultiPhotoCamera = false
-                    }
-                },
-                onCancel: {
-                    showingMultiPhotoCamera = false
-                }
-            )
-        }
-        .alert("AI Image Analysis", isPresented: $showAIConfirmationAlert) {
-            Button("Analyze Image", role: .none) {
-                Task {
-                    do {
-                        let imageDetails = try await callOpenAI()
-                        updateUIWithImageDetails(imageDetails)
-                    } catch let error as OpenAIError {
-                        errorMessage = error.userFriendlyMessage
-                        showingErrorAlert = true
-                    } catch {
-                        errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                        showingErrorAlert = true
-                    }
-                }
+            .sheet(isPresented: $showingLabelSelection) {
+                LabelSelectionView(selectedLabel: $inventoryItemToDisplay.label)
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will analyze the image using AI and update the following item details:\n\n• Title\n• Quantity\n• Description\n• Make\n• Model\n• Label\n• Location\n• Price\n\nExisting values will be overwritten. Do you want to proceed?")
-        }
-        .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage)
-        }
-        .confirmationDialog("Choose Photo Source", isPresented: $showPhotoSourceAlert) {
-            Button("Take Photo") {
-                showingSimpleCamera = true
+            .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
             }
-            Button("Choose from Library") {
-                showPhotoPicker = true
+            .confirmationDialog("Add Receipt", isPresented: $showReceiptSourceAlert) {
+                Button("Scan with Camera") { showReceiptCamera = true }
+                Button("Choose from Photos") { showReceiptPhotoPicker = true }
+                Button("Browse Files") { showDocumentPicker = true }
             }
-        }
-        .alert("Unsaved Changes", isPresented: $showUnsavedChangesAlert) {
-            Button("Save & Stay", role: .none) {
-                try? modelContext.save()
-                isEditing = false
-            }
-            
-            Button("Discard Changes", role: .destructive) {
-                modelContext.rollback()
-                isEditing = false
-            }
-            
-            Button("Cancel", role: .cancel) {
-                showUnsavedChangesAlert = false
-            }
-        } message: {
-            Text("Do you want to save your changes before exiting edit mode?")
-        }
-        .task(id: inventoryItemToDisplay.imageURL) {
-            await loadAllImages()
-        }
-        .onChange(of: inventoryItemToDisplay.secondaryPhotoURLs) { _, _ in
-            Task {
+            .task(id: inventoryItemToDisplay.imageURL) {
                 await loadAllImages()
             }
-        }
-        .fullScreenCover(isPresented: $showingFullScreenPhoto) {
-            FullScreenPhotoView(
-                images: loadedImages,
-                initialIndex: selectedImageIndex,
-                isPresented: $showingFullScreenPhoto
-            )
-        }
-        .fullScreenCover(isPresented: $showingSimpleCamera) {
-            SimpleCameraView(capturedImage: $capturedSingleImage)
-        }
-        .photosPicker(
-            isPresented: $showPhotoPicker,
-            selection: $selectedPhotosPickerItems,
-            maxSelectionCount: max(1, 5 - ((inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count)),
-            matching: .images
-        )
-        .onChange(of: capturedSingleImage) { _, newImage in
-            if let image = newImage {
-                Task {
-                    await handleNewPhotos([image])
-                    capturedSingleImage = nil
-                }
-            }
-        }
-        .onChange(of: selectedPhotosPickerItems) { _, newItems in
-            Task {
-                await processSelectedPhotos(newItems)
-            }
-        }
-        .sheet(isPresented: $showingLocationSelection) {
-            LocationSelectionView(selectedLocation: $inventoryItemToDisplay.location)
-        }
-        .sheet(isPresented: $showingLabelSelection) {
-            LabelSelectionView(selectedLabel: $inventoryItemToDisplay.label)
-        }
     }
 
     private func callOpenAI() async throws -> ImageDetails {
@@ -1527,6 +1442,66 @@ struct PhotoPlaceholderView: View {
 extension InventoryDetailView {
     private func presentReceiptSourceAlert() {
         showReceiptSourceAlert = true
+    }
+    
+    private func handleReceiptFileImport(_ result: Result<[URL], Error>) async {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            
+            do {
+                // Try to load as image first
+                let data = try Data(contentsOf: url)
+                if let image = UIImage(data: data) {
+                    await handleReceiptImage(image)
+                } else {
+                    // Handle PDF or other document types
+                    await handleReceiptDocument(url)
+                }
+            } catch {
+                print("Failed to load receipt file: \(error)")
+            }
+            
+        case .failure(let error):
+            print("File import failed: \(error)")
+        }
+    }
+    
+    private func handleReceiptImage(_ image: UIImage) async {
+        do {
+            let receiptId = UUID().uuidString
+            let receiptURL = try await OptimizedImageManager.shared.saveImage(image, id: receiptId)
+            
+            await MainActor.run {
+                inventoryItemToDisplay.receiptImageURL = receiptURL
+                try? modelContext.save()
+            }
+        } catch {
+            print("Failed to save receipt image: \(error)")
+        }
+    }
+    
+    private func handleReceiptDocument(_ url: URL) async {
+        // For now, just copy the document to our storage
+        // In the future, this could be enhanced to handle PDF preview/thumbnail
+        await MainActor.run {
+            inventoryItemToDisplay.receiptImageURL = url
+            try? modelContext.save()
+        }
+    }
+    
+    private func processSelectedReceiptPhotos(_ items: [PhotosPickerItem]) async {
+        guard let item = items.first else { return }
+        
+        if let data = try? await item.loadTransferable(type: Data.self),
+           let image = UIImage(data: data) {
+            await handleReceiptImage(image)
+        }
+        
+        // Clear selected items after processing
+        await MainActor.run {
+            selectedPhotosPickerItems = []
+        }
     }
 }
 
