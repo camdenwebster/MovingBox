@@ -154,11 +154,7 @@ struct OnboardingWelcomeView: View {
             
             // Try setting up default data
             await updateStatusMessage("Setting up default data...")
-            do {
-                await DefaultDataManager.populateDefaultData(modelContext: modelContext)
-            } catch {
-                print("⚠️ Default data setup failed: \(error)")
-            }
+            await DefaultDataManager.populateDefaultData(modelContext: modelContext)
             
             // Continue with onboarding
             await MainActor.run {

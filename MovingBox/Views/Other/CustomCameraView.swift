@@ -52,7 +52,7 @@ struct CustomCameraView: View {
         switch mode {
         case .singlePhoto:
             singlePhotoView
-        case .multiPhoto(let maxPhotos):
+        case .multiPhoto(_):
             MultiPhotoCameraView(
                 capturedImages: $capturedImages,
                 onPermissionCheck: onPermissionCheck,
@@ -386,7 +386,9 @@ struct CameraPreviewView: UIViewRepresentable {
         let view = PreviewView()
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
-        view.previewLayer.connection?.videoOrientation = .portrait
+        if let connection = view.previewLayer.connection {
+            connection.videoRotationAngle = 90
+        }
         return view
     }
     
