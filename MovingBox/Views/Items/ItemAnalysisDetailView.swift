@@ -74,7 +74,8 @@ struct ItemAnalysisDetailView: View {
     }
     
     private func performAnalysis() async throws {
-        guard let base64ForAI = await OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+        let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+        guard let base64ForAI = await OptimizedImageManager.shared.prepareImageForAI(from: image, useHighQuality: useHighQuality) else {
             throw AnalysisError.imagePreparationFailed
         }
         

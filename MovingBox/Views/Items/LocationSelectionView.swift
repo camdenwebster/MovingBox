@@ -113,6 +113,6 @@ struct LocationSelectionView: View {
 }
 
 #Preview {
-    @State var location: InventoryLocation? = nil
+    @Previewable @State var location: InventoryLocation? = nil
     return LocationSelectionView(selectedLocation: $location)
 }

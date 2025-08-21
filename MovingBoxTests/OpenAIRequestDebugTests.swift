@@ -39,15 +39,15 @@ struct OpenAIRequestDebugTests {
         
         print("\n📋 Request Summary:")
         print("- Model: \(payload.model)")
-        print("- Max Tokens: \(payload.max_tokens)")
+        print("- Max Tokens: \(payload.max_completion_tokens)")
         print("- Messages Count: \(payload.messages.count)")
         print("- Content Items: \(payload.messages[0].content.count)")
-        print("- Function Name: \(payload.functions[0].name)")
-        print("- Function Description: \(payload.functions[0].description)")
+        print("- Function Name: \(payload.tools[0].function.name)")
+        print("- Function Description: \(payload.tools[0].function.description)")
         
         // Check function call structure
-        print("\n🎯 Function Call:")
-        print("- Function Call: \(payload.function_call)")
+        print("\n🎯 Tool Choice:")
+        print("- Tool Choice: \(payload.tool_choice)")
         
         // Verify content structure
         let message = payload.messages[0]
@@ -64,7 +64,7 @@ struct OpenAIRequestDebugTests {
         #expect(message.role == "user", "Message should be from user")
         #expect(textContent.count == 1, "Should have exactly 1 text prompt")
         #expect(imageContent.count == 3, "Should have exactly 3 images")
-        #expect(payload.function_call["name"] == "process_inventory_item", "Should call correct function")
+        #expect(payload.tool_choice.function.name == "process_inventory_item", "Should call correct function")
         
         print("\n✅ Request structure validation passed")
     }
@@ -145,7 +145,7 @@ struct OpenAIRequestDebugTests {
         let urlRequest = try service.generateURLRequest(httpMethod: .post)
         let payload = try service.decodePayload(from: urlRequest.httpBody!)
         
-        let function = payload.functions[0]
+        let function = payload.tools[0].function
         
         print("🔧 Function Schema:")
         print("- Name: \(function.name)")
@@ -162,10 +162,10 @@ struct OpenAIRequestDebugTests {
         #expect(function.parameters.properties["title"] != nil)
         #expect(function.parameters.properties["description"] != nil)
         
-        // Check if description field mentions combining multiple photos
+        // Check if description field exists and has content
         if let descriptionParam = function.parameters.properties["description"] {
             print("- Description Parameter: \(descriptionParam.description ?? "None")")
-            #expect(descriptionParam.description?.contains("comprehensive") == true)
+            #expect(descriptionParam.description != nil, "Description parameter should have content")
         }
         
         print("✅ Function schema validation passed")

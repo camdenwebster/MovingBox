@@ -321,7 +321,7 @@ extension SnapshotTests {
     func editHomeViewReadModeSnapshot() async throws {
         let container = try await createTestContainer()
         
-        let descriptor = FetchDescriptor<Home>()
+        _ = FetchDescriptor<Home>()
         
         let view = configureViewForSnapshot(
             EditHomeView()
@@ -344,7 +344,7 @@ extension SnapshotTests {
     func editHomeViewEditModeSnapshot() async throws {
         let container = try await createTestContainer()
         
-        let descriptor = FetchDescriptor<Home>()
+        _ = FetchDescriptor<Home>()
         
         let view = configureViewForSnapshot(
             EditHomeView()
