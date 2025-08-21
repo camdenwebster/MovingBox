@@ -240,11 +240,20 @@ struct HighResolutionAnalysisTests {
             let settingsManager = SettingsManager()
             
             if settingsManager.isPro {
-                // Pro user tests
-                #expect(settingsManager.isHighQualityToggleAvailable == true)
-                #expect(settingsManager.effectiveImageResolution >= 512.0)
-                #expect(["gpt-4o", "gpt-5-mini"].contains(settingsManager.effectiveAIModel))
-                #expect(["low", "high"].contains(settingsManager.effectiveDetailLevel))
+                // Pro user tests - more rigorous assertions
+                #expect(settingsManager.isHighQualityToggleAvailable == true, "Pro users should have access to high quality toggle")
+                
+                // Test with high quality enabled (default for Pro)
+                if settingsManager.highQualityAnalysisEnabled {
+                    #expect(settingsManager.effectiveImageResolution == 1250.0, "Pro users with high quality should get 1250px resolution")
+                    #expect(settingsManager.effectiveAIModel == "gpt-5-mini", "Pro users with high quality should use gpt-5-mini model")
+                    #expect(settingsManager.effectiveDetailLevel == "high", "Pro users with high quality should use high detail level")
+                } else {
+                    // Pro user with high quality disabled
+                    #expect(settingsManager.effectiveImageResolution == 512.0, "Pro users with high quality disabled should get 512px resolution")
+                    #expect(settingsManager.effectiveAIModel == "gpt-4o", "Pro users with high quality disabled should use gpt-4o model")
+                    #expect(settingsManager.effectiveDetailLevel == "low", "Pro users with high quality disabled should use low detail level")
+                }
             } else {
                 // Non-Pro user tests
                 #expect(settingsManager.isHighQualityToggleAvailable == false)

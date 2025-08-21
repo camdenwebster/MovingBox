@@ -46,12 +46,18 @@ import AVFoundation
     func testSinglePhotoModeInitializer() async throws {
         var capturedImage: UIImage? = nil
         
+        var permissionGranted: Bool? = nil
+        
         let view = CustomCameraView(
             capturedImage: .constant(capturedImage),
             onPermissionCheck: { granted in
-                // Test permission callback
+                permissionGranted = granted
             }
         )
+        
+        // Simulate permission callback
+        view.onPermissionCheck(true)
+        #expect(permissionGranted == true, "Permission callback should be called with granted status")
         
         // Verify the view can be created without errors
         let viewType = type(of: view)
