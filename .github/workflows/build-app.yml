@@ -1,0 +1,320 @@
+name: Build App
+
+on:
+  workflow_call:
+    inputs:
+      build-configuration:
+        required: true
+        type: string
+        description: 'Build configuration (Debug, Release)'
+      scheme:
+        required: true
+        type: string
+        description: 'Xcode scheme to build'
+      destination:
+        required: false
+        type: string
+        default: 'generic/platform=iOS'
+        description: 'Build destination'
+      export-method:
+        required: false
+        type: string
+        default: 'development'
+        description: 'Export method (development, app-store, ad-hoc, enterprise)'
+      upload-to-testflight:
+        required: false
+        type: boolean
+        default: false
+        description: 'Whether to upload to TestFlight'
+      marketing-version:
+        required: false
+        type: string
+        description: 'Override marketing version'
+      build-number:
+        required: false
+        type: string
+        description: 'Override build number'
+    secrets:
+      JWT_SECRET:
+        required: true
+      REVENUE_CAT_API_KEY:
+        required: true
+      SENTRY_DSN:
+        required: true
+      TELEMETRY_DECK_APP_ID:
+        required: true
+      APP_STORE_CONNECT_API_KEY_ID:
+        required: false
+      APP_STORE_CONNECT_ISSUER_ID:
+        required: false
+      APP_STORE_CONNECT_API_PRIVATE_KEY:
+        required: false
+      KEYCHAIN_PASSWORD:
+        required: false
+      CERTIFICATES_P12:
+        required: false
+      CERTIFICATES_PASSWORD:
+        required: false
+      PROVISIONING_PROFILE:
+        required: false
+    outputs:
+      archive-path:
+        description: 'Path to the generated archive'
+        value: ${{ jobs.build.outputs.archive-path }}
+      ipa-path:
+        description: 'Path to the generated IPA'
+        value: ${{ jobs.build.outputs.ipa-path }}
+      marketing-version:
+        description: 'Final marketing version used'
+        value: ${{ jobs.build.outputs.marketing-version }}
+      build-number:
+        description: 'Final build number used'
+        value: ${{ jobs.build.outputs.build-number }}
+
+jobs:
+  build:
+    runs-on: self-hosted
+    timeout-minutes: 60
+    outputs:
+      archive-path: ${{ steps.build.outputs.archive-path }}
+      ipa-path: ${{ steps.export.outputs.ipa-path }}
+      marketing-version: ${{ steps.version.outputs.marketing-version }}
+      build-number: ${{ steps.version.outputs.build-number }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for version analysis
+      
+      - name: Setup Orchard Environment
+        run: |
+          # Ensure clean Orchard/Tart VM state
+          echo "Setting up clean build environment"
+          
+          # Clear any previous build artifacts
+          rm -rf ~/Library/Developer/Xcode/DerivedData/MovingBox-*
+          rm -rf build/
+          
+          # Verify Xcode installation and version
+          xcode-select -p
+          xcodebuild -version
+          
+          # Verify fastlane installation
+          fastlane --version
+      
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/
+            ~/Library/Developer/Xcode/DerivedData/MovingBox-*/SourcePackages/
+          key: ${{ runner.os }}-spm-${{ hashFiles('MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      
+      - name: Configure Build Environment
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+        run: |
+          # Generate Base.xcconfig from template with secrets
+          cp "MovingBox/Configuration/Base.template.xcconfig" "MovingBox/Configuration/Base.xcconfig"
+          
+          # Replace template variables with actual values
+          sed -i '' "s/\$(JWT_SECRET)/$JWT_SECRET/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(REVENUE_CAT_API_KEY)/$REVENUE_CAT_API_KEY/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(SENTRY_DSN)/$SENTRY_DSN/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(TELEMETRY_DECK_APP_ID)/$TELEMETRY_DECK_APP_ID/g" "MovingBox/Configuration/Base.xcconfig"
+          
+          # Override versions if provided
+          if [ -n "${{ inputs.marketing-version }}" ]; then
+            sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = ${{ inputs.marketing-version }}/g" "MovingBox/Configuration/Base.xcconfig"
+          fi
+          
+          echo "Build configuration updated successfully"
+      
+      - name: Setup Code Signing (for Release builds)
+        if: inputs.build-configuration == 'Release'
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          CERTIFICATES_P12: ${{ secrets.CERTIFICATES_P12 }}
+          CERTIFICATES_PASSWORD: ${{ secrets.CERTIFICATES_PASSWORD }}
+          PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+        run: |
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          
+          # Import certificates
+          echo "$CERTIFICATES_P12" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATES_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          
+          # Install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROVISIONING_PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/MovingBox.mobileprovision
+          
+          # Verify setup
+          security find-identity -v -p codesigning
+          echo "Code signing setup completed"
+      
+      - name: Determine Version Information
+        id: version
+        run: |
+          # Get marketing version from xcconfig
+          MARKETING_VERSION=$(grep "MARKETING_VERSION" MovingBox/Configuration/Base.xcconfig | cut -d'=' -f2 | xargs)
+          
+          # Generate build number based on timestamp or provided input
+          if [ -n "${{ inputs.build-number }}" ]; then
+            BUILD_NUMBER="${{ inputs.build-number }}"
+          else
+            BUILD_NUMBER=$(date +%Y%m%d%H%M)
+          fi
+          
+          echo "marketing-version=$MARKETING_VERSION" >> $GITHUB_OUTPUT
+          echo "build-number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          
+          echo "Using Marketing Version: $MARKETING_VERSION"
+          echo "Using Build Number: $BUILD_NUMBER"
+      
+      - name: Build App
+        id: build
+        env:
+          MARKETING_VERSION: ${{ steps.version.outputs.marketing-version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build-number }}
+        run: |
+          # Set build directory
+          BUILD_DIR="build"
+          ARCHIVE_PATH="$BUILD_DIR/MovingBox.xcarchive"
+          
+          # Clean build directory
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+          
+          # Build and archive
+          xcodebuild clean archive \
+            -project MovingBox.xcodeproj \
+            -scheme "${{ inputs.scheme }}" \
+            -configuration "${{ inputs.build-configuration }}" \
+            -destination "${{ inputs.destination }}" \
+            -archivePath "$ARCHIVE_PATH" \
+            MARKETING_VERSION="$MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Automatic \
+            | tee build.log
+          
+          # Check build success
+          if [ $? -eq 0 ]; then
+            echo "✅ Build completed successfully"
+            echo "archive-path=$ARCHIVE_PATH" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Build failed"
+            echo "Build log:"
+            cat build.log
+            exit 1
+          fi
+      
+      - name: Export IPA
+        id: export
+        if: inputs.build-configuration == 'Release'
+        run: |
+          ARCHIVE_PATH="${{ steps.build.outputs.archive-path }}"
+          EXPORT_DIR="build/export"
+          IPA_PATH="$EXPORT_DIR/MovingBox.ipa"
+          
+          # Create export options plist
+          cat > ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>${{ inputs.export-method }}</string>
+              <key>teamID</key>
+              <string>TEAM_ID_PLACEHOLDER</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>compileBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          
+          # Export archive to IPA
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_DIR" \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates
+          
+          # Find the generated IPA
+          IPA_FILE=$(find "$EXPORT_DIR" -name "*.ipa" | head -n 1)
+          
+          if [ -f "$IPA_FILE" ]; then
+            echo "✅ IPA export completed successfully"
+            echo "ipa-path=$IPA_FILE" >> $GITHUB_OUTPUT
+          else
+            echo "❌ IPA export failed - no IPA file found"
+            exit 1
+          fi
+      
+      - name: Upload to TestFlight
+        if: inputs.upload-to-testflight && inputs.build-configuration == 'Release'
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          IPA_PATH="${{ steps.export.outputs.ipa-path }}"
+          
+          if [ -z "$IPA_PATH" ] || [ ! -f "$IPA_PATH" ]; then
+            echo "❌ No IPA file found for TestFlight upload"
+            exit 1
+          fi
+          
+          # Upload via fastlane
+          fastlane pilot upload \
+            --api_key_path <(echo "$APP_STORE_CONNECT_API_PRIVATE_KEY" | base64 -d) \
+            --api_key_id "$APP_STORE_CONNECT_API_KEY_ID" \
+            --api_key_issuer_id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --ipa "$IPA_PATH" \
+            --skip_waiting_for_build_processing
+          
+          echo "✅ Upload to TestFlight completed"
+      
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-artifacts-${{ inputs.build-configuration }}-${{ github.run_number }}
+          path: |
+            build/
+            build.log
+            MovingBox/Configuration/Base.xcconfig
+          retention-days: 7
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          # Clean up sensitive files
+          rm -f certificate.p12
+          rm -f ExportOptions.plist
+          rm -f MovingBox/Configuration/Base.xcconfig
+          
+          # Remove keychain if it was created
+          if security list-keychains | grep -q "build.keychain"; then
+            security delete-keychain build.keychain
+          fi
+          
+          # Remove provisioning profiles
+          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/MovingBox.mobileprovision
+          
+          echo "Cleanup completed"

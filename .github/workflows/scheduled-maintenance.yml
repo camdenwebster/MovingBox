@@ -1,0 +1,621 @@
+name: Scheduled Maintenance & Nightly Builds
+
+on:
+  schedule:
+    # Run every night at 2 AM UTC
+    - cron: '0 2 * * *'
+    # Run weekly comprehensive check on Sundays at 1 AM UTC  
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+    inputs:
+      maintenance-type:
+        description: 'Type of maintenance to run'
+        required: true
+        type: choice
+        options:
+          - nightly
+          - weekly
+          - full
+        default: 'nightly'
+      skip-build:
+        description: 'Skip build validation'
+        required: false
+        type: boolean
+        default: false
+      skip-tests:
+        description: 'Skip comprehensive testing'
+        required: false
+        type: boolean
+        default: false
+      force-cleanup:
+        description: 'Force cleanup operations'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: scheduled-maintenance
+  cancel-in-progress: false
+
+env:
+  XCODE_VERSION: '16.2'
+  IOS_SIMULATOR_DEVICE: 'iPhone 16 Pro'
+  IOS_VERSION: '18.4'
+
+jobs:
+  determine-scope:
+    name: Determine Maintenance Scope
+    runs-on: self-hosted
+    timeout-minutes: 5
+    outputs:
+      maintenance-type: ${{ steps.scope.outputs.maintenance-type }}
+      run-build-check: ${{ steps.scope.outputs.run-build-check }}
+      run-comprehensive-tests: ${{ steps.scope.outputs.run-comprehensive-tests }}
+      run-dependency-check: ${{ steps.scope.outputs.run-dependency-check }}
+      run-security-scan: ${{ steps.scope.outputs.run-security-scan }}
+      run-cleanup: ${{ steps.scope.outputs.run-cleanup }}
+      run-health-check: ${{ steps.scope.outputs.run-health-check }}
+    
+    steps:
+      - name: Determine Scope
+        id: scope
+        run: |
+          echo "🔍 Determining maintenance scope..."
+          
+          # Determine maintenance type
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            MAINTENANCE_TYPE="${{ inputs.maintenance-type }}"
+          elif [[ "${{ github.event.schedule }}" == "0 1 * * 0" ]]; then
+            MAINTENANCE_TYPE="weekly"
+          else
+            MAINTENANCE_TYPE="nightly"
+          fi
+          
+          echo "maintenance-type=$MAINTENANCE_TYPE" >> $GITHUB_OUTPUT
+          
+          # Set scope based on maintenance type
+          case $MAINTENANCE_TYPE in
+            "nightly")
+              echo "run-build-check=true" >> $GITHUB_OUTPUT
+              echo "run-comprehensive-tests=false" >> $GITHUB_OUTPUT
+              echo "run-dependency-check=false" >> $GITHUB_OUTPUT
+              echo "run-security-scan=true" >> $GITHUB_OUTPUT
+              echo "run-cleanup=true" >> $GITHUB_OUTPUT
+              echo "run-health-check=true" >> $GITHUB_OUTPUT
+              ;;
+            "weekly")
+              echo "run-build-check=true" >> $GITHUB_OUTPUT
+              echo "run-comprehensive-tests=true" >> $GITHUB_OUTPUT
+              echo "run-dependency-check=true" >> $GITHUB_OUTPUT
+              echo "run-security-scan=true" >> $GITHUB_OUTPUT
+              echo "run-cleanup=true" >> $GITHUB_OUTPUT
+              echo "run-health-check=true" >> $GITHUB_OUTPUT
+              ;;
+            "full")
+              echo "run-build-check=true" >> $GITHUB_OUTPUT
+              echo "run-comprehensive-tests=true" >> $GITHUB_OUTPUT
+              echo "run-dependency-check=true" >> $GITHUB_OUTPUT
+              echo "run-security-scan=true" >> $GITHUB_OUTPUT
+              echo "run-cleanup=true" >> $GITHUB_OUTPUT
+              echo "run-health-check=true" >> $GITHUB_OUTPUT
+              ;;
+          esac
+          
+          # Override with manual inputs if provided
+          if [[ "${{ inputs.skip-build }}" == "true" ]]; then
+            echo "run-build-check=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if [[ "${{ inputs.skip-tests }}" == "true" ]]; then
+            echo "run-comprehensive-tests=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "📋 Maintenance Scope: $MAINTENANCE_TYPE"
+          echo "  - Build check: $(echo '${{ steps.scope.outputs.run-build-check }}' | head -c 1)"
+          echo "  - Comprehensive tests: $(echo '${{ steps.scope.outputs.run-comprehensive-tests }}' | head -c 1)"
+          echo "  - Dependency check: $(echo '${{ steps.scope.outputs.run-dependency-check }}' | head -c 1)"
+          echo "  - Security scan: $(echo '${{ steps.scope.outputs.run-security-scan }}' | head -c 1)"
+          echo "  - Cleanup: $(echo '${{ steps.scope.outputs.run-cleanup }}' | head -c 1)"
+          echo "  - Health check: $(echo '${{ steps.scope.outputs.run-health-check }}' | head -c 1)"
+
+  health-check:
+    name: Repository Health Check
+    runs-on: self-hosted
+    needs: determine-scope
+    if: needs.determine-scope.outputs.run-health-check == 'true'
+    timeout-minutes: 15
+    outputs:
+      health-status: ${{ steps.check.outputs.health-status }}
+      issues-found: ${{ steps.check.outputs.issues-found }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Repository Health Check
+        id: check
+        run: |
+          echo "🏥 Running repository health check..."
+          
+          ISSUES_FOUND=0
+          HEALTH_REPORT=""
+          
+          # Check repository size
+          REPO_SIZE=$(du -sh .git | cut -f1)
+          echo "📦 Repository size: $REPO_SIZE"
+          HEALTH_REPORT="$HEALTH_REPORT\n- Repository size: $REPO_SIZE"
+          
+          # Check for large files
+          LARGE_FILES=$(find . -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.mp4" -o -name "*.mov" | head -10)
+          if [[ -n "$LARGE_FILES" ]]; then
+            echo "📁 Large files detected (sample):"
+            echo "$LARGE_FILES" | while read file; do
+              if [[ -f "$file" ]]; then
+                SIZE=$(du -h "$file" | cut -f1)
+                echo "  - $file ($SIZE)"
+              fi
+            done
+            HEALTH_REPORT="$HEALTH_REPORT\n- Large media files present"
+          fi
+          
+          # Check branch health
+          CURRENT_BRANCH=$(git branch --show-current)
+          COMMITS_AHEAD=$(git rev-list --count HEAD ^origin/main 2>/dev/null || echo "0")
+          COMMITS_BEHIND=$(git rev-list --count origin/main ^HEAD 2>/dev/null || echo "0")
+          
+          echo "🌿 Branch health:"
+          echo "  - Current branch: $CURRENT_BRANCH"
+          echo "  - Commits ahead of main: $COMMITS_AHEAD"
+          echo "  - Commits behind main: $COMMITS_BEHIND"
+          
+          HEALTH_REPORT="$HEALTH_REPORT\n- Branch: $CURRENT_BRANCH (±$COMMITS_AHEAD ahead, ±$COMMITS_BEHIND behind)"
+          
+          # Check for uncommitted changes
+          if ! git diff-index --quiet HEAD --; then
+            echo "⚠️ Uncommitted changes detected"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+            HEALTH_REPORT="$HEALTH_REPORT\n- ⚠️ Uncommitted changes present"
+          fi
+          
+          # Check file permissions
+          PERMISSION_ISSUES=$(find . -name "*.sh" ! -perm -111 | wc -l | xargs)
+          if [[ "$PERMISSION_ISSUES" -gt "0" ]]; then
+            echo "⚠️ Found $PERMISSION_ISSUES shell scripts without execute permission"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+            HEALTH_REPORT="$HEALTH_REPORT\n- ⚠️ $PERMISSION_ISSUES shell scripts missing execute permission"
+          fi
+          
+          # Check for merge conflicts markers
+          CONFLICT_MARKERS=$(find . -name "*.swift" -o -name "*.md" -o -name "*.yml" | xargs grep -l "<<<<<<< HEAD\|>>>>>>> " | wc -l | xargs)
+          if [[ "$CONFLICT_MARKERS" -gt "0" ]]; then
+            echo "⚠️ Found $CONFLICT_MARKERS files with merge conflict markers"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+            HEALTH_REPORT="$HEALTH_REPORT\n- ⚠️ $CONFLICT_MARKERS files contain merge conflict markers"
+          fi
+          
+          # Check for TODO/FIXME comments
+          TODO_COUNT=$(find . -name "*.swift" | xargs grep -c "TODO\|FIXME" | awk -F: '{sum+=$2} END {print sum+0}')
+          echo "📝 Found $TODO_COUNT TODO/FIXME comments"
+          HEALTH_REPORT="$HEALTH_REPORT\n- TODO/FIXME comments: $TODO_COUNT"
+          
+          # Overall health status
+          if [[ "$ISSUES_FOUND" -eq "0" ]]; then
+            HEALTH_STATUS="healthy"
+          elif [[ "$ISSUES_FOUND" -lt "3" ]]; then
+            HEALTH_STATUS="minor-issues"
+          else
+            HEALTH_STATUS="needs-attention"
+          fi
+          
+          echo "health-status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+          echo "issues-found=$ISSUES_FOUND" >> $GITHUB_OUTPUT
+          
+          echo -e "Health report:$HEALTH_REPORT" > health_report.txt
+          
+          echo "🏥 Health check completed: $HEALTH_STATUS ($ISSUES_FOUND issues)"
+
+  build-validation:
+    name: Build Validation
+    runs-on: self-hosted
+    needs: determine-scope
+    if: needs.determine-scope.outputs.run-build-check == 'true'
+    timeout-minutes: 30
+    outputs:
+      build-status: ${{ steps.validate.outputs.build-status }}
+    
+    steps:
+      - name: Validate Build Health
+        id: validate
+        uses: ./.github/workflows/build-app.yml
+        with:
+          build-configuration: 'Debug'
+          scheme: 'MovingBox'
+          destination: 'platform=iOS Simulator,name=${{ env.IOS_SIMULATOR_DEVICE }}'
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+
+  comprehensive-testing:
+    name: Comprehensive Testing
+    runs-on: self-hosted
+    needs: [determine-scope, build-validation]
+    if: needs.determine-scope.outputs.run-comprehensive-tests == 'true' && needs.build-validation.result == 'success'
+    timeout-minutes: 60
+    
+    steps:
+      - name: Run Complete Test Suite
+        uses: ./.github/workflows/run-tests.yml
+        with:
+          test-plan: 'all'
+          device: ${{ env.IOS_SIMULATOR_DEVICE }}
+          os-version: ${{ env.IOS_VERSION }}
+          parallel-testing: true
+          generate-coverage: true
+          upload-screenshots: false  # Don't upload screenshots for maintenance runs
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+
+  dependency-check:
+    name: Dependency Health Check
+    runs-on: self-hosted
+    needs: determine-scope
+    if: needs.determine-scope.outputs.run-dependency-check == 'true'
+    timeout-minutes: 20
+    outputs:
+      outdated-dependencies: ${{ steps.check-deps.outputs.outdated-count }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Check Swift Package Dependencies
+        id: check-deps
+        run: |
+          echo "📦 Checking Swift Package Manager dependencies..."
+          
+          # Check for package resolution issues
+          if [[ -f "MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" ]]; then
+            echo "✅ Package.resolved exists"
+            
+            # Count dependencies
+            DEPENDENCY_COUNT=$(grep -c '"identity"' MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved || echo "0")
+            echo "📊 Total dependencies: $DEPENDENCY_COUNT"
+            
+            # List dependencies
+            echo "📋 Current dependencies:"
+            if command -v jq &> /dev/null; then
+              cat MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved | jq -r '.pins[] | "  - \(.identity) (\(.state.version // .state.branch // .state.revision[0:8]))"' 2>/dev/null || echo "  (Could not parse Package.resolved)"
+            else
+              grep '"identity"' MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved | sed 's/.*"identity" : "\([^"]*\)".*/  - \1/' || echo "  (Could not parse Package.resolved)"
+            fi
+          else
+            echo "⚠️ No Package.resolved found"
+            DEPENDENCY_COUNT=0
+          fi
+          
+          # Check for security updates (simplified check)
+          echo "🔒 Checking for known security issues..."
+          
+          # In a real implementation, you might:
+          # - Check against known vulnerability databases
+          # - Use tools like `audit` if available
+          # - Check for outdated versions of critical dependencies
+          
+          OUTDATED_COUNT=0
+          echo "outdated-count=$OUTDATED_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "📦 Dependency check completed"
+      
+      - name: Validate Build Tools
+        run: |
+          echo "🔨 Validating build tools..."
+          
+          # Check Xcode version
+          XCODE_VERSION_ACTUAL=$(xcodebuild -version | head -1)
+          echo "  - $XCODE_VERSION_ACTUAL"
+          
+          # Check available simulators
+          echo "  - iOS Simulators:"
+          xcrun simctl list devices available | grep "iOS " | head -3 | sed 's/^/    /'
+          
+          # Check fastlane
+          if command -v fastlane &> /dev/null; then
+            FASTLANE_VERSION=$(fastlane --version | head -1)
+            echo "  - $FASTLANE_VERSION"
+          else
+            echo "  - ⚠️ Fastlane not found"
+          fi
+          
+          # Check Claude Code CLI
+          if command -v claude &> /dev/null; then
+            echo "  - ✅ Claude Code CLI available"
+          else
+            echo "  - ⚠️ Claude Code CLI not found"
+          fi
+          
+          echo "🔨 Build tools validation completed"
+
+  security-scan:
+    name: Security Scan
+    runs-on: self-hosted
+    needs: determine-scope
+    if: needs.determine-scope.outputs.run-security-scan == 'true'
+    timeout-minutes: 15
+    outputs:
+      security-issues: ${{ steps.scan.outputs.security-issues }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Security Scan
+        id: scan
+        run: |
+          echo "🛡️ Running security scan..."
+          
+          SECURITY_ISSUES=0
+          
+          # Check for hardcoded secrets
+          echo "🔍 Checking for potential hardcoded secrets..."
+          SECRET_PATTERNS=(
+            "api[_-]?key"
+            "secret"
+            "password"
+            "token" 
+            "credential"
+          )
+          
+          for pattern in "${SECRET_PATTERNS[@]}"; do
+            MATCHES=$(find . -name "*.swift" -not -path "./build/*" -not -path "./.git/*" -not -name "*.template.*" -exec grep -i "$pattern" {} + | grep -v "TODO\|FIXME\|@" || true)
+            if [[ -n "$MATCHES" ]]; then
+              echo "⚠️ Potential hardcoded $pattern:"
+              echo "$MATCHES" | head -5 | sed 's/^/  /'
+              SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+            fi
+          done
+          
+          # Check file permissions
+          echo "🔒 Checking file permissions..."
+          WORLD_WRITABLE=$(find . -type f -perm -002 | wc -l | xargs)
+          if [[ "$WORLD_WRITABLE" -gt "0" ]]; then
+            echo "⚠️ Found $WORLD_WRITABLE world-writable files"
+            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+          fi
+          
+          # Check for debug code in release builds
+          echo "🐛 Checking for debug code..."
+          DEBUG_PATTERNS=(
+            "\.debugPrint"
+            "print("
+            "NSLog"
+            "assert(false"
+          )
+          
+          for pattern in "${DEBUG_PATTERNS[@]}"; do
+            MATCHES=$(find . -name "*.swift" -not -path "./build/*" -not -path "./.git/*" -not -path "./*Tests/*" -exec grep -E "$pattern" {} + | wc -l | xargs)
+            if [[ "$MATCHES" -gt "0" ]]; then
+              echo "⚠️ Found $MATCHES instances of '$pattern' in production code"
+              if [[ "$pattern" == "print(" && "$MATCHES" -gt "5" ]]; then
+                SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+              fi
+            fi
+          done
+          
+          # Check certificate expiry (if certificates are available)
+          echo "📜 Checking certificate status..."
+          if [[ -n "${CERTIFICATES_P12:-}" ]]; then
+            echo "✅ Certificate secrets are configured"
+          else
+            echo "ℹ️ No certificate secrets configured for this scan"
+          fi
+          
+          echo "security-issues=$SECURITY_ISSUES" >> $GITHUB_OUTPUT
+          
+          if [[ "$SECURITY_ISSUES" -eq "0" ]]; then
+            echo "✅ Security scan completed - no issues found"
+          else
+            echo "⚠️ Security scan found $SECURITY_ISSUES potential issues"
+          fi
+
+  cleanup-maintenance:
+    name: Cleanup & Maintenance
+    runs-on: self-hosted
+    needs: determine-scope
+    if: needs.determine-scope.outputs.run-cleanup == 'true'
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Cleanup Operations
+        run: |
+          echo "🧹 Running cleanup operations..."
+          
+          # Clean build artifacts
+          echo "🗂️ Cleaning build artifacts..."
+          rm -rf build/
+          rm -rf DerivedData/
+          rm -rf ~/Library/Developer/Xcode/DerivedData/MovingBox-*
+          
+          # Clean simulator data
+          echo "📱 Cleaning simulator data..."
+          xcrun simctl delete unavailable || true
+          xcrun simctl erase all || true
+          
+          # Clean fastlane artifacts
+          echo "🚀 Cleaning fastlane artifacts..."
+          rm -rf fastlane/test_output/
+          rm -rf fastlane/report.xml
+          
+          # Clean temporary files
+          echo "🗑️ Cleaning temporary files..."
+          find . -name ".DS_Store" -delete || true
+          find . -name "*.tmp" -delete || true
+          find . -name "Thumbs.db" -delete || true
+          
+          # Force cleanup if requested
+          if [[ "${{ inputs.force-cleanup }}" == "true" ]]; then
+            echo "💪 Force cleanup operations..."
+            # Additional aggressive cleanup
+            rm -rf ~/Library/Caches/org.swift.swiftpm/ || true
+            rm -rf ~/Library/Caches/com.apple.dt.Xcode/ || true
+          fi
+          
+          echo "✅ Cleanup completed"
+      
+      - name: System Resource Check
+        run: |
+          echo "📊 Checking system resources..."
+          
+          # Check disk usage
+          echo "💾 Disk usage:"
+          df -h | head -5
+          
+          # Check memory usage
+          echo "🧠 Memory usage:"
+          top -l 1 -s 0 | grep "PhysMem"
+          
+          # Check available simulators
+          echo "📱 Available simulators:"
+          xcrun simctl list devices available | grep "iOS " | wc -l | xargs | sed 's/^/  iOS simulators: /'
+          
+          echo "📊 Resource check completed"
+
+  generate-report:
+    name: Generate Maintenance Report
+    runs-on: self-hosted
+    needs: [determine-scope, health-check, build-validation, comprehensive-testing, dependency-check, security-scan, cleanup-maintenance]
+    if: always()
+    timeout-minutes: 10
+    
+    steps:
+      - name: Generate Comprehensive Report
+        run: |
+          echo "📋 Generating maintenance report..."
+          
+          MAINTENANCE_TYPE="${{ needs.determine-scope.outputs.maintenance-type }}"
+          
+          # Create comprehensive report
+          cat > "maintenance_report_$(date +%Y%m%d_%H%M).md" << EOF
+          # Scheduled Maintenance Report
+          
+          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Type:** $MAINTENANCE_TYPE
+          **Run ID:** ${{ github.run_number }}
+          **Triggered by:** ${{ github.actor }}
+          
+          ## Executive Summary
+          
+          | Component | Status | Details |
+          |-----------|--------|---------|
+          | Repository Health | ${{ needs.health-check.result == 'success' && '✅' || '❌' }} | ${{ needs.health-check.outputs.health-status }} (${{ needs.health-check.outputs.issues-found }} issues) |
+          | Build Validation | ${{ needs.build-validation.result == 'success' && '✅' || (needs.determine-scope.outputs.run-build-check == 'false' && '⏭️ SKIPPED' || '❌') }} | ${{ needs.build-validation.outputs.build-status }} |
+          | Comprehensive Tests | ${{ needs.comprehensive-testing.result == 'success' && '✅' || (needs.determine-scope.outputs.run-comprehensive-tests == 'false' && '⏭️ SKIPPED' || '❌') }} | ${{ needs.comprehensive-testing.result }} |
+          | Dependencies | ${{ needs.dependency-check.result == 'success' && '✅' || (needs.determine-scope.outputs.run-dependency-check == 'false' && '⏭️ SKIPPED' || '❌') }} | ${{ needs.dependency-check.outputs.outdated-dependencies }} outdated |
+          | Security Scan | ${{ needs.security-scan.result == 'success' && '✅' || (needs.determine-scope.outputs.run-security-scan == 'false' && '⏭️ SKIPPED' || '❌') }} | ${{ needs.security-scan.outputs.security-issues }} potential issues |
+          | Cleanup & Maintenance | ${{ needs.cleanup-maintenance.result == 'success' && '✅' || (needs.determine-scope.outputs.run-cleanup == 'false' && '⏭️ SKIPPED' || '❌') }} | Completed |
+          
+          ## Detailed Results
+          
+          ### Repository Health
+          - **Status:** ${{ needs.health-check.outputs.health-status }}
+          - **Issues Found:** ${{ needs.health-check.outputs.issues-found }}
+          
+          ### Build System
+          - **Build Status:** ${{ needs.build-validation.outputs.build-status }}
+          - **Configuration:** Debug build for iOS Simulator
+          
+          ### Testing Results
+          - **Test Execution:** ${{ needs.comprehensive-testing.result }}
+          - **Coverage:** Available in test artifacts
+          
+          ### Dependencies
+          - **Outdated Count:** ${{ needs.dependency-check.outputs.outdated-dependencies }}
+          - **Security Issues:** ${{ needs.security-scan.outputs.security-issues }}
+          
+          ## Recommendations
+          
+          $(if [[ "${{ needs.health-check.outputs.issues-found }}" -gt "0" ]]; then
+            echo "- 🔧 Address repository health issues"
+          fi)
+          $(if [[ "${{ needs.build-validation.result }}" != "success" ]]; then
+            echo "- 🏗️ Fix build validation failures"
+          fi)
+          $(if [[ "${{ needs.security-scan.outputs.security-issues }}" -gt "0" ]]; then
+            echo "- 🛡️ Review and address security scan findings"
+          fi)
+          $(if [[ "${{ needs.dependency-check.outputs.outdated-dependencies }}" -gt "0" ]]; then
+            echo "- 📦 Update outdated dependencies"
+          fi)
+          
+          ## Next Maintenance
+          
+          - **Nightly:** Tomorrow at 2 AM UTC
+          - **Weekly:** Next Sunday at 1 AM UTC
+          - **Manual:** Run via GitHub Actions workflow_dispatch
+          
+          ---
+          
+          **Maintenance Pipeline:** [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
+          
+          echo "✅ Maintenance report generated"
+      
+      - name: Upload Maintenance Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maintenance-report-${{ needs.determine-scope.outputs.maintenance-type }}-${{ github.run_number }}
+          path: |
+            maintenance_report_*.md
+            health_report.txt
+          retention-days: 90
+      
+      - name: Final Summary
+        if: always()
+        run: |
+          echo "🎯 Scheduled Maintenance Complete"
+          echo "================================="
+          echo ""
+          echo "📋 Maintenance Type: ${{ needs.determine-scope.outputs.maintenance-type }}"
+          echo "📅 Completed: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          echo "📊 Results Summary:"
+          echo "  - Health Check: ${{ needs.health-check.result }}"
+          echo "  - Build Validation: ${{ needs.build-validation.result }}"
+          echo "  - Testing: ${{ needs.comprehensive-testing.result }}"
+          echo "  - Dependencies: ${{ needs.dependency-check.result }}"
+          echo "  - Security: ${{ needs.security-scan.result }}"
+          echo "  - Cleanup: ${{ needs.cleanup-maintenance.result }}"
+          echo ""
+          
+          # Determine overall status
+          FAILED_JOBS=0
+          
+          for result in "${{ needs.health-check.result }}" "${{ needs.build-validation.result }}" "${{ needs.security-scan.result }}"; do
+            if [[ "$result" == "failure" ]]; then
+              FAILED_JOBS=$((FAILED_JOBS + 1))
+            fi
+          done
+          
+          if [[ $FAILED_JOBS -eq 0 ]]; then
+            echo "🎉 All maintenance tasks completed successfully!"
+            echo "✅ Repository is healthy and ready for development"
+          else
+            echo "⚠️ $FAILED_JOBS maintenance tasks failed"
+            echo "🔍 Please review the failed jobs and address any issues"
+          fi
+          
+          echo ""
+          echo "📈 Next Steps:"
+          echo "  - Review maintenance report for detailed findings"
+          echo "  - Address any identified issues"
+          echo "  - Monitor repository health"

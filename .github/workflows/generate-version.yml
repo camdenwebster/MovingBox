@@ -1,0 +1,446 @@
+name: Generate Version
+
+on:
+  workflow_call:
+    inputs:
+      base-ref:
+        required: false
+        type: string
+        description: 'Base reference to compare against (default: latest tag)'
+      version-type:
+        required: false
+        type: string
+        default: 'auto'
+        description: 'Version type (auto, major, minor, patch, prerelease)'
+      prerelease-prefix:
+        required: false
+        type: string
+        default: 'beta'
+        description: 'Prerelease version prefix (alpha, beta, rc)'
+      dry-run:
+        required: false
+        type: boolean
+        default: false
+        description: 'Generate version without creating tag'
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+    outputs:
+      version:
+        description: 'Generated semantic version'
+        value: ${{ jobs.generate.outputs.version }}
+      marketing-version:
+        description: 'Marketing version (without build number)'
+        value: ${{ jobs.generate.outputs.marketing-version }}
+      build-number:
+        description: 'Build number for this version'
+        value: ${{ jobs.generate.outputs.build-number }}
+      changelog:
+        description: 'Generated changelog for this version'
+        value: ${{ jobs.generate.outputs.changelog }}
+      is-prerelease:
+        description: 'Whether this is a prerelease version'
+        value: ${{ jobs.generate.outputs.is-prerelease }}
+      previous-version:
+        description: 'Previous version tag'
+        value: ${{ jobs.generate.outputs.previous-version }}
+
+jobs:
+  generate:
+    runs-on: self-hosted
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      marketing-version: ${{ steps.version.outputs.marketing-version }}
+      build-number: ${{ steps.version.outputs.build-number }}
+      changelog: ${{ steps.analyze.outputs.changelog }}
+      is-prerelease: ${{ steps.version.outputs.is-prerelease }}
+      previous-version: ${{ steps.git-info.outputs.previous-version }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for version analysis
+      
+      - name: Setup Claude Code
+        run: |
+          # Verify Claude Code CLI is available
+          if ! command -v claude &> /dev/null; then
+            echo "❌ Claude Code CLI not found on self-hosted runner"
+            echo "Please install Claude Code CLI on the runner"
+            exit 1
+          fi
+          
+          # Verify API key is available
+          if [[ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]]; then
+            echo "❌ ANTHROPIC_API_KEY secret not configured"
+            exit 1
+          fi
+          
+          # Set up Claude Code environment
+          export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
+          echo "✅ Claude Code CLI setup completed"
+      
+      - name: Gather Git Information
+        id: git-info
+        run: |
+          echo "📊 Gathering git information for version analysis..."
+          
+          # Get current branch/ref info
+          CURRENT_REF="${{ github.ref }}"
+          CURRENT_SHA="${{ github.sha }}"
+          
+          # Determine base reference for comparison
+          if [[ -n "${{ inputs.base-ref }}" ]]; then
+            BASE_REF="${{ inputs.base-ref }}"
+          else
+            # Find the latest tag
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [[ -n "$LATEST_TAG" ]]; then
+              BASE_REF="$LATEST_TAG"
+            else
+              # If no tags exist, use first commit
+              BASE_REF=$(git rev-list --max-parents=0 HEAD)
+              echo "⚠️ No tags found, using first commit as base"
+            fi
+          fi
+          
+          echo "current-ref=$CURRENT_REF" >> $GITHUB_OUTPUT
+          echo "current-sha=$CURRENT_SHA" >> $GITHUB_OUTPUT
+          echo "base-ref=$BASE_REF" >> $GITHUB_OUTPUT
+          echo "previous-version=$BASE_REF" >> $GITHUB_OUTPUT
+          
+          # Get commit range for analysis
+          COMMIT_RANGE="$BASE_REF..HEAD"
+          COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE 2>/dev/null || echo "0")
+          
+          echo "commit-range=$COMMIT_RANGE" >> $GITHUB_OUTPUT
+          echo "commit-count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "📊 Git Analysis:"
+          echo "  - Current SHA: $CURRENT_SHA"
+          echo "  - Base ref: $BASE_REF"  
+          echo "  - Commit range: $COMMIT_RANGE"
+          echo "  - Commits to analyze: $COMMIT_COUNT"
+      
+      - name: Generate Change Analysis
+        id: analyze
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "🤖 Analyzing changes with Claude Code..."
+          
+          COMMIT_RANGE="${{ steps.git-info.outputs.commit-range }}"
+          COMMIT_COUNT="${{ steps.git-info.outputs.commit-count }}"
+          BASE_REF="${{ steps.git-info.outputs.base-ref }}"
+          
+          if [[ "$COMMIT_COUNT" -eq "0" ]]; then
+            echo "⚠️ No commits to analyze since $BASE_REF"
+            echo "changelog=No changes since $BASE_REF" >> $GITHUB_OUTPUT
+            echo "version-impact=none" >> $GITHUB_OUTPUT
+            echo "recommended-type=patch" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Create analysis prompt for Claude
+          cat > version_analysis_prompt.md << 'EOF'
+          # MovingBox Version Analysis Request
+          
+          You are analyzing changes for the MovingBox iOS app to determine the appropriate semantic version increment and generate release notes.
+          
+          ## Current Context
+          - Repository: MovingBox (iOS inventory management app)
+          - Previous version: $BASE_REF
+          - Commits to analyze: $COMMIT_COUNT
+          - Branch: ${{ github.ref_name }}
+          
+          ## Your Task
+          1. **Analyze the changes** in the commit range to understand:
+             - Feature additions (minor version bump)
+             - Bug fixes (patch version bump)
+             - Breaking changes (major version bump)
+             - Documentation or internal changes (patch or no bump)
+          
+          2. **Determine semantic version impact**:
+             - `major`: Breaking changes, major feature overhauls
+             - `minor`: New features, significant enhancements
+             - `patch`: Bug fixes, small improvements, docs
+             - `none`: Only CI/build changes, no user impact
+          
+          3. **Generate concise changelog** (2-4 bullet points max):
+             - Focus on user-facing changes
+             - Use active voice and clear language
+             - Group similar changes together
+             - Omit internal/CI changes unless significant
+          
+          ## Response Format
+          Respond with EXACTLY this JSON format:
+          
+          ```json
+          {
+            "version_impact": "major|minor|patch|none",
+            "recommended_type": "major|minor|patch",
+            "changelog": "• Feature description\n• Bug fix description\n• Other notable changes",
+            "reasoning": "Brief explanation of version decision",
+            "breaking_changes": ["list any breaking changes"],
+            "new_features": ["list new features"],
+            "bug_fixes": ["list bug fixes"]
+          }
+          ```
+          
+          ## Changes to Analyze
+          
+          EOF
+          
+          # Add commit information to the prompt
+          echo "### Commit History" >> version_analysis_prompt.md
+          git log --oneline --no-merges $COMMIT_RANGE >> version_analysis_prompt.md
+          
+          echo "" >> version_analysis_prompt.md
+          echo "### Detailed Changes" >> version_analysis_prompt.md
+          git log --stat --no-merges $COMMIT_RANGE >> version_analysis_prompt.md
+          
+          echo "" >> version_analysis_prompt.md
+          echo "### File Diff Summary" >> version_analysis_prompt.md
+          git diff --stat $BASE_REF..HEAD >> version_analysis_prompt.md
+          
+          # Run Claude Code analysis
+          echo "🤖 Running Claude Code analysis..."
+          CLAUDE_RESPONSE=$(claude --no-prompt-caching < version_analysis_prompt.md 2>/dev/null || echo '{"version_impact": "patch", "recommended_type": "patch", "changelog": "Various improvements and fixes", "reasoning": "Claude analysis failed, defaulting to patch"}')
+          
+          # Parse Claude response
+          echo "📝 Claude Analysis Response:"
+          echo "$CLAUDE_RESPONSE"
+          
+          # Extract values from JSON response (with fallbacks)
+          VERSION_IMPACT=$(echo "$CLAUDE_RESPONSE" | grep -o '"version_impact":\s*"[^"]*"' | cut -d'"' -f4 || echo "patch")
+          RECOMMENDED_TYPE=$(echo "$CLAUDE_RESPONSE" | grep -o '"recommended_type":\s*"[^"]*"' | cut -d'"' -f4 || echo "patch")
+          CHANGELOG=$(echo "$CLAUDE_RESPONSE" | grep -o '"changelog":\s*"[^"]*"' | cut -d'"' -f4 || echo "Various improvements")
+          REASONING=$(echo "$CLAUDE_RESPONSE" | grep -o '"reasoning":\s*"[^"]*"' | cut -d'"' -f4 || echo "Automated analysis")
+          
+          # Clean up changelog (handle escaped newlines)
+          CHANGELOG=$(echo "$CHANGELOG" | sed 's/\\n/\n/g')
+          
+          echo "version-impact=$VERSION_IMPACT" >> $GITHUB_OUTPUT
+          echo "recommended-type=$RECOMMENDED_TYPE" >> $GITHUB_OUTPUT
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "reasoning=$REASONING" >> $GITHUB_OUTPUT
+          
+          echo "✅ Claude Analysis completed:"
+          echo "  - Version impact: $VERSION_IMPACT"
+          echo "  - Recommended type: $RECOMMENDED_TYPE"
+          echo "  - Reasoning: $REASONING"
+          
+          # Clean up
+          rm -f version_analysis_prompt.md
+      
+      - name: Calculate Version Number
+        id: version
+        run: |
+          echo "🔢 Calculating new version number..."
+          
+          BASE_REF="${{ steps.git-info.outputs.base-ref }}"
+          RECOMMENDED_TYPE="${{ steps.analyze.outputs.recommended-type }}"
+          VERSION_TYPE="${{ inputs.version-type }}"
+          PRERELEASE_PREFIX="${{ inputs.prerelease-prefix }}"
+          
+          # Determine final version type (manual override or Claude recommendation)
+          if [[ "$VERSION_TYPE" != "auto" ]]; then
+            FINAL_TYPE="$VERSION_TYPE"
+            echo "📝 Using manual version type: $FINAL_TYPE"
+          else
+            FINAL_TYPE="$RECOMMENDED_TYPE"
+            echo "📝 Using Claude recommended version type: $FINAL_TYPE"
+          fi
+          
+          # Parse current version from base ref
+          if [[ "$BASE_REF" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-(.*))?$ ]]; then
+            CURRENT_MAJOR="${BASH_REMATCH[1]}"
+            CURRENT_MINOR="${BASH_REMATCH[2]}"
+            CURRENT_PATCH="${BASH_REMATCH[3]}"
+            CURRENT_PRERELEASE="${BASH_REMATCH[5]:-}"
+          else
+            # Default to 1.0.0 if no valid version found
+            CURRENT_MAJOR="1"
+            CURRENT_MINOR="0" 
+            CURRENT_PATCH="0"
+            CURRENT_PRERELEASE=""
+            echo "⚠️ Could not parse version from $BASE_REF, starting from 1.0.0"
+          fi
+          
+          # Calculate new version based on type
+          case $FINAL_TYPE in
+            major)
+              NEW_MAJOR=$((CURRENT_MAJOR + 1))
+              NEW_MINOR="0"
+              NEW_PATCH="0"
+              ;;
+            minor)
+              NEW_MAJOR="$CURRENT_MAJOR"
+              NEW_MINOR=$((CURRENT_MINOR + 1))
+              NEW_PATCH="0"
+              ;;
+            patch)
+              NEW_MAJOR="$CURRENT_MAJOR"
+              NEW_MINOR="$CURRENT_MINOR"
+              NEW_PATCH=$((CURRENT_PATCH + 1))
+              ;;
+            prerelease)
+              NEW_MAJOR="$CURRENT_MAJOR"
+              NEW_MINOR="$CURRENT_MINOR"
+              NEW_PATCH="$CURRENT_PATCH"
+              ;;
+            *)
+              echo "❌ Invalid version type: $FINAL_TYPE"
+              exit 1
+              ;;
+          esac
+          
+          # Generate version strings
+          MARKETING_VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
+          
+          # Handle prerelease versions
+          if [[ "$FINAL_TYPE" == "prerelease" || "${{ github.ref_name }}" != "main" ]]; then
+            # Generate prerelease identifier
+            TIMESTAMP=$(date +%Y%m%d%H%M)
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            PRERELEASE_VERSION="$MARKETING_VERSION-$PRERELEASE_PREFIX.$TIMESTAMP.$SHORT_SHA"
+            FULL_VERSION="$PRERELEASE_VERSION"
+            IS_PRERELEASE="true"
+          else
+            FULL_VERSION="$MARKETING_VERSION"
+            IS_PRERELEASE="false"
+          fi
+          
+          # Generate build number (timestamp-based)
+          BUILD_NUMBER=$(date +%Y%m%d%H%M)
+          
+          # Output results
+          echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          echo "marketing-version=$MARKETING_VERSION" >> $GITHUB_OUTPUT
+          echo "build-number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "is-prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          
+          echo "🎉 Version calculation completed:"
+          echo "  - Previous: $BASE_REF"
+          echo "  - New version: $FULL_VERSION"
+          echo "  - Marketing version: $MARKETING_VERSION"
+          echo "  - Build number: $BUILD_NUMBER"
+          echo "  - Is prerelease: $IS_PRERELEASE"
+          echo "  - Version type used: $FINAL_TYPE"
+      
+      - name: Create Version Tag
+        if: inputs.dry-run != true && github.ref_name == 'main'
+        run: |
+          echo "🏷️ Creating version tag..."
+          
+          FULL_VERSION="${{ steps.version.outputs.version }}"
+          CHANGELOG="${{ steps.analyze.outputs.changelog }}"
+          IS_PRERELEASE="${{ steps.version.outputs.is-prerelease }}"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create annotated tag with changelog
+          cat > tag_message.txt << EOF
+          Release $FULL_VERSION
+          
+          $CHANGELOG
+          
+          Generated automatically by Claude Code CI/CD Pipeline
+          Commit: ${{ github.sha }}
+          EOF
+          
+          git tag -a "v$FULL_VERSION" -F tag_message.txt
+          
+          # Push tag
+          git push origin "v$FULL_VERSION"
+          
+          echo "✅ Created and pushed tag: v$FULL_VERSION"
+          
+          # Clean up
+          rm -f tag_message.txt
+      
+      - name: Generate Version Report
+        if: always()
+        run: |
+          echo "📄 Generating version analysis report..."
+          
+          cat > version_report.md << EOF
+          # Version Analysis Report
+          
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
+          **Run ID:** ${{ github.run_number }}
+          **Branch:** ${{ github.ref_name }}
+          **Commit:** ${{ github.sha }}
+          
+          ## Version Information
+          
+          | Property | Value |
+          |----------|--------|
+          | Previous Version | ${{ steps.git-info.outputs.previous-version }} |
+          | New Version | ${{ steps.version.outputs.version }} |
+          | Marketing Version | ${{ steps.version.outputs.marketing-version }} |
+          | Build Number | ${{ steps.version.outputs.build-number }} |
+          | Is Prerelease | ${{ steps.version.outputs.is-prerelease }} |
+          | Version Type | ${{ steps.analyze.outputs.recommended-type }} |
+          
+          ## Change Analysis
+          
+          **Commits Analyzed:** ${{ steps.git-info.outputs.commit-count }}
+          
+          **Claude Reasoning:** ${{ steps.analyze.outputs.reasoning }}
+          
+          ## Changelog
+          
+          ${{ steps.analyze.outputs.changelog }}
+          
+          ## Git Information
+          
+          - **Commit Range:** ${{ steps.git-info.outputs.commit-range }}
+          - **Base Reference:** ${{ steps.git-info.outputs.base-ref }}
+          - **Tag Created:** ${{ inputs.dry-run != true && github.ref_name == 'main' && 'Yes' || 'No (dry-run or non-main branch)' }}
+          
+          EOF
+          
+          echo "✅ Version report generated"
+      
+      - name: Upload Version Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: version-analysis-report-${{ github.run_number }}
+          path: version_report.md
+          retention-days: 30
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "🎯 Version Generation Summary"
+          echo "=============================="
+          echo ""
+          echo "📊 Analysis Results:"
+          echo "  - Commits analyzed: ${{ steps.git-info.outputs.commit-count }}"
+          echo "  - Version impact: ${{ steps.analyze.outputs.version-impact }}"
+          echo "  - Recommended type: ${{ steps.analyze.outputs.recommended-type }}"
+          echo ""
+          echo "🔢 Version Details:"  
+          echo "  - Previous: ${{ steps.git-info.outputs.previous-version }}"
+          echo "  - New: ${{ steps.version.outputs.version }}"
+          echo "  - Marketing: ${{ steps.version.outputs.marketing-version }}"
+          echo "  - Build: ${{ steps.version.outputs.build-number }}"
+          echo ""
+          echo "📝 Changelog:"
+          echo "${{ steps.analyze.outputs.changelog }}" | sed 's/^/  /'
+          echo ""
+          if [[ "${{ inputs.dry-run }}" == "true" ]]; then
+            echo "🏷️ Tag Status: Not created (dry-run mode)"
+          elif [[ "${{ github.ref_name }}" != "main" ]]; then
+            echo "🏷️ Tag Status: Not created (non-main branch)"
+          else
+            echo "🏷️ Tag Status: Created and pushed to repository"
+          fi

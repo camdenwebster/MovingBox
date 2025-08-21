@@ -1,0 +1,434 @@
+name: Beta Release (TestFlight)
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'fastlane/README.md'
+      - '*.md'
+  workflow_dispatch:
+    inputs:
+      version-override:
+        description: 'Override version (leave empty for auto-generation)'
+        required: false
+        type: string
+      skip-tests:
+        description: 'Skip comprehensive test suite'
+        required: false
+        type: boolean
+        default: false
+      release-notes-override:
+        description: 'Override release notes (leave empty for auto-generation)'
+        required: false
+        type: string
+      force-deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: beta-release
+  cancel-in-progress: false  # Don't cancel releases in progress
+
+env:
+  XCODE_VERSION: '16.2'
+  IOS_SIMULATOR_DEVICE: 'iPhone 16 Pro'
+  IOS_VERSION: '18.4'
+
+jobs:
+  pre-flight:
+    name: Pre-flight Checks
+    runs-on: self-hosted
+    timeout-minutes: 10
+    outputs:
+      should-release: ${{ steps.checks.outputs.should-release }}
+      commit-count: ${{ steps.changes.outputs.commit-count }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Analyze Changes Since Last Release
+        id: changes
+        run: |
+          echo "🔍 Analyzing changes since last beta release..."
+          
+          # Find last beta tag
+          LAST_BETA_TAG=$(git tag --sort=-version:refname | grep -E '^v.*-beta' | head -1 || echo "")
+          if [[ -z "$LAST_BETA_TAG" ]]; then
+            # Fall back to any latest tag
+            LAST_BETA_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          fi
+          
+          if [[ -n "$LAST_BETA_TAG" ]]; then
+            COMMIT_COUNT=$(git rev-list --count $LAST_BETA_TAG..HEAD)
+            COMMIT_RANGE="$LAST_BETA_TAG..HEAD"
+          else
+            COMMIT_COUNT=$(git rev-list --count HEAD)
+            COMMIT_RANGE="HEAD"
+          fi
+          
+          echo "last-beta-tag=$LAST_BETA_TAG" >> $GITHUB_OUTPUT
+          echo "commit-count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          echo "commit-range=$COMMIT_RANGE" >> $GITHUB_OUTPUT
+          
+          echo "📊 Change Analysis:"
+          echo "  - Last beta: $LAST_BETA_TAG"
+          echo "  - New commits: $COMMIT_COUNT"
+          echo "  - Commit range: $COMMIT_RANGE"
+      
+      - name: Pre-flight Checks
+        id: checks
+        run: |
+          echo "✅ Running pre-flight checks..."
+          
+          COMMIT_COUNT="${{ steps.changes.outputs.commit-count }}"
+          SHOULD_RELEASE="true"
+          
+          # Check if there are changes to release
+          if [[ "$COMMIT_COUNT" -eq "0" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            echo "⚠️ No new commits since last beta release"
+            SHOULD_RELEASE="false"
+          fi
+          
+          # Check for required files
+          REQUIRED_FILES=(
+            "MovingBox.xcodeproj/project.pbxproj"
+            "MovingBox/Configuration/Base.template.xcconfig"
+            "fastlane/Fastfile"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+          done
+          
+          echo "should-release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
+          
+          if [[ "$SHOULD_RELEASE" == "true" ]]; then
+            echo "✅ Pre-flight checks passed - proceeding with beta release"
+          else
+            echo "⚠️ Pre-flight checks suggest skipping release"
+          fi
+
+  generate-version:
+    name: Generate Version & Release Notes
+    runs-on: self-hosted
+    needs: pre-flight
+    if: needs.pre-flight.outputs.should-release == 'true'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      marketing-version: ${{ steps.version.outputs.marketing-version }}
+      build-number: ${{ steps.version.outputs.build-number }}
+      release-notes: ${{ steps.release-notes.outputs.release-notes }}
+      testflight-notes: ${{ steps.release-notes.outputs.testflight-notes }}
+    
+    steps:
+      - name: Generate Version
+        id: version
+        uses: ./.github/workflows/generate-version.yml
+        with:
+          version-type: 'prerelease'
+          prerelease-prefix: 'beta'
+          dry-run: false
+        secrets:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      
+      - name: Override Version (if provided)
+        if: inputs.version-override != ''
+        run: |
+          echo "🔄 Overriding version with user input: ${{ inputs.version-override }}"
+          
+          # Parse version components
+          VERSION="${{ inputs.version-override }}"
+          MARKETING_VERSION=$(echo "$VERSION" | sed 's/-.*$//')
+          BUILD_NUMBER=$(date +%Y%m%d%H%M)
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "marketing-version=$MARKETING_VERSION" >> $GITHUB_OUTPUT  
+          echo "build-number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+      
+      - name: Generate Release Notes
+        id: release-notes
+        uses: ./.github/workflows/generate-release-notes.yml
+        with:
+          version: ${{ steps.version.outputs.version }}
+          release-type: 'testflight'
+          target-audience: 'testers'
+        secrets:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  comprehensive-testing:
+    name: Comprehensive Testing
+    runs-on: self-hosted
+    needs: [pre-flight, generate-version]
+    if: needs.pre-flight.outputs.should-release == 'true' && inputs.skip-tests != true
+    
+    steps:
+      - name: Run Full Test Suite
+        uses: ./.github/workflows/run-tests.yml
+        with:
+          test-plan: 'all'
+          device: ${{ env.IOS_SIMULATOR_DEVICE }}
+          os-version: ${{ env.IOS_VERSION }}
+          parallel-testing: true
+          generate-coverage: true
+          upload-screenshots: true
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+
+  build-and-deploy:
+    name: Build & Deploy to TestFlight
+    runs-on: self-hosted
+    needs: [pre-flight, generate-version, comprehensive-testing]
+    if: always() && needs.pre-flight.outputs.should-release == 'true' && (needs.comprehensive-testing.result == 'success' || inputs.force-deploy == true || inputs.skip-tests == true)
+    environment: 
+      name: beta
+      url: https://appstoreconnect.apple.com/
+    
+    steps:
+      - name: Build Release App
+        id: build
+        uses: ./.github/workflows/build-app.yml
+        with:
+          build-configuration: 'Release'
+          scheme: 'MovingBox'
+          destination: 'generic/platform=iOS'
+          export-method: 'app-store'
+          upload-to-testflight: false  # We'll handle upload separately for better control
+          marketing-version: ${{ needs.generate-version.outputs.marketing-version }}
+          build-number: ${{ needs.generate-version.outputs.build-number }}
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          CERTIFICATES_P12: ${{ secrets.CERTIFICATES_P12 }}
+          CERTIFICATES_PASSWORD: ${{ secrets.CERTIFICATES_PASSWORD }}
+          PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+      
+      - name: Upload to TestFlight
+        id: testflight-upload
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          echo "🚀 Uploading to TestFlight..."
+          
+          IPA_PATH="${{ steps.build.outputs.ipa-path }}"
+          
+          if [[ -z "$IPA_PATH" || ! -f "$IPA_PATH" ]]; then
+            echo "❌ No IPA file found for upload"
+            exit 1
+          fi
+          
+          # Create API key file
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo "$APP_STORE_CONNECT_API_PRIVATE_KEY" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          
+          # Upload to TestFlight with fastlane
+          fastlane pilot upload \
+            --api_key_path ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
+            --api_key_id "$APP_STORE_CONNECT_API_KEY_ID" \
+            --api_key_issuer_id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --ipa "$IPA_PATH" \
+            --app_identifier "com.mothersound.movingbox" \
+            --skip_waiting_for_build_processing \
+            --distribute_external false \
+            --notify_external_testers false \
+            --changelog "Beta release - see TestFlight notes for details"
+          
+          # Clean up API key
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          
+          echo "✅ Upload to TestFlight completed"
+          echo "upload-successful=true" >> $GITHUB_OUTPUT
+
+  update-testflight-metadata:
+    name: Update TestFlight Metadata
+    runs-on: self-hosted
+    needs: [generate-version, build-and-deploy]
+    if: always() && needs.build-and-deploy.outputs.upload-successful == 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Update TestFlight "What to Test"
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "📝 Updating TestFlight metadata..."
+          
+          VERSION="${{ needs.generate-version.outputs.version }}"
+          BUILD_NUMBER="${{ needs.generate-version.outputs.build-number }}"
+          
+          # Use provided release notes or generate custom TestFlight notes
+          if [[ -n "${{ inputs.release-notes-override }}" ]]; then
+            TESTFLIGHT_NOTES="${{ inputs.release-notes-override }}"
+          else
+            TESTFLIGHT_NOTES="${{ needs.generate-version.outputs.testflight-notes }}"
+          fi
+          
+          # If we still don't have notes, create basic ones
+          if [[ -z "$TESTFLIGHT_NOTES" ]]; then
+            TESTFLIGHT_NOTES="**Beta Release $VERSION**
+            
+            Please test all major features:
+            • Add new inventory items via camera
+            • Navigate between rooms and locations
+            • Search and filter functionality
+            • Export data features
+            • Pro subscription features (if applicable)
+            
+            Report any issues through TestFlight feedback or GitHub."
+          fi
+          
+          echo "📝 TestFlight Notes Preview:"
+          echo "=============================="
+          echo "$TESTFLIGHT_NOTES"
+          echo "=============================="
+          
+          # Create API key file
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo "$APP_STORE_CONNECT_API_PRIVATE_KEY" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          
+          # Wait a bit for the build to be processed by Apple
+          echo "⏳ Waiting for build to be processed by App Store Connect..."
+          sleep 60
+          
+          # Update the beta build details
+          # Note: This may require waiting for build processing to complete
+          # For now, we'll just log the notes that would be applied
+          echo "✅ TestFlight metadata ready for update"
+          echo "   Build: $BUILD_NUMBER"
+          echo "   Version: $VERSION"
+          echo "   Notes character count: $(echo "$TESTFLIGHT_NOTES" | wc -c | xargs)"
+          
+          # Clean up
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+
+  notify-team:
+    name: Notify Development Team
+    runs-on: self-hosted
+    needs: [pre-flight, generate-version, comprehensive-testing, build-and-deploy, update-testflight-metadata]
+    if: always()
+    
+    steps:
+      - name: Generate Release Summary
+        run: |
+          echo "📋 Generating beta release summary..."
+          
+          # Determine overall status
+          if [[ "${{ needs.build-and-deploy.result }}" == "success" ]]; then
+            RELEASE_STATUS="✅ SUCCESS"
+            STATUS_COLOR="good"
+          else
+            RELEASE_STATUS="❌ FAILED"
+            STATUS_COLOR="danger"
+          fi
+          
+          # Create summary report
+          cat > beta_release_summary.md << EOF
+          # Beta Release Summary
+          
+          **Status:** $RELEASE_STATUS
+          **Version:** ${{ needs.generate-version.outputs.version }}
+          **Build:** ${{ needs.generate-version.outputs.build-number }}
+          **Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Run ID:** ${{ github.run_number }}
+          
+          ## Job Results
+          
+          | Job | Status | 
+          |-----|--------|
+          | Pre-flight Checks | ${{ needs.pre-flight.result == 'success' && '✅' || '❌' }} ${{ needs.pre-flight.result }} |
+          | Version Generation | ${{ needs.generate-version.result == 'success' && '✅' || '❌' }} ${{ needs.generate-version.result }} |
+          | Comprehensive Testing | ${{ needs.comprehensive-testing.result == 'success' && '✅' || (inputs.skip-tests && '⏭️ SKIPPED' || '❌') }} ${{ needs.comprehensive-testing.result }} |
+          | Build & Deploy | ${{ needs.build-and-deploy.result == 'success' && '✅' || '❌' }} ${{ needs.build-and-deploy.result }} |
+          | TestFlight Metadata | ${{ needs.update-testflight-metadata.result == 'success' && '✅' || '❌' }} ${{ needs.update-testflight-metadata.result }} |
+          
+          ## Release Notes
+          
+          ${{ needs.generate-version.outputs.release-notes }}
+          
+          ## TestFlight Information
+          
+          - **App Store Connect:** [View Build](https://appstoreconnect.apple.com/)
+          - **TestFlight Beta Link:** Available to internal testers immediately
+          - **External Testing:** Requires manual approval in App Store Connect
+          
+          ## Next Steps
+          
+          $(if [[ "${{ needs.build-and-deploy.result }}" == "success" ]]; then
+            echo "1. ✅ Beta build is available in TestFlight"
+            echo "2. 🧪 Internal testers can download immediately"
+            echo "3. 📝 Review and approve for external testers if needed"
+            echo "4. 📊 Monitor crash reports and feedback"
+          else
+            echo "1. ❌ Beta deployment failed - check build logs"
+            echo "2. 🔍 Review failed jobs and error messages"
+            echo "3. 🛠️ Fix issues and trigger new release"
+          fi)
+          
+          ---
+          
+          **Triggered by:** ${{ github.actor }}
+          **Commit:** ${{ github.sha }}
+          **Workflow:** [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
+          
+          echo "✅ Release summary generated"
+      
+      - name: Upload Release Summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: beta-release-summary-${{ github.run_number }}
+          path: beta_release_summary.md
+          retention-days: 30
+      
+      - name: Log Final Status
+        if: always()
+        run: |
+          echo "🎯 Beta Release Pipeline Complete"
+          echo "================================="
+          echo ""
+          if [[ "${{ needs.build-and-deploy.result }}" == "success" ]]; then
+            echo "🎉 Beta release ${{ needs.generate-version.outputs.version }} deployed successfully!"
+            echo ""
+            echo "📱 TestFlight Details:"
+            echo "  - Version: ${{ needs.generate-version.outputs.version }}"
+            echo "  - Build: ${{ needs.generate-version.outputs.build-number }}"
+            echo "  - Available to internal testers immediately"
+            echo ""
+            echo "🔗 Links:"
+            echo "  - App Store Connect: https://appstoreconnect.apple.com/"
+            echo "  - GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases"
+          else
+            echo "💥 Beta release failed!"
+            echo ""
+            echo "🔍 Check the following:"
+            echo "  - Build logs for compilation errors"
+            echo "  - Test results for failing tests"
+            echo "  - Certificate and provisioning profile validity"
+            echo "  - App Store Connect API configuration"
+            echo ""
+            echo "📞 For help, contact the development team or check documentation"
+          fi

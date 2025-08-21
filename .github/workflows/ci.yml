@@ -1,0 +1,403 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'fastlane/README.md'
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'fastlane/README.md'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_VERSION: '16.2'
+  IOS_SIMULATOR_DEVICE: 'iPhone 16 Pro'
+  IOS_VERSION: '18.4'
+
+jobs:
+  pre-checks:
+    name: Pre-flight Checks
+    runs-on: self-hosted
+    timeout-minutes: 10
+    outputs:
+      should-run-tests: ${{ steps.changes.outputs.should-run-tests }}
+      swift-files-changed: ${{ steps.changes.outputs.swift-files-changed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Analyze Changes
+        id: changes
+        run: |
+          # Check if we should run tests based on file changes
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null || echo "")
+          
+          # Count Swift files changed
+          SWIFT_FILES_CHANGED=$(echo "$CHANGED_FILES" | grep -c '\.swift$' || echo "0")
+          
+          # Determine if we should run tests
+          if echo "$CHANGED_FILES" | grep -E '\.(swift|xcconfig|plist|json)$|Test Plans/|\.xcodeproj/' > /dev/null; then
+            SHOULD_RUN_TESTS="true"
+          else
+            SHOULD_RUN_TESTS="false"
+          fi
+          
+          echo "should-run-tests=$SHOULD_RUN_TESTS" >> $GITHUB_OUTPUT
+          echo "swift-files-changed=$SWIFT_FILES_CHANGED" >> $GITHUB_OUTPUT
+          
+          echo "📊 Analysis Results:"
+          echo "  - Swift files changed: $SWIFT_FILES_CHANGED"
+          echo "  - Should run tests: $SHOULD_RUN_TESTS"
+          echo "  - Changed files:"
+          echo "$CHANGED_FILES" | sed 's/^/    /'
+      
+      - name: Validate Project Structure
+        run: |
+          echo "🔍 Validating project structure..."
+          
+          # Check for required files
+          REQUIRED_FILES=(
+            "MovingBox.xcodeproj/project.pbxproj"
+            "MovingBox/Configuration/Base.template.xcconfig"
+            "fastlane/Fastfile"
+            "fastlane/Appfile"
+            "fastlane/Snapfile"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+          done
+          
+          echo "✅ Project structure validation passed"
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: self-hosted
+    timeout-minutes: 15
+    needs: pre-checks
+    if: needs.pre-checks.outputs.swift-files-changed != '0'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Swift Lint Analysis
+        continue-on-error: true
+        run: |
+          echo "🧹 Running Swift code analysis..."
+          
+          # Check if SwiftLint is available
+          if command -v swiftlint &> /dev/null; then
+            swiftlint lint --reporter github-actions-logging
+            echo "SWIFTLINT_EXIT_CODE=$?" >> $GITHUB_ENV
+          else
+            echo "⚠️ SwiftLint not found, skipping lint analysis"
+            echo "SWIFTLINT_EXIT_CODE=0" >> $GITHUB_ENV
+          fi
+      
+      - name: Static Analysis
+        run: |
+          echo "🔍 Running static analysis..."
+          
+          # Check for common Swift anti-patterns
+          ISSUES_FOUND=0
+          
+          # Check for force unwrapping
+          FORCE_UNWRAP_COUNT=$(find . -name "*.swift" -not -path "./build/*" -not -path "./.git/*" -exec grep -l "!" {} \; | wc -l | xargs)
+          if [ "$FORCE_UNWRAP_COUNT" -gt 0 ]; then
+            echo "⚠️ Found potential force unwrapping in $FORCE_UNWRAP_COUNT files"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+          fi
+          
+          # Check for print statements (should use proper logging)
+          PRINT_COUNT=$(find . -name "*.swift" -not -path "./build/*" -not -path "./.git/*" -not -path "./MovingBoxTests/*" -exec grep -l "print(" {} \; | wc -l | xargs)
+          if [ "$PRINT_COUNT" -gt 0 ]; then
+            echo "⚠️ Found print statements in $PRINT_COUNT files (consider using proper logging)"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+          fi
+          
+          # Check for TODO/FIXME comments
+          TODO_COUNT=$(find . -name "*.swift" -not -path "./build/*" -not -path "./.git/*" -exec grep -c "TODO\|FIXME" {} + 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          if [ "$TODO_COUNT" -gt 0 ]; then
+            echo "📝 Found $TODO_COUNT TODO/FIXME comments"
+          fi
+          
+          echo "🔍 Static analysis completed with $ISSUES_FOUND potential issues"
+
+  build-validation:
+    name: Build Validation
+    runs-on: self-hosted
+    timeout-minutes: 30
+    needs: [pre-checks, code-quality]
+    if: always() && needs.pre-checks.outputs.should-run-tests == 'true'
+    
+    steps:
+      - name: Build Debug Configuration
+        uses: ./.github/workflows/build-app.yml
+        with:
+          build-configuration: 'Debug'
+          scheme: 'MovingBox'
+          destination: 'platform=iOS Simulator,name=${{ env.IOS_SIMULATOR_DEVICE }}'
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: self-hosted
+    timeout-minutes: 20
+    needs: [pre-checks, build-validation]
+    if: always() && needs.pre-checks.outputs.should-run-tests == 'true' && needs.build-validation.result == 'success'
+    
+    steps:
+      - name: Run Unit Tests
+        uses: ./.github/workflows/run-tests.yml
+        with:
+          test-plan: 'unit'
+          device: ${{ env.IOS_SIMULATOR_DEVICE }}
+          os-version: ${{ env.IOS_VERSION }}
+          parallel-testing: true
+          generate-coverage: true
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+
+  critical-ui-tests:
+    name: Critical UI Tests
+    runs-on: self-hosted
+    timeout-minutes: 25
+    needs: [pre-checks, build-validation]
+    if: always() && needs.pre-checks.outputs.should-run-tests == 'true' && needs.build-validation.result == 'success'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Test Environment
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+        run: |
+          # Generate Base.xcconfig for testing
+          cp "MovingBox/Configuration/Base.template.xcconfig" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(JWT_SECRET)/$JWT_SECRET/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(REVENUE_CAT_API_KEY)/$REVENUE_CAT_API_KEY/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(SENTRY_DSN)/$SENTRY_DSN/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(TELEMETRY_DECK_APP_ID)/$TELEMETRY_DECK_APP_ID/g" "MovingBox/Configuration/Base.xcconfig"
+      
+      - name: Run Critical UI Tests
+        continue-on-error: true
+        run: |
+          echo "🎯 Running critical UI tests for fast feedback..."
+          
+          # Run only the most critical UI tests (subset for speed)
+          timeout 300 xcodebuild test \
+            -project MovingBox.xcodeproj \
+            -scheme MovingBoxUITests \
+            -destination 'platform=iOS Simulator,name=${{ env.IOS_SIMULATOR_DEVICE }}' \
+            -only-testing MovingBoxUITests/DashboardNavigationUITests/testStatsDisplayCorrectly \
+            -only-testing MovingBoxUITests/OnboardingUITests/testCompleteOnboardingFlow \
+            -resultBundlePath test_results/critical_ui_results.xcresult \
+            | tee test_results/critical_ui_tests.log
+          
+          CRITICAL_UI_EXIT_CODE=$?
+          echo "CRITICAL_UI_EXIT_CODE=$CRITICAL_UI_EXIT_CODE" >> $GITHUB_ENV
+          
+          if [ $CRITICAL_UI_EXIT_CODE -eq 0 ]; then
+            echo "✅ Critical UI tests passed"
+          else
+            echo "❌ Critical UI tests failed"
+          fi
+      
+      - name: Upload Critical Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: critical-ui-test-results-${{ github.run_number }}
+          path: |
+            test_results/critical_ui_results.xcresult
+            test_results/critical_ui_tests.log
+          retention-days: 7
+
+  security-scan:
+    name: Security Analysis
+    runs-on: self-hosted
+    timeout-minutes: 10
+    needs: pre-checks
+    if: always() && needs.pre-checks.outputs.swift-files-changed != '0'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Security Scan
+        run: |
+          echo "🛡️ Running security analysis..."
+          
+          SECURITY_ISSUES=0
+          
+          # Check for hardcoded secrets (excluding template files)
+          SECRET_PATTERNS=(
+            "api[_-]?key"
+            "secret"
+            "password"
+            "token"
+            "credential"
+          )
+          
+          for pattern in "${SECRET_PATTERNS[@]}"; do
+            MATCHES=$(find . -name "*.swift" -not -path "./build/*" -not -path "./.git/*" -not -name "*.template.*" -exec grep -i "$pattern" {} \; | grep -v "// TODO" | grep -v "// FIXME" || true)
+            if [ -n "$MATCHES" ]; then
+              echo "⚠️ Potential hardcoded $pattern found:"
+              echo "$MATCHES"
+              SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+            fi
+          done
+          
+          # Check for debugging code that shouldn't be in production
+          DEBUG_PATTERNS=(
+            "\.debugPrint"
+            "\.dump("
+            "assert(false"
+            "fatalError.*TODO"
+          )
+          
+          for pattern in "${DEBUG_PATTERNS[@]}"; do
+            MATCHES=$(find . -name "*.swift" -not -path "./build/*" -not -path "./.git/*" -not -path "./MovingBoxTests/*" -exec grep -E "$pattern" {} \; || true)
+            if [ -n "$MATCHES" ]; then
+              echo "⚠️ Debug code found that should be reviewed:"
+              echo "$MATCHES"
+              SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+            fi
+          done
+          
+          if [ $SECURITY_ISSUES -eq 0 ]; then
+            echo "✅ Security scan completed - no issues found"
+          else
+            echo "⚠️ Security scan found $SECURITY_ISSUES potential issues"
+          fi
+          
+          # Don't fail CI for security warnings, just report them
+          exit 0
+
+  report-status:
+    name: CI Status Report
+    runs-on: self-hosted
+    timeout-minutes: 5
+    if: always()
+    needs: [pre-checks, code-quality, build-validation, unit-tests, critical-ui-tests, security-scan]
+    
+    steps:
+      - name: Generate CI Report
+        run: |
+          echo "📊 CI Pipeline Status Report"
+          echo "================================"
+          echo ""
+          echo "**Build Information:**"
+          echo "- PR: ${{ github.event.number || 'N/A' }}"
+          echo "- Branch: ${{ github.ref_name }}"
+          echo "- Commit: ${{ github.sha }}"
+          echo "- Run ID: ${{ github.run_number }}"
+          echo ""
+          echo "**Job Results:**"
+          echo "- Pre-checks: ${{ needs.pre-checks.result }}"
+          echo "- Code Quality: ${{ needs.code-quality.result }}"
+          echo "- Build Validation: ${{ needs.build-validation.result }}"
+          echo "- Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "- Critical UI Tests: ${{ needs.critical-ui-tests.result }}"
+          echo "- Security Scan: ${{ needs.security-scan.result }}"
+          echo ""
+          
+          # Determine overall status
+          FAILED_JOBS=0
+          for result in "${{ needs.pre-checks.result }}" "${{ needs.build-validation.result }}" "${{ needs.unit-tests.result }}"; do
+            if [ "$result" == "failure" ]; then
+              FAILED_JOBS=$((FAILED_JOBS + 1))
+            fi
+          done
+          
+          if [ $FAILED_JOBS -eq 0 ]; then
+            echo "🎉 **Overall Status: PASSED** ✅"
+            echo ""
+            echo "This PR is ready for review!"
+          else
+            echo "💥 **Overall Status: FAILED** ❌"
+            echo ""
+            echo "Please fix the failing checks before merging."
+          fi
+          
+          # Save report for potential comment on PR
+          mkdir -p ci_reports
+          cat > ci_reports/status.md << EOF
+          ## CI Pipeline Results for ${{ github.sha }}
+          
+          **Overall Status:** $([ $FAILED_JOBS -eq 0 ] && echo "✅ PASSED" || echo "❌ FAILED")
+          
+          | Check | Status |
+          |-------|--------|
+          | Pre-checks | ${{ needs.pre-checks.result == 'success' && '✅' || '❌' }} ${{ needs.pre-checks.result }} |
+          | Code Quality | ${{ needs.code-quality.result == 'success' && '✅' || '❌' }} ${{ needs.code-quality.result }} |
+          | Build Validation | ${{ needs.build-validation.result == 'success' && '✅' || '❌' }} ${{ needs.build-validation.result }} |
+          | Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} ${{ needs.unit-tests.result }} |
+          | Critical UI Tests | ${{ needs.critical-ui-tests.result == 'success' && '✅' || '❌' }} ${{ needs.critical-ui-tests.result }} |
+          | Security Scan | ${{ needs.security-scan.result == 'success' && '✅' || '❌' }} ${{ needs.security-scan.result }} |
+          
+          **Changed Files:** ${{ needs.pre-checks.outputs.swift-files-changed }} Swift files
+          
+          EOF
+      
+      - name: Upload CI Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-report-${{ github.run_number }}
+          path: ci_reports/
+          retention-days: 14
+      
+      - name: Set Final Status
+        run: |
+          # Fail the workflow if critical jobs failed
+          CRITICAL_FAILURES=0
+          
+          if [ "${{ needs.pre-checks.result }}" == "failure" ]; then
+            CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+          fi
+          
+          if [ "${{ needs.build-validation.result }}" == "failure" ]; then
+            CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+          fi
+          
+          if [ "${{ needs.unit-tests.result }}" == "failure" ]; then
+            CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+          fi
+          
+          if [ $CRITICAL_FAILURES -gt 0 ]; then
+            echo "💥 CI Pipeline failed due to critical job failures"
+            exit 1
+          else
+            echo "🎉 CI Pipeline completed successfully"
+            exit 0
+          fi

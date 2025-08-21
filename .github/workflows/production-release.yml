@@ -1,0 +1,523 @@
+name: Production Release (App Store)
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'  # Only stable versions (no prereleases)
+  workflow_dispatch:
+    inputs:
+      version-tag:
+        description: 'Release version tag (e.g., v1.2.0)'
+        required: true
+        type: string
+      skip-approval:
+        description: 'Skip manual approval step'
+        required: false
+        type: boolean
+        default: false
+      submit-for-review:
+        description: 'Submit to App Store review automatically'
+        required: false
+        type: boolean
+        default: false
+      release-notes-override:
+        description: 'Override auto-generated release notes'
+        required: false
+        type: string
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false  # Never cancel production releases
+
+env:
+  XCODE_VERSION: '16.2'
+  IOS_SIMULATOR_DEVICE: 'iPhone 16 Pro'
+  IOS_VERSION: '18.4'
+
+jobs:
+  validate-release:
+    name: Validate Production Release
+    runs-on: self-hosted
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      marketing-version: ${{ steps.parse.outputs.marketing-version }}
+      is-prerelease: ${{ steps.parse.outputs.is-prerelease }}
+      previous-version: ${{ steps.git-info.outputs.previous-version }}
+      should-proceed: ${{ steps.validation.outputs.should-proceed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Parse Release Information
+        id: parse
+        run: |
+          echo "🔍 Parsing release information..."
+          
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION_TAG="${{ inputs.version-tag }}"
+          else
+            VERSION_TAG="${{ github.ref_name }}"
+          fi
+          
+          # Validate version tag format
+          if [[ ! "$VERSION_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
+            echo "❌ Invalid version tag format: $VERSION_TAG"
+            echo "   Expected format: vX.Y.Z (e.g., v1.2.0)"
+            exit 1
+          fi
+          
+          VERSION="${BASH_REMATCH[0]}"
+          MARKETING_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          PRERELEASE_SUFFIX="${BASH_REMATCH[4]:-}"
+          
+          if [[ -n "$PRERELEASE_SUFFIX" ]]; then
+            IS_PRERELEASE="true"
+            echo "⚠️ This is a prerelease version: $VERSION"
+          else
+            IS_PRERELEASE="false"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "marketing-version=$MARKETING_VERSION" >> $GITHUB_OUTPUT
+          echo "is-prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          
+          echo "📊 Release Information:"
+          echo "  - Version tag: $VERSION"
+          echo "  - Marketing version: $MARKETING_VERSION"
+          echo "  - Is prerelease: $IS_PRERELEASE"
+      
+      - name: Gather Git Information
+        id: git-info
+        run: |
+          echo "📊 Gathering git information..."
+          
+          VERSION="${{ steps.parse.outputs.version }}"
+          
+          # Find previous stable release
+          PREVIOUS_VERSION=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "$VERSION" | head -1 || echo "")
+          
+          if [[ -n "$PREVIOUS_VERSION" ]]; then
+            COMMIT_RANGE="$PREVIOUS_VERSION..$VERSION"
+            COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE 2>/dev/null || echo "0")
+          else
+            COMMIT_RANGE="$VERSION"
+            COMMIT_COUNT=$(git rev-list --count HEAD)
+          fi
+          
+          echo "previous-version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
+          echo "commit-range=$COMMIT_RANGE" >> $GITHUB_OUTPUT
+          echo "commit-count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "📊 Git Analysis:"
+          echo "  - Previous version: $PREVIOUS_VERSION"
+          echo "  - Commit range: $COMMIT_RANGE"
+          echo "  - Commits in release: $COMMIT_COUNT"
+      
+      - name: Validate Release Readiness
+        id: validation
+        run: |
+          echo "✅ Validating release readiness..."
+          
+          VERSION="${{ steps.parse.outputs.version }}"
+          IS_PRERELEASE="${{ steps.parse.outputs.is-prerelease }}"
+          COMMIT_COUNT="${{ steps.git-info.outputs.commit-count }}"
+          
+          SHOULD_PROCEED="true"
+          WARNINGS=()
+          ERRORS=()
+          
+          # Check if this is a stable release for App Store
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            ERRORS+=("Production release cannot be a prerelease version")
+          fi
+          
+          # Check if tag already exists (for manual dispatch)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if git tag | grep -q "^$VERSION$"; then
+              echo "✅ Tag $VERSION already exists"
+            else
+              ERRORS+=("Tag $VERSION does not exist - create it first")
+            fi
+          fi
+          
+          # Validate required files and configuration
+          REQUIRED_FILES=(
+            "MovingBox.xcodeproj/project.pbxproj"
+            "MovingBox/Configuration/Base.template.xcconfig"
+            "fastlane/Fastfile"
+            "fastlane/Appfile"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              ERRORS+=("Missing required file: $file")
+            fi
+          done
+          
+          # Check if there are sufficient changes
+          if [[ "$COMMIT_COUNT" -eq "0" ]]; then
+            WARNINGS+=("No new commits since previous version")
+          elif [[ "$COMMIT_COUNT" -lt "3" ]]; then
+            WARNINGS+=("Only $COMMIT_COUNT commits since previous version - consider if release is warranted")
+          fi
+          
+          # Check branch (should be main for production)
+          CURRENT_BRANCH=$(git branch --show-current || echo "detached")
+          if [[ "$CURRENT_BRANCH" != "main" && "${{ github.event_name }}" != "push" ]]; then
+            WARNINGS+=("Release not from main branch (current: $CURRENT_BRANCH)")
+          fi
+          
+          # Report validation results
+          if [[ ${#ERRORS[@]} -gt 0 ]]; then
+            echo "❌ Release validation failed:"
+            printf '   • %s\n' "${ERRORS[@]}"
+            SHOULD_PROCEED="false"
+          fi
+          
+          if [[ ${#WARNINGS[@]} -gt 0 ]]; then
+            echo "⚠️ Release warnings:"
+            printf '   • %s\n' "${WARNINGS[@]}"
+          fi
+          
+          if [[ "$SHOULD_PROCEED" == "true" ]]; then
+            echo "✅ Release validation passed"
+          fi
+          
+          echo "should-proceed=$SHOULD_PROCEED" >> $GITHUB_OUTPUT
+
+  manual-approval:
+    name: Manual Release Approval
+    runs-on: self-hosted
+    needs: validate-release
+    if: needs.validate-release.outputs.should-proceed == 'true' && inputs.skip-approval != true
+    environment:
+      name: production-approval
+    timeout-minutes: 60  # 1 hour timeout for manual approval
+    
+    steps:
+      - name: Request Manual Approval
+        run: |
+          echo "⏳ Waiting for manual approval to proceed with production release..."
+          echo ""
+          echo "📋 Release Details:"
+          echo "  - Version: ${{ needs.validate-release.outputs.version }}"
+          echo "  - Marketing Version: ${{ needs.validate-release.outputs.marketing-version }}"
+          echo "  - Previous Version: ${{ needs.validate-release.outputs.previous-version }}"
+          echo "  - Commits: ${{ needs.validate-release.outputs.commit-count }}"
+          echo ""
+          echo "🎯 This will:"
+          echo "  - Run comprehensive tests"
+          echo "  - Build production app"
+          echo "  - Upload to App Store Connect"
+          echo "  - Generate release notes"
+          echo "  - Create GitHub release"
+          echo ""
+          echo "✅ Approve this environment to proceed with production release"
+
+  comprehensive-testing:
+    name: Production Testing Suite
+    runs-on: self-hosted
+    needs: [validate-release, manual-approval]
+    if: always() && needs.validate-release.outputs.should-proceed == 'true' && (needs.manual-approval.result == 'success' || inputs.skip-approval == true)
+    
+    steps:
+      - name: Run Complete Test Suite
+        uses: ./.github/workflows/run-tests.yml
+        with:
+          test-plan: 'all'
+          device: ${{ env.IOS_SIMULATOR_DEVICE }}
+          os-version: ${{ env.IOS_VERSION }}
+          parallel-testing: true
+          generate-coverage: true
+          upload-screenshots: true
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+      
+      - name: Generate Production Screenshots
+        run: |
+          echo "📱 Generating production screenshots..."
+          
+          # Use fastlane to generate App Store screenshots
+          fastlane screenshots
+          
+          echo "✅ Production screenshots generated"
+
+  generate-release-assets:
+    name: Generate Release Assets
+    runs-on: self-hosted
+    needs: [validate-release, comprehensive-testing]
+    if: always() && needs.validate-release.outputs.should-proceed == 'true' && needs.comprehensive-testing.result == 'success'
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.release-notes }}
+      app-store-description: ${{ steps.release-notes.outputs.app-store-description }}
+    
+    steps:
+      - name: Generate Release Notes
+        id: release-notes
+        uses: ./.github/workflows/generate-release-notes.yml
+        with:
+          version: ${{ needs.validate-release.outputs.version }}
+          previous-version: ${{ needs.validate-release.outputs.previous-version }}
+          release-type: 'appstore'
+          target-audience: 'users'
+          include-technical-details: false
+        secrets:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  build-and-submit:
+    name: Build & Submit to App Store
+    runs-on: self-hosted
+    needs: [validate-release, comprehensive-testing, generate-release-assets]
+    if: always() && needs.validate-release.outputs.should-proceed == 'true' && needs.comprehensive-testing.result == 'success'
+    environment:
+      name: production
+      url: https://appstoreconnect.apple.com/
+    outputs:
+      build-successful: ${{ steps.build.result == 'success' }}
+      upload-successful: ${{ steps.submit.outputs.upload-successful }}
+    
+    steps:
+      - name: Build Production App
+        id: build
+        uses: ./.github/workflows/build-app.yml
+        with:
+          build-configuration: 'Release'
+          scheme: 'MovingBox'
+          destination: 'generic/platform=iOS'
+          export-method: 'app-store'
+          upload-to-testflight: false
+          marketing-version: ${{ needs.validate-release.outputs.marketing-version }}
+          build-number: $(date +%Y%m%d%H%M)
+        secrets:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          CERTIFICATES_P12: ${{ secrets.CERTIFICATES_P12 }}
+          CERTIFICATES_PASSWORD: ${{ secrets.CERTIFICATES_PASSWORD }}
+          PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+      
+      - name: Submit to App Store
+        id: submit
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          echo "🚀 Submitting to App Store Connect..."
+          
+          IPA_PATH="${{ steps.build.outputs.ipa-path }}"
+          
+          if [[ -z "$IPA_PATH" || ! -f "$IPA_PATH" ]]; then
+            echo "❌ No IPA file found for submission"
+            exit 1
+          fi
+          
+          # Create API key file
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo "$APP_STORE_CONNECT_API_PRIVATE_KEY" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          
+          # Upload to App Store Connect
+          fastlane deliver \
+            --api_key_path ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
+            --api_key_id "$APP_STORE_CONNECT_API_KEY_ID" \
+            --api_key_issuer_id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --ipa "$IPA_PATH" \
+            --app_identifier "com.mothersound.movingbox" \
+            --skip_screenshots \
+            --skip_metadata \
+            --force \
+            --submit_for_review ${{ inputs.submit-for-review == true && 'true' || 'false' }}
+          
+          # Clean up API key
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          
+          echo "✅ App Store submission completed"
+          echo "upload-successful=true" >> $GITHUB_OUTPUT
+
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: self-hosted
+    needs: [validate-release, generate-release-assets, build-and-submit]
+    if: always() && needs.build-and-submit.outputs.upload-successful == 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📦 Creating GitHub release..."
+          
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          IS_PRERELEASE="${{ needs.validate-release.outputs.is-prerelease }}"
+          
+          # Use provided release notes or generated ones
+          if [[ -n "${{ inputs.release-notes-override }}" ]]; then
+            RELEASE_NOTES="${{ inputs.release-notes-override }}"
+          else
+            RELEASE_NOTES="${{ needs.generate-release-assets.outputs.release-notes }}"
+          fi
+          
+          # Create release
+          gh release create "$VERSION" \
+            --title "MovingBox $VERSION" \
+            --notes "$RELEASE_NOTES" \
+            $([ "$IS_PRERELEASE" == "true" ] && echo "--prerelease" || echo "") \
+            --target main
+          
+          echo "✅ GitHub release created: $VERSION"
+      
+      - name: Upload Release Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📎 Uploading release assets..."
+          
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          
+          # Upload build artifacts if available
+          if [[ -f "build/MovingBox.xcarchive" ]]; then
+            # Create archive for release (without sensitive info)
+            tar -czf "MovingBox-${VERSION}-archive.tar.gz" -C build MovingBox.xcarchive --exclude="*.app"
+            gh release upload "$VERSION" "MovingBox-${VERSION}-archive.tar.gz"
+          fi
+          
+          # Upload screenshots if available
+          if [[ -d "fastlane/screenshots" ]]; then
+            tar -czf "MovingBox-${VERSION}-screenshots.tar.gz" fastlane/screenshots/
+            gh release upload "$VERSION" "MovingBox-${VERSION}-screenshots.tar.gz"
+          fi
+          
+          echo "✅ Release assets uploaded"
+
+  post-release:
+    name: Post-Release Tasks
+    runs-on: self-hosted
+    needs: [validate-release, build-and-submit, create-github-release]
+    if: always()
+    
+    steps:
+      - name: Generate Release Summary
+        run: |
+          echo "📋 Generating production release summary..."
+          
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          
+          # Determine overall status
+          if [[ "${{ needs.build-and-submit.result }}" == "success" ]]; then
+            RELEASE_STATUS="✅ SUCCESS"
+          else
+            RELEASE_STATUS="❌ FAILED"
+          fi
+          
+          cat > production_release_summary.md << EOF
+          # Production Release Summary
+          
+          **Status:** $RELEASE_STATUS
+          **Version:** $VERSION
+          **Marketing Version:** ${{ needs.validate-release.outputs.marketing-version }}
+          **Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Run ID:** ${{ github.run_number }}
+          
+          ## Release Pipeline Results
+          
+          | Stage | Status | Notes |
+          |-------|--------|-------|
+          | Validation | ${{ needs.validate-release.result == 'success' && '✅' || '❌' }} | Release readiness check |
+          | Manual Approval | ${{ needs.manual-approval.result == 'success' && '✅' || (inputs.skip-approval && '⏭️ SKIPPED' || '❌') }} | ${{ inputs.skip-approval && 'Skipped by user' || 'Required for production' }} |
+          | Testing | ${{ needs.comprehensive-testing.result == 'success' && '✅' || '❌' }} | Full test suite |
+          | Release Assets | ${{ needs.generate-release-assets.result == 'success' && '✅' || '❌' }} | Notes and screenshots |
+          | Build & Submit | ${{ needs.build-and-submit.result == 'success' && '✅' || '❌' }} | App Store submission |
+          | GitHub Release | ${{ needs.create-github-release.result == 'success' && '✅' || '❌' }} | Public release |
+          
+          ## App Store Information
+          
+          - **App Store Connect:** [View Submission](https://appstoreconnect.apple.com/)
+          - **Submitted for Review:** ${{ inputs.submit-for-review == true && 'Yes - Automatic' || 'No - Manual review required' }}
+          - **Review Status:** Check App Store Connect for current status
+          
+          ## Release Notes
+          
+          ${{ needs.generate-release-assets.outputs.release-notes }}
+          
+          ## Next Steps
+          
+          $(if [[ "${{ needs.build-and-submit.result }}" == "success" ]]; then
+            echo "1. ✅ App has been submitted to App Store Connect"
+            echo "2. 📱 Monitor App Store Connect for review status"
+            echo "3. 📊 Watch for crash reports and user feedback"
+            echo "4. 🎉 Celebrate when approved and live!"
+          else
+            echo "1. ❌ Production release failed - investigate issues"
+            echo "2. 🔍 Check build logs and error messages"
+            echo "3. 🛠️ Fix issues and re-trigger release"
+          fi)
+          
+          ---
+          
+          **Triggered by:** ${{ github.actor }}
+          **Commit:** ${{ github.sha }}
+          **Workflow:** [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
+          
+          echo "✅ Production release summary generated"
+      
+      - name: Upload Release Summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-release-summary-${{ github.run_number }}
+          path: production_release_summary.md
+          retention-days: 365  # Keep production summaries for a year
+      
+      - name: Final Status Report
+        if: always()
+        run: |
+          echo "🎯 Production Release Pipeline Complete"
+          echo "======================================="
+          echo ""
+          
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          
+          if [[ "${{ needs.build-and-submit.result }}" == "success" ]]; then
+            echo "🎉 Production release $VERSION completed successfully!"
+            echo ""
+            echo "📱 App Store Status:"
+            echo "  - Submitted to App Store Connect: ✅"
+            echo "  - Auto-submit for review: ${{ inputs.submit-for-review == true && 'Yes' || 'No (manual action required)' }}"
+            echo "  - GitHub release created: ${{ needs.create-github-release.result == 'success' && '✅' || '❌' }}"
+            echo ""
+            echo "🔗 Links:"
+            echo "  - App Store Connect: https://appstoreconnect.apple.com/"
+            echo "  - GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$VERSION"
+            echo ""
+            echo "📋 Next Steps:"
+            echo "  - Monitor App Store Connect for review status"
+            echo "  - Check for any rejection reasons"
+            echo "  - Prepare for App Store launch communications"
+          else
+            echo "💥 Production release failed!"
+            echo ""
+            echo "🔍 Investigation Steps:"
+            echo "  - Review failed job logs above"
+            echo "  - Check certificate and provisioning profile validity"
+            echo "  - Verify App Store Connect API configuration"
+            echo "  - Ensure all tests are passing"
+            echo ""
+            echo "🆘 For urgent issues, contact:"
+            echo "  - Development team leads"
+            echo "  - DevOps/Release engineering"
+          fi
