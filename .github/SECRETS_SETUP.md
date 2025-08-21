@@ -14,15 +14,12 @@ These secrets are required for all workflows:
 | `SENTRY_DSN` | Sentry DSN for error tracking | All builds | `https://...@sentry.io/...` |
 | `TELEMETRY_DECK_APP_ID` | TelemetryDeck app ID for analytics | All builds | UUID format |
 
-### Code Signing Secrets (Production Only)
-These secrets are only required for release builds:
+### Apple Team Configuration (Production Only)
+These secrets are required for automatic code signing:
 
 | Secret Name | Description | Required For | Format |
 |-------------|-------------|--------------|--------|
-| `KEYCHAIN_PASSWORD` | Password for build keychain | Release builds | String |
-| `CERTIFICATES_P12` | Development/Distribution certificates | Release builds | Base64 encoded .p12 file |
-| `CERTIFICATES_PASSWORD` | Password for certificates | Release builds | String |
-| `PROVISIONING_PROFILE` | Provisioning profile for app | Release builds | Base64 encoded .mobileprovision |
+| `APPLE_TEAM_ID` | Apple Developer Team ID | Release builds | String (e.g., `ABC123DEF4`) |
 
 ### App Store Connect API (Production Only)
 Required for TestFlight and App Store uploads:
@@ -62,25 +59,22 @@ openssl rand -base64 32
 - **Sentry**: Get from Sentry → Settings → Projects → [Your Project] → Client Keys (DSN)
 - **TelemetryDeck**: Get from TelemetryDeck dashboard → Apps → [Your App] → App ID
 
-### 3. Code Signing Setup (Production)
+### 3. Apple Team ID Setup (Production)
 
-#### Export Certificates from Keychain
+#### Find Your Apple Team ID
 ```bash
-# Export development certificate
-security find-identity -v -p codesigning
-security export -t certs -f pkcs12 -o certificates.p12 -P "password" [IDENTITY_HASH]
+# Method 1: From Apple Developer Portal
+# Go to https://developer.apple.com/account/#/membership/
+# Your Team ID is shown in the membership details
 
-# Base64 encode for GitHub secret
-base64 -i certificates.p12 | pbcopy
-```
+# Method 2: From Xcode
+# Open your project in Xcode
+# Go to Project Settings → Signing & Capabilities
+# Your Team ID is shown next to your team name
 
-#### Export Provisioning Profile
-```bash
-# Find and copy provisioning profile
-cp ~/Library/MobileDevice/Provisioning\ Profiles/[PROFILE_UUID].mobileprovision ./profile.mobileprovision
-
-# Base64 encode for GitHub secret
-base64 -i profile.mobileprovision | pbcopy
+# Method 3: From command line (if you have existing certificates)
+security find-identity -v -p codesigning | grep "Developer ID\|iPhone Developer\|iPhone Distribution"
+# The Team ID is in parentheses in the certificate name
 ```
 
 ### 4. App Store Connect API Setup
@@ -88,15 +82,29 @@ base64 -i profile.mobileprovision | pbcopy
 1. Go to [App Store Connect](https://appstoreconnect.apple.com/)
 2. Navigate to **Users and Access** → **Keys** → **App Store Connect API**
 3. Click **Generate API Key**
-4. Download the `.p8` file
-5. Note the Key ID and Issuer ID
+4. Select **Developer** access (sufficient for CI/CD operations)
+5. Download the `.p8` file
+6. Note the Key ID and Issuer ID
 
 ```bash
 # Base64 encode the .p8 file for GitHub secret
 base64 -i AuthKey_[KEY_ID].p8 | pbcopy
 ```
 
-### 5. Environment-Specific Configuration
+**Important**: The App Store Connect API key handles both authentication and automatic provisioning profile management, eliminating the need for manual certificate and profile management.
+
+### 5. Automatic Code Signing Benefits
+
+Using App Store Connect API for automatic code signing provides several advantages:
+
+- **No Manual Certificate Management**: Xcode automatically downloads and manages certificates
+- **Automatic Provisioning Profile Updates**: Profiles are created and updated as needed
+- **Team Synchronization**: All team members use the same signing setup
+- **Reduced Maintenance**: No need to manually renew and update certificates
+- **Enhanced Security**: Certificates are managed by Apple's secure infrastructure
+- **Simplified CI/CD**: No complex certificate installation scripts
+
+### 6. Environment-Specific Configuration
 
 #### Repository Environments
 Create the following environments in GitHub:
@@ -108,7 +116,7 @@ Create the following environments in GitHub:
 - **staging**: Require review from team leads
 - **production**: Require review from maintainers, restrict to release branches only
 
-### 6. Local Development Setup
+### 7. Local Development Setup
 
 For local development, create a `.env` file (not committed to git):
 
@@ -121,6 +129,8 @@ TELEMETRY_DECK_APP_ID=your_telemetry_deck_id
 ```
 
 Update your local `Base.xcconfig` as needed for development.
+
+**Note**: Local development typically uses automatic signing with your personal Apple ID. The CI/CD pipeline uses the team's App Store Connect API for production builds.
 
 ## Security Best Practices
 
@@ -152,13 +162,17 @@ Update your local `Base.xcconfig` as needed for development.
 # Run this locally to test secret availability
 echo "JWT_SECRET: ${JWT_SECRET:+SET}"
 echo "REVENUE_CAT_API_KEY: ${REVENUE_CAT_API_KEY:+SET}"
+echo "APPLE_TEAM_ID: ${APPLE_TEAM_ID:+SET}"
 ```
 
-### Certificate Issues
+### Automatic Signing Issues
 ```bash
-# Verify certificate validity
+# Verify your Apple Team ID
 security find-identity -v -p codesigning
-openssl pkcs12 -in certificates.p12 -nokeys -clcerts
+
+# Check App Store Connect API connectivity
+# (This requires the API key to be properly configured)
+fastlane spaceship auth --api_key_id YOUR_KEY_ID --api_key_issuer_id YOUR_ISSUER_ID --api_key_path YOUR_KEY_PATH.p8
 ```
 
 ### App Store Connect API Issues
@@ -172,17 +186,17 @@ curl -H "Authorization: Bearer $JWT_TOKEN" \
 
 ### Development Builds
 - Uses basic app configuration secrets only
-- No code signing or distribution secrets required
+- No code signing secrets required (uses automatic signing)
 - Safe for PR builds from forks (with limitations)
 
 ### Staging Builds (TestFlight)
-- Uses all secrets except App Store distribution
-- Requires development/ad-hoc signing
+- Uses all secrets including App Store Connect API
+- Requires Apple Team ID for automatic signing
 - Protected environment with review requirements
 
 ### Production Builds (App Store)
-- Uses all secrets including distribution signing
-- Requires App Store Connect API access
+- Uses all secrets including App Store Connect API
+- Automatic code signing with distribution certificates
 - Highest security environment with strict access controls
 
 ## Automation Scripts

@@ -49,13 +49,7 @@ on:
         required: false
       APP_STORE_CONNECT_API_PRIVATE_KEY:
         required: false
-      KEYCHAIN_PASSWORD:
-        required: false
-      CERTIFICATES_P12:
-        required: false
-      CERTIFICATES_PASSWORD:
-        required: false
-      PROVISIONING_PROFILE:
+      APPLE_TEAM_ID:
         required: false
     outputs:
       archive-path:
@@ -136,32 +130,32 @@ jobs:
           
           echo "Build configuration updated successfully"
       
-      - name: Setup Code Signing (for Release builds)
+      - name: Setup Automatic Code Signing
         if: inputs.build-configuration == 'Release'
         env:
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          CERTIFICATES_P12: ${{ secrets.CERTIFICATES_P12 }}
-          CERTIFICATES_PASSWORD: ${{ secrets.CERTIFICATES_PASSWORD }}
-          PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # Create temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
+          echo "🔐 Setting up automatic code signing with App Store Connect API..."
           
-          # Import certificates
-          echo "$CERTIFICATES_P12" | base64 --decode > certificate.p12
-          security import certificate.p12 -k build.keychain -P "$CERTIFICATES_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          # Create API key file for App Store Connect authentication
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo "$APP_STORE_CONNECT_API_PRIVATE_KEY" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
           
-          # Install provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$PROVISIONING_PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/MovingBox.mobileprovision
+          # Set proper permissions for API key
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
           
-          # Verify setup
-          security find-identity -v -p codesigning
-          echo "Code signing setup completed"
+          # Verify API key is valid by testing connection
+          if command -v fastlane &> /dev/null; then
+            echo "✅ Verifying App Store Connect API credentials..."
+            fastlane spaceship auth --api_key_id "$APP_STORE_CONNECT_API_KEY_ID" --api_key_issuer_id "$APP_STORE_CONNECT_ISSUER_ID" --api_key_path ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 --duration 300 || echo "⚠️ API key verification failed - continuing with build"
+          fi
+          
+          echo "✅ Automatic code signing configured"
+          echo "   Team ID: ${APPLE_TEAM_ID:-'Auto-detected'}"
+          echo "   API Key ID: $APP_STORE_CONNECT_API_KEY_ID"
       
       - name: Determine Version Information
         id: version
@@ -187,6 +181,7 @@ jobs:
         env:
           MARKETING_VERSION: ${{ steps.version.outputs.marketing-version }}
           BUILD_NUMBER: ${{ steps.version.outputs.build-number }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           # Set build directory
           BUILD_DIR="build"
@@ -196,7 +191,16 @@ jobs:
           rm -rf "$BUILD_DIR"
           mkdir -p "$BUILD_DIR"
           
-          # Build and archive
+          # Prepare build settings
+          CODE_SIGN_STYLE="Automatic"
+          TEAM_ID_SETTING=""
+          
+          if [[ "${{ inputs.build-configuration }}" == "Release" && -n "$APPLE_TEAM_ID" ]]; then
+            TEAM_ID_SETTING="DEVELOPMENT_TEAM=$APPLE_TEAM_ID"
+            echo "Using Apple Team ID: $APPLE_TEAM_ID"
+          fi
+          
+          # Build and archive with automatic code signing
           xcodebuild clean archive \
             -project MovingBox.xcodeproj \
             -scheme "${{ inputs.scheme }}" \
@@ -205,8 +209,12 @@ jobs:
             -archivePath "$ARCHIVE_PATH" \
             MARKETING_VERSION="$MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGN_STYLE="$CODE_SIGN_STYLE" \
+            $TEAM_ID_SETTING \
             -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Automatic \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8 \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
             | tee build.log
           
           # Check build success
@@ -228,7 +236,7 @@ jobs:
           EXPORT_DIR="build/export"
           IPA_PATH="$EXPORT_DIR/MovingBox.ipa"
           
-          # Create export options plist
+          # Create export options plist with automatic signing
           cat > ExportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -237,23 +245,30 @@ jobs:
               <key>method</key>
               <string>${{ inputs.export-method }}</string>
               <key>teamID</key>
-              <string>TEAM_ID_PLACEHOLDER</string>
+              <string>${{ secrets.APPLE_TEAM_ID }}</string>
               <key>uploadBitcode</key>
               <false/>
               <key>compileBitcode</key>
               <false/>
               <key>uploadSymbols</key>
               <true/>
+              <key>signingStyle</key>
+              <string>automatic</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
           </dict>
           </plist>
           EOF
           
-          # Export archive to IPA
+          # Export archive to IPA with automatic signing
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_DIR" \
             -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8 \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
           
           # Find the generated IPA
           IPA_FILE=$(find "$EXPORT_DIR" -name "*.ipa" | head -n 1)
@@ -305,16 +320,10 @@ jobs:
         if: always()
         run: |
           # Clean up sensitive files
-          rm -f certificate.p12
           rm -f ExportOptions.plist
           rm -f MovingBox/Configuration/Base.xcconfig
           
-          # Remove keychain if it was created
-          if security list-keychains | grep -q "build.keychain"; then
-            security delete-keychain build.keychain
-          fi
-          
-          # Remove provisioning profiles
-          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/MovingBox.mobileprovision
+          # Clean up App Store Connect API key
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8 2>/dev/null || true
           
           echo "Cleanup completed"

@@ -20,10 +20,7 @@ REQUIRED_SECRETS=(
 
 # Additional secrets for production builds
 PRODUCTION_SECRETS=(
-  "KEYCHAIN_PASSWORD"
-  "CERTIFICATES_P12"
-  "CERTIFICATES_PASSWORD"
-  "PROVISIONING_PROFILE"
+  "APPLE_TEAM_ID"
   "APP_STORE_CONNECT_API_KEY_ID"
   "APP_STORE_CONNECT_ISSUER_ID"
   "APP_STORE_CONNECT_API_PRIVATE_KEY"
@@ -77,6 +74,21 @@ function validate_secret_format() {
         echo -e "${YELLOW}⚠️  $secret_name${NC} format may be invalid (should be UUID)"
       fi
       ;;
+    "APPLE_TEAM_ID")
+      if [[ ! "$secret_value" =~ ^[A-Z0-9]{10}$ ]]; then
+        echo -e "${YELLOW}⚠️  $secret_name${NC} format may be invalid (should be 10 alphanumeric characters)"
+      fi
+      ;;
+    "APP_STORE_CONNECT_API_KEY_ID")
+      if [[ ! "$secret_value" =~ ^[A-Z0-9]{10}$ ]]; then
+        echo -e "${YELLOW}⚠️  $secret_name${NC} format may be invalid (should be 10 alphanumeric characters)"
+      fi
+      ;;
+    "APP_STORE_CONNECT_ISSUER_ID")
+      if [[ ! "$secret_value" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+        echo -e "${YELLOW}⚠️  $secret_name${NC} format may be invalid (should be UUID)"
+      fi
+      ;;
     "ANTHROPIC_API_KEY")
       if [[ ! "$secret_value" =~ ^sk-ant-.+$ ]]; then
         echo -e "${YELLOW}⚠️  $secret_name${NC} format may be invalid (should start with 'sk-ant-')"
@@ -124,31 +136,21 @@ function main() {
     done
     echo ""
     
-    # Additional validation for production secrets
-    if [[ -n "${CERTIFICATES_P12:-}" && -n "${CERTIFICATES_PASSWORD:-}" ]]; then
-      echo "🔑 Validating certificate..."
-      if echo "$CERTIFICATES_P12" | base64 --decode > /tmp/test_cert.p12 2>/dev/null; then
-        if openssl pkcs12 -in /tmp/test_cert.p12 -nokeys -clcerts -passin pass:"$CERTIFICATES_PASSWORD" > /dev/null 2>&1; then
-          echo -e "${GREEN}✅ Certificate${NC} is valid"
-          
-          # Check certificate expiry
-          CERT_EXPIRY=$(openssl pkcs12 -in /tmp/test_cert.p12 -nokeys -clcerts -passin pass:"$CERTIFICATES_PASSWORD" | openssl x509 -noout -enddate | cut -d= -f2)
-          EXPIRY_TIMESTAMP=$(date -j -f "%b %d %H:%M:%S %Y %Z" "$CERT_EXPIRY" +%s 2>/dev/null || echo "0")
-          CURRENT_TIMESTAMP=$(date +%s)
-          DAYS_UNTIL_EXPIRY=$(( (EXPIRY_TIMESTAMP - CURRENT_TIMESTAMP) / 86400 ))
-          
-          if [[ $DAYS_UNTIL_EXPIRY -lt 30 ]]; then
-            echo -e "${YELLOW}⚠️  Certificate${NC} expires in $DAYS_UNTIL_EXPIRY days ($CERT_EXPIRY)"
-          else
-            echo -e "${GREEN}✅ Certificate${NC} expires in $DAYS_UNTIL_EXPIRY days"
-          fi
+    # Additional validation for App Store Connect API
+    if [[ -n "${APP_STORE_CONNECT_API_PRIVATE_KEY:-}" ]]; then
+      echo "🔑 Validating App Store Connect API key..."
+      
+      # Try to decode the API key
+      if echo "$APP_STORE_CONNECT_API_PRIVATE_KEY" | base64 --decode > /tmp/test_api_key.p8 2>/dev/null; then
+        # Check if it's a valid P8 key format
+        if grep -q "BEGIN PRIVATE KEY" /tmp/test_api_key.p8; then
+          echo -e "${GREEN}✅ App Store Connect API key${NC} format is valid"
         else
-          echo -e "${RED}❌ Certificate${NC} password is incorrect or certificate is invalid"
-          exit_code=1
+          echo -e "${YELLOW}⚠️  App Store Connect API key${NC} format may be invalid (should be a .p8 private key)"
         fi
-        rm -f /tmp/test_cert.p12
+        rm -f /tmp/test_api_key.p8
       else
-        echo -e "${RED}❌ Certificate${NC} is not valid base64 or is corrupted"
+        echo -e "${RED}❌ App Store Connect API key${NC} is not valid base64 or is corrupted"
         exit_code=1
       fi
     fi

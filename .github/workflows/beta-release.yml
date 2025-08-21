@@ -214,10 +214,10 @@ jobs:
           REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          CERTIFICATES_P12: ${{ secrets.CERTIFICATES_P12 }}
-          CERTIFICATES_PASSWORD: ${{ secrets.CERTIFICATES_PASSWORD }}
-          PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       
       - name: Upload to TestFlight
         id: testflight-upload
