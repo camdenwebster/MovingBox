@@ -170,16 +170,15 @@ struct HighResolutionAnalysisTests {
             }
         ]
         
-        // Test standard quality
-        let standardResults = await imageManager.prepareMultipleImagesForAI(from: testImages, useHighQuality: false)
-        #expect(standardResults.count == testImages.count, "Should process all standard images")
+        // Test multiple image processing
+        let results = await imageManager.prepareMultipleImagesForAI(from: testImages)
+        #expect(results.count == testImages.count, "Should process all images")
         
-        // Test high quality
-        let highQualityResults = await imageManager.prepareMultipleImagesForAI(from: testImages, useHighQuality: true)
-        #expect(highQualityResults.count == testImages.count, "Should process all high quality images")
-        
-        // Results should be different due to different resolution processing
-        #expect(standardResults != highQualityResults, "Standard and high quality results should differ")
+        // Verify all results are valid base64 strings
+        for result in results {
+            #expect(!result.isEmpty, "Each result should be non-empty")
+            #expect(Data(base64Encoded: result) != nil, "Each result should be valid base64")
+        }
     }
     
     @Test("TelemetryManager - AI Analysis Tracking")

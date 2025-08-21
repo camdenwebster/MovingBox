@@ -105,6 +105,6 @@ struct LabelSelectionView: View {
 }
 
 #Preview {
-    @State var label: InventoryLabel? = nil
+    @Previewable @State var label: InventoryLabel? = nil
     return LabelSelectionView(selectedLabel: $label)
 }

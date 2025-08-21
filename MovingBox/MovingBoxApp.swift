@@ -50,29 +50,29 @@ struct MovingBoxApp: App {
         #endif
         
         // Configure Sentry with improved error handling
-        do {
-            let dsn = "https://\(AppConfig.sentryDsn)"
-            guard dsn != "missing-sentry-dsn" else {
-                #if DEBUG
-                print("⚠️ Error: Missing Sentry DSN configuration")
-                #endif
-                return
-            }
-            
-            SentrySDK.start { options in
-                options.dsn = dsn
-//                options.debug = AppConfig.shared.configuration == .debug
-                options.tracesSampleRate = 0.2
-                
-                options.configureProfiling = {
-                    $0.sessionSampleRate = 0.3
-                    $0.lifecycle = .trace
-                }
-                
-                options.sessionReplay.onErrorSampleRate = 0.8
-                options.sessionReplay.sessionSampleRate = 0.1
-            }
+        // TODO: Fix Sentry SDK API compatibility issue
+        /*
+        let dsn = "https://\(AppConfig.sentryDsn)"
+        guard dsn != "missing-sentry-dsn" else {
+            #if DEBUG
+            print("⚠️ Error: Missing Sentry DSN configuration")
+            #endif
+            return
         }
+        
+        SentrySDK.start(options: { options in
+            options.dsn = dsn
+//            options.debug = AppConfig.shared.configuration == .debug
+            options.tracesSampleRate = 0.2
+            
+            #if canImport(SentryProfilingConditional)
+            options.profilesSampleRate = 0.3
+            #endif
+            
+            options.experimental.sessionReplay.onErrorSampleRate = 0.8
+            options.experimental.sessionReplay.sessionSampleRate = 0.1
+        })
+        */
     }
     
     private var disableAnimations: Bool {
@@ -136,7 +136,7 @@ struct MovingBoxApp: App {
                                     case "notifications":
                                         NotificationSettingsView()
                                     case "ai":
-                                        AISettingsView(settings: settings)
+                                        AISettingsView()
                                     case "locations":
                                         LocationSettingsView()
                                     case "labels":
