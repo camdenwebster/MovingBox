@@ -11,6 +11,22 @@ import UIKit
 
 @MainActor
 struct TestData {
+    // Helper methods for generating random sample data
+    private static func generateRandomDimensions() -> String {
+        let width = Int.random(in: 5...50)
+        let height = Int.random(in: 3...30)
+        let depth = Int.random(in: 2...25)
+        return "\(width)\" x \(height)\" x \(depth)\""
+    }
+    
+    private static func generateRandomWeight() -> String {
+        if Bool.random() {
+            return "\(Double.random(in: 0.5...50.0).rounded(toPlaces: 1)) lbs"
+        } else {
+            return "\(Double.random(in: 0.2...25.0).rounded(toPlaces: 2)) kg"
+        }
+    }
+    
     // Helper method to load test image from asset catalog
     private static func loadTestImage(category: String, filename: String) -> Data? {
         // Use bundle to load image directly from asset catalog
@@ -255,7 +271,24 @@ struct TestData {
                 assetId: "",
                 notes: "",
                 showInvalidQuantityAlert: false,
-                hasUsedAI: true
+                hasUsedAI: true,
+                
+                // New properties with sample data
+                purchaseDate: Calendar.current.date(byAdding: .month, value: -Int.random(in: 1...24), to: Date()),
+                warrantyExpirationDate: Calendar.current.date(byAdding: .month, value: Int.random(in: 6...36), to: Date()),
+                purchaseLocation: ["Apple Store", "Best Buy", "Amazon", "Target", "Costco"].randomElement()!,
+                condition: ["New", "Like New", "Good", "Fair"].randomElement()!,
+                hasWarranty: Bool.random(),
+                depreciationRate: Double.random(in: 0.05...0.25),
+                replacementCost: itemData.price * Decimal(Double.random(in: 1.1...1.5)),
+                receiptImageURL: nil,
+                dimensions: generateRandomDimensions(),
+                weight: generateRandomWeight(),
+                color: ["Black", "White", "Silver", "Space Gray", "Blue", "Red"].randomElement()!,
+                storageRequirements: ["Keep dry", "Climate controlled", "Upright only", "Fragile - handle with care", ""].randomElement()!,
+                isFragile: ["OLED TV", "Guitar", "MacBook Pro"].contains(itemData.title),
+                movingPriority: Int.random(in: 1...5),
+                roomDestination: itemData.location
             )
             
             let itemId = UUID().uuidString
@@ -266,5 +299,14 @@ struct TestData {
         }
         
         try? modelContext.save()
+    }
+}
+
+// MARK: - Extensions
+
+extension Double {
+    func rounded(toPlaces places: Int) -> Double {
+        let divisor = pow(10.0, Double(places))
+        return (self * divisor).rounded() / divisor
     }
 }

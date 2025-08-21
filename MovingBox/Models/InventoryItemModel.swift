@@ -30,6 +30,29 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var hasUsedAI: Bool = false
     var createdAt: Date = Date()
     
+    // MARK: - Purchase & Ownership Tracking
+    var purchaseDate: Date?
+    var warrantyExpirationDate: Date?
+    var purchaseLocation: String = ""
+    var condition: String = ""
+    var hasWarranty: Bool = false
+    
+    // MARK: - Financial & Legal
+    var depreciationRate: Double?
+    var replacementCost: Decimal?
+    var receiptImageURL: URL?
+    
+    // MARK: - Storage & Physical Properties
+    var dimensions: String = ""
+    var weight: String = ""
+    var color: String = ""
+    var storageRequirements: String = ""
+    
+    // MARK: - Moving & Insurance Optimization
+    var isFragile: Bool = false
+    var movingPriority: Int = 3
+    var roomDestination: String = ""
+    
     @Attribute(.externalStorage) var data: Data?
     
     private var isMigrating = false
@@ -123,7 +146,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         }
     }
     
-    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = []) {
+    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = [], purchaseDate: Date? = nil, warrantyExpirationDate: Date? = nil, purchaseLocation: String = "", condition: String = "", hasWarranty: Bool = false, depreciationRate: Double? = nil, replacementCost: Decimal? = nil, receiptImageURL: URL? = nil, dimensions: String = "", weight: String = "", color: String = "", storageRequirements: String = "", isFragile: Bool = false, movingPriority: Int = 3, roomDestination: String = "") {
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt
@@ -141,6 +164,23 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.hasUsedAI = hasUsedAI
         self.secondaryPhotoURLs = secondaryPhotoURLs
         self.createdAt = Date()
+        
+        // Initialize new properties
+        self.purchaseDate = purchaseDate
+        self.warrantyExpirationDate = warrantyExpirationDate
+        self.purchaseLocation = purchaseLocation
+        self.condition = condition
+        self.hasWarranty = hasWarranty
+        self.depreciationRate = depreciationRate
+        self.replacementCost = replacementCost
+        self.receiptImageURL = receiptImageURL
+        self.dimensions = dimensions
+        self.weight = weight
+        self.color = color
+        self.storageRequirements = storageRequirements
+        self.isFragile = isFragile
+        self.movingPriority = movingPriority
+        self.roomDestination = roomDestination
         
         migrateSecondaryPhotosIfNeeded()
         

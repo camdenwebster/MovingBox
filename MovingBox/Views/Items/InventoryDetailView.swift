@@ -50,6 +50,10 @@ struct InventoryDetailView: View {
     @State private var selectedPhotosPickerItems: [PhotosPickerItem] = []
     @State private var showingLocationSelection = false
     @State private var showingLabelSelection = false
+    @State private var showReceiptSourceAlert = false
+    @State private var showReceiptCamera = false
+    @State private var showReceiptPhotoPicker = false
+    @State private var showDocumentPicker = false
     
     var showSparklesButton = false
 
@@ -83,6 +87,33 @@ struct InventoryDetailView: View {
         case model
         case description
         case notes
+    }
+    
+    // MARK: - Progressive Disclosure Helpers
+    
+    private var hasAnyPurchaseTrackingData: Bool {
+        inventoryItemToDisplay.purchaseDate != nil ||
+        !inventoryItemToDisplay.purchaseLocation.isEmpty ||
+        !inventoryItemToDisplay.condition.isEmpty
+    }
+    
+    private var hasAnyFinancialData: Bool {
+        inventoryItemToDisplay.replacementCost != nil ||
+        inventoryItemToDisplay.depreciationRate != nil ||
+        inventoryItemToDisplay.receiptImageURL != nil
+    }
+    
+    private var hasAnyPhysicalPropertiesData: Bool {
+        !inventoryItemToDisplay.dimensions.isEmpty ||
+        !inventoryItemToDisplay.weight.isEmpty ||
+        !inventoryItemToDisplay.color.isEmpty ||
+        !inventoryItemToDisplay.storageRequirements.isEmpty
+    }
+    
+    private var hasAnyMovingOptimizationData: Bool {
+        inventoryItemToDisplay.isFragile ||
+        inventoryItemToDisplay.movingPriority != 3 ||
+        !inventoryItemToDisplay.roomDestination.isEmpty
     }
     
     // MARK: - View Components
@@ -217,10 +248,20 @@ struct InventoryDetailView: View {
     @ViewBuilder
     private var formContent: some View {
         VStack(spacing: 0) {
-            // AI Button Section
+            // AI Button and Receipt Button Section
             if isEditing && !inventoryItemToDisplay.hasUsedAI && inventoryItemToDisplay.imageURL != nil {
                 VStack(spacing: 0) {
-                    aiButtonView
+                    HStack(spacing: 12) {
+                        aiButtonView
+                        receiptButtonView
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
+                }
+            } else if isEditing {
+                VStack(spacing: 0) {
+                    receiptButtonView
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
                         .padding(.bottom, 8)
@@ -241,6 +282,11 @@ struct InventoryDetailView: View {
                 
                 priceSection
                 locationsAndLabelsSection
+                
+                purchaseTrackingSection
+                financialSection
+                physicalPropertiesSection
+                movingOptimizationSection
                 
                 if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                     notesSection
@@ -296,6 +342,25 @@ struct InventoryDetailView: View {
         .buttonStyle(.automatic)
         .disabled(isLoadingOpenAiResults)
         .accessibilityIdentifier("analyzeWithAi")
+    }
+    
+    @ViewBuilder
+    private var receiptButtonView: some View {
+        Button {
+            presentReceiptSourceAlert()
+        } label: {
+            HStack {
+                Image(systemName: "doc.text")
+                Text("Add Receipt")
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .foregroundColor(.white)
+            .background(Color.secondary)
+            .cornerRadius(8)
+        }
+        .buttonStyle(.automatic)
+        .accessibilityIdentifier("addReceipt")
     }
     
     @ViewBuilder
@@ -433,13 +498,29 @@ struct InventoryDetailView: View {
                 Divider()
                     .padding(.leading, 16)
                 
-                Toggle(isOn: $inventoryItemToDisplay.insured, label: {
-                    Text("Insured")
+                Toggle(isOn: $inventoryItemToDisplay.hasWarranty, label: {
+                    Text("Warranty")
                 })
                 .disabled(!isEditing)
-                .accessibilityIdentifier("insuredToggle")
+                .accessibilityIdentifier("warrantyToggle")
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                
+                if inventoryItemToDisplay.hasWarranty {
+                    Divider()
+                        .padding(.leading, 16)
+                    
+                    DatePicker("Warranty Expires", 
+                               selection: Binding(
+                                   get: { inventoryItemToDisplay.warrantyExpirationDate ?? Date() },
+                                   set: { inventoryItemToDisplay.warrantyExpirationDate = $0 }
+                               ),
+                               displayedComponents: .date)
+                        .disabled(!isEditing)
+                        .accessibilityIdentifier("warrantyDatePicker")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                }
             }
             .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(UIConstants.cornerRadius)
@@ -546,6 +627,254 @@ struct InventoryDetailView: View {
             }
             .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(UIConstants.cornerRadius)
+        }
+    }
+    
+    // MARK: - New Attribute Sections
+    
+    @ViewBuilder
+    private var purchaseTrackingSection: some View {
+        if isEditing || hasAnyPurchaseTrackingData {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Purchase & Ownership")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 16)
+                
+                VStack(spacing: 0) {
+                    if isEditing || inventoryItemToDisplay.purchaseDate != nil {
+                        DatePicker("Purchase Date", 
+                                   selection: Binding(
+                                       get: { inventoryItemToDisplay.purchaseDate ?? Date() },
+                                       set: { inventoryItemToDisplay.purchaseDate = $0 }
+                                   ),
+                                   displayedComponents: .date)
+                            .disabled(!isEditing)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        
+                        if (isEditing || !inventoryItemToDisplay.purchaseLocation.isEmpty) ||
+                           (isEditing || !inventoryItemToDisplay.condition.isEmpty) {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || !inventoryItemToDisplay.purchaseLocation.isEmpty {
+                        FormTextFieldRow(label: "Purchase Location", text: $inventoryItemToDisplay.purchaseLocation, isEditing: $isEditing, placeholder: "Apple Store")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        
+                        if isEditing || !inventoryItemToDisplay.condition.isEmpty {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || !inventoryItemToDisplay.condition.isEmpty {
+                        FormTextFieldRow(label: "Condition", text: $inventoryItemToDisplay.condition, isEditing: $isEditing, placeholder: "Like New")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(UIConstants.cornerRadius)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var financialSection: some View {
+        if isEditing || hasAnyFinancialData {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Financial Information")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 16)
+                
+                VStack(spacing: 0) {
+                    if isEditing || inventoryItemToDisplay.replacementCost != nil {
+                        HStack {
+                            Text("Replacement Cost")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            TextField("$0.00", value: $inventoryItemToDisplay.replacementCost, format: .currency(code: "USD"))
+                                .multilineTextAlignment(.trailing)
+                                .disabled(!isEditing)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        if isEditing || inventoryItemToDisplay.depreciationRate != nil {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || inventoryItemToDisplay.depreciationRate != nil {
+                        HStack {
+                            Text("Depreciation Rate")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            TextField("0%", value: $inventoryItemToDisplay.depreciationRate, format: .percent)
+                                .multilineTextAlignment(.trailing)
+                                .disabled(!isEditing)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        if isEditing || inventoryItemToDisplay.receiptImageURL != nil {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || inventoryItemToDisplay.receiptImageURL != nil {
+                        HStack {
+                            Text("Receipt")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            if inventoryItemToDisplay.receiptImageURL != nil {
+                                Text("Attached")
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("None")
+                                    .foregroundColor(.secondary)
+                            }
+                            if isEditing {
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(UIConstants.cornerRadius)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var physicalPropertiesSection: some View {
+        if isEditing || hasAnyPhysicalPropertiesData {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Physical Properties")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 16)
+                
+                VStack(spacing: 0) {
+                    if isEditing || !inventoryItemToDisplay.dimensions.isEmpty {
+                        FormTextFieldRow(label: "Dimensions", text: $inventoryItemToDisplay.dimensions, isEditing: $isEditing, placeholder: "24\" x 16\" x 8\"")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        
+                        if (isEditing || !inventoryItemToDisplay.weight.isEmpty) ||
+                           (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
+                           (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || !inventoryItemToDisplay.weight.isEmpty {
+                        FormTextFieldRow(label: "Weight", text: $inventoryItemToDisplay.weight, isEditing: $isEditing, placeholder: "5.2 lbs")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        
+                        if (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
+                           (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || !inventoryItemToDisplay.color.isEmpty {
+                        FormTextFieldRow(label: "Color", text: $inventoryItemToDisplay.color, isEditing: $isEditing, placeholder: "Space Gray")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        
+                        if isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty {
+                        FormTextFieldRow(label: "Storage Requirements", text: $inventoryItemToDisplay.storageRequirements, isEditing: $isEditing, placeholder: "Keep upright, dry environment")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(UIConstants.cornerRadius)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var movingOptimizationSection: some View {
+        if isEditing || hasAnyMovingOptimizationData {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Moving & Storage")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 16)
+                
+                VStack(spacing: 0) {
+                    Toggle(isOn: $inventoryItemToDisplay.isFragile, label: {
+                        Text("Fragile Item")
+                    })
+                    .disabled(!isEditing)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    
+                    if (isEditing || inventoryItemToDisplay.movingPriority != 3) ||
+                       (isEditing || !inventoryItemToDisplay.roomDestination.isEmpty) {
+                        Divider()
+                            .padding(.leading, 16)
+                    }
+                    
+                    if isEditing || inventoryItemToDisplay.movingPriority != 3 {
+                        HStack {
+                            Text("Moving Priority")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Picker("Priority", selection: $inventoryItemToDisplay.movingPriority) {
+                                Text("Low (1)").tag(1)
+                                Text("Medium (2)").tag(2)
+                                Text("Normal (3)").tag(3)
+                                Text("High (4)").tag(4)
+                                Text("Critical (5)").tag(5)
+                            }
+                            .pickerStyle(.menu)
+                            .disabled(!isEditing)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        if isEditing || !inventoryItemToDisplay.roomDestination.isEmpty {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                    
+                    if isEditing || !inventoryItemToDisplay.roomDestination.isEmpty {
+                        FormTextFieldRow(label: "Room Destination", text: $inventoryItemToDisplay.roomDestination, isEditing: $isEditing, placeholder: "Living Room")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(UIConstants.cornerRadius)
+            }
         }
     }
 
@@ -1191,6 +1520,14 @@ struct PhotoPlaceholderView: View {
     }
     
     return PreviewWrapper()
+}
+
+// MARK: - Receipt Handling Methods
+
+extension InventoryDetailView {
+    private func presentReceiptSourceAlert() {
+        showReceiptSourceAlert = true
+    }
 }
 
 // MARK: - View Extensions
