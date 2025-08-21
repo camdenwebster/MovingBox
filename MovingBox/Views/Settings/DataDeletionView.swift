@@ -32,6 +32,8 @@ struct DataDeletionView: View {
     @State private var confirmationText = ""
     @State private var isDeleting = false
     @State private var showFinalConfirmation = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
     
     private let requiredConfirmationText = "DELETE"
     
@@ -56,6 +58,11 @@ struct DataDeletionView: View {
             }
         } message: {
             Text("This action cannot be undone. Are you sure you want to delete all your inventory data?")
+        }
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
         }
     }
     
@@ -190,7 +197,10 @@ struct DataDeletionView: View {
             
         } catch {
             print("❌ Error deleting data: \(error)")
-            // Show error alert
+            await MainActor.run {
+                errorMessage = "Failed to delete data: \(error.localizedDescription)"
+                showErrorAlert = true
+            }
         }
     }
     
