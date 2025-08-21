@@ -166,7 +166,7 @@ import SwiftData
         // Given: A model container with test items
         let container = try createTestContainer()
         let context = container.mainContext
-        let testItems = try createTestItems(in: context)
+        _ = try createTestItems(in: context)
         
         // And: No items are selected
         let selectedItemIDs: Set<PersistentIdentifier> = Set()

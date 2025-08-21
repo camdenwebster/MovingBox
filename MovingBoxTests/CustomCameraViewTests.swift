@@ -19,32 +19,29 @@ import AVFoundation
         
         // Since we can't directly compare enum cases with associated values,
         // we'll verify by using them in switch statements
-        switch singleMode {
-        case .singlePhoto:
-            // Expected case
-            #expect(true, "Single mode is correctly identified")
-        case .multiPhoto:
+        // Verify single mode by checking it's not multi mode
+        if case .multiPhoto = singleMode {
             #expect(Bool(false), "Single mode should not be multi photo")
         }
         
-        switch multiModeDefault {
-        case .singlePhoto:
-            #expect(Bool(false), "Multi mode should not be single photo")
-        case .multiPhoto(let maxPhotos):
+        // Verify multi mode default value
+        if case .multiPhoto(let maxPhotos) = multiModeDefault {
             #expect(maxPhotos == 5, "Default max photos should be 5")
+        } else {
+            #expect(Bool(false), "Multi mode should have multiPhoto case")
         }
         
-        switch multiModeCustom {
-        case .singlePhoto:
-            #expect(Bool(false), "Multi mode should not be single photo")
-        case .multiPhoto(let maxPhotos):
+        // Verify multi mode custom value
+        if case .multiPhoto(let maxPhotos) = multiModeCustom {
             #expect(maxPhotos == 3, "Custom max photos should be 3")
+        } else {
+            #expect(Bool(false), "Multi mode should have multiPhoto case")
         }
     }
     
     @Test("CustomCameraView single photo mode initializer")
     func testSinglePhotoModeInitializer() async throws {
-        var capturedImage: UIImage? = nil
+        let capturedImage: UIImage? = nil
         
         var permissionGranted: Bool? = nil
         
@@ -69,7 +66,7 @@ import AVFoundation
     
     @Test("CustomCameraView multi photo mode initializer")
     func testMultiPhotoModeInitializer() async throws {
-        var capturedImages: [UIImage] = []
+        let capturedImages: [UIImage] = []
         var completionResult: [UIImage]? = nil
         
         let view = CustomCameraView(
@@ -97,7 +94,7 @@ import AVFoundation
     func testBackwardCompatibility() async throws {
         // This test ensures that existing code using the old initializer
         // continues to work without changes
-        var capturedImage: UIImage? = nil
+        let capturedImage: UIImage? = nil
         
         let view = CustomCameraView(
             capturedImage: .constant(capturedImage),
@@ -115,8 +112,8 @@ import AVFoundation
         // We can't directly test the internal behavior, but we can verify
         // that different initializers create views that behave differently
         
-        var singleImage: UIImage? = nil
-        var multiImages: [UIImage] = []
+        let singleImage: UIImage? = nil
+        let multiImages: [UIImage] = []
         
         let singleModeView = CustomCameraView(
             capturedImage: .constant(singleImage),
@@ -140,11 +137,11 @@ import AVFoundation
         // Test that multiPhoto mode has sensible defaults
         let multiMode = CameraMode.multiPhoto()
         
-        switch multiMode {
-        case .singlePhoto:
-            #expect(Bool(false), "Should be multi photo mode")
-        case .multiPhoto(let maxPhotos):
+        // Verify multi mode default
+        if case .multiPhoto(let maxPhotos) = multiMode {
             #expect(maxPhotos == 5, "Default should be 5 photos")
+        } else {
+            #expect(Bool(false), "Should be multi photo mode")
         }
     }
     

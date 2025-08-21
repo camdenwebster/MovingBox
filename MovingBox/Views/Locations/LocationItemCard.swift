@@ -31,7 +31,7 @@ struct LocationItemCard: View {
         VStack(spacing: 0) {
             // Photo section
             Group {
-                if let thumbnail {
+                if thumbnail != nil {
                     AsyncImage(url: location.thumbnailURL) { image in
                         image
                             .resizable()
