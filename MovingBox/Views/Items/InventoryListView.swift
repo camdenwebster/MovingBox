@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import SwiftUIBackports
 import RevenueCatUI
 import SwiftData
 import SwiftUI
@@ -260,11 +261,12 @@ struct InventoryListView: View {
                 }
                 .disabled(selectedCount == 0)
                 
+                // TODO: Fix the Batch Analysis flow
                 // Analyze with AI Button
-                Button(action: analyzeSelectedItems) {
-                    Label("Analyze (\(selectedCount))", systemImage: "sparkles")
-                }
-                .disabled(selectedCount == 0 || !hasImagesInSelection())
+//                Button(action: analyzeSelectedItems) {
+//                    Label("Analyze (\(selectedCount))", systemImage: "sparkles")
+//                }
+//                .disabled(selectedCount == 0 || !hasImagesInSelection())
             }
             
             if #available(iOS 26.0, *) {
@@ -311,9 +313,9 @@ struct InventoryListView: View {
                     Label("Add from Photo", systemImage: "plus")
                 }
                 .accessibilityIdentifier("createFromCamera")
-                .foregroundStyle(Color.customPrimary)
+                .buttonStyle(.borderedProminent)
+                .tint(Color.customPrimary)
                 .backport.glassEffect(in: Circle())
-
             }
         }
     }
@@ -422,13 +424,37 @@ struct InventoryListView: View {
     }
     
     private func createManualItem() {
-        showItemCreationFlow = true
+       print("📱 InventoryListView - Add Manual Item button tapped")
+       print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
+       print("📱 InventoryListView - Items count: \(allItems.count)")
+       print("📱 InventoryListView - Creating new item")
+       let newItem = InventoryItem(
+           title: "",
+           quantityString: "1",
+           quantityInt: 1,
+           desc: "",
+           serial: "",
+           model: "",
+           make: "",
+           location: location,
+           label: nil,
+           price: Decimal.zero,
+           insured: false,
+           assetId: "",
+           notes: "",
+           showInvalidQuantityAlert: false
+       )
+       router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
     }
     
     private func createFromPhoto() {
+        print("📱 InventoryListView - Add Manual Item button tapped")
+        print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
+        print("📱 InventoryListView - Items count: \(allItems.count)")
         if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
             showingPaywall = true
         } else {
+            print("📱 Launching Camera")
             showItemCreationFlow = true
         }
     }
@@ -510,9 +536,33 @@ struct InventoryListView: View {
     func hasImagesInSelection() -> Bool {
         guard !selectedItemIDs.isEmpty else { return false }
         return allItems.contains { item in
-            selectedItemIDs.contains(item.persistentModelID) && 
-            (item.imageURL != nil || !item.secondaryPhotoURLs.isEmpty)
+            guard selectedItemIDs.contains(item.persistentModelID) else { return false }
+            return hasAnalyzableImage(item)
         }
+    }
+    
+    private func hasAnalyzableImage(_ item: InventoryItem) -> Bool {
+        // Check primary image URL
+        if let imageURL = item.imageURL, !imageURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        
+        // Check secondary photo URLs (filter out empty strings)
+        if !item.secondaryPhotoURLs.isEmpty {
+            let validURLs = item.secondaryPhotoURLs.filter { url in
+                !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            if !validURLs.isEmpty {
+                return true
+            }
+        }
+        
+        // Check legacy data property (for items that haven't migrated yet)
+        if let data = item.data, !data.isEmpty {
+            return true
+        }
+        
+        return false
     }
     
     func analyzeSelectedItems() {

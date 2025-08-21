@@ -56,7 +56,7 @@ struct LocationItemCard: View {
                         )
                 }
             }
-            .frame(height: 120)
+            .frame(height: 100)
             .task(id: location.imageURL) {
                 do {
                     thumbnail = try await location.thumbnail
@@ -92,8 +92,8 @@ struct LocationItemCard: View {
                         .foregroundStyle(Color(.label))
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal)
+            .padding(.vertical)
         }
         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
         .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)

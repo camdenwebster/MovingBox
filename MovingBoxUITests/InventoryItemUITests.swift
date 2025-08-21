@@ -12,7 +12,8 @@ final class InventoryItemUITests: XCTestCase {
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
-    var tabBar: TabBar!
+    var dashboardScreen: DashboardScreen!
+    var navigationHelper: NavigationHelper!
     let app = XCUIApplication()
 
     override func setUpWithError() throws {
@@ -21,14 +22,16 @@ final class InventoryItemUITests: XCTestCase {
             "Is-Pro",
             "Skip-Onboarding",
             "Disable-Persistence",
-            "UI-Testing-Mock-Camera"
+            "UI-Testing-Mock-Camera",
+            "Use-Test-Data"  // Added to populate inventory for testing
         ]
         
         // Initialize screen objects
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
-        tabBar = TabBar(app: app)
+        dashboardScreen = DashboardScreen(app: app)
+        navigationHelper = NavigationHelper(app: app)
         
         setupSnapshot(app)
         
@@ -39,12 +42,13 @@ final class InventoryItemUITests: XCTestCase {
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
-        tabBar = nil
+        dashboardScreen = nil
+        navigationHelper = nil
     }
 
     func testAddItemFromPhotoViaListView() throws {
-        // Given: User is on the All Items tab
-        tabBar.tapAllItems()
+        // Given: User navigates to the All Items view
+        navigationHelper.navigateToAllItems()
         
         // When: User initiates adding an item from photo
         listScreen.tapAddItem()
@@ -73,8 +77,8 @@ final class InventoryItemUITests: XCTestCase {
     }
 
     func testAddItemManuallyViaListViewFromCameraRoll() throws {
-        // Given: User is on the All Items tab
-        tabBar.tapAllItems()
+        // Given: User navigates to the All Items view
+        navigationHelper.navigateToAllItems()
 
         // When: User initiates adding an item manually
         listScreen.tapAddItem()
@@ -114,11 +118,12 @@ final class InventoryItemUITests: XCTestCase {
                      "Inventory list view should reappear after navigating back")
     }
 
-    func testAddItemViaTabBar() throws {
-        // Given: User is in the app
+    func testAddItemViaDashboard() throws {
+        // Given: User is on the dashboard
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
         
-        // And: User taps the Add Item tab
-        tabBar.tapAddItem()
+        // When: User taps the add item button from dashboard
+        dashboardScreen.tapAddItemFromCamera()
         
         // Then: Camera should be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),

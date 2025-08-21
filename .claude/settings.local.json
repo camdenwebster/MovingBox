@@ -33,7 +33,14 @@
       "Bash(xcrun simctl list:*)",
       "Bash(xcrun simctl boot:*)",
       "Bash(open:*)",
-      "mcp__ios-simulator__ui_describe_point"
+      "mcp__ios-simulator__ui_describe_point",
+      "Bash(timeout 60 xcodebuild test:*)",
+      "Bash(true)",
+      "Bash(timeout 300 xcodebuild test:*)",
+      "Bash(xcrun xcresulttool:*)",
+      "Bash(pkill:*)",
+      "Bash(timeout 180 xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -only-testing MovingBoxUITests/DashboardNavigationUITests/testStatsDisplayCorrectly)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
