@@ -230,6 +230,7 @@ struct InventoryListView: View {
                             .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
                     }
                 }
+                .accessibilityIdentifier("toolbarMenu")
             }
         }
     }

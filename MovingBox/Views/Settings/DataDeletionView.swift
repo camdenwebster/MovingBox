@@ -1,6 +1,112 @@
 import SwiftUI
 import SwiftData
 
+/// Protocol for data deletion operations - enables dependency injection and testing
+@MainActor
+protocol DataDeletionServiceProtocol {
+    var isDeleting: Bool { get }
+    var lastError: Error? { get }
+    var deletionCompleted: Bool { get }
+    
+    func deleteAllData(scope: DeletionScope) async
+    func resetState()
+}
+
+/// Default implementation of data deletion service
+@MainActor
+@Observable
+final class DataDeletionService: DataDeletionServiceProtocol {
+    private(set) var isDeleting = false
+    private(set) var lastError: Error?
+    private(set) var deletionCompleted = false
+    
+    private let modelContext: ModelContext
+    
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
+    
+    func deleteAllData(scope: DeletionScope) async {
+        guard !isDeleting else { return }
+        
+        isDeleting = true
+        lastError = nil
+        deletionCompleted = false
+        
+        defer { isDeleting = false }
+        
+        do {
+            try await performDeletion(scope: scope)
+            deletionCompleted = true
+        } catch {
+            lastError = error
+            print("❌ Error deleting data: \(error)")
+        }
+    }
+    
+    func resetState() {
+        lastError = nil
+        deletionCompleted = false
+    }
+    
+    private func performDeletion(scope: DeletionScope) async throws {
+        try await deleteSwiftDataContent()
+        await clearImageCache()
+        
+        if scope == .localAndICloud {
+            print("🗑️ Deleted all data including iCloud sync")
+        } else {
+            print("🗑️ Deleted local data only")
+        }
+    }
+    
+    private func deleteSwiftDataContent() async throws {
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try modelContext.fetch(itemDescriptor)
+        for item in items {
+            modelContext.delete(item)
+        }
+        
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let locations = try modelContext.fetch(locationDescriptor)
+        for location in locations {
+            modelContext.delete(location)
+        }
+        
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let labels = try modelContext.fetch(labelDescriptor)
+        for label in labels {
+            modelContext.delete(label)
+        }
+        
+        let homeDescriptor = FetchDescriptor<Home>()
+        let homes = try modelContext.fetch(homeDescriptor)
+        for home in homes {
+            modelContext.delete(home)
+        }
+        
+        let policyDescriptor = FetchDescriptor<InsurancePolicy>()
+        let policies = try modelContext.fetch(policyDescriptor)
+        for policy in policies {
+            modelContext.delete(policy)
+        }
+        
+        try modelContext.save()
+    }
+    
+    private func clearImageCache() async {
+        do {
+            let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            let imagesDirectory = documentsDirectory.appendingPathComponent("OptimizedImages")
+            if FileManager.default.fileExists(atPath: imagesDirectory.path) {
+                try FileManager.default.removeItem(at: imagesDirectory)
+            }
+        } catch {
+            print("❌ Error clearing image cache: \(error)")
+        }
+    }
+}
+
 enum DeletionScope: String, CaseIterable {
     case localOnly = "Local Only"
     case localAndICloud = "Local and iCloud"
@@ -28,17 +134,32 @@ struct DataDeletionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var selectedScope: DeletionScope = .localOnly
-    @State private var showConfirmation = false
     @State private var confirmationText = ""
-    @State private var isDeleting = false
     @State private var showFinalConfirmation = false
     @State private var showErrorAlert = false
-    @State private var errorMessage = ""
+    @State private var deletionService: DataDeletionServiceProtocol?
     
     private let requiredConfirmationText = "DELETE"
     
+    // Dependency injection initializer for testing
+    init(deletionService: DataDeletionServiceProtocol? = nil) {
+        self._deletionService = State(initialValue: deletionService)
+    }
+    
     private var isConfirmationValid: Bool {
         confirmationText.uppercased() == requiredConfirmationText
+    }
+    
+    private var isDeleting: Bool {
+        deletionService?.isDeleting ?? false
+    }
+    
+    private var errorMessage: String {
+        deletionService?.lastError?.localizedDescription ?? ""
+    }
+    
+    private var hasError: Bool {
+        deletionService?.lastError != nil
     }
     
     var body: some View {
@@ -49,20 +170,35 @@ struct DataDeletionView: View {
         }
         .navigationTitle("Delete All Data")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if deletionService == nil {
+                deletionService = DataDeletionService(modelContext: modelContext)
+            }
+        }
         .alert("Final Confirmation", isPresented: $showFinalConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Delete All Data", role: .destructive) {
                 Task {
-                    await deleteAllData()
+                    await handleDeleteAllData()
                 }
             }
         } message: {
             Text("This action cannot be undone. Are you sure you want to delete all your inventory data?")
         }
         .alert("Error", isPresented: $showErrorAlert) {
-            Button("OK") { }
+            Button("OK") { 
+                deletionService?.resetState()
+            }
         } message: {
             Text(errorMessage)
+        }
+        .onChange(of: hasError) { _, hasError in
+            showErrorAlert = hasError
+        }
+        .onChange(of: deletionService?.deletionCompleted) { _, completed in
+            if completed == true {
+                dismiss()
+            }
         }
     }
     
@@ -117,6 +253,7 @@ struct DataDeletionView: View {
                         if selectedScope == scope {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(Color.customPrimary)
+                                .font(.title)
                         }
                     }
                 }
@@ -171,90 +308,9 @@ struct DataDeletionView: View {
     }
     
     @MainActor
-    private func deleteAllData() async {
-        isDeleting = true
-        defer { isDeleting = false }
-        
-        do {
-            // Delete all data from SwiftData
-            try await deleteSwiftDataContent()
-            
-            // Clear image cache
-            await clearImageCache()
-            
-            // If deleting from iCloud, purge CloudKit records
-            if selectedScope == .localAndICloud {
-                // Note: SwiftData with CloudKit will handle the sync deletion
-                print("🗑️ Deleted all data including iCloud sync")
-            } else {
-                print("🗑️ Deleted local data only")
-            }
-            
-            // Show success and dismiss
-            await MainActor.run {
-                dismiss()
-            }
-            
-        } catch {
-            print("❌ Error deleting data: \(error)")
-            await MainActor.run {
-                errorMessage = "Failed to delete data: \(error.localizedDescription)"
-                showErrorAlert = true
-            }
-        }
-    }
-    
-    private func deleteSwiftDataContent() async throws {
-        // Delete all inventory items
-        let itemDescriptor = FetchDescriptor<InventoryItem>()
-        let items = try modelContext.fetch(itemDescriptor)
-        for item in items {
-            modelContext.delete(item)
-        }
-        
-        // Delete all locations
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        let locations = try modelContext.fetch(locationDescriptor)
-        for location in locations {
-            modelContext.delete(location)
-        }
-        
-        // Delete all labels
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let labels = try modelContext.fetch(labelDescriptor)
-        for label in labels {
-            modelContext.delete(label)
-        }
-        
-        // Delete all homes
-        let homeDescriptor = FetchDescriptor<Home>()
-        let homes = try modelContext.fetch(homeDescriptor)
-        for home in homes {
-            modelContext.delete(home)
-        }
-        
-        // Delete all insurance policies
-        let policyDescriptor = FetchDescriptor<InsurancePolicy>()
-        let policies = try modelContext.fetch(policyDescriptor)
-        for policy in policies {
-            modelContext.delete(policy)
-        }
-        
-        // Save the context
-        try modelContext.save()
-    }
-    
-    private func clearImageCache() async {
-        // Clear OptimizedImageManager cache if available
-        do {
-            let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            let imagesDirectory = documentsDirectory.appendingPathComponent("OptimizedImages")
-            if FileManager.default.fileExists(atPath: imagesDirectory.path) {
-                try FileManager.default.removeItem(at: imagesDirectory)
-            }
-        } catch {
-            print("❌ Error clearing image cache: \(error)")
-        }
+    private func handleDeleteAllData() async {
+        guard let deletionService = deletionService else { return }
+        await deletionService.deleteAllData(scope: selectedScope)
     }
 }
 

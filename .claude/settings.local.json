@@ -48,7 +48,10 @@
       "Bash(git fetch:*)",
       "Bash(git merge:*)",
       "Bash(git stash:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(xcrun simctl io:*)",
+      "Bash(xcrun simctl keyb:*)",
+      "Bash(xcrun simctl ui:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
