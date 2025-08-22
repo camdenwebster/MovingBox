@@ -155,7 +155,7 @@ jobs:
           build-configuration: 'Debug'
           scheme: 'MovingBox'
           destination: 'platform=iOS Simulator,name=${{ env.IOS_SIMULATOR_DEVICE }}'
-        secrets:
+        env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
@@ -177,7 +177,7 @@ jobs:
           os-version: ${{ env.IOS_VERSION }}
           parallel-testing: true
           generate-coverage: true
-        secrets:
+        env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
