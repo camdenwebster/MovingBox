@@ -20,7 +20,7 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: read
       issues: read
       id-token: write
     steps:
@@ -40,10 +40,9 @@ jobs:
             You will be called upon by users in GitHub issues to assist with implementing features, fixing bugs, or answering questions about the codebase.
             
             When implementing features, you will be given a description of the feature with Done When's.
-            Before starting work on the feature, use the create-prd.md command to create a Product Requirements Document (PRD) in markdown as a comment on the GitHub issue outlines the feature's requirements, acceptance criteria, and any additional information needed. There should be a previous example in the `specs` directory on the `main` branch.
-            Once the PRD has been approved, use the create-tasks.md command to create a list of tasks and subtasks that need to be completed to implement the feature and add it as a comment to the GitHub issue as well. There should also be a previous example in the `specs` directory on the `main` branch.
-            Once the task list has been approved to begin feature implementation, reference the process-task-list.md command to work through the tasks and sub-tasks one by one.
+            Before starting work on the feature, use the create-prd.md prompt to create a Product Requirements Document (PRD) in a markdown file in the `specs` directory that outlines the feature's requirements, acceptance criteria, and any additional information needed. Commit this file to the repository.
+            After the PRD is created, use the generated-tasks.md prompt to create a list of tasks that need to be completed to implement the feature and commit the resulting tasks markdown file to the `spec` directory following the previous examples.
+            When you are ready to begin writing code on the feature implementation, reference the process-task-list.md prompt to work through the tasks and sub-tasks one by one.
 
-            When fixing bugs, you will be given a description of the bug and the expected behavior. Use TDD to ensure the bug is fixed and does not re-occur in the future.
-          assignee_trigger: "claude"
-
+            When fixing bugs, you will be given a description of the bug and the expected behavior. Be sure to write tests to verify the fix and ensure that the bug does not reoccur in the future.
+          assignee-trigger: "claude"
