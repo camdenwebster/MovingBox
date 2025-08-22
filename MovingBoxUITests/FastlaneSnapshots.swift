@@ -9,10 +9,11 @@ import XCTest
 
 @MainActor
 final class FastlaneSnapshots: XCTestCase {
+    var dashboardScreen: DashboardScreen!
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
-    var tabBar: TabBar!
+    var navigationHelper: NavigationHelper!
     let app = XCUIApplication()
     
     override func setUpWithError() throws {
@@ -25,20 +26,23 @@ final class FastlaneSnapshots: XCTestCase {
         ]
         
         // Initialize screen objects
+        dashboardScreen = DashboardScreen(app: app)
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
-        tabBar = TabBar(app: app)
+        navigationHelper = NavigationHelper(app: app)
         
         setupSnapshot(app)
         
+        app.launchArguments.append("Use-Test-Data")
+        app.launch()
+        XCTAssertTrue(dashboardScreen.testDataLoaded())
     }
     
     override func tearDownWithError() throws {
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
-        tabBar = nil
     }
     
     func testDashboardSnapshot() throws {
@@ -48,45 +52,38 @@ final class FastlaneSnapshots: XCTestCase {
         
         // When the user launches the app
         // Then the dashboard should display the correct elements with the data
-        sleep(5)
         snapshot("01_Dashboard")
     }
     
     func testLocationsSnapshot() throws {
         // Given MovingBox has data in the inventory
-        app.launchArguments.append("Use-Test-Data")
-        app.launch()
-        
-        // When the user launches the app
-        // Then the dashboard should display the correct elements with the data
-        sleep(5)
-        tabBar.locationsTab.tap()
+        // And the app is launched
+        // And the test data is loaded
+        // When the user taps the "Locations" link on the dashboard
+        dashboardScreen.tapLocations()
+        // Then the user should be brought to the Locations list view
         snapshot("01_Locations")
     }
     
     func testItemListViewSnapshot() throws {
         // Given MovingBox has data in the inventory
-        app.launchArguments.append("Use-Test-Data")
-        app.launch()
-        
-        // When the user launches the app
+        // And the app is launched
+        // And the test data is loaded
+        // When the user navigates to the Inventory List
+        navigationHelper.navigateToAllItems()
         // Then the dashboard should display the correct elements with the data
-        sleep(5)
-        tabBar.allItemsTab.tap()
         snapshot("01_InventoryItemList")
     }
     
     func testItemDetailViewSnapshots() throws {
         // Given MovingBox has data in the inventory
-        app.launchArguments.append("Use-Test-Data")
-        app.launch()
-        sleep(5)
-
-        // Given: User is on the All Items tab
-        tabBar.tapAllItems()
+        // And the app is launched
+        // And the test data is loaded
+        // And the user is on the main inventory list
+        navigationHelper.navigateToAllItems()
         
         // When: User initiates adding an item manually
-        listScreen.tapAddItem()
+        listScreen.openToolbarMenu()
         listScreen.tapCreateManually()
         
         // When: User adds a photo from the camera

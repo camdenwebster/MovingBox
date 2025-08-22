@@ -51,7 +51,7 @@ final class NavigationSystemUITests: XCTestCase {
         navigationHelper.navigateToAllItems()
         
         // Then: Should be on inventory list (check multiple indicators)
-        let onInventoryList = listScreen.addItemButton.waitForExistence(timeout: 10) ||
+        let onInventoryList = listScreen.createFromCameraButton.waitForExistence(timeout: 10) ||
                              app.staticTexts["All Items"].waitForExistence(timeout: 5) ||
                              app.staticTexts["No Items"].waitForExistence(timeout: 5)
         
@@ -71,7 +71,7 @@ final class NavigationSystemUITests: XCTestCase {
         navigationHelper.navigateToAllItems()
         
         // Then: Should be on inventory list
-        XCTAssertTrue(listScreen.addItemButton.waitForExistence(timeout: 5), 
+        XCTAssertTrue(listScreen.createFromCameraButton.waitForExistence(timeout: 5), 
                      "Should navigate to inventory list from settings")
     }
     
@@ -90,13 +90,13 @@ final class NavigationSystemUITests: XCTestCase {
     func testNavigationHelperSettingsFromList() throws {
         // Given: User is on inventory list
         navigationHelper.navigateToAllItems()
-        XCTAssertTrue(listScreen.addItemButton.exists, "Should be on inventory list")
+        XCTAssertTrue(listScreen.createFromCameraButton.exists, "Should be on inventory list")
         
         // When: Using navigation helper to go to Settings
         navigationHelper.navigateToSettings()
         
         // Then: Should be on settings view
-        XCTAssertFalse(listScreen.addItemButton.exists, "Should be away from list")
+        XCTAssertFalse(listScreen.createFromCameraButton.exists, "Should be away from list")
         XCTAssertFalse(dashboardScreen.allInventoryButton.exists, "Should be away from dashboard")
     }
 
@@ -108,7 +108,7 @@ final class NavigationSystemUITests: XCTestCase {
         
         // When: Navigating through multiple levels
         navigationHelper.navigateToAllItems()
-        XCTAssertTrue(listScreen.addItemButton.exists, "Should be on list")
+        XCTAssertTrue(listScreen.createFromCameraButton.exists, "Should be on list")
         
         // And: Going deeper into detail view (if items exist)
         if dashboardScreen.hasRecentItems() {
@@ -146,7 +146,7 @@ final class NavigationSystemUITests: XCTestCase {
         // Test all direct navigation paths from dashboard
         let navigationTests = [
             ("All Items", { self.dashboardScreen.tapAllInventory() }, 
-             { self.listScreen.addItemButton.waitForExistence(timeout: 5) }),
+             { self.listScreen.createFromCameraButton.waitForExistence(timeout: 5) }),
             ("Settings", { self.dashboardScreen.tapSettings() }, 
              { !self.dashboardScreen.allInventoryButton.exists })
         ]
@@ -258,7 +258,7 @@ final class NavigationSystemUITests: XCTestCase {
         
         // Test basic navigation still works in landscape
         navigationHelper.navigateToAllItems()
-        XCTAssertTrue(listScreen.addItemButton.waitForExistence(timeout: 5), 
+        XCTAssertTrue(listScreen.createFromCameraButton.waitForExistence(timeout: 5), 
                      "Navigation should work in landscape mode")
     }
     

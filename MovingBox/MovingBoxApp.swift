@@ -105,6 +105,14 @@ struct MovingBoxApp: App {
                     LocationSettingsView()
                 case .subscriptionSettingsView:
                     SubscriptionSettingsView()
+                case .syncDataSettingsView:
+                    SyncDataSettingsView()
+                case .importDataView:
+                    ImportDataView()
+                case .exportDataView:
+                    ExportDataView()
+                case .deleteDataView:
+                    DataDeletionView()
                 }
             }
         )

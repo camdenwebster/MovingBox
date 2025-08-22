@@ -18,6 +18,8 @@ actor DataManager {
         case invalidCSVFormat
         case photoNotFound
         case fileAccessDenied
+        case fileTooLarge
+        case invalidFileType
     }
 
     static let shared = DataManager()
@@ -282,6 +284,9 @@ actor DataManager {
                         
                         if rows.count > 1 {
                             for row in rows.dropFirst() {
+                                // Yield control to prevent UI freezing
+                                await Task.yield()
+                                
                                 let values = await parseCSVRow(row)
                                 guard values.count >= 3 else { continue }
                                 
@@ -291,18 +296,14 @@ actor DataManager {
                                 )
                                 
                                 if !values[2].isEmpty {
-                                    let photoURL = photosDir.appendingPathComponent(values[2])
+                                    let sanitizedFilename = sanitizeFilename(values[2])
+                                    let photoURL = photosDir.appendingPathComponent(sanitizedFilename)
                                     if FileManager.default.fileExists(atPath: photoURL.path) {
-                                        let destURL = try FileManager.default.url(
-                                            for: .documentDirectory,
-                                            in: .userDomainMask,
-                                            appropriateFor: nil,
-                                            create: true
-                                        ).appendingPathComponent(values[2])
-                                        
-                                        try? FileManager.default.removeItem(at: destURL)
-                                        try FileManager.default.copyItem(at: photoURL, to: destURL)
-                                        location.imageURL = destURL
+                                        do {
+                                            location.imageURL = try copyImageToDocuments(photoURL, filename: values[2])
+                                        } catch {
+                                            print("⚠️ Failed to copy location image: \(error)")
+                                        }
                                     }
                                 }
                                 
@@ -323,6 +324,9 @@ actor DataManager {
                         
                         if rows.count > 1 {
                             for row in rows.dropFirst() {
+                                // Yield control to prevent UI freezing
+                                await Task.yield()
+                                
                                 let values = await parseCSVRow(row)
                                 guard values.count >= 4 else { continue }
                                 
@@ -350,6 +354,9 @@ actor DataManager {
                         
                         if rows.count > 1 {
                             for row in rows.dropFirst() {
+                                // Yield control to prevent UI freezing
+                                await Task.yield()
+                                
                                 let values = await parseCSVRow(row)
                                 guard values.count >= 13 else { continue }
                                 
@@ -376,18 +383,14 @@ actor DataManager {
                                 
                                 let photoFilename = values[11]
                                 if !photoFilename.isEmpty {
-                                    let photoURL = photosDir.appendingPathComponent(photoFilename)
+                                    let sanitizedFilename = sanitizeFilename(photoFilename)
+                                    let photoURL = photosDir.appendingPathComponent(sanitizedFilename)
                                     if FileManager.default.fileExists(atPath: photoURL.path) {
-                                        let destURL = try FileManager.default.url(
-                                            for: .documentDirectory,
-                                            in: .userDomainMask,
-                                            appropriateFor: nil,
-                                            create: true
-                                        ).appendingPathComponent(photoFilename)
-                                        
-                                        try? FileManager.default.removeItem(at: destURL)
-                                        try FileManager.default.copyItem(at: photoURL, to: destURL)
-                                        item.imageURL = destURL
+                                        do {
+                                            item.imageURL = try copyImageToDocuments(photoURL, filename: photoFilename)
+                                        } catch {
+                                            print("⚠️ Failed to copy item image: \(error)")
+                                        }
                                     }
                                 }
                                 
@@ -484,6 +487,55 @@ actor DataManager {
         }
     }
 
+    // MARK: - Security Helpers
+    private nonisolated func sanitizeFilename(_ filename: String) -> String {
+        // Remove directory traversal attempts and invalid characters
+        let sanitized = filename
+            .replacingOccurrences(of: "..", with: "")
+            .replacingOccurrences(of: "/", with: "")
+            .replacingOccurrences(of: "\\", with: "")
+            .replacingOccurrences(of: ":", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Ensure filename is not empty after sanitization
+        return sanitized.isEmpty ? "unknown" : sanitized
+    }
+    
+    // MARK: - Image Copy Helpers
+    private nonisolated func validateImageFile(_ url: URL) throws {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let fileSize = attributes[.size] as? Int64 ?? 0
+        
+        // Check file size (100MB limit)
+        let maxFileSize: Int64 = 100 * 1024 * 1024
+        guard fileSize <= maxFileSize else {
+            throw DataError.fileTooLarge
+        }
+        
+        // Check file type by extension
+        let allowedExtensions = ["jpg", "jpeg", "png", "heic", "heif"]
+        let fileExtension = url.pathExtension.lowercased()
+        guard allowedExtensions.contains(fileExtension) else {
+            throw DataError.invalidFileType
+        }
+    }
+    
+    private nonisolated func copyImageToDocuments(_ sourceURL: URL, filename: String) throws -> URL {
+        try validateImageFile(sourceURL)
+        
+        let sanitizedFilename = sanitizeFilename(filename)
+        let destURL = try FileManager.default.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ).appendingPathComponent(sanitizedFilename)
+        
+        try? FileManager.default.removeItem(at: destURL)
+        try FileManager.default.copyItem(at: sourceURL, to: destURL)
+        return destURL
+    }
+    
     // MARK: - Helpers
     private func writeCSV(items: [(
         title: String,

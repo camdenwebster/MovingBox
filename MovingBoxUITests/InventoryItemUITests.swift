@@ -114,7 +114,7 @@ final class InventoryItemUITests: XCTestCase {
         }
         
         // Then: The inventory list should be displayed
-        XCTAssertTrue(listScreen.addItemButton.waitForExistence(timeout: 5),
+        XCTAssertTrue(listScreen.createFromCameraButton.waitForExistence(timeout: 5),
                      "Inventory list view should reappear after navigating back")
     }
 

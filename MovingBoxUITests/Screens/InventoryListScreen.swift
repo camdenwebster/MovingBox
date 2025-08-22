@@ -14,12 +14,11 @@ class InventoryListScreen {
     let app: XCUIApplication
     
     // Buttons
-    let addItemButton: XCUIElement
     let createManuallyButton: XCUIElement
     let createFromCameraButton: XCUIElement
     
     // Menu
-    let addItemMenu: XCUIElement
+    let toolbarMenu: XCUIElement
     
     // Alert elements
     let limitAlert: XCUIElement
@@ -40,12 +39,11 @@ class InventoryListScreen {
         self.app = app
         
         // Initialize buttons
-        self.addItemButton = app.buttons["addItem"]
         self.createManuallyButton = app.buttons["createManually"]
         self.createFromCameraButton = app.buttons["createFromCamera"]
         
         // Initialize menu
-        self.addItemMenu = app.menus["Add Item"]
+        self.toolbarMenu = app.buttons["toolbarMenu"]
         
         // Initialize alert elements
         self.limitAlert = app.alerts["Upgrade to Pro"]
@@ -64,7 +62,7 @@ class InventoryListScreen {
     }
     
     func tapAddItem() {
-        addItemButton.tap()
+        createFromCameraButton.tap()
     }
     
     func tapCreateManually() {
@@ -87,8 +85,12 @@ class InventoryListScreen {
         cancelButton.tap()
     }
     
-    func waitForAddItemMenu() -> Bool {
-        addItemMenu.waitForExistence(timeout: 5)
+    func waitForToolbarMenu() -> Bool {
+        toolbarMenu.waitForExistence(timeout: 5)
+    }
+    
+    func openToolbarMenu() {
+        toolbarMenu.tap()
     }
     
     func tapFirstItem() {

@@ -20,6 +20,7 @@
     {
       "parallelizable" : true,
       "skippedTests" : [
+        "FastlaneSnapshots",
         "ImportExportUITests\/testImportExportFlow()",
         "PaywallUITests\/testFirstItemCreationShowsPaywall()"
       ],

@@ -89,7 +89,7 @@ final class PaywallUITests: XCTestCase {
         listScreen.tapCancelInAlert()
         
         // Then: Should return to list view
-        XCTAssertTrue(listScreen.addItemButton.exists,
+        XCTAssertTrue(listScreen.createFromCameraButton.exists,
                      "Should return to list view after canceling alert")
     }
     
