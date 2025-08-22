@@ -422,13 +422,11 @@ struct ItemCreationFlowView: View {
         }
         
         if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
-            item.dimensions = dimensions
             // Parse consolidated dimensions like "9.4" x 6.6" x 0.29"" into separate fields
             parseDimensions(dimensions, for: item)
         }
         
         if let weight = imageDetails.weight, !weight.isEmpty {
-            item.weight = weight
             // Parse consolidated weight like "1.03 lbs" into separate value and unit
             parseWeight(weight, for: item)
         }

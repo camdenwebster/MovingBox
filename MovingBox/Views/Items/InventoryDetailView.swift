@@ -109,11 +109,9 @@ struct InventoryDetailView: View {
     }
     
     private var hasAnyPhysicalPropertiesData: Bool {
-        !inventoryItemToDisplay.dimensions.isEmpty ||
         !inventoryItemToDisplay.dimensionLength.isEmpty ||
         !inventoryItemToDisplay.dimensionWidth.isEmpty ||
         !inventoryItemToDisplay.dimensionHeight.isEmpty ||
-        !inventoryItemToDisplay.weight.isEmpty ||
         !inventoryItemToDisplay.weightValue.isEmpty ||
         !inventoryItemToDisplay.color.isEmpty ||
         !inventoryItemToDisplay.storageRequirements.isEmpty
@@ -764,6 +762,7 @@ struct InventoryDetailView: View {
                         .padding(.vertical, 12)
                         
                         if (isEditing || !inventoryItemToDisplay.weightValue.isEmpty) ||
+                           (isEditing || !inventoryItemToDisplay.condition.isEmpty) ||
                            (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
                            (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
                             Divider()
@@ -780,7 +779,8 @@ struct InventoryDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         
-                        if (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
+                        if (isEditing || !inventoryItemToDisplay.condition.isEmpty) ||
+                           (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
                            (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
                             Divider()
                                 .padding(.leading, 16)
@@ -1125,13 +1125,11 @@ struct InventoryDetailView: View {
         }
         
         if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
-            inventoryItemToDisplay.dimensions = dimensions
             // Parse consolidated dimensions like "9.4" x 6.6" x 0.29"" into separate fields
             parseDimensions(dimensions)
         }
         
         if let weight = imageDetails.weight, !weight.isEmpty {
-            inventoryItemToDisplay.weight = weight
             // Parse consolidated weight like "1.03 lbs" into separate value and unit
             parseWeight(weight)
         }

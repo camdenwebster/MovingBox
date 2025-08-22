@@ -74,36 +74,38 @@ struct AIPromptConfiguration {
             description: "The primary color of the item, or empty string if unclear"
         ),
         "dimensions": AIPropertyConfig(
-            enabled: true,
+            enabled: false,
             description: "Estimated dimensions in format 'L x W x H' with units (e.g., '24\" x 16\" x 8\"'), or empty string if unclear"
         ),
         "dimensionLength": AIPropertyConfig(
-            enabled: false, // Disable individual dimension components for now
+            enabled: true,
             description: "Estimated length/width dimension value only (number without units)"
         ),
         "dimensionWidth": AIPropertyConfig(
-            enabled: false,
+            enabled: true,
             description: "Estimated width dimension value only (number without units)"
         ),
         "dimensionHeight": AIPropertyConfig(
-            enabled: false,
+            enabled: true,
             description: "Estimated height dimension value only (number without units)"
         ),
         "dimensionUnit": AIPropertyConfig(
-            enabled: false,
-            description: "Most appropriate unit for the dimensions"
+            enabled: true,
+            description: "Most appropriate unit for the dimensions",
+            enumValues: ["inches", "feet", "cm", "m"]
         ),
         "weight": AIPropertyConfig(
-            enabled: true,
+            enabled: false,
             description: "Estimated weight with units (e.g., '5.2 lbs', '2.3 kg'), or empty string if unclear"
         ),
         "weightValue": AIPropertyConfig(
-            enabled: false, // Disable individual weight components for now
+            enabled: true,
             description: "Estimated weight value only (number without units)"
         ),
         "weightUnit": AIPropertyConfig(
-            enabled: false,
-            description: "Most appropriate unit for the weight"
+            enabled: true,
+            description: "Most appropriate unit for the weight",
+            enumValues: ["lbs", "kg", "oz", "g"]
         ),
         "purchaseLocation": AIPropertyConfig(
             enabled: true,
@@ -566,6 +568,77 @@ class OpenAIService {
             
             print("✅ Received GPT response with \(gptResponse.choices.count) choices")
             
+            // Log comprehensive token usage information
+            if let usage = gptResponse.usage {
+                let elapsedTime = Date().timeIntervalSince(startTime)
+                let requestSizeMB = Double(requestSize) / 1_000_000.0
+                
+                print("💰 TOKEN USAGE REPORT")
+                print("   📊 Total tokens: \(usage.total_tokens)")
+                print("   📝 Prompt tokens: \(usage.prompt_tokens)")
+                print("   🤖 Completion tokens: \(usage.completion_tokens)")
+                print("   ⏱️ Request time: \(String(format: "%.2f", elapsedTime))s")
+                print("   📦 Request size: \(String(format: "%.2f", requestSizeMB))MB")
+                print("   🖼️ Images: \(imageCount) (\(imageCount == 1 ? "single" : "multi")-photo analysis)")
+                
+                // Calculate token efficiency metrics
+                let tokensPerSecond = Double(usage.total_tokens) / elapsedTime
+                let tokensPerMB = Double(usage.total_tokens) / max(requestSizeMB, 0.001)
+                print("   🚀 Efficiency: \(String(format: "%.1f", tokensPerSecond)) tokens/sec, \(String(format: "%.0f", tokensPerMB)) tokens/MB")
+                
+                // Log detailed token breakdown if available
+                if let promptDetails = usage.prompt_tokens_details {
+                    print("   📋 Prompt details:")
+                    if let cached = promptDetails.cached_tokens {
+                        print("      🗄️ Cached tokens: \(cached)")
+                    }
+                    if let audio = promptDetails.audio_tokens {
+                        print("      🎵 Audio tokens: \(audio)")
+                    }
+                }
+                
+                if let completionDetails = usage.completion_tokens_details {
+                    print("   📝 Completion details:")
+                    if let reasoning = completionDetails.reasoning_tokens {
+                        print("      🧠 Reasoning tokens: \(reasoning)")
+                    }
+                    if let audio = completionDetails.audio_tokens {
+                        print("      🎵 Audio tokens: \(audio)")
+                    }
+                    if let accepted = completionDetails.accepted_prediction_tokens {
+                        print("      ✅ Accepted prediction tokens: \(accepted)")
+                    }
+                    if let rejected = completionDetails.rejected_prediction_tokens {
+                        print("      ❌ Rejected prediction tokens: \(rejected)")
+                    }
+                }
+                
+                // Check if we're approaching token limits
+                let adjustedMaxTokens = imageCount > 1 ? max(settings.maxTokens, 2000) : settings.maxTokens
+                let usagePercentage = Double(usage.total_tokens) / Double(adjustedMaxTokens) * 100.0
+                
+                if usagePercentage > 90.0 {
+                    print("⚠️ WARNING: Token usage at \(String(format: "%.1f", usagePercentage))% of limit (\(usage.total_tokens)/\(adjustedMaxTokens))")
+                } else if usagePercentage > 75.0 {
+                    print("⚡ High token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(usage.total_tokens)/\(adjustedMaxTokens))")
+                } else {
+                    print("✅ Token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(usage.total_tokens)/\(adjustedMaxTokens))")
+                }
+                
+                // Track token usage in telemetry for monitoring trends
+                TelemetryManager.shared.trackAITokenUsage(
+                    totalTokens: usage.total_tokens,
+                    promptTokens: usage.prompt_tokens,
+                    completionTokens: usage.completion_tokens,
+                    requestTimeSeconds: elapsedTime,
+                    imageCount: imageCount,
+                    isProUser: settings.isPro,
+                    model: settings.effectiveAIModel
+                )
+            } else {
+                print("⚠️ No token usage information in response")
+            }
+            
             guard let choice = gptResponse.choices.first else {
                 print("❌ No choices in response")
                 throw OpenAIError.invalidData
@@ -705,6 +778,27 @@ struct ToolChoiceFunction: Codable {
 
 struct GPTResponse: Decodable {
     let choices: [GPTCompletionResponse]
+    let usage: TokenUsage?
+}
+
+struct TokenUsage: Decodable {
+    let prompt_tokens: Int
+    let completion_tokens: Int
+    let total_tokens: Int
+    let prompt_tokens_details: PromptTokensDetails?
+    let completion_tokens_details: CompletionTokensDetails?
+}
+
+struct PromptTokensDetails: Decodable {
+    let cached_tokens: Int?
+    let audio_tokens: Int?
+}
+
+struct CompletionTokensDetails: Decodable {
+    let reasoning_tokens: Int?
+    let audio_tokens: Int?
+    let accepted_prediction_tokens: Int?
+    let rejected_prediction_tokens: Int?
 }
 
 struct GPTCompletionResponse: Decodable {

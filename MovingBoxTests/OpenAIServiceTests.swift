@@ -253,20 +253,20 @@ import SwiftData
             // Verify enabled extended properties are present
             #expect(properties["condition"] != nil)
             #expect(properties["color"] != nil)
-            #expect(properties["dimensions"] != nil)
-            #expect(properties["weight"] != nil)
+            #expect(properties["dimensionLength"] != nil)
+            #expect(properties["dimensionWidth"] != nil)
+            #expect(properties["dimensionHeight"] != nil)
+            #expect(properties["dimensionUnit"] != nil)
+            #expect(properties["weightValue"] != nil)
+            #expect(properties["weightUnit"] != nil)
             #expect(properties["purchaseLocation"] != nil)
             #expect(properties["replacementCost"] != nil)
             #expect(properties["storageRequirements"] != nil)
             #expect(properties["isFragile"] != nil)
             
-            // Verify disabled properties are not present
-            #expect(properties["dimensionLength"] == nil)
-            #expect(properties["dimensionWidth"] == nil)
-            #expect(properties["dimensionHeight"] == nil)
-            #expect(properties["dimensionUnit"] == nil)
-            #expect(properties["weightValue"] == nil)
-            #expect(properties["weightUnit"] == nil)
+            // Verify combined properties are disabled (we use separate properties now)
+            #expect(properties["dimensions"] == nil)
+            #expect(properties["weight"] == nil)
         } else {
             #expect(Bool(false), "Failed to decode request payload")
         }
@@ -557,5 +557,60 @@ import SwiftData
         #expect(details.model == "Unknown iPad (9.7-inch likely)")
         #expect(details.condition == "Good")
         #expect(details.category == "Electronics")
+    }
+    
+    @Test("Test token usage response parsing")
+    func testTokenUsageResponseParsing() throws {
+        // Given - a mock response with token usage information
+        let mockResponseWithTokens = """
+        {
+            "choices": [{
+                "message": {
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "type": "function",
+                            "function": {
+                                "name": "process_inventory_item",
+                                "arguments": "{\\"title\\":\\"Test Item\\",\\"quantity\\":\\"1\\",\\"description\\":\\"A test item\\",\\"make\\":\\"TestMake\\",\\"model\\":\\"TestModel\\",\\"category\\":\\"Electronics\\",\\"location\\":\\"Living Room\\",\\"price\\":\\"$99.99\\",\\"serialNumber\\":\\"SN123456\\"}"
+                            }
+                        }
+                    ]
+                }
+            }],
+            "usage": {
+                "prompt_tokens": 1250,
+                "completion_tokens": 150,
+                "total_tokens": 1400,
+                "prompt_tokens_details": {
+                    "cached_tokens": 200
+                },
+                "completion_tokens_details": {
+                    "reasoning_tokens": 25
+                }
+            }
+        }
+        """
+        
+        // When - parsing the response
+        let responseData = mockResponseWithTokens.data(using: .utf8)!
+        let gptResponse = try JSONDecoder().decode(GPTResponse.self, from: responseData)
+        
+        // Then - verify token usage is parsed correctly
+        #expect(gptResponse.usage != nil)
+        
+        let usage = try #require(gptResponse.usage)
+        #expect(usage.total_tokens == 1400)
+        #expect(usage.prompt_tokens == 1250)
+        #expect(usage.completion_tokens == 150)
+        
+        // Verify detailed token breakdown
+        #expect(usage.prompt_tokens_details?.cached_tokens == 200)
+        #expect(usage.completion_tokens_details?.reasoning_tokens == 25)
+        
+        // Verify the response can be processed normally
+        #expect(gptResponse.choices.count == 1)
+        let choice = gptResponse.choices.first!
+        #expect(choice.message.tool_calls?.count == 1)
     }
 }
