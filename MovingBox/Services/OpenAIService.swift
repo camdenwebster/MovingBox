@@ -16,6 +16,136 @@ enum HTTPMethod: String {
 
 // TODO: Re-implement ability to use your own API key
 
+// MARK: - AI Property Configuration
+
+struct AIPropertyConfig {
+    let enabled: Bool
+    let description: String
+    let enumValues: [String]?
+    
+    init(enabled: Bool = true, description: String, enumValues: [String]? = nil) {
+        self.enabled = enabled
+        self.description = description
+        self.enumValues = enumValues
+    }
+}
+
+struct AIPromptConfiguration {
+    // Core properties (always enabled)
+    static let coreProperties: [String: AIPropertyConfig] = [
+        "title": AIPropertyConfig(
+            description: "A concise name of the subject, to help the user identify the item from a list. Do not include descriptors such as color, instead use make, model or generic name of the item."
+        ),
+        "quantity": AIPropertyConfig(
+            description: "The number of instances of this item, or empty string if unclear"
+        ),
+        "description": AIPropertyConfig(
+            description: "A description of the subject, limited to 160 characters"
+        ),
+        "make": AIPropertyConfig(
+            description: "The brand or manufacturer associated with the subject, or empty string if unclear"
+        ),
+        "model": AIPropertyConfig(
+            description: "The model name or number associated with the subject, or empty string if unclear"
+        ),
+        "category": AIPropertyConfig(
+            description: "The general category of household item"
+        ),
+        "location": AIPropertyConfig(
+            description: "The most likely room or location in the house to find this item"
+        ),
+        "price": AIPropertyConfig(
+            description: "The estimated original price in US dollars (e.g., $10.99). Provide a single value, not a range."
+        ),
+        "serialNumber": AIPropertyConfig(
+            description: "The serial number, product ID, or model identifier if visible in the image, or empty string if not found"
+        )
+    ]
+    
+    // Extended properties (can be toggled)
+    static let extendedProperties: [String: AIPropertyConfig] = [
+        "condition": AIPropertyConfig(
+            enabled: true,
+            description: "The apparent condition of the item based on visual inspection",
+            enumValues: ["New", "Like New", "Good", "Fair", "Poor"]
+        ),
+        "color": AIPropertyConfig(
+            enabled: true,
+            description: "The primary color of the item, or empty string if unclear"
+        ),
+        "dimensions": AIPropertyConfig(
+            enabled: true,
+            description: "Estimated dimensions in format 'L x W x H' with units (e.g., '24\" x 16\" x 8\"'), or empty string if unclear"
+        ),
+        "dimensionLength": AIPropertyConfig(
+            enabled: false, // Disable individual dimension components for now
+            description: "Estimated length/width dimension value only (number without units)"
+        ),
+        "dimensionWidth": AIPropertyConfig(
+            enabled: false,
+            description: "Estimated width dimension value only (number without units)"
+        ),
+        "dimensionHeight": AIPropertyConfig(
+            enabled: false,
+            description: "Estimated height dimension value only (number without units)"
+        ),
+        "dimensionUnit": AIPropertyConfig(
+            enabled: false,
+            description: "Most appropriate unit for the dimensions"
+        ),
+        "weight": AIPropertyConfig(
+            enabled: true,
+            description: "Estimated weight with units (e.g., '5.2 lbs', '2.3 kg'), or empty string if unclear"
+        ),
+        "weightValue": AIPropertyConfig(
+            enabled: false, // Disable individual weight components for now
+            description: "Estimated weight value only (number without units)"
+        ),
+        "weightUnit": AIPropertyConfig(
+            enabled: false,
+            description: "Most appropriate unit for the weight"
+        ),
+        "purchaseLocation": AIPropertyConfig(
+            enabled: true,
+            description: "Most likely place this item would be purchased (e.g., 'Apple Store', 'Best Buy', 'Amazon'), or empty string if unclear"
+        ),
+        "replacementCost": AIPropertyConfig(
+            enabled: true,
+            description: "Estimated current replacement cost in US dollars (e.g., $15.99), or empty string if unclear"
+        ),
+        "storageRequirements": AIPropertyConfig(
+            enabled: true,
+            description: "Any special storage requirements (e.g., 'Keep dry', 'Climate controlled'), or empty string if none"
+        ),
+        "isFragile": AIPropertyConfig(
+            enabled: true,
+            description: "Whether the item is fragile and requires careful handling",
+            enumValues: ["true", "false"]
+        )
+    ]
+    
+    static func getAllEnabledProperties(categories: [String], locations: [String]) -> [String: AIPropertyConfig] {
+        var allProperties = coreProperties
+        
+        // Add enabled extended properties
+        for (key, config) in extendedProperties where config.enabled {
+            allProperties[key] = config
+        }
+        
+        // Override enum values for category and location with actual data
+        allProperties["category"] = AIPropertyConfig(
+            description: coreProperties["category"]!.description,
+            enumValues: categories
+        )
+        allProperties["location"] = AIPropertyConfig(
+            description: coreProperties["location"]!.description,
+            enumValues: locations
+        )
+        
+        return allProperties
+    }
+}
+
 enum OpenAIError: Error {
     case invalidURL
     case invalidResponse(statusCode: Int, responseData: String)
@@ -121,6 +251,31 @@ class OpenAIService {
             ? "Analyze these \(imageBase64Array.count) images which show the same item from different angles and perspectives. Combine all the visual information from all images to create ONE comprehensive description of this single item. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. Return only ONE response that describes the item based on all the photos together."
             : "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification."
         
+        // Get enabled properties from configuration
+        let enabledProperties = AIPromptConfiguration.getAllEnabledProperties(categories: categories, locations: locations)
+        
+        // Build properties dictionary
+        var properties: [String: FunctionParameter] = [:]
+        var requiredFields: [String] = []
+        
+        for (propertyName, config) in enabledProperties {
+            let description = adjustDescriptionForMultipleImages(
+                description: config.description,
+                propertyName: propertyName
+            )
+            
+            properties[propertyName] = FunctionParameter(
+                type: getPropertyType(for: propertyName),
+                description: description,
+                enum_values: config.enumValues
+            )
+            
+            // All core properties are required, extended properties are optional
+            if AIPromptConfiguration.coreProperties.keys.contains(propertyName) {
+                requiredFields.append(propertyName)
+            }
+        }
+        
         let function = FunctionDefinition(
             name: "process_inventory_item",
             description: imageBase64Array.count > 1 
@@ -128,58 +283,8 @@ class OpenAIService {
                 : "Process and structure information about an inventory item",
             parameters: FunctionDefinition.Parameters(
                 type: "object",
-                properties: [
-                    "title": FunctionParameter(
-                        type: "string",
-                        description: "A concise name of the subject, to help the user identify the item from a list. Do not include descriptors such as color, instead use make, model or generic name of the item.",
-                        enum_values: nil
-                    ),
-                    "quantity": FunctionParameter(
-                        type: "string",
-                        description: "The number of instances of this item, or empty string if unclear",
-                        enum_values: nil
-                    ),
-                    "description": FunctionParameter(
-                        type: "string", 
-                        description: imageBase64Array.count > 1 
-                            ? "A single concise description combining details from all \(imageBase64Array.count) photos of this one item, limited to 160 characters"
-                            : "A description of the subject, limited to 160 characters",
-                        enum_values: nil
-                    ),
-                    "make": FunctionParameter(
-                        type: "string",
-                        description: "The brand or manufacturer associated with the subject, or empty string if unclear",
-                        enum_values: nil
-                    ),
-                    "model": FunctionParameter(
-                        type: "string",
-                        description: "The model name or number associated with the subject, or empty string if unclear",
-                        enum_values: nil
-                    ),
-                    "category": FunctionParameter(
-                        type: "string",
-                        description: "The general category of household item",
-                        enum_values: categories
-                    ),
-                    "location": FunctionParameter(
-                        type: "string",
-                        description: "The most likely room or location in the house to find this item",
-                        enum_values: locations
-                    ),
-                    "price": FunctionParameter(
-                        type: "string",
-                        description: "The estimated original price in US dollars (e.g., $10.99). Provide a single value, not a range.",
-                        enum_values: nil
-                    ),
-                    "serialNumber": FunctionParameter(
-                        type: "string",
-                        description: imageBase64Array.count > 1 
-                            ? "The serial number, product ID, or model identifier if visible in any of the \(imageBase64Array.count) photos, or empty string if not found"
-                            : "The serial number, product ID, or model identifier if visible in the image, or empty string if not found",
-                        enum_values: nil
-                    )
-                ],
-                required: ["title", "quantity", "description", "make", "model", "category", "location", "price", "serialNumber"],
+                properties: properties,
+                required: requiredFields,
                 additionalProperties: false
             ),
             strict: true
@@ -229,6 +334,33 @@ class OpenAIService {
         urlRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         return urlRequest
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func adjustDescriptionForMultipleImages(description: String, propertyName: String) -> String {
+        // Adjust certain descriptions for multiple images
+        if imageBase64Array.count > 1 {
+            switch propertyName {
+            case "description":
+                return "A single concise description combining details from all \(imageBase64Array.count) photos of this one item, limited to 160 characters"
+            case "serialNumber":
+                return "The serial number, product ID, or model identifier if visible in any of the \(imageBase64Array.count) photos, or empty string if not found"
+            default:
+                return description
+            }
+        }
+        return description
+    }
+    
+    private func getPropertyType(for propertyName: String) -> String {
+        // Most properties are strings, but we could add special handling for other types here
+        switch propertyName {
+        case "isFragile":
+            return "string" // We'll handle boolean as string for simplicity
+        default:
+            return "string"
+        }
     }
     
     func getImageDetails() async throws -> ImageDetails {
@@ -461,6 +593,7 @@ struct FunctionCall: Decodable {
 }
 
 struct ImageDetails: Decodable {
+    // Core properties
     let title: String
     let quantity: String
     let description: String
@@ -470,4 +603,20 @@ struct ImageDetails: Decodable {
     let location: String
     let price: String
     let serialNumber: String
+    
+    // Extended properties (optional, based on AI configuration)
+    let condition: String?
+    let color: String?
+    let dimensions: String?
+    let dimensionLength: String?
+    let dimensionWidth: String?
+    let dimensionHeight: String?
+    let dimensionUnit: String?
+    let weight: String?
+    let weightValue: String?
+    let weightUnit: String?
+    let purchaseLocation: String?
+    let replacementCost: String?
+    let storageRequirements: String?
+    let isFragile: String?
 }

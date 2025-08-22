@@ -101,6 +101,7 @@ struct ItemAnalysisDetailView: View {
         let labelDescriptor = FetchDescriptor<InventoryLabel>()
         guard let labels: [InventoryLabel] = try? modelContext.fetch(labelDescriptor) else { return }
         
+        // Core properties
         item.title = imageDetails.title
         item.quantityString = imageDetails.quantity
         item.label = labels.first { $0.name == imageDetails.category }
@@ -110,8 +111,45 @@ struct ItemAnalysisDetailView: View {
         item.serial = imageDetails.serialNumber
         item.hasUsedAI = true
         
+        // Price handling
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
         item.price = Decimal(string: priceString) ?? 0
+        
+        // Extended properties (if provided by AI)
+        if let condition = imageDetails.condition, !condition.isEmpty {
+            item.condition = condition
+        }
+        
+        if let color = imageDetails.color, !color.isEmpty {
+            item.color = color
+        }
+        
+        if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
+            item.dimensions = dimensions
+        }
+        
+        if let weight = imageDetails.weight, !weight.isEmpty {
+            item.weight = weight
+        }
+        
+        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
+            item.purchaseLocation = purchaseLocation
+        }
+        
+        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
+            let cleanedString = replacementCostString.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            if let replacementCost = Decimal(string: cleanedString) {
+                item.replacementCost = replacementCost
+            }
+        }
+        
+        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
+            item.storageRequirements = storageRequirements
+        }
+        
+        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
+            item.isFragile = isFragileString.lowercased() == "true"
+        }
         
         try? modelContext.save()
     }

@@ -21,7 +21,14 @@ struct InventoryDetailView: View {
     @Query private var allItems: [InventoryItem]
     @FocusState private var isPriceFieldFocused: Bool
     @State private var displayPriceString: String = ""
-    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(title: "", quantity: "", description: "", make: "", model: "", category: "None", location: "None", price: "", serialNumber: "")
+    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails(
+        title: "", quantity: "", description: "", make: "", model: "", 
+        category: "None", location: "None", price: "", serialNumber: "",
+        condition: nil, color: nil, dimensions: nil, dimensionLength: nil,
+        dimensionWidth: nil, dimensionHeight: nil, dimensionUnit: nil,
+        weight: nil, weightValue: nil, weightUnit: nil, purchaseLocation: nil,
+        replacementCost: nil, storageRequirements: nil, isFragile: nil
+    )
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
@@ -1036,23 +1043,59 @@ struct InventoryDetailView: View {
             modelContext.insert(inventoryItemToDisplay)
         }
         
+        // Core properties
         inventoryItemToDisplay.title = imageDetails.title
         inventoryItemToDisplay.quantityString = imageDetails.quantity
-        // Note: We'll need to handle label assignment differently since we don't have all labels loaded
-        // For now, we'll skip automatic label assignment from AI
         inventoryItemToDisplay.desc = imageDetails.description
         inventoryItemToDisplay.make = imageDetails.make
         inventoryItemToDisplay.model = imageDetails.model
         inventoryItemToDisplay.serial = imageDetails.serialNumber
         
-        // Note: We'll need to handle location assignment differently since we don't have all locations loaded
-        // For now, we'll skip automatic location assignment from AI
-        
+        // Price handling
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
         if let price = Decimal(string: priceString) {
             inventoryItemToDisplay.price = price
             displayPriceString = formatInitialPrice(price)
         }
+        
+        // Extended properties (if provided by AI)
+        if let condition = imageDetails.condition, !condition.isEmpty {
+            inventoryItemToDisplay.condition = condition
+        }
+        
+        if let color = imageDetails.color, !color.isEmpty {
+            inventoryItemToDisplay.color = color
+        }
+        
+        if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
+            inventoryItemToDisplay.dimensions = dimensions
+        }
+        
+        if let weight = imageDetails.weight, !weight.isEmpty {
+            inventoryItemToDisplay.weight = weight
+        }
+        
+        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
+            inventoryItemToDisplay.purchaseLocation = purchaseLocation
+        }
+        
+        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
+            let cleanedString = replacementCostString.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            if let replacementCost = Decimal(string: cleanedString) {
+                inventoryItemToDisplay.replacementCost = replacementCost
+            }
+        }
+        
+        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
+            inventoryItemToDisplay.storageRequirements = storageRequirements
+        }
+        
+        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
+            inventoryItemToDisplay.isFragile = isFragileString.lowercased() == "true"
+        }
+        
+        // Note: We'll need to handle label and location assignment differently since we don't have all loaded
+        // For now, we'll skip automatic assignment from AI to avoid data conflicts
         
         inventoryItemToDisplay.hasUsedAI = true
         
