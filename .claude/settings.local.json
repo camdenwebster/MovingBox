@@ -44,7 +44,9 @@
       "Bash(xcrun xcresulttool:*)",
       "Bash(pkill:*)",
       "Bash(timeout 180 xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -only-testing MovingBoxUITests/DashboardNavigationUITests/testStatsDisplayCorrectly)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(git tag:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

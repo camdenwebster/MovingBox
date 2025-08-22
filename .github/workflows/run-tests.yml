@@ -1,0 +1,436 @@
+name: Run Tests
+
+on:
+  workflow_call:
+    inputs:
+      test-plan:
+        required: false
+        type: string
+        default: 'all'
+        description: 'Test plan to run (unit, ui, snapshot, screenshots, all)'
+      device:
+        required: false
+        type: string
+        default: 'iPhone 16 Pro'
+        description: 'iOS Simulator device for testing'
+      os-version:
+        required: false
+        type: string
+        default: '18.4'
+        description: 'iOS version for testing'
+      parallel-testing:
+        required: false
+        type: boolean
+        default: true
+        description: 'Enable parallel test execution'
+      generate-coverage:
+        required: false
+        type: boolean
+        default: true
+        description: 'Generate code coverage report'
+      upload-screenshots:
+        required: false
+        type: boolean
+        default: false
+        description: 'Upload generated screenshots as artifacts'
+    secrets:
+      JWT_SECRET:
+        required: true
+      REVENUE_CAT_API_KEY:
+        required: true
+      SENTRY_DSN:
+        required: true
+      TELEMETRY_DECK_APP_ID:
+        required: true
+    outputs:
+      test-results:
+        description: 'Test execution summary'
+        value: ${{ jobs.test.outputs.test-results }}
+      coverage-percentage:
+        description: 'Code coverage percentage'
+        value: ${{ jobs.test.outputs.coverage-percentage }}
+      screenshots-generated:
+        description: 'Number of screenshots generated'
+        value: ${{ jobs.test.outputs.screenshots-generated }}
+
+jobs:
+  test:
+    runs-on: self-hosted
+    timeout-minutes: 90
+    outputs:
+      test-results: ${{ steps.summary.outputs.test-results }}
+      coverage-percentage: ${{ steps.coverage.outputs.coverage-percentage }}
+      screenshots-generated: ${{ steps.screenshots.outputs.screenshots-generated }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Setup Test Environment
+        run: |
+          echo "Setting up test environment for Orchard/Tart runner"
+          
+          # Clean any previous test data
+          rm -rf ~/Library/Developer/Xcode/DerivedData/MovingBox-*
+          rm -rf test_results/
+          mkdir -p test_results
+          
+          # Verify Xcode and simulator setup
+          xcode-select -p
+          xcodebuild -version
+          
+          # List available simulators
+          xcrun simctl list devices available
+          
+          # Verify fastlane setup
+          fastlane --version
+          
+          echo "Test environment setup completed"
+      
+      - name: Cache Test Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm/
+            ~/Library/Developer/Xcode/DerivedData/MovingBox-*/SourcePackages/
+          key: ${{ runner.os }}-test-spm-${{ hashFiles('MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-test-spm-
+            ${{ runner.os }}-spm-
+      
+      - name: Configure Test Environment
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+        run: |
+          # Generate Base.xcconfig for testing
+          cp "MovingBox/Configuration/Base.template.xcconfig" "MovingBox/Configuration/Base.xcconfig"
+          
+          # Replace template variables with actual values
+          sed -i '' "s/\$(JWT_SECRET)/$JWT_SECRET/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(REVENUE_CAT_API_KEY)/$REVENUE_CAT_API_KEY/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(SENTRY_DSN)/$SENTRY_DSN/g" "MovingBox/Configuration/Base.xcconfig"
+          sed -i '' "s/\$(TELEMETRY_DECK_APP_ID)/$TELEMETRY_DECK_APP_ID/g" "MovingBox/Configuration/Base.xcconfig"
+          
+          echo "Test configuration completed"
+      
+      - name: Prepare Simulators
+        run: |
+          # Kill any running simulators
+          pkill -f Simulator || true
+          
+          # Boot the primary test device
+          DEVICE_NAME="${{ inputs.device }}"
+          OS_VERSION="${{ inputs.os-version }}"
+          DEVICE_ID=$(xcrun simctl create "Test-Device-${{ github.run_number }}" "com.apple.CoreSimulator.SimDeviceType.$(echo $DEVICE_NAME | sed 's/ /-/g')" "com.apple.CoreSimulator.SimRuntime.iOS-$(echo $OS_VERSION | sed 's/\./-/g')")
+          
+          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
+          
+          # Boot the simulator
+          xcrun simctl boot "$DEVICE_ID"
+          
+          # Wait for boot to complete
+          timeout 60 bash -c "until xcrun simctl bootstatus $DEVICE_ID | grep -q 'Booted'; do sleep 2; done"
+          
+          echo "Simulator prepared: $DEVICE_ID"
+      
+      - name: Run Unit Tests
+        if: inputs.test-plan == 'unit' || inputs.test-plan == 'all'
+        continue-on-error: true
+        run: |
+          echo "🧪 Running Unit Tests..."
+          
+          # Run unit tests with coverage if requested
+          COVERAGE_FLAGS=""
+          if [ "${{ inputs.generate-coverage }}" == "true" ]; then
+            COVERAGE_FLAGS="-enableCodeCoverage YES"
+          fi
+          
+          PARALLEL_FLAGS=""
+          if [ "${{ inputs.parallel-testing }}" == "true" ]; then
+            PARALLEL_FLAGS="-parallel-testing-enabled YES -parallel-testing-worker-count 4"
+          fi
+          
+          xcodebuild test \
+            -project MovingBox.xcodeproj \
+            -scheme MovingBoxTests \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -testPlan MovingBoxTests \
+            -resultBundlePath test_results/unit_test_results.xcresult \
+            $COVERAGE_FLAGS \
+            $PARALLEL_FLAGS \
+            | tee test_results/unit_tests.log
+          
+          # Store exit code
+          echo "UNIT_TEST_EXIT_CODE=$?" >> $GITHUB_ENV
+          
+          echo "✅ Unit tests completed"
+      
+      - name: Run Snapshot Tests
+        if: inputs.test-plan == 'snapshot' || inputs.test-plan == 'all'
+        continue-on-error: true
+        run: |
+          echo "📸 Running Snapshot Tests..."
+          
+          # Reset simulator for clean state
+          xcrun simctl shutdown "$DEVICE_ID"
+          xcrun simctl erase "$DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID"
+          timeout 60 bash -c "until xcrun simctl bootstatus $DEVICE_ID | grep -q 'Booted'; do sleep 2; done"
+          
+          # Run snapshot tests with both light and dark mode configurations
+          xcodebuild test \
+            -project MovingBox.xcodeproj \
+            -scheme MovingBoxTests \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -testPlan MovingBoxSnapshotTests \
+            -resultBundlePath test_results/snapshot_test_results.xcresult \
+            | tee test_results/snapshot_tests.log
+          
+          # Store exit code
+          echo "SNAPSHOT_TEST_EXIT_CODE=$?" >> $GITHUB_ENV
+          
+          echo "✅ Snapshot tests completed"
+      
+      - name: Run UI Tests
+        if: inputs.test-plan == 'ui' || inputs.test-plan == 'all'
+        continue-on-error: true
+        run: |
+          echo "🖱️ Running UI Tests..."
+          
+          # Reset simulator for clean state
+          xcrun simctl shutdown "$DEVICE_ID"
+          xcrun simctl erase "$DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID"
+          timeout 60 bash -c "until xcrun simctl bootstatus $DEVICE_ID | grep -q 'Booted'; do sleep 2; done"
+          
+          # Run UI tests with extended timeout
+          xcodebuild test \
+            -project MovingBox.xcodeproj \
+            -scheme MovingBoxUITests \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -testPlan MovingBoxUITests \
+            -resultBundlePath test_results/ui_test_results.xcresult \
+            -maximum-test-execution-time-allowance 300 \
+            -maximum-test-repetitions 3 \
+            -test-repetition-mode retry-on-failure \
+            | tee test_results/ui_tests.log
+          
+          # Store exit code
+          echo "UI_TEST_EXIT_CODE=$?" >> $GITHUB_ENV
+          
+          echo "✅ UI tests completed"
+      
+      - name: Generate Screenshots via Fastlane
+        if: inputs.test-plan == 'screenshots' || inputs.test-plan == 'all'
+        continue-on-error: true
+        run: |
+          echo "📱 Generating Screenshots..."
+          
+          # Reset simulator for clean state
+          xcrun simctl shutdown "$DEVICE_ID"
+          xcrun simctl erase "$DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID"
+          timeout 60 bash -c "until xcrun simctl bootstatus $DEVICE_ID | grep -q 'Booted'; do sleep 2; done"
+          
+          # Run fastlane screenshots
+          fastlane screenshots 2>&1 | tee test_results/screenshots.log
+          
+          # Store exit code and count generated screenshots
+          echo "SCREENSHOT_EXIT_CODE=$?" >> $GITHUB_ENV
+          
+          # Count generated screenshots
+          SCREENSHOT_COUNT=$(find fastlane/screenshots -name "*.png" 2>/dev/null | wc -l | xargs)
+          echo "SCREENSHOT_COUNT=$SCREENSHOT_COUNT" >> $GITHUB_ENV
+          
+          echo "✅ Screenshot generation completed ($SCREENSHOT_COUNT screenshots)"
+      
+      - name: Process Code Coverage
+        id: coverage
+        if: inputs.generate-coverage && (inputs.test-plan == 'unit' || inputs.test-plan == 'all')
+        continue-on-error: true
+        run: |
+          echo "📊 Processing Code Coverage..."
+          
+          # Extract coverage from unit test results if available
+          if [ -d "test_results/unit_test_results.xcresult" ]; then
+            # Generate coverage report
+            xcrun xccov view \
+              --report test_results/unit_test_results.xcresult \
+              --json > test_results/coverage.json 2>/dev/null || true
+            
+            # Extract coverage percentage
+            if [ -f "test_results/coverage.json" ]; then
+              COVERAGE=$(python3 -c "
+import json
+import sys
+try:
+    with open('test_results/coverage.json', 'r') as f:
+        data = json.load(f)
+    coverage = data.get('lineCoverage', 0) * 100
+    print(f'{coverage:.1f}')
+except:
+    print('0.0')
+" 2>/dev/null || echo "0.0")
+            else
+              COVERAGE="0.0"
+            fi
+          else
+            COVERAGE="0.0"
+          fi
+          
+          echo "coverage-percentage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "📊 Code coverage: ${COVERAGE}%"
+      
+      - name: Collect Test Results
+        id: summary
+        if: always()
+        run: |
+          echo "📋 Collecting Test Results..."
+          
+          # Initialize results summary
+          TOTAL_TESTS=0
+          PASSED_TESTS=0
+          FAILED_TESTS=0
+          RESULTS_SUMMARY=""
+          
+          # Process unit test results
+          if [ -n "${UNIT_TEST_EXIT_CODE:-}" ]; then
+            if [ "$UNIT_TEST_EXIT_CODE" -eq 0 ]; then
+              UNIT_STATUS="✅ PASSED"
+            else
+              UNIT_STATUS="❌ FAILED"
+            fi
+            RESULTS_SUMMARY="${RESULTS_SUMMARY}Unit Tests: $UNIT_STATUS\n"
+          fi
+          
+          # Process snapshot test results
+          if [ -n "${SNAPSHOT_TEST_EXIT_CODE:-}" ]; then
+            if [ "$SNAPSHOT_TEST_EXIT_CODE" -eq 0 ]; then
+              SNAPSHOT_STATUS="✅ PASSED"
+            else
+              SNAPSHOT_STATUS="❌ FAILED"
+            fi
+            RESULTS_SUMMARY="${RESULTS_SUMMARY}Snapshot Tests: $SNAPSHOT_STATUS\n"
+          fi
+          
+          # Process UI test results
+          if [ -n "${UI_TEST_EXIT_CODE:-}" ]; then
+            if [ "$UI_TEST_EXIT_CODE" -eq 0 ]; then
+              UI_STATUS="✅ PASSED"
+            else
+              UI_STATUS="❌ FAILED"
+            fi
+            RESULTS_SUMMARY="${RESULTS_SUMMARY}UI Tests: $UI_STATUS\n"
+          fi
+          
+          # Process screenshot generation results
+          if [ -n "${SCREENSHOT_EXIT_CODE:-}" ]; then
+            if [ "$SCREENSHOT_EXIT_CODE" -eq 0 ]; then
+              SCREENSHOT_STATUS="✅ COMPLETED"
+            else
+              SCREENSHOT_STATUS="❌ FAILED"
+            fi
+            RESULTS_SUMMARY="${RESULTS_SUMMARY}Screenshots: $SCREENSHOT_STATUS (${SCREENSHOT_COUNT:-0} generated)\n"
+          fi
+          
+          # Determine overall status
+          OVERALL_EXIT_CODE=0
+          if [ "${UNIT_TEST_EXIT_CODE:-0}" -ne 0 ] || [ "${SNAPSHOT_TEST_EXIT_CODE:-0}" -ne 0 ] || [ "${UI_TEST_EXIT_CODE:-0}" -ne 0 ]; then
+            OVERALL_EXIT_CODE=1
+          fi
+          
+          # Output results
+          echo "test-results=$RESULTS_SUMMARY" >> $GITHUB_OUTPUT
+          echo "OVERALL_EXIT_CODE=$OVERALL_EXIT_CODE" >> $GITHUB_ENV
+          
+          echo -e "Test Results Summary:\n$RESULTS_SUMMARY"
+          
+          # Set step outputs for screenshots
+          echo "screenshots-generated=${SCREENSHOT_COUNT:-0}" >> $GITHUB_OUTPUT
+      
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ inputs.test-plan }}-${{ github.run_number }}
+          path: |
+            test_results/
+          retention-days: 14
+      
+      - name: Upload Screenshots
+        uses: actions/upload-artifact@v4
+        if: always() && inputs.upload-screenshots && (inputs.test-plan == 'screenshots' || inputs.test-plan == 'all')
+        with:
+          name: screenshots-${{ github.run_number }}
+          path: |
+            fastlane/screenshots/
+          retention-days: 30
+      
+      - name: Generate Test Report
+        if: always()
+        run: |
+          # Generate detailed test report
+          cat > test_results/test_report.md << EOF
+          # Test Execution Report
+          
+          **Test Plan:** ${{ inputs.test-plan }}
+          **Device:** ${{ inputs.device }}
+          **iOS Version:** ${{ inputs.os-version }}
+          **Run ID:** ${{ github.run_number }}
+          **Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ## Results Summary
+          
+          $(echo -e "$RESULTS_SUMMARY")
+          
+          ## Code Coverage
+          
+          **Coverage:** ${{ steps.coverage.outputs.coverage-percentage }}%
+          
+          ## Screenshots Generated
+          
+          **Count:** ${SCREENSHOT_COUNT:-0}
+          
+          ## Log Files
+          
+          - Unit Tests: test_results/unit_tests.log
+          - Snapshot Tests: test_results/snapshot_tests.log  
+          - UI Tests: test_results/ui_tests.log
+          - Screenshots: test_results/screenshots.log
+          
+          EOF
+          
+          echo "📄 Test report generated"
+      
+      - name: Cleanup Simulators
+        if: always()
+        run: |
+          # Clean up created simulator
+          if [ -n "${DEVICE_ID:-}" ]; then
+            xcrun simctl shutdown "$DEVICE_ID" || true
+            xcrun simctl delete "$DEVICE_ID" || true
+          fi
+          
+          # Clean up any orphaned simulators
+          xcrun simctl delete unavailable || true
+          
+          # Clean up test configuration
+          rm -f MovingBox/Configuration/Base.xcconfig
+          
+          echo "Simulator cleanup completed"
+      
+      - name: Report Final Status
+        if: always()
+        run: |
+          if [ "${OVERALL_EXIT_CODE:-0}" -eq 0 ]; then
+            echo "🎉 All tests completed successfully!"
+            exit 0
+          else
+            echo "💥 Some tests failed. Check the logs for details."
+            exit 1
+          fi

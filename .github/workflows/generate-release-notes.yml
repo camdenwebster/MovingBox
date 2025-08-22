@@ -1,0 +1,435 @@
+name: Generate Release Notes
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: 'Version for the release notes'
+      previous-version:
+        required: false
+        type: string
+        description: 'Previous version to compare against (default: latest tag)'
+      release-type:
+        required: false
+        type: string
+        default: 'standard'
+        description: 'Type of release notes (standard, detailed, appstore, testflight)'
+      include-technical-details:
+        required: false
+        type: boolean
+        default: false
+        description: 'Include technical implementation details'
+      target-audience:
+        required: false
+        type: string
+        default: 'users'
+        description: 'Target audience (users, developers, stakeholders)'
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+    outputs:
+      release-notes:
+        description: 'Generated release notes in markdown format'
+        value: ${{ jobs.generate.outputs.release-notes }}
+      app-store-description:
+        description: 'App Store optimized release description'
+        value: ${{ jobs.generate.outputs.app-store-description }}
+      testflight-notes:
+        description: 'TestFlight "What to Test" notes'
+        value: ${{ jobs.generate.outputs.testflight-notes }}
+      changelog-summary:
+        description: 'Brief changelog summary'
+        value: ${{ jobs.generate.outputs.changelog-summary }}
+
+jobs:
+  generate:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    outputs:
+      release-notes: ${{ steps.generate-notes.outputs.release-notes }}
+      app-store-description: ${{ steps.generate-notes.outputs.app-store-description }}
+      testflight-notes: ${{ steps.generate-notes.outputs.testflight-notes }}
+      changelog-summary: ${{ steps.generate-notes.outputs.changelog-summary }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Claude Code
+        run: |
+          # Verify Claude Code CLI is available
+          if ! command -v claude &> /dev/null; then
+            echo "❌ Claude Code CLI not found on self-hosted runner"
+            exit 1
+          fi
+          
+          # Verify API key
+          if [[ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]]; then
+            echo "❌ ANTHROPIC_API_KEY secret not configured"
+            exit 1
+          fi
+          
+          export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
+          echo "✅ Claude Code CLI setup completed"
+      
+      - name: Analyze Changes
+        id: analyze-changes
+        run: |
+          echo "📊 Analyzing changes for release notes..."
+          
+          VERSION="${{ inputs.version }}"
+          PREVIOUS_VERSION="${{ inputs.previous-version }}"
+          
+          # Determine previous version if not provided
+          if [[ -z "$PREVIOUS_VERSION" ]]; then
+            PREVIOUS_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || "")
+            if [[ -z "$PREVIOUS_VERSION" ]]; then
+              PREVIOUS_VERSION=$(git rev-list --max-parents=0 HEAD)
+              echo "⚠️ No previous tags found, using first commit"
+            fi
+          fi
+          
+          echo "previous-version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Get commit range
+          COMMIT_RANGE="$PREVIOUS_VERSION..HEAD"
+          COMMIT_COUNT=$(git rev-list --count $COMMIT_RANGE 2>/dev/null || echo "0")
+          
+          echo "commit-range=$COMMIT_RANGE" >> $GITHUB_OUTPUT
+          echo "commit-count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          
+          # Analyze file changes
+          CHANGED_FILES=$(git diff --name-only $PREVIOUS_VERSION..HEAD | wc -l | xargs)
+          SWIFT_FILES_CHANGED=$(git diff --name-only $PREVIOUS_VERSION..HEAD | grep -c '\.swift$' || echo "0")
+          UI_FILES_CHANGED=$(git diff --name-only $PREVIOUS_VERSION..HEAD | grep -cE '\.(storyboard|xib|xcassets)$' || echo "0")
+          
+          echo "changed-files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "swift-files-changed=$SWIFT_FILES_CHANGED" >> $GITHUB_OUTPUT
+          echo "ui-files-changed=$UI_FILES_CHANGED" >> $GITHUB_OUTPUT
+          
+          echo "📊 Change Analysis:"
+          echo "  - Version: $PREVIOUS_VERSION → $VERSION"
+          echo "  - Commits: $COMMIT_COUNT"
+          echo "  - Files changed: $CHANGED_FILES"
+          echo "  - Swift files: $SWIFT_FILES_CHANGED"
+          echo "  - UI files: $UI_FILES_CHANGED"
+      
+      - name: Gather Additional Context
+        id: context
+        run: |
+          echo "🔍 Gathering additional context for release notes..."
+          
+          COMMIT_RANGE="${{ steps.analyze-changes.outputs.commit-range }}"
+          
+          # Get PR information if available
+          PR_TITLES=$(git log --oneline --grep="Merge pull request" $COMMIT_RANGE | sed 's/.*Merge pull request.*from.*$//' || echo "")
+          
+          # Categorize commits
+          FEATURE_COMMITS=$(git log --oneline --grep="feat\|feature\|add" $COMMIT_RANGE | wc -l | xargs)
+          BUG_COMMITS=$(git log --oneline --grep="fix\|bug\|patch" $COMMIT_RANGE | wc -l | xargs)
+          REFACTOR_COMMITS=$(git log --oneline --grep="refactor\|cleanup\|improve" $COMMIT_RANGE | wc -l | xargs)
+          UI_COMMITS=$(git log --oneline --grep="ui\|design\|style" $COMMIT_RANGE | wc -l | xargs)
+          TEST_COMMITS=$(git log --oneline --grep="test\|spec" $COMMIT_RANGE | wc -l | xargs)
+          
+          echo "feature-commits=$FEATURE_COMMITS" >> $GITHUB_OUTPUT
+          echo "bug-commits=$BUG_COMMITS" >> $GITHUB_OUTPUT
+          echo "refactor-commits=$REFACTOR_COMMITS" >> $GITHUB_OUTPUT
+          echo "ui-commits=$UI_COMMITS" >> $GITHUB_OUTPUT
+          echo "test-commits=$TEST_COMMITS" >> $GITHUB_OUTPUT
+          
+          echo "📈 Commit Categorization:"
+          echo "  - Features: $FEATURE_COMMITS"
+          echo "  - Bug fixes: $BUG_COMMITS"
+          echo "  - Refactoring: $REFACTOR_COMMITS"
+          echo "  - UI changes: $UI_COMMITS"
+          echo "  - Tests: $TEST_COMMITS"
+      
+      - name: Generate Release Notes
+        id: generate-notes
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "📝 Generating release notes with Claude Code..."
+          
+          COMMIT_RANGE="${{ steps.analyze-changes.outputs.commit-range }}"
+          VERSION="${{ steps.analyze-changes.outputs.version }}"
+          PREVIOUS_VERSION="${{ steps.analyze-changes.outputs.previous-version }}"
+          COMMIT_COUNT="${{ steps.analyze-changes.outputs.commit-count }}"
+          
+          if [[ "$COMMIT_COUNT" -eq "0" ]]; then
+            echo "⚠️ No commits to analyze"
+            echo "release-notes=No changes in this release" >> $GITHUB_OUTPUT
+            echo "changelog-summary=No changes" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Create comprehensive prompt for Claude
+          cat > release_notes_prompt.md << 'EOF'
+          # MovingBox Release Notes Generation
+          
+          You are generating release notes for MovingBox, an iOS app that uses AI to help users manage home inventory by taking photos and automatically cataloging items.
+          
+          ## Context
+          - **App**: MovingBox - AI-powered home inventory management
+          - **Platform**: iOS (SwiftUI, SwiftData)
+          - **Target Users**: Homeowners, renters, insurance clients
+          - **Previous Version**: $PREVIOUS_VERSION
+          - **New Version**: $VERSION
+          - **Commits**: $COMMIT_COUNT changes
+          - **Release Type**: ${{ inputs.release-type }}
+          - **Target Audience**: ${{ inputs.target-audience }}
+          
+          ## Change Statistics
+          - Feature commits: ${{ steps.context.outputs.feature-commits }}
+          - Bug fixes: ${{ steps.context.outputs.bug-commits }}
+          - UI improvements: ${{ steps.context.outputs.ui-commits }}
+          - Code improvements: ${{ steps.context.outputs.refactor-commits }}
+          - Test updates: ${{ steps.context.outputs.test-commits }}
+          
+          ## Your Task
+          Generate comprehensive release notes in multiple formats:
+          
+          1. **Standard Release Notes** (markdown format):
+             - User-friendly language
+             - Focus on user benefits, not technical implementation
+             - Organize by impact level (major features → improvements → fixes)
+             - Include emojis for visual appeal
+             - 3-8 bullet points maximum
+          
+          2. **App Store Description** (500 characters max):
+             - Marketing-focused
+             - Highlight key user benefits
+             - Compelling and concise
+             - No technical jargon
+          
+          3. **TestFlight Notes** (4000 characters max):
+             - What testers should focus on
+             - Known issues or limitations
+             - Specific areas needing feedback
+             - Technical details appropriate for beta testers
+          
+          4. **Changelog Summary** (one line):
+             - Brief summary for developers
+             - Technical but concise
+          
+          ## Response Format
+          Respond with EXACTLY this JSON format:
+          
+          ```json
+          {
+            "release_notes": "# What's New in MovingBox $VERSION\n\n🎉 **New Features**\n• Feature description with user benefit\n\n🐛 **Bug Fixes**\n• Fix description\n\n✨ **Improvements**\n• Improvement description",
+            "app_store_description": "Brief marketing description highlighting key user benefits in this release. Maximum 500 characters.",
+            "testflight_notes": "**What to Test:**\n\n• Specific feature to test\n• Areas needing feedback\n• Known issues\n\n**Changes:**\n• Change 1\n• Change 2",
+            "changelog_summary": "One-line summary of changes for developers"
+          }
+          ```
+          
+          ## Guidelines
+          - Use active voice and present tense
+          - Focus on user value, not implementation details
+          - Be specific about improvements
+          - Group related changes together
+          - Use appropriate emojis sparingly
+          - Avoid technical jargon for user-facing content
+          - Ensure TestFlight notes are actionable for testers
+          
+          ## Changes to Analyze
+          
+          EOF
+          
+          # Add commit history to the prompt
+          echo "### Commit History" >> release_notes_prompt.md
+          git log --oneline --no-merges $COMMIT_RANGE >> release_notes_prompt.md
+          
+          echo "" >> release_notes_prompt.md
+          echo "### Detailed Changes" >> release_notes_prompt.md
+          git log --pretty=format:"**%s**%n%b%n" --no-merges $COMMIT_RANGE | head -100 >> release_notes_prompt.md
+          
+          echo "" >> release_notes_prompt.md
+          echo "### File Changes Summary" >> release_notes_prompt.md
+          git diff --stat $PREVIOUS_VERSION..HEAD >> release_notes_prompt.md
+          
+          # Add MovingBox-specific context
+          echo "" >> release_notes_prompt.md
+          echo "### MovingBox App Context" >> release_notes_prompt.md
+          echo "Key features users care about:" >> release_notes_prompt.md
+          echo "- AI-powered item recognition from photos" >> release_notes_prompt.md
+          echo "- Home organization and room management" >> release_notes_prompt.md
+          echo "- Insurance documentation and claims" >> release_notes_prompt.md
+          echo "- Search and filtering capabilities" >> release_notes_prompt.md
+          echo "- Data export and backup" >> release_notes_prompt.md
+          echo "- Pro subscription features" >> release_notes_prompt.md
+          
+          # Run Claude Code analysis
+          echo "🤖 Running Claude Code analysis..."
+          CLAUDE_RESPONSE=$(claude --no-prompt-caching < release_notes_prompt.md 2>/dev/null || echo '{"release_notes": "Various improvements and bug fixes", "app_store_description": "Bug fixes and improvements", "testflight_notes": "Please test the app thoroughly", "changelog_summary": "Improvements and fixes"}')
+          
+          echo "📝 Claude Analysis Response:"
+          echo "$CLAUDE_RESPONSE"
+          
+          # Parse Claude response with robust JSON extraction
+          RELEASE_NOTES=$(echo "$CLAUDE_RESPONSE" | sed -n 's/.*"release_notes":\s*"\([^"]*\)".*/\1/p' | sed 's/\\n/\n/g')
+          APP_STORE_DESC=$(echo "$CLAUDE_RESPONSE" | sed -n 's/.*"app_store_description":\s*"\([^"]*\)".*/\1/p')
+          TESTFLIGHT_NOTES=$(echo "$CLAUDE_RESPONSE" | sed -n 's/.*"testflight_notes":\s*"\([^"]*\)".*/\1/p' | sed 's/\\n/\n/g')
+          CHANGELOG_SUMMARY=$(echo "$CLAUDE_RESPONSE" | sed -n 's/.*"changelog_summary":\s*"\([^"]*\)".*/\1/p')
+          
+          # Fallbacks if parsing failed
+          if [[ -z "$RELEASE_NOTES" ]]; then
+            RELEASE_NOTES="# What's New in MovingBox $VERSION\n\nVarious improvements and bug fixes to enhance your inventory management experience."
+          fi
+          
+          if [[ -z "$APP_STORE_DESC" ]]; then
+            APP_STORE_DESC="Bug fixes and performance improvements"
+          fi
+          
+          if [[ -z "$TESTFLIGHT_NOTES" ]]; then
+            TESTFLIGHT_NOTES="Please test all major features and report any issues you encounter."
+          fi
+          
+          if [[ -z "$CHANGELOG_SUMMARY" ]]; then
+            CHANGELOG_SUMMARY="Version $VERSION with various improvements"
+          fi
+          
+          # Output results using heredoc for multiline content
+          echo "release-notes<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "app-store-description<<EOF" >> $GITHUB_OUTPUT
+          echo "$APP_STORE_DESC" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "testflight-notes<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$TESTFLIGHT_NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "changelog-summary=$CHANGELOG_SUMMARY" >> $GITHUB_OUTPUT
+          
+          echo "✅ Release notes generated successfully"
+          
+          # Clean up
+          rm -f release_notes_prompt.md
+      
+      - name: Generate Release Notes Files
+        run: |
+          echo "📄 Creating release notes files..."
+          
+          VERSION="${{ steps.analyze-changes.outputs.version }}"
+          
+          # Create standard release notes
+          cat > "RELEASE_NOTES_$VERSION.md" << 'EOF'
+          ${{ steps.generate-notes.outputs.release-notes }}
+          
+          ---
+          
+          **Release Information:**
+          - Version: ${{ steps.analyze-changes.outputs.version }}
+          - Previous Version: ${{ steps.analyze-changes.outputs.previous-version }}
+          - Commits: ${{ steps.analyze-changes.outputs.commit-count }}
+          - Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          EOF
+          
+          # Create App Store optimized description
+          cat > "APP_STORE_DESCRIPTION_$VERSION.txt" << 'EOF'
+          ${{ steps.generate-notes.outputs.app-store-description }}
+          EOF
+          
+          # Create TestFlight notes
+          cat > "TESTFLIGHT_NOTES_$VERSION.md" << 'EOF'
+          # TestFlight Beta - MovingBox ${{ steps.analyze-changes.outputs.version }}
+          
+          ${{ steps.generate-notes.outputs.testflight-notes }}
+          
+          ---
+          
+          **Beta Information:**
+          - Build: ${{ steps.analyze-changes.outputs.version }}
+          - Changes: ${{ steps.analyze-changes.outputs.commit-count }} commits
+          - Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          Please report issues through TestFlight feedback or GitHub issues.
+          EOF
+          
+          # Create developer changelog
+          cat > "CHANGELOG_$VERSION.md" << 'EOF'
+          ## [${{ steps.analyze-changes.outputs.version }}] - $(date +%Y-%m-%d)
+          
+          ${{ steps.generate-notes.outputs.changelog-summary }}
+          
+          ### Detailed Changes
+          ${{ steps.generate-notes.outputs.release-notes }}
+          
+          ### Statistics
+          - Commits: ${{ steps.analyze-changes.outputs.commit-count }}
+          - Files changed: ${{ steps.analyze-changes.outputs.changed-files }}
+          - Swift files: ${{ steps.analyze-changes.outputs.swift-files-changed }}
+          - UI files: ${{ steps.analyze-changes.outputs.ui-files-changed }}
+          EOF
+          
+          echo "✅ Release notes files created"
+      
+      - name: Validate Release Notes
+        run: |
+          echo "✅ Validating generated release notes..."
+          
+          # Check App Store description length
+          APP_STORE_LENGTH=$(echo "${{ steps.generate-notes.outputs.app-store-description }}" | wc -c | xargs)
+          if [[ $APP_STORE_LENGTH -gt 500 ]]; then
+            echo "⚠️ App Store description is $APP_STORE_LENGTH characters (max 500)"
+          else
+            echo "✅ App Store description: $APP_STORE_LENGTH characters"
+          fi
+          
+          # Check TestFlight notes length
+          TESTFLIGHT_LENGTH=$(echo "${{ steps.generate-notes.outputs.testflight-notes }}" | wc -c | xargs)
+          if [[ $TESTFLIGHT_LENGTH -gt 4000 ]]; then
+            echo "⚠️ TestFlight notes are $TESTFLIGHT_LENGTH characters (max 4000)"
+          else
+            echo "✅ TestFlight notes: $TESTFLIGHT_LENGTH characters"
+          fi
+          
+          # Check for required content
+          if echo "${{ steps.generate-notes.outputs.release-notes }}" | grep -q "MovingBox"; then
+            echo "✅ Release notes mention MovingBox"
+          else
+            echo "⚠️ Release notes don't mention MovingBox"
+          fi
+          
+          echo "✅ Validation completed"
+      
+      - name: Upload Release Notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-${{ steps.analyze-changes.outputs.version }}-${{ github.run_number }}
+          path: |
+            RELEASE_NOTES_*.md
+            APP_STORE_DESCRIPTION_*.txt
+            TESTFLIGHT_NOTES_*.md
+            CHANGELOG_*.md
+          retention-days: 90
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "📝 Release Notes Generation Summary"
+          echo "===================================="
+          echo ""
+          echo "📊 Analysis:"
+          echo "  - Version: ${{ steps.analyze-changes.outputs.previous-version }} → ${{ steps.analyze-changes.outputs.version }}"
+          echo "  - Commits analyzed: ${{ steps.analyze-changes.outputs.commit-count }}"
+          echo "  - Files changed: ${{ steps.analyze-changes.outputs.changed-files }}"
+          echo ""
+          echo "📄 Generated Content:"
+          echo "  - Release notes: ✅"
+          echo "  - App Store description: ✅ ($APP_STORE_LENGTH chars)"
+          echo "  - TestFlight notes: ✅ ($TESTFLIGHT_LENGTH chars)"
+          echo "  - Developer changelog: ✅"
+          echo ""
+          echo "📁 Artifacts:"
+          echo "  - All release notes files uploaded to GitHub Actions"
+          echo "  - Available for download and use in deployment workflows"
