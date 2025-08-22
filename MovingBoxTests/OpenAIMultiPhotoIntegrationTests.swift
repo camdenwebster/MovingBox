@@ -165,6 +165,45 @@ struct OpenAIMultiPhotoIntegrationTests {
         }
     }
     
+    @Test("OpenAI Service - Token Limit Adjustment for Multi-Image")
+    func testTokenLimitAdjustmentForMultiImage() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: InventoryItem.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
+        let modelContext = container.mainContext
+        let settingsManager = SettingsManager()
+        
+        let testImage = createTestImage()
+        let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
+        
+        // Test single image request - should use default token limit
+        let singleImageService = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let singleRequest = try singleImageService.generateURLRequest(httpMethod: .post)
+        let singlePayload = try singleImageService.decodePayload(from: singleRequest.httpBody!)
+        
+        // Test multi-image request - should use increased token limit
+        let multiImageService = OpenAIService(imageBase64Array: [base64String, base64String], settings: settingsManager, modelContext: modelContext)
+        let multiRequest = try multiImageService.generateURLRequest(httpMethod: .post)
+        let multiPayload = try multiImageService.decodePayload(from: multiRequest.httpBody!)
+        
+        // Verify token limit adjustment
+        #expect(singlePayload.max_completion_tokens == settingsManager.maxTokens) // Should use default (1000)
+        #expect(multiPayload.max_completion_tokens >= 2000) // Should be increased for multi-image
+        #expect(multiPayload.max_completion_tokens >= singlePayload.max_completion_tokens) // Multi should be >= single
+        
+        // Test with more images to verify scaling
+        let manyImages = [base64String, base64String, base64String, base64String]
+        let manyImageService = OpenAIService(imageBase64Array: manyImages, settings: settingsManager, modelContext: modelContext)
+        let manyImageRequest = try manyImageService.generateURLRequest(httpMethod: .post)
+        let manyImagePayload = try manyImageService.decodePayload(from: manyImageRequest.httpBody!)
+        
+        #expect(manyImagePayload.max_completion_tokens >= 2000) // Should maintain minimum 2000 tokens
+        
+        print("✅ Token limit adjustment verified")
+        print("📊 Single image tokens: \(singlePayload.max_completion_tokens)")
+        print("📊 Multi-image (2) tokens: \(multiPayload.max_completion_tokens)")
+        print("📊 Multi-image (4) tokens: \(manyImagePayload.max_completion_tokens)")
+    }
+    
     @Test("OpenAI Service - Compare Single vs Multi Photo Responses")
     func testSingleVsMultiPhotoResponseFormat() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -189,7 +228,8 @@ struct OpenAIMultiPhotoIntegrationTests {
         #expect(singlePayload.tools.count == multiPayload.tools.count)
         #expect(singlePayload.tool_choice.function.name == multiPayload.tool_choice.function.name)
         #expect(singlePayload.model == multiPayload.model)
-        #expect(singlePayload.max_completion_tokens == multiPayload.max_completion_tokens)
+        
+        // Note: Token limits may differ due to multi-image adjustment, so we removed that comparison
         
         // The key difference should be in message content count and prompt text
         let singleMessage = singlePayload.messages[0]
