@@ -281,7 +281,6 @@ struct TestData {
                 hasWarranty: Bool.random(),
                 depreciationRate: Double.random(in: 0.05...0.25),
                 replacementCost: itemData.price * Decimal(Double.random(in: 1.1...1.5)),
-                receiptImageURL: nil,
                 dimensions: generateRandomDimensions(),
                 dimensionLength: "\(Int.random(in: 5...50))",
                 dimensionWidth: "\(Int.random(in: 5...50))",

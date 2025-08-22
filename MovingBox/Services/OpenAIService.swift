@@ -152,6 +152,9 @@ enum OpenAIError: Error {
     case invalidData
     case rateLimitExceeded
     case serverError(String)
+    case networkCancelled
+    case networkTimeout
+    case networkUnavailable
     
     var userFriendlyMessage: String {
         switch self {
@@ -171,6 +174,23 @@ enum OpenAIError: Error {
             return "Too many requests. Please try again later."
         case .serverError(let message):
             return "Server error: \(message)"
+        case .networkCancelled:
+            return "Request was cancelled. Please try again."
+        case .networkTimeout:
+            return "Request timed out. Please check your connection and try again."
+        case .networkUnavailable:
+            return "Network unavailable. Please check your internet connection."
+        }
+    }
+    
+    var isRetryable: Bool {
+        switch self {
+        case .networkCancelled, .networkTimeout, .networkUnavailable, .rateLimitExceeded:
+            return true
+        case .serverError:
+            return true
+        case .invalidURL, .invalidResponse, .invalidData:
+            return false
         }
     }
 }
@@ -214,6 +234,9 @@ class OpenAIService {
     var modelContext: ModelContext
     
     private let baseURL = "https://7mc060nx64.execute-api.us-east-2.amazonaws.com/prod"
+    
+    // Track current request to allow cancellation
+    private var currentTask: Task<ImageDetails, Error>?
     
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
@@ -287,7 +310,7 @@ class OpenAIService {
                 required: requiredFields,
                 additionalProperties: false
             ),
-            strict: true
+            strict: false
         )
         
         let tool = Tool(type: "function", function: function)
@@ -312,10 +335,16 @@ class OpenAIService {
         
         let message = Message(role: "user", content: messageContent)
         let toolChoice = ToolChoice(type: "function", function: ToolChoiceFunction(name: "process_inventory_item"))
+        
+        // Increase token limit for multiple images to avoid truncation
+        let adjustedMaxTokens = imageBase64Array.count > 1 
+            ? max(settings.maxTokens, 2000)  // Ensure at least 2000 tokens for multiple images
+            : settings.maxTokens
+        
         let payload = GPTPayload(
             model: settings.effectiveAIModel,
             messages: [message],
-            max_completion_tokens: settings.maxTokens,
+            max_completion_tokens: adjustedMaxTokens,
             tools: [tool],
             tool_choice: toolChoice
         )
@@ -364,6 +393,101 @@ class OpenAIService {
     }
     
     func getImageDetails() async throws -> ImageDetails {
+        // Cancel any existing request
+        currentTask?.cancel()
+        
+        // Create new task for this request
+        currentTask = Task {
+            return try await performRequestWithRetry()
+        }
+        
+        defer {
+            currentTask = nil
+        }
+        
+        return try await currentTask!.value
+    }
+    
+    func cancelCurrentRequest() {
+        currentTask?.cancel()
+        currentTask = nil
+    }
+    
+    private func performRequestWithRetry(maxAttempts: Int = 3) async throws -> ImageDetails {
+        var lastError: Error?
+        
+        for attempt in 1...maxAttempts {
+            // Check for task cancellation
+            try Task.checkCancellation()
+            
+            do {
+                return try await performSingleRequest(attempt: attempt, maxAttempts: maxAttempts)
+            } catch {
+                lastError = error
+                
+                // Handle task cancellation errors
+                if error is CancellationError {
+                    throw error
+                }
+                
+                // Check if error is retryable
+                if let openAIError = error as? OpenAIError, !openAIError.isRetryable {
+                    throw error
+                }
+                
+                // Check for specific network cancellation error
+                if let urlError = error as? URLError {
+                    switch urlError.code {
+                    case .cancelled:
+                        if attempt < maxAttempts {
+                            print("🔄 Request cancelled, retrying attempt \(attempt + 1)/\(maxAttempts)")
+                            let delay = min(pow(2.0, Double(attempt)), 8.0) // Exponential backoff with max 8 seconds
+                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                            try Task.checkCancellation() // Check again after delay
+                            continue
+                        } else {
+                            throw OpenAIError.networkCancelled
+                        }
+                    case .timedOut:
+                        if attempt < maxAttempts {
+                            print("⏱️ Request timed out, retrying attempt \(attempt + 1)/\(maxAttempts)")
+                            let delay = min(pow(2.0, Double(attempt)), 8.0)
+                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                            try Task.checkCancellation() // Check again after delay
+                            continue
+                        } else {
+                            throw OpenAIError.networkTimeout
+                        }
+                    case .notConnectedToInternet, .networkConnectionLost:
+                        throw OpenAIError.networkUnavailable
+                    default:
+                        if attempt < maxAttempts {
+                            print("🌐 Network error: \(urlError.localizedDescription), retrying attempt \(attempt + 1)/\(maxAttempts)")
+                            let delay = min(pow(2.0, Double(attempt)), 8.0)
+                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                            try Task.checkCancellation() // Check again after delay
+                            continue
+                        }
+                    }
+                }
+                
+                // For other retryable errors
+                if attempt < maxAttempts {
+                    print("🔄 Request failed: \(error.localizedDescription), retrying attempt \(attempt + 1)/\(maxAttempts)")
+                    let delay = min(pow(2.0, Double(attempt)), 8.0)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    try Task.checkCancellation() // Check again after delay
+                    continue
+                } else {
+                    throw error
+                }
+            }
+        }
+        
+        throw lastError ?? OpenAIError.serverError("Maximum retry attempts exceeded")
+    }
+    
+    private func performSingleRequest(attempt: Int, maxAttempts: Int) async throws -> ImageDetails {
         let urlRequest = try await MainActor.run {
             try generateURLRequest(httpMethod: .post)
         }
@@ -372,19 +496,29 @@ class OpenAIService {
         let imageCount = imageBase64Array.count
         let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
         
-        print("🚀 Sending \(imageCount == 1 ? "single" : "multi") image request to: \(urlRequest.url?.absoluteString ?? "unknown URL")")
-        print("📊 Request size: \(Double(requestSize) / 1024.0) KB, Images: \(imageCount)")
-        print("🤖 AI Settings - Model: \(settings.effectiveAIModel), Detail: \(settings.effectiveDetailLevel), Pro: \(settings.isPro), High Quality: \(settings.highQualityAnalysisEnabled)")
-        
-        // Track analysis start
-        TelemetryManager.shared.trackAIAnalysisStarted(
-            isProUser: settings.isPro,
-            useHighQuality: useHighQuality,
-            model: settings.effectiveAIModel,
-            detailLevel: settings.effectiveDetailLevel,
-            imageResolution: settings.effectiveImageResolution,
-            imageCount: imageCount
-        )
+        if attempt == 1 {
+            print("🚀 Sending \(imageCount == 1 ? "single" : "multi") image request to: \(urlRequest.url?.absoluteString ?? "unknown URL")")
+            print("📊 Request size: \(Double(requestSize) / 1024.0) KB, Images: \(imageCount)")
+            
+            // Calculate and log the token limit being used
+            let adjustedMaxTokens = imageCount > 1 
+                ? max(settings.maxTokens, 2000)
+                : settings.maxTokens
+            print("🤖 AI Settings - Model: \(settings.effectiveAIModel), Detail: \(settings.effectiveDetailLevel), Pro: \(settings.isPro), High Quality: \(settings.highQualityAnalysisEnabled)")
+            print("🎯 Token limit: \(adjustedMaxTokens) (base: \(settings.maxTokens), adjusted for \(imageCount) images)")
+            
+            // Track analysis start (only on first attempt)
+            TelemetryManager.shared.trackAIAnalysisStarted(
+                isProUser: settings.isPro,
+                useHighQuality: useHighQuality,
+                model: settings.effectiveAIModel,
+                detailLevel: settings.effectiveDetailLevel,
+                imageResolution: settings.effectiveImageResolution,
+                imageCount: imageCount
+            )
+        } else {
+            print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
+        }
         
         // Safety check for extremely large requests
         if requestSize > 20_000_000 { // 20MB limit
@@ -593,7 +727,7 @@ struct FunctionCall: Decodable {
 }
 
 struct ImageDetails: Decodable {
-    // Core properties
+    // Core properties with defaults provided for missing values
     let title: String
     let quantity: String
     let description: String
@@ -619,4 +753,104 @@ struct ImageDetails: Decodable {
     let replacementCost: String?
     let storageRequirements: String?
     let isFragile: String?
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Core properties with defaults for missing values
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Unknown Item"
+        quantity = try container.decodeIfPresent(String.self, forKey: .quantity) ?? "1"
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? "Item details not available"
+        make = try container.decodeIfPresent(String.self, forKey: .make) ?? ""
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? "Uncategorized"
+        location = try container.decodeIfPresent(String.self, forKey: .location) ?? "Unknown"
+        price = try container.decodeIfPresent(String.self, forKey: .price) ?? "$0.00"
+        serialNumber = try container.decodeIfPresent(String.self, forKey: .serialNumber) ?? ""
+        
+        // Extended properties (already optional)
+        condition = try container.decodeIfPresent(String.self, forKey: .condition)
+        color = try container.decodeIfPresent(String.self, forKey: .color)
+        dimensions = try container.decodeIfPresent(String.self, forKey: .dimensions)
+        dimensionLength = try container.decodeIfPresent(String.self, forKey: .dimensionLength)
+        dimensionWidth = try container.decodeIfPresent(String.self, forKey: .dimensionWidth)
+        dimensionHeight = try container.decodeIfPresent(String.self, forKey: .dimensionHeight)
+        dimensionUnit = try container.decodeIfPresent(String.self, forKey: .dimensionUnit)
+        weight = try container.decodeIfPresent(String.self, forKey: .weight)
+        weightValue = try container.decodeIfPresent(String.self, forKey: .weightValue)
+        weightUnit = try container.decodeIfPresent(String.self, forKey: .weightUnit)
+        purchaseLocation = try container.decodeIfPresent(String.self, forKey: .purchaseLocation)
+        replacementCost = try container.decodeIfPresent(String.self, forKey: .replacementCost)
+        storageRequirements = try container.decodeIfPresent(String.self, forKey: .storageRequirements)
+        isFragile = try container.decodeIfPresent(String.self, forKey: .isFragile)
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case title, quantity, description, make, model, category, location, price, serialNumber
+        case condition, color, dimensions, dimensionLength, dimensionWidth, dimensionHeight, dimensionUnit
+        case weight, weightValue, weightUnit, purchaseLocation, replacementCost, storageRequirements, isFragile
+    }
+    
+    // Static factory method for creating empty instances
+    static func empty() -> ImageDetails {
+        return ImageDetails(
+            title: "",
+            quantity: "",
+            description: "",
+            make: "",
+            model: "",
+            category: "None",
+            location: "None",
+            price: "",
+            serialNumber: "",
+            condition: nil,
+            color: nil,
+            dimensions: nil,
+            dimensionLength: nil,
+            dimensionWidth: nil,
+            dimensionHeight: nil,
+            dimensionUnit: nil,
+            weight: nil,
+            weightValue: nil,
+            weightUnit: nil,
+            purchaseLocation: nil,
+            replacementCost: nil,
+            storageRequirements: nil,
+            isFragile: nil
+        )
+    }
+    
+    // Memberwise initializer for manual construction
+    init(title: String, quantity: String, description: String, make: String, model: String,
+         category: String, location: String, price: String, serialNumber: String,
+         condition: String? = nil, color: String? = nil, dimensions: String? = nil,
+         dimensionLength: String? = nil, dimensionWidth: String? = nil, dimensionHeight: String? = nil,
+         dimensionUnit: String? = nil, weight: String? = nil, weightValue: String? = nil,
+         weightUnit: String? = nil, purchaseLocation: String? = nil, replacementCost: String? = nil,
+         storageRequirements: String? = nil, isFragile: String? = nil) {
+        
+        self.title = title
+        self.quantity = quantity
+        self.description = description
+        self.make = make
+        self.model = model
+        self.category = category
+        self.location = location
+        self.price = price
+        self.serialNumber = serialNumber
+        self.condition = condition
+        self.color = color
+        self.dimensions = dimensions
+        self.dimensionLength = dimensionLength
+        self.dimensionWidth = dimensionWidth
+        self.dimensionHeight = dimensionHeight
+        self.dimensionUnit = dimensionUnit
+        self.weight = weight
+        self.weightValue = weightValue
+        self.weightUnit = weightUnit
+        self.purchaseLocation = purchaseLocation
+        self.replacementCost = replacementCost
+        self.storageRequirements = storageRequirements
+        self.isFragile = isFragile
+    }
 }

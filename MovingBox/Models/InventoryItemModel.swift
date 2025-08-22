@@ -9,6 +9,18 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+struct AttachmentInfo: Codable, Hashable {
+    let url: String
+    let originalName: String
+    let createdAt: Date
+    
+    init(url: String, originalName: String) {
+        self.url = url
+        self.originalName = originalName
+        self.createdAt = Date()
+    }
+}
+
 @Model
 final class InventoryItem: ObservableObject, PhotoManageable {
     var title: String = ""
@@ -40,7 +52,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     // MARK: - Financial & Legal
     var depreciationRate: Double?
     var replacementCost: Decimal?
-    var receiptImageURL: URL?
+    var attachments: [AttachmentInfo] = []
     
     // MARK: - Storage & Physical Properties
     var dimensions: String = ""
@@ -152,7 +164,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         }
     }
     
-    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = [], purchaseDate: Date? = nil, warrantyExpirationDate: Date? = nil, purchaseLocation: String = "", condition: String = "", hasWarranty: Bool = false, depreciationRate: Double? = nil, replacementCost: Decimal? = nil, receiptImageURL: URL? = nil, dimensions: String = "", dimensionLength: String = "", dimensionWidth: String = "", dimensionHeight: String = "", dimensionUnit: String = "inches", weight: String = "", weightValue: String = "", weightUnit: String = "lbs", color: String = "", storageRequirements: String = "", isFragile: Bool = false, movingPriority: Int = 3, roomDestination: String = "") {
+    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = [], purchaseDate: Date? = nil, warrantyExpirationDate: Date? = nil, purchaseLocation: String = "", condition: String = "", hasWarranty: Bool = false, depreciationRate: Double? = nil, replacementCost: Decimal? = nil, dimensions: String = "", dimensionLength: String = "", dimensionWidth: String = "", dimensionHeight: String = "", dimensionUnit: String = "inches", weight: String = "", weightValue: String = "", weightUnit: String = "lbs", color: String = "", storageRequirements: String = "", isFragile: Bool = false, movingPriority: Int = 3, roomDestination: String = "") {
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt
@@ -179,7 +191,6 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.hasWarranty = hasWarranty
         self.depreciationRate = depreciationRate
         self.replacementCost = replacementCost
-        self.receiptImageURL = receiptImageURL
         self.dimensions = dimensions
         self.dimensionLength = dimensionLength
         self.dimensionWidth = dimensionWidth
@@ -313,5 +324,24 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         guard let imageURL = imageURL else { return nil }
         let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
         return OptimizedImageManager.shared.getThumbnailURL(for: id)
+    }
+    
+    // MARK: - Attachment Management
+    
+    func addAttachment(url: String, originalName: String) {
+        let attachment = AttachmentInfo(url: url, originalName: originalName)
+        attachments.append(attachment)
+    }
+    
+    func removeAttachment(url: String) {
+        attachments.removeAll { $0.url == url }
+    }
+    
+    func hasAttachments() -> Bool {
+        return !attachments.isEmpty
+    }
+    
+    func getAllAttachments() -> [AttachmentInfo] {
+        return attachments
     }
 }

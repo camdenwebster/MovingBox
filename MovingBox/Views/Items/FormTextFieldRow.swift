@@ -78,7 +78,7 @@ struct PriceFieldRow: View {
                     .truncationMode(.tail)
                     .focused($isPriceFieldFocused)
                     .frame(minWidth: 60, maxWidth: 75, alignment: .trailing)
-                    .foregroundColor(isEditing ? .primary : .secondary)
+                    .foregroundColor(.primary)
                     .onChange(of: localPriceString) { _, newValue in
                         let filteredValue = newValue.filter { $0.isNumber }
                         

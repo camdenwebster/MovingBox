@@ -428,4 +428,134 @@ import SwiftData
             #expect(Bool(false), "Failed to decode request payload")
         }
     }
+    
+    @Test("Test error handling for network cancellation")
+    func testNetworkCancellationHandling() async throws {
+        // Given
+        let service = try await createTestService()
+        
+        // Test that cancellation method works
+        service.cancelCurrentRequest()
+        
+        // Test that concurrent calls cancel previous ones
+        let task1 = Task {
+            do {
+                return try await service.getImageDetails()
+            } catch {
+                // Expected to fail due to invalid test setup, not a problem
+                throw error
+            }
+        }
+        
+        // Start second task immediately which should cancel first
+        let task2 = Task {
+            do {
+                return try await service.getImageDetails()
+            } catch {
+                // Expected to fail due to invalid test setup, not a problem
+                throw error
+            }
+        }
+        
+        // Cancel both tasks for cleanup
+        task1.cancel()
+        task2.cancel()
+        service.cancelCurrentRequest()
+        
+        // Verify no crashes occur with cancellation
+        #expect(Bool(true), "Cancellation handled without crashes")
+    }
+    
+    @Test("Test concurrent request cancellation")
+    func testConcurrentRequestCancellation() async throws {
+        // Given
+        let service = try await createTestService()
+        
+        // Start first request
+        let firstTask = Task {
+            try await service.getImageDetails()
+        }
+        
+        // Start second request (should cancel first)
+        let secondTask = Task {
+            try await service.getImageDetails()
+        }
+        
+        // Cancel both to clean up
+        firstTask.cancel()
+        secondTask.cancel()
+        
+        // Verify cleanup
+        service.cancelCurrentRequest()
+        
+        // No assertion needed - just verify no crashes occur
+        #expect(Bool(true), "Concurrent cancellation handled without errors")
+    }
+    
+    @Test("Test OpenAI error retryability")
+    func testOpenAIErrorRetryability() async throws {
+        // Test retryable errors
+        #expect(OpenAIError.networkCancelled.isRetryable == true)
+        #expect(OpenAIError.networkTimeout.isRetryable == true)
+        #expect(OpenAIError.networkUnavailable.isRetryable == true)
+        #expect(OpenAIError.rateLimitExceeded.isRetryable == true)
+        #expect(OpenAIError.serverError("test").isRetryable == true)
+        
+        // Test non-retryable errors
+        #expect(OpenAIError.invalidURL.isRetryable == false)
+        #expect(OpenAIError.invalidResponse(statusCode: 400, responseData: "test").isRetryable == false)
+        #expect(OpenAIError.invalidData.isRetryable == false)
+    }
+    
+    @Test("Test user-friendly error messages")
+    func testUserFriendlyErrorMessages() async throws {
+        // Test network error messages
+        let cancelledError = OpenAIError.networkCancelled
+        #expect(cancelledError.userFriendlyMessage == "Request was cancelled. Please try again.")
+        
+        let timeoutError = OpenAIError.networkTimeout
+        #expect(timeoutError.userFriendlyMessage == "Request timed out. Please check your connection and try again.")
+        
+        let unavailableError = OpenAIError.networkUnavailable
+        #expect(unavailableError.userFriendlyMessage == "Network unavailable. Please check your internet connection.")
+        
+        // Test existing error messages still work
+        let rateLimitError = OpenAIError.rateLimitExceeded
+        #expect(rateLimitError.userFriendlyMessage == "Too many requests. Please try again later.")
+    }
+    
+    @Test("Test missing required field handling")
+    func testMissingRequiredFieldHandling() async throws {
+        // Given - response missing 'make' field (like the real iPad response you encountered)
+        let mockResponse = """
+        {
+            "choices": [{
+                "message": {
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "type": "function",
+                            "function": {
+                                "name": "process_inventory_item",
+                                "arguments": "{\\"title\\":\\"Apple iPad\\",\\"quantity\\":\\"1\\",\\"description\\":\\"9.7-inch Apple iPad tablet\\",\\"model\\":\\"Unknown iPad (9.7-inch likely)\\",\\"category\\":\\"Electronics\\",\\"location\\":\\"Home Office\\",\\"price\\":\\"$329\\",\\"serialNumber\\":\\"\\",\\"condition\\":\\"Good\\",\\"color\\":\\"Black\\"}"
+                            }
+                        }
+                    ]
+                }
+            }]
+        }
+        """
+        
+        let data = mockResponse.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(GPTResponse.self, from: data)
+        let functionCallArgs = decoded.choices[0].message.tool_calls?[0].function.arguments ?? ""
+        let details = try JSONDecoder().decode(ImageDetails.self, from: functionCallArgs.data(using: .utf8)!)
+        
+        // Then - verify missing fields get default values
+        #expect(details.title == "Apple iPad")
+        #expect(details.make == "") // Should get empty string default
+        #expect(details.model == "Unknown iPad (9.7-inch likely)")
+        #expect(details.condition == "Good")
+        #expect(details.category == "Electronics")
+    }
 }

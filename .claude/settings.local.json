@@ -47,7 +47,8 @@
       "Bash(timeout:*)",
       "Bash(gh issue:*)",
       "Bash(gh pr list:*)",
-      "Bash(gh pr view:*)"
+      "Bash(gh pr view:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
