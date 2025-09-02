@@ -9,6 +9,18 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+struct AttachmentInfo: Codable, Hashable {
+    let url: String
+    let originalName: String
+    let createdAt: Date
+    
+    init(url: String, originalName: String) {
+        self.url = url
+        self.originalName = originalName
+        self.createdAt = Date()
+    }
+}
+
 @Model
 final class InventoryItem: ObservableObject, PhotoManageable {
     var title: String = ""
@@ -29,6 +41,33 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var showInvalidQuantityAlert: Bool = false
     var hasUsedAI: Bool = false
     var createdAt: Date = Date()
+    
+    // MARK: - Purchase & Ownership Tracking
+    var purchaseDate: Date?
+    var warrantyExpirationDate: Date?
+    var purchaseLocation: String = ""
+    var condition: String = ""
+    var hasWarranty: Bool = false
+    
+    // MARK: - Financial & Legal
+    var depreciationRate: Double?
+    var replacementCost: Decimal?
+    var attachments: [AttachmentInfo] = []
+    
+    // MARK: - Storage & Physical Properties
+    var dimensionLength: String = ""
+    var dimensionWidth: String = ""
+    var dimensionHeight: String = ""
+    var dimensionUnit: String = "inches"
+    var weightValue: String = ""
+    var weightUnit: String = "lbs"
+    var color: String = ""
+    var storageRequirements: String = ""
+    
+    // MARK: - Moving & Insurance Optimization
+    var isFragile: Bool = false
+    var movingPriority: Int = 3
+    var roomDestination: String = ""
     
     @Attribute(.externalStorage) var data: Data?
     
@@ -123,7 +162,22 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         }
     }
     
-    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = []) {
+    // MARK: - Core Initializer (for required properties only)
+    init(title: String) {
+        self.title = title
+        self.createdAt = Date()
+        migrateSecondaryPhotosIfNeeded()
+        
+        // Only migrate in non-test environment to avoid accessing destroyed contexts
+        if !isRunningTests() {
+            Task {
+                try? await migrateImageIfNeeded()
+            }
+        }
+    }
+    
+    // MARK: - Legacy Initializer (for backwards compatibility)
+    init(title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String, make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool, assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false, secondaryPhotoURLs: [String] = [], purchaseDate: Date? = nil, warrantyExpirationDate: Date? = nil, purchaseLocation: String = "", condition: String = "", hasWarranty: Bool = false, depreciationRate: Double? = nil, replacementCost: Decimal? = nil, dimensionLength: String = "", dimensionWidth: String = "", dimensionHeight: String = "", dimensionUnit: String = "inches", weightValue: String = "", weightUnit: String = "lbs", color: String = "", storageRequirements: String = "", isFragile: Bool = false, movingPriority: Int = 3, roomDestination: String = "") {
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt
@@ -142,6 +196,26 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.secondaryPhotoURLs = secondaryPhotoURLs
         self.createdAt = Date()
         
+        // Initialize extended properties
+        self.purchaseDate = purchaseDate
+        self.warrantyExpirationDate = warrantyExpirationDate
+        self.purchaseLocation = purchaseLocation
+        self.condition = condition
+        self.hasWarranty = hasWarranty
+        self.depreciationRate = depreciationRate
+        self.replacementCost = replacementCost
+        self.dimensionLength = dimensionLength
+        self.dimensionWidth = dimensionWidth
+        self.dimensionHeight = dimensionHeight
+        self.dimensionUnit = dimensionUnit
+        self.weightValue = weightValue
+        self.weightUnit = weightUnit
+        self.color = color
+        self.storageRequirements = storageRequirements
+        self.isFragile = isFragile
+        self.movingPriority = movingPriority
+        self.roomDestination = roomDestination
+        
         migrateSecondaryPhotosIfNeeded()
         
         // Only migrate in non-test environment to avoid accessing destroyed contexts
@@ -150,6 +224,139 @@ final class InventoryItem: ObservableObject, PhotoManageable {
                 try? await migrateImageIfNeeded()
             }
         }
+    }
+}
+
+// MARK: - Builder Pattern for Clean Construction
+
+extension InventoryItem {
+    
+    /// Builder for creating InventoryItem with optional properties
+    @MainActor
+    final class Builder {
+        private let item: InventoryItem
+        
+        init(title: String) {
+            self.item = InventoryItem(title: title)
+        }
+        
+        // MARK: - Core Properties
+        
+        @discardableResult
+        func quantity(_ quantity: Int) -> Builder {
+            item.quantityInt = quantity
+            item.quantityString = String(quantity)
+            return self
+        }
+        
+        @discardableResult
+        func description(_ description: String) -> Builder {
+            item.desc = description
+            return self
+        }
+        
+        @discardableResult
+        func serial(_ serial: String) -> Builder {
+            item.serial = serial
+            return self
+        }
+        
+        @discardableResult
+        func make(_ make: String) -> Builder {
+            item.make = make
+            return self
+        }
+        
+        @discardableResult
+        func model(_ model: String) -> Builder {
+            item.model = model
+            return self
+        }
+        
+        @discardableResult
+        func location(_ location: InventoryLocation?) -> Builder {
+            item.location = location
+            return self
+        }
+        
+        @discardableResult
+        func label(_ label: InventoryLabel?) -> Builder {
+            item.label = label
+            return self
+        }
+        
+        @discardableResult
+        func price(_ price: Decimal) -> Builder {
+            item.price = price
+            return self
+        }
+        
+        @discardableResult
+        func notes(_ notes: String) -> Builder {
+            item.notes = notes
+            return self
+        }
+        
+        // MARK: - Extended Properties
+        
+        @discardableResult
+        func purchaseInfo(date: Date? = nil, location: String = "", hasWarranty: Bool = false, warrantyExpiration: Date? = nil) -> Builder {
+            item.purchaseDate = date
+            item.purchaseLocation = location
+            item.hasWarranty = hasWarranty
+            item.warrantyExpirationDate = warrantyExpiration
+            return self
+        }
+        
+        @discardableResult
+        func condition(_ condition: String) -> Builder {
+            item.condition = condition
+            return self
+        }
+        
+        @discardableResult
+        func financialInfo(replacementCost: Decimal? = nil, depreciationRate: Double? = nil) -> Builder {
+            item.replacementCost = replacementCost
+            item.depreciationRate = depreciationRate
+            return self
+        }
+        
+        @discardableResult
+        func physicalProperties(dimensionLength: String = "", dimensionWidth: String = "", dimensionHeight: String = "", dimensionUnit: String = "inches", weightValue: String = "", weightUnit: String = "lbs", color: String = "", storageRequirements: String = "") -> Builder {
+            item.dimensionLength = dimensionLength
+            item.dimensionWidth = dimensionWidth
+            item.dimensionHeight = dimensionHeight
+            item.dimensionUnit = dimensionUnit
+            item.weightValue = weightValue
+            item.weightUnit = weightUnit
+            item.color = color
+            item.storageRequirements = storageRequirements
+            return self
+        }
+        
+        @discardableResult
+        func movingInfo(isFragile: Bool = false, priority: Int = 3, roomDestination: String = "") -> Builder {
+            item.isFragile = isFragile
+            item.movingPriority = priority
+            item.roomDestination = roomDestination
+            return self
+        }
+        
+        @discardableResult
+        func aiAnalyzed(_ hasUsedAI: Bool = true) -> Builder {
+            item.hasUsedAI = hasUsedAI
+            return self
+        }
+        
+        func build() -> InventoryItem {
+            return item
+        }
+    }
+    
+    /// Create a new InventoryItem with builder pattern
+    @MainActor
+    static func builder(title: String) -> Builder {
+        return Builder(title: title)
     }
     
     var isInteger: Bool {
@@ -261,5 +468,24 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         guard let imageURL = imageURL else { return nil }
         let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
         return OptimizedImageManager.shared.getThumbnailURL(for: id)
+    }
+    
+    // MARK: - Attachment Management
+    
+    func addAttachment(url: String, originalName: String) {
+        let attachment = AttachmentInfo(url: url, originalName: originalName)
+        attachments.append(attachment)
+    }
+    
+    func removeAttachment(url: String) {
+        attachments.removeAll { $0.url == url }
+    }
+    
+    func hasAttachments() -> Bool {
+        return !attachments.isEmpty
+    }
+    
+    func getAllAttachments() -> [AttachmentInfo] {
+        return attachments
     }
 }
