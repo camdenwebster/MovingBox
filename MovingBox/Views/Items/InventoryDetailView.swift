@@ -1725,6 +1725,7 @@ struct PhotoPlaceholderView: View {
                         .padding(.vertical, 12)
                         .background(.blue)
                         .clipShape(Capsule())
+                        .accessibilityIdentifier("detailview-add-first-photo-button")
                     }
                 }
             }

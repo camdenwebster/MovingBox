@@ -21,6 +21,10 @@ final class Router: ObservableObject {
         case aISettingsView
         case addInventoryItemView(location: InventoryLocation?)
         case subscriptionSettingsView
+        case syncDataSettingsView
+        case importDataView
+        case exportDataView
+        case deleteDataView
     }
     
     @Published var navigationPath = NavigationPath()

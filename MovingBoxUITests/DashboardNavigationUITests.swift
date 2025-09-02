@@ -27,6 +27,9 @@ final class DashboardNavigationUITests: XCTestCase {
         
         setupSnapshot(app)
         app.launch()
+        
+        // Make sure user is on dashboard
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
     }
 
     override func tearDownWithError() throws {
@@ -63,7 +66,7 @@ final class DashboardNavigationUITests: XCTestCase {
         dashboardScreen.tapAllInventory()
         
         // Then: Should navigate to inventory list (check for various indicators)
-        let onInventoryList = listScreen.addItemButton.waitForExistence(timeout: 10) ||
+        let onInventoryList = listScreen.createFromCameraButton.waitForExistence(timeout: 10) ||
                              app.staticTexts["All Items"].waitForExistence(timeout: 5) ||
                              app.staticTexts["No Items"].waitForExistence(timeout: 5) ||
                              app.buttons["Take a photo"].waitForExistence(timeout: 5)
@@ -77,7 +80,7 @@ final class DashboardNavigationUITests: XCTestCase {
     
     func testNavigationFromDashboardToSettings() throws {
         // Given: User is on dashboard
-        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
+        
         
         // When: User taps Settings button
         dashboardScreen.tapSettings()
@@ -90,8 +93,8 @@ final class DashboardNavigationUITests: XCTestCase {
     
     func testBackNavigationFromListViewToDashboard() throws {
         // Given: User navigates to All Items
-        navigationHelper.navigateToAllItems()
-        XCTAssertTrue(listScreen.addItemButton.exists, "Should be on inventory list")
+        navigationHelper.navigateToAllItems()        
+        XCTAssertTrue(listScreen.createFromCameraButton.exists, "Should be on inventory list")
         
         // When: User taps back button
         app.navigationBars.buttons.firstMatch.tap()
@@ -117,7 +120,6 @@ final class DashboardNavigationUITests: XCTestCase {
     
     func testDashboardStatsDisplayCorrectly() throws {
         // Given: Dashboard is loaded
-        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
         
         // And: Stats cards are present
         XCTAssertTrue(dashboardScreen.statCardValue.firstMatch.waitForExistence(timeout: 10), 
@@ -178,7 +180,7 @@ final class DashboardNavigationUITests: XCTestCase {
         dashboardScreen.tapViewAllItems()
         
         // Then: Should navigate to inventory list
-        XCTAssertTrue(listScreen.addItemButton.waitForExistence(timeout: 5), 
+        XCTAssertTrue(listScreen.toolbarMenu.waitForExistence(timeout: 5),
                      "Should navigate to inventory list")
     }
 
@@ -214,7 +216,7 @@ final class DashboardNavigationUITests: XCTestCase {
         
         // Then: Should load within reasonable time
         let loadTime = Date().timeIntervalSince(startTime)
-        XCTAssertLessThan(loadTime, 5.0, "Dashboard should load within 5 seconds")
+        XCTAssertLessThan(loadTime, 2.0, "Dashboard should load within 2 seconds")
     }
     
     func testDashboardStatsLoadQuickly() throws {

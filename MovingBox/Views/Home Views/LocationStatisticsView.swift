@@ -21,6 +21,7 @@ struct LocationStatisticsView: View {
                 DashboardSectionLabel(text: "Locations")
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("dashboard-locations-button")
 
             if locations.isEmpty {
                 ContentUnavailableView {

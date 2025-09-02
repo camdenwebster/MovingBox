@@ -14,7 +14,7 @@ struct UIConstants {
     /// Earlier iOS versions use traditional corner radius (12)
     static var cornerRadius: CGFloat {
         if #available(iOS 26, *) {
-            return 25
+            return 24
         } else {
             return 12
         }

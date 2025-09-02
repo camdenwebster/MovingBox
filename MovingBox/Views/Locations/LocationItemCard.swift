@@ -7,16 +7,6 @@
 
 import SwiftUI
 
-extension View {
-    var recommendedCardShape: some Shape {
-        if #available(iOS 16.0, *) {
-            return RoundedRectangle(cornerRadius: 12, style: .continuous)
-        } else {
-            return RoundedRectangle(cornerRadius: 12, style: .circular)
-        }
-    }
-}
-
 struct LocationItemCard: View {
     var location: InventoryLocation
     var showCost: Bool = false
@@ -24,7 +14,7 @@ struct LocationItemCard: View {
     @State private var loadingError: Error?
     
     private var totalReplacementCost: Decimal {
-        location.inventoryItems?.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) }) ?? 0
+        location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
     }
     
     var body: some View {
@@ -36,6 +26,7 @@ struct LocationItemCard: View {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
+                            .frame(height: 100)
                             .clipped()
                     } placeholder: {
                         Rectangle()
@@ -49,6 +40,7 @@ struct LocationItemCard: View {
                 } else {
                     Rectangle()
                         .fill(Color(.systemGray5))
+                        .frame(width: 160, height: 100)
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.system(size: 40))
@@ -56,7 +48,6 @@ struct LocationItemCard: View {
                         )
                 }
             }
-            .frame(height: 100)
             .task(id: location.imageURL) {
                 do {
                     thumbnail = try await location.thumbnail
@@ -92,8 +83,8 @@ struct LocationItemCard: View {
                         .foregroundStyle(Color(.label))
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
         .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
