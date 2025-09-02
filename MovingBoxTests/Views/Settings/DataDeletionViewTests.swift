@@ -188,8 +188,8 @@ struct DataDeletionViewUIBehaviorTests {
         let container = makeTestContainer()
         
         // Create a mock view state to test scope selection logic
-        struct TestableDataDeletionView {
-            @State private var selectedScope: DeletionScope = .localOnly
+        class TestableDataDeletionView {
+            private var selectedScope: DeletionScope = .localOnly
             
             func selectScope(_ scope: DeletionScope) {
                 selectedScope = scope
@@ -198,7 +198,7 @@ struct DataDeletionViewUIBehaviorTests {
             var currentScope: DeletionScope { selectedScope }
         }
         
-        var testView = TestableDataDeletionView()
+        let testView = TestableDataDeletionView()
         
         // Test initial state
         #expect(testView.currentScope == .localOnly)
@@ -215,7 +215,7 @@ struct DataDeletionViewUIBehaviorTests {
             private let requiredText = "DELETE"
             
             func isValid(_ input: String) -> Bool {
-                input.uppercased() == requiredText
+                input == requiredText
             }
         }
         
@@ -229,7 +229,6 @@ struct DataDeletionViewUIBehaviorTests {
         
         // Test valid inputs
         #expect(confirmation.isValid("DELETE"))
-        #expect(confirmation.isValid("delete")) // This should actually fail based on current implementation
     }
     
     @Test("DataDeletionView button state updates correctly")

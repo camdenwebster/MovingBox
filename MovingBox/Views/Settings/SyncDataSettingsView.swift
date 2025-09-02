@@ -239,11 +239,10 @@ struct SyncDataSettingsView: View {
             }
             
             Section {
-                Button(role: .destructive) {
-                    router.navigate(to: .deleteDataView)
-                } label: {
+                NavigationLink(value: Router.Destination.deleteDataView) {
                     Label {
                         Text("Delete All Data")
+                            .foregroundStyle(.red)
                     } icon: {
                         Image(systemName: "trash")
                             .foregroundStyle(.red)

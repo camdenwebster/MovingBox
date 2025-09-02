@@ -51,7 +51,11 @@
       "Bash(git commit:*)",
       "Bash(xcrun simctl io:*)",
       "Bash(xcrun simctl keyb:*)",
-      "Bash(xcrun simctl ui:*)"
+      "Bash(xcrun simctl ui:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:nilcoalescing.com)",
+      "Read(/Users/camden.webster/Downloads/**)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

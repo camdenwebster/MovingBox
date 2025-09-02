@@ -143,7 +143,11 @@ struct InventoryListView: View {
             .sheet(isPresented: $showingLabelPicker) {
                 labelPickerSheet()
             }
-            .sheet(isPresented: $showingExportShare) {
+            .sheet(isPresented: $showingExportShare, onDismiss: {
+                // When share sheet is dismissed, also dismiss the progress sheet and clean up
+                showingExportProgress = false
+                exportURL = nil
+            }) {
                 if let url = exportURL {
                     ShareSheet(activityItems: [url])
                 }
@@ -193,12 +197,18 @@ struct InventoryListView: View {
 
         
         if isSelectionMode {
-            // Select All Button
+            // Select All/None Button
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: selectAllItems) {
-                    Text("Select All")
+                if selectedCount > 0 {
+                    Button(action: selectNoItems) {
+                        Text("Select None")
+                    }
+                } else {
+                    Button(action: selectAllItems) {
+                        Text("Select All")
+                    }
+                    .disabled(allItems.isEmpty)
                 }
-                .disabled(selectedCount == allItems.count)
             }
             // Edit button (native SwiftUI)
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -470,6 +480,10 @@ struct InventoryListView: View {
         selectedItemIDs = Set(allItems.map { $0.persistentModelID })
     }
     
+    func selectNoItems() {
+        selectedItemIDs.removeAll()
+    }
+    
     func deleteSelectedItems() {
         Task { @MainActor in
             let itemsToDelete = selectedItems
@@ -584,7 +598,6 @@ struct InventoryListView: View {
                     modelContext: modelContext
                 )
                 
-                showingExportProgress = false
                 exportURL = url
                 showingExportShare = true
                 

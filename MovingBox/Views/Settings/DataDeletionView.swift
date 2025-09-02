@@ -250,11 +250,10 @@ struct DataDeletionView: View {
                                 .font(.subheadline)
                         }
                         Spacer()
-                        if selectedScope == scope {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.customPrimary)
-                                .font(.title)
-                        }
+                        Image(systemName: selectedScope == scope ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(Color.customPrimary)
+                            .font(.title)
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.wholeSymbol), options: .nonRepeating))
                     }
                 }
                 .buttonStyle(.plain)
