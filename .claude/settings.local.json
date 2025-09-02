@@ -44,7 +44,18 @@
       "Bash(xcrun xcresulttool:*)",
       "Bash(pkill:*)",
       "Bash(timeout 180 xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -only-testing MovingBoxUITests/DashboardNavigationUITests/testStatsDisplayCorrectly)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(git commit:*)",
+      "Bash(xcrun simctl io:*)",
+      "Bash(xcrun simctl keyb:*)",
+      "Bash(xcrun simctl ui:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:nilcoalescing.com)",
+      "Read(/Users/camden.webster/Downloads/**)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

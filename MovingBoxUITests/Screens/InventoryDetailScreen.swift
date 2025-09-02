@@ -51,7 +51,7 @@ class InventoryDetailScreen {
         self.editButton = app.buttons["edit"]
         self.saveButton = app.buttons["save"]
         self.changePhotoButton = app.buttons["changePhoto"]
-        self.tapToAddPhotoButton = app.buttons["tapToAddPhoto"]
+        self.tapToAddPhotoButton = app.buttons["detailview-add-first-photo-button"]
         self.addLabelButton = app.buttons["addNewLabel"]
         self.addLocationButton = app.buttons["addNewLocation"]
         

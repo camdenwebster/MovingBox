@@ -40,8 +40,8 @@ struct LocationsListView: View {
     
     private var columns: [GridItem] {
         let minimumCardWidth: CGFloat = 160
-        let columnCount = horizontalSizeClass == .regular ? 4 : 2
-        return Array(repeating: GridItem(.adaptive(minimum: minimumCardWidth), spacing: 16), count: columnCount)
+        let maximumCardWidth: CGFloat = 220
+        return [GridItem(.adaptive(minimum: minimumCardWidth, maximum: maximumCardWidth))]
     }
     
     var body: some View {

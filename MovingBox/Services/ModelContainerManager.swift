@@ -18,16 +18,22 @@ class ModelContainerManager: ObservableObject {
     ])
     
     private init() {
+        let isSyncEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+        if UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil {
+            // Default to enabled for new installations
+            UserDefaults.standard.set(true, forKey: "iCloudSyncEnabled")
+        }
+        
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
             allowsSave: true,
-            cloudKitDatabase: .automatic
+            cloudKitDatabase: isSyncEnabled ? .automatic : .none
         )
         
         do {
             self.container = try ModelContainer(for: schema, configurations: [configuration])
-            print("📦 ModelContainerManager - Created container with CloudKit enabled")
+            print("📦 ModelContainerManager - Created container with CloudKit \(isSyncEnabled ? "enabled" : "disabled")")
         } catch {
             print("📦 ModelContainerManager - Fatal error creating container: \(error)")
             fatalError("Failed to create ModelContainer: \(error)")
@@ -113,5 +119,27 @@ class ModelContainerManager: ObservableObject {
         }
         
         print("📦 ModelContainerManager - Completed inventory item migrations")
+    }
+    
+    // MARK: - Sync Control Methods
+    
+    func setSyncEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: "iCloudSyncEnabled")
+        print("📦 ModelContainerManager - Sync \(enabled ? "enabled" : "disabled"). App restart required for full effect.")
+    }
+    
+    var isSyncEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+    }
+    
+    func getCurrentSyncStatus() -> String {
+        // This is a simplified sync status check
+        // In practice, you would monitor NSPersistentCloudKitContainer notifications
+        if !isSyncEnabled {
+            return "Disabled"
+        }
+        
+        // Check if we have network connectivity and return appropriate status
+        return "Ready"
     }
 }

@@ -80,7 +80,7 @@ class SettingsManager: ObservableObject {
     // Default values
     private let defaultAIModel = "gpt-4o-mini"
     private let defaultTemperature = 0.7
-    private let defaultMaxTokens = 1000
+    private let defaultMaxTokens = 2000
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
     private let highQualityAnalysisEnabledDefault = true
@@ -145,7 +145,7 @@ class SettingsManager: ObservableObject {
         }
         
         if self.temperature == 0.0 { self.temperature = defaultTemperature }
-        if self.maxTokens == 0 { self.maxTokens = defaultMaxTokens }
+        if self.maxTokens == 0 || self.maxTokens < 2000 { self.maxTokens = defaultMaxTokens }
         
         // Only check RevenueCat if Is-Pro is NOT present
         if !ProcessInfo.processInfo.arguments.contains("Is-Pro") {

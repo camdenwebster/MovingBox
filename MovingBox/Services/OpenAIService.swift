@@ -335,7 +335,20 @@ class OpenAIService {
                 throw OpenAIError.invalidData
             }
             
-            let result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
+            var result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
+            
+            // Capitalize each word in the title
+            result = ImageDetails(
+                title: result.title.capitalized,
+                quantity: result.quantity,
+                description: result.description,
+                make: result.make,
+                model: result.model,
+                category: result.category,
+                location: result.location,
+                price: result.price,
+                serialNumber: result.serialNumber
+            )
             
             // Track successful completion
             let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)

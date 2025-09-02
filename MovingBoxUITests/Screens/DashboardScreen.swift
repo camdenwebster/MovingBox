@@ -16,6 +16,7 @@ class DashboardScreen {
     
     // Navigation buttons (new button-based navigation)
     let allInventoryButton: XCUIElement
+    let allLocationsButton: XCUIElement
     let viewAllItemsButton: XCUIElement
     let settingsButton: XCUIElement
     let addItemFromCameraButton: XCUIElement
@@ -34,12 +35,17 @@ class DashboardScreen {
         self.settingsButton = app.buttons["dashboard-settings-button"]
         self.addItemFromCameraButton = app.buttons["createFromCamera"]
         self.emptyStateAddItemButton = app.buttons["dashboard-empty-state-add-item-button"]
+        self.allLocationsButton = app.buttons["dashboard-locations-button"]
     }
     
     // MARK: - Navigation Actions
     
     func tapAllInventory() {
         allInventoryButton.tap()
+    }
+    
+    func tapLocations() {
+        allLocationsButton.tap()
     }
     
     func tapViewAllItems() {
@@ -93,7 +99,7 @@ class DashboardScreen {
         return emptyStateAddItemButton.exists
     }
     
-    func testDataLoaded() -> Bool {
+    func testDataLoaded(expectedCount: String = "53") -> Bool {
         // First, make sure we're on the dashboard
         guard waitForDashboard() else {
             print("Error: Dashboard not loaded")
@@ -101,16 +107,16 @@ class DashboardScreen {
         }
         
         // Try to find any stat card with a numeric value (even 0 is fine for tests)
-        let statCards = app.staticTexts.matching(NSPredicate(format: "label MATCHES '\\d+'"))
-        guard statCards.firstMatch.waitForExistence(timeout: 10) else {
+        let statCard = statCardValue.firstMatch
+        guard statCard.waitForExistence(timeout: 10) else {
             print("Warning: No stat cards found, checking for empty state")
             return isEmptyState() // Return true if we're in empty state (valid for tests)
         }
         
         // If we found stat cards, data is loaded (even if count is 0)
-        if let countText = statCards.firstMatch.label as? String,
-           let actualItemCount = Int(countText) {
-            print("Data loaded - item count: \(actualItemCount)")
+        let countText = statCard.label
+        if countText == expectedCount {
+            print("Data loaded - item count: \(countText)")
             return true
         }
         
