@@ -145,6 +145,7 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		190B05F92E079A4100F23E05 /* .claude */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = .claude; sourceTree = "<group>"; };
+		191C163B2E67294D006AE995 /* ViewModels */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ViewModels; sourceTree = "<group>"; };
 		196A7F3E2DB49BA000C5C4E8 /* fastlane */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = fastlane; sourceTree = "<group>"; };
 		19B7D9702D9B112200690F64 /* MovingBoxUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxUITests; sourceTree = "<group>"; };
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1981B5C92D9ACB6A007AD7F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
@@ -249,6 +250,7 @@
 				198958A32BF6FDC400C52CAE /* Services */,
 				19D133BC2D72BFB8002448A9 /* Models */,
 				19D133A82D72BFB2002448A9 /* Views */,
+				191C163B2E67294D006AE995 /* ViewModels */,
 				1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */,
 				1942DC812BF391CF00734AF4 /* Assets.xcassets */,
 				1942DC832BF391CF00734AF4 /* Preview Content */,
@@ -321,6 +323,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				191C163B2E67294D006AE995 /* ViewModels */,
 				19C01D602D93157A00773DA4 /* Configuration */,
 				19D133A82D72BFB2002448A9 /* Views */,
 				19D133BC2D72BFB8002448A9 /* Models */,
