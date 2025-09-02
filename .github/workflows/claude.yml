@@ -46,4 +46,3 @@ jobs:
 
             When fixing bugs, you will be given a description of the bug and the expected behavior. Be sure to write tests to verify the fix and ensure that the bug does not reoccur in the future.
           assignee-trigger: "claude"
-

@@ -21,12 +21,22 @@ struct LocationItemCard: View {
         VStack(spacing: 0) {
             // Photo section
             Group {
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 100)
-                        .clipped()
+                if thumbnail != nil {
+                    AsyncImage(url: location.thumbnailURL) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 100)
+                            .clipped()
+                    } placeholder: {
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .overlay {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.secondary)
+                            }
+                    }
                 } else {
                     Rectangle()
                         .fill(Color(.systemGray5))

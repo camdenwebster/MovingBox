@@ -340,13 +340,20 @@ struct SettingsView: View {
     }
     
     private func requestAppReview() {
-        if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
-            SKStoreReviewController.requestReview(in: scene)
-            print("Requested app review")
+        if #available(iOS 18.0, *) {
+            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                AppStore.requestReview(in: scene)
+                print("Requested app review using AppStore API")
+            }
         } else {
-            if let url = URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review") {
-                UIApplication.shared.open(url)
-                print("Opening App Store URL for review")
+            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                SKStoreReviewController.requestReview(in: scene)
+                print("Requested app review using legacy API")
+            } else {
+                if let url = URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review") {
+                    UIApplication.shared.open(url)
+                    print("Opening App Store URL for review")
+                }
             }
         }
     }

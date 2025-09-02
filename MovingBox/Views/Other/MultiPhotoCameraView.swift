@@ -993,7 +993,9 @@ struct SquareCameraPreviewView: UIViewRepresentable {
         let view = SquarePreviewView()
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
-        view.previewLayer.connection?.videoOrientation = .portrait
+        if let connection = view.previewLayer.connection {
+            connection.videoRotationAngle = 90
+        }
         
         // Add tap gesture for focus
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -1111,22 +1113,9 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
                     print("📹 Set video rotation angle: \(rotationAngle)° for orientation: \(orientation)")
                 } else {
                     print("📹 Video rotation angle \(rotationAngle)° not supported, using fallback")
-                    // Fall back to the legacy orientation API
-                    let videoOrientation: AVCaptureVideoOrientation
-                    switch orientation {
-                    case .portrait:
-                        videoOrientation = .portrait
-                    case .portraitUpsideDown:
-                        videoOrientation = .portraitUpsideDown
-                    case .landscapeLeft:
-                        videoOrientation = .landscapeRight
-                    case .landscapeRight:
-                        videoOrientation = .landscapeLeft
-                    default:
-                        videoOrientation = .portrait
-                    }
-                    connection.videoOrientation = videoOrientation
-                    print("📹 Fallback: Set video orientation: \(videoOrientation) for device orientation: \(orientation)")
+                    // Fall back to fixed rotation for older devices
+                    connection.videoRotationAngle = 90
+                    print("📹 Fallback: Set video rotation angle: 90° for device orientation: \(orientation)")
                 }
             }
         } else {
