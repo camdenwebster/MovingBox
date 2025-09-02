@@ -77,7 +77,7 @@ struct FunctionDefinition: Codable {
 }
 
 @MainActor
-class OpenAIService {
+class OpenAIService: OpenAIServiceProtocol {
     var imageBase64: String
     var imageBase64Array: [String]
     var settings: SettingsManager
@@ -483,4 +483,10 @@ struct ImageDetails: Decodable {
     let location: String
     let price: String
     let serialNumber: String
+}
+
+// MARK: - Protocol Definition
+
+protocol OpenAIServiceProtocol {
+    func getImageDetails() async throws -> ImageDetails
 }
