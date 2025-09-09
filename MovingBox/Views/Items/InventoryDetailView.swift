@@ -953,6 +953,14 @@ struct InventoryDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     trailingToolbarButton
                 }
+                
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedField = nil
+                        isPriceFieldFocused = false
+                    }
+                }
             }
             .sheet(isPresented: $showingPaywall) {
                 revenueCatManager.presentPaywall(
@@ -1127,11 +1135,6 @@ struct InventoryDetailView: View {
         if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
             // Parse consolidated dimensions like "9.4" x 6.6" x 0.29"" into separate fields
             parseDimensions(dimensions)
-        }
-        
-        if let weight = imageDetails.weight, !weight.isEmpty {
-            // Parse consolidated weight like "1.03 lbs" into separate value and unit
-            parseWeight(weight)
         }
         
         if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {

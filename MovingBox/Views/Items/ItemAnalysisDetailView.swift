@@ -129,11 +129,6 @@ struct ItemAnalysisDetailView: View {
             parseDimensions(dimensions, for: item)
         }
         
-        if let weight = imageDetails.weight, !weight.isEmpty {
-            // Parse consolidated weight like "1.03 lbs" into separate value and unit
-            parseWeight(weight, for: item)
-        }
-        
         if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
             item.purchaseLocation = purchaseLocation
         }

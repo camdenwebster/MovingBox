@@ -853,7 +853,6 @@ struct ImageDetails: Decodable {
     let dimensionWidth: String?
     let dimensionHeight: String?
     let dimensionUnit: String?
-    let weight: String?
     let weightValue: String?
     let weightUnit: String?
     let purchaseLocation: String?
@@ -883,7 +882,6 @@ struct ImageDetails: Decodable {
         dimensionWidth = try container.decodeIfPresent(String.self, forKey: .dimensionWidth)
         dimensionHeight = try container.decodeIfPresent(String.self, forKey: .dimensionHeight)
         dimensionUnit = try container.decodeIfPresent(String.self, forKey: .dimensionUnit)
-        weight = try container.decodeIfPresent(String.self, forKey: .weight)
         weightValue = try container.decodeIfPresent(String.self, forKey: .weightValue)
         weightUnit = try container.decodeIfPresent(String.self, forKey: .weightUnit)
         purchaseLocation = try container.decodeIfPresent(String.self, forKey: .purchaseLocation)
@@ -895,7 +893,7 @@ struct ImageDetails: Decodable {
     private enum CodingKeys: String, CodingKey {
         case title, quantity, description, make, model, category, location, price, serialNumber
         case condition, color, dimensions, dimensionLength, dimensionWidth, dimensionHeight, dimensionUnit
-        case weight, weightValue, weightUnit, purchaseLocation, replacementCost, storageRequirements, isFragile
+        case weightValue, weightUnit, purchaseLocation, replacementCost, storageRequirements, isFragile
     }
     
     // Static factory method for creating empty instances
@@ -917,7 +915,6 @@ struct ImageDetails: Decodable {
             dimensionWidth: nil,
             dimensionHeight: nil,
             dimensionUnit: nil,
-            weight: nil,
             weightValue: nil,
             weightUnit: nil,
             purchaseLocation: nil,
@@ -932,7 +929,7 @@ struct ImageDetails: Decodable {
          category: String, location: String, price: String, serialNumber: String,
          condition: String? = nil, color: String? = nil, dimensions: String? = nil,
          dimensionLength: String? = nil, dimensionWidth: String? = nil, dimensionHeight: String? = nil,
-         dimensionUnit: String? = nil, weight: String? = nil, weightValue: String? = nil,
+         dimensionUnit: String? = nil, weightValue: String? = nil,
          weightUnit: String? = nil, purchaseLocation: String? = nil, replacementCost: String? = nil,
          storageRequirements: String? = nil, isFragile: String? = nil) {
         
@@ -952,7 +949,6 @@ struct ImageDetails: Decodable {
         self.dimensionWidth = dimensionWidth
         self.dimensionHeight = dimensionHeight
         self.dimensionUnit = dimensionUnit
-        self.weight = weight
         self.weightValue = weightValue
         self.weightUnit = weightUnit
         self.purchaseLocation = purchaseLocation

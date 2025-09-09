@@ -103,8 +103,13 @@ struct NativeCameraView: UIViewControllerRepresentable {
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
                 parent.capturedImage = image
+                // Give SwiftUI time to process the binding change before dismissing
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.parent.onDismiss()
+                }
+            } else {
+                parent.onDismiss()
             }
-            parent.onDismiss()
         }
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
