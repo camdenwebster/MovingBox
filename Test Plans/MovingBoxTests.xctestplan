@@ -30,6 +30,9 @@
             ]
           },
           {
+            "name" : "InventoryDetailViewModelTests"
+          },
+          {
             "name" : "OptimizedImageManagerTests",
             "testFunctions" : [
               "imageDataIntegrity()"
