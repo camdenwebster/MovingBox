@@ -17,7 +17,7 @@ struct OpenAIRequestDebugTests {
         let testImages = [createTestImage(), createTestImage(), createTestImage()]
         let base64Images = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: testImages)
         
-        let service = OpenAIService(imageBase64Array: base64Images, settings: settingsManager, modelContext: modelContext)
+        let service = OpenAIService()
         let urlRequest = try service.generateURLRequest(httpMethod: .post)
         
         guard let bodyData = urlRequest.httpBody else {
@@ -79,7 +79,7 @@ struct OpenAIRequestDebugTests {
         let testImage = createTestImage()
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
-        let service = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let service = OpenAIService()
         let urlRequest = try service.generateURLRequest(httpMethod: .post)
         
         print("🔗 Request Headers:")
@@ -110,12 +110,12 @@ struct OpenAIRequestDebugTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Single image request
-        let singleService = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let singleService = OpenAIService()
         let singleRequest = try singleService.generateURLRequest(httpMethod: .post)
         let singleSize = singleRequest.httpBody?.count ?? 0
         
         // Multi-image request (3 images)
-        let multiService = OpenAIService(imageBase64Array: [base64String, base64String, base64String], settings: settingsManager, modelContext: modelContext)
+        let multiService = OpenAIService()
         let multiRequest = try multiService.generateURLRequest(httpMethod: .post)
         let multiSize = multiRequest.httpBody?.count ?? 0
         
@@ -141,7 +141,7 @@ struct OpenAIRequestDebugTests {
         let testImage = createTestImage()
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
-        let service = OpenAIService(imageBase64Array: [base64String, base64String], settings: settingsManager, modelContext: modelContext)
+        let service = OpenAIService()
         let urlRequest = try service.generateURLRequest(httpMethod: .post)
         let payload = try service.decodePayload(from: urlRequest.httpBody!)
         

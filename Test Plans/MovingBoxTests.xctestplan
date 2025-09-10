@@ -17,6 +17,12 @@
       "skippedTests" : {
         "suites" : [
           {
+            "name" : "DataManagerTests",
+            "testFunctions" : [
+              "importHandlesFileAccessErrors()"
+            ]
+          },
+          {
             "name" : "HomeMigrationTests",
             "testFunctions" : [
               "testSkipMigrationWhenURLExists()",

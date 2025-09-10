@@ -83,13 +83,13 @@ struct ItemAnalysisDetailView: View {
             throw AnalysisError.itemNotFound
         }
         
-        let openAi = OpenAIService(
-            imageBase64: base64ForAI,
+        let openAi = OpenAIService()
+        
+        let imageDetails = try await openAi.getImageDetails(
+            from: [image],
             settings: settings,
             modelContext: modelContext
         )
-        
-        let imageDetails = try await openAi.getImageDetails()
         
         await MainActor.run {
             updateUIWithImageDetails(imageDetails, for: itemToUpdate)

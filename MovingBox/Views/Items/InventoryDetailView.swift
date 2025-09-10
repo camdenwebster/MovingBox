@@ -23,6 +23,7 @@ struct InventoryDetailView: View {
     @EnvironmentObject private var onboardingManager: OnboardingManager
     @Query private var allItems: [InventoryItem]
     @FocusState private var isPriceFieldFocused: Bool
+    
     @State private var displayPriceString: String = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails.empty()
     @FocusState private var inputIsFocused: Bool
@@ -36,6 +37,31 @@ struct InventoryDetailView: View {
     @State private var showAIButton = false
     @State private var showUnsavedChangesAlert = false
     @State private var showAIConfirmationAlert = false
+    @State private var hasUserMadeChanges = false
+    @State private var originalValues: InventoryItemSnapshot?
+    @State private var originalDisplayPriceString: String = ""
+    
+    // Computed property to create a hash of key field values for change detection
+    private var currentFieldsHash: String {
+        let fields = [
+            inventoryItemToDisplay.title,
+            inventoryItemToDisplay.desc,
+            inventoryItemToDisplay.serial,
+            inventoryItemToDisplay.make,
+            inventoryItemToDisplay.model,
+            inventoryItemToDisplay.notes,
+            inventoryItemToDisplay.purchaseLocation,
+            inventoryItemToDisplay.condition,
+            inventoryItemToDisplay.color,
+            inventoryItemToDisplay.storageRequirements,
+            inventoryItemToDisplay.roomDestination,
+            String(inventoryItemToDisplay.quantityInt),
+            String(inventoryItemToDisplay.isFragile),
+            String(inventoryItemToDisplay.hasWarranty),
+            String(inventoryItemToDisplay.movingPriority)
+        ]
+        return fields.joined(separator: "|")
+    }
     @State private var showingPaywall = false
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
@@ -134,9 +160,15 @@ struct InventoryDetailView: View {
         if isEditing {
             Button("Cancel") {
                 if onCancel != nil {
-                    deleteItemAndCloseSheet()
-                } else if OnboardingManager.hasCompletedOnboarding() {
-                    if modelContext.hasChanges {
+                    // We're in a sheet context (likely onboarding or add item flow)
+                    if hasUserMadeChanges {
+                        showUnsavedChangesAlert = true
+                    } else {
+                        deleteItemAndCloseSheet()
+                    }
+                } else {
+                    // We're in regular navigation context
+                    if hasUserMadeChanges {
                         showUnsavedChangesAlert = true
                     } else {
                         isEditing = false
@@ -156,6 +188,8 @@ struct InventoryDetailView: View {
                     modelContext.insert(inventoryItemToDisplay)
                 }
                 try? modelContext.save()
+                hasUserMadeChanges = false // Reset after successful save
+                originalValues = nil // Clear original values after successful save
                 isEditing = false
                 onSave?()
             }
@@ -164,6 +198,10 @@ struct InventoryDetailView: View {
             .accessibilityIdentifier("save")
         } else {
             Button("Edit") {
+                // Capture original state before entering edit mode
+                originalValues = InventoryItemSnapshot(from: inventoryItemToDisplay)
+                originalDisplayPriceString = displayPriceString
+                hasUserMadeChanges = false
                 isEditing = true
             }
             .accessibilityIdentifier("edit")
@@ -946,6 +984,16 @@ struct InventoryDetailView: View {
                 isEditing: isEditing,
                 colorScheme: colorScheme
             )
+            .onChange(of: displayPriceString) { _, _ in
+                if isEditing {
+                    hasUserMadeChanges = true
+                }
+            }
+            .onChange(of: currentFieldsHash) { _, _ in
+                if isEditing {
+                    hasUserMadeChanges = true
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     leadingToolbarButton
@@ -1033,6 +1081,27 @@ struct InventoryDetailView: View {
             } message: {
                 Text("Are you sure you want to delete this attachment? This action cannot be undone.")
             }
+            .alert("Discard Changes", isPresented: $showUnsavedChangesAlert) {
+                Button("Discard", role: .destructive) {
+                    // Restore original values
+                    if let original = originalValues {
+                        original.restore(to: inventoryItemToDisplay)
+                        displayPriceString = originalDisplayPriceString
+                    }
+                    hasUserMadeChanges = false
+                    
+                    if onCancel != nil {
+                        // We're in a sheet context - discard changes and close sheet
+                        deleteItemAndCloseSheet()
+                    } else {
+                        // We're in regular navigation - exit edit mode
+                        isEditing = false
+                    }
+                }
+                Button("Keep Editing", role: .cancel) { }
+            } message: {
+                Text("You have unsaved changes. Are you sure you want to discard them?")
+            }
             .task(id: inventoryItemToDisplay.imageURL) {
                 await loadAllImages()
             }
@@ -1096,11 +1165,15 @@ struct InventoryDetailView: View {
             throw OpenAIError.invalidData
         }
         
-        let openAi = OpenAIService(imageBase64Array: imageBase64Array, settings: settings, modelContext: modelContext)
+        let openAi = OpenAIService()
         
         TelemetryManager.shared.trackCameraAnalysisUsed()
         
-        return try await openAi.getImageDetails()
+        return try await openAi.getImageDetails(
+            from: loadedImages,
+            settings: settings,
+            modelContext: modelContext
+        )
     }
     
     private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
@@ -1857,6 +1930,102 @@ extension InventoryDetailView {
         case .failure(let error):
             print("File import failed: \(error)")
         }
+    }
+}
+
+// MARK: - Inventory Item Snapshot
+
+@MainActor
+struct InventoryItemSnapshot {
+    let title: String
+    let quantityString: String
+    let quantityInt: Int
+    let desc: String
+    let serial: String
+    let model: String
+    let make: String
+    let price: Decimal
+    let insured: Bool
+    let notes: String
+    let hasWarranty: Bool
+    let warrantyExpirationDate: Date?
+    let purchaseDate: Date?
+    let purchaseLocation: String
+    let condition: String
+    let depreciationRate: Double?
+    let replacementCost: Decimal?
+    let dimensionLength: String
+    let dimensionWidth: String
+    let dimensionHeight: String
+    let dimensionUnit: String
+    let weightValue: String
+    let weightUnit: String
+    let color: String
+    let storageRequirements: String
+    let isFragile: Bool
+    let movingPriority: Int
+    let roomDestination: String
+    
+    init(from item: InventoryItem) {
+        self.title = item.title
+        self.quantityString = item.quantityString
+        self.quantityInt = item.quantityInt
+        self.desc = item.desc
+        self.serial = item.serial
+        self.model = item.model
+        self.make = item.make
+        self.price = item.price
+        self.insured = item.insured
+        self.notes = item.notes
+        self.hasWarranty = item.hasWarranty
+        self.warrantyExpirationDate = item.warrantyExpirationDate
+        self.purchaseDate = item.purchaseDate
+        self.purchaseLocation = item.purchaseLocation
+        self.condition = item.condition
+        self.depreciationRate = item.depreciationRate
+        self.replacementCost = item.replacementCost
+        self.dimensionLength = item.dimensionLength
+        self.dimensionWidth = item.dimensionWidth
+        self.dimensionHeight = item.dimensionHeight
+        self.dimensionUnit = item.dimensionUnit
+        self.weightValue = item.weightValue
+        self.weightUnit = item.weightUnit
+        self.color = item.color
+        self.storageRequirements = item.storageRequirements
+        self.isFragile = item.isFragile
+        self.movingPriority = item.movingPriority
+        self.roomDestination = item.roomDestination
+    }
+    
+    func restore(to item: InventoryItem) {
+        item.title = title
+        item.quantityString = quantityString
+        item.quantityInt = quantityInt
+        item.desc = desc
+        item.serial = serial
+        item.model = model
+        item.make = make
+        item.price = price
+        item.insured = insured
+        item.notes = notes
+        item.hasWarranty = hasWarranty
+        item.warrantyExpirationDate = warrantyExpirationDate
+        item.purchaseDate = purchaseDate
+        item.purchaseLocation = purchaseLocation
+        item.condition = condition
+        item.depreciationRate = depreciationRate
+        item.replacementCost = replacementCost
+        item.dimensionLength = dimensionLength
+        item.dimensionWidth = dimensionWidth
+        item.dimensionHeight = dimensionHeight
+        item.dimensionUnit = dimensionUnit
+        item.weightValue = weightValue
+        item.weightUnit = weightUnit
+        item.color = color
+        item.storageRequirements = storageRequirements
+        item.isFragile = isFragile
+        item.movingPriority = movingPriority
+        item.roomDestination = roomDestination
     }
 }
 

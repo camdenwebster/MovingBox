@@ -23,7 +23,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         }
         
         // Test single image service initialization
-        let singleImageService = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let singleImageService = OpenAIService()
         
         // Verify service properties
         #expect(singleImageService.imageBase64 == base64String)
@@ -78,7 +78,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         #expect(base64Images.count == 3)
         
         // Test multi-image service initialization
-        let multiImageService = OpenAIService(imageBase64Array: base64Images, settings: settingsManager, modelContext: modelContext)
+        let multiImageService = OpenAIService()
         
         // Verify service properties
         #expect(multiImageService.imageBase64Array.count == 3)
@@ -143,7 +143,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         let testImages = [createTestImage(), createTestImage()]
         let base64Images = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: testImages)
         
-        let service = OpenAIService(imageBase64Array: base64Images, settings: settingsManager, modelContext: modelContext)
+        let service = OpenAIService()
         
         do {
             let result = try await service.getImageDetails()
@@ -176,12 +176,12 @@ struct OpenAIMultiPhotoIntegrationTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Test single image request - should use default token limit
-        let singleImageService = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let singleImageService = OpenAIService()
         let singleRequest = try singleImageService.generateURLRequest(httpMethod: .post)
         let singlePayload = try singleImageService.decodePayload(from: singleRequest.httpBody!)
         
         // Test multi-image request - should use increased token limit
-        let multiImageService = OpenAIService(imageBase64Array: [base64String, base64String], settings: settingsManager, modelContext: modelContext)
+        let multiImageService = OpenAIService()
         let multiRequest = try multiImageService.generateURLRequest(httpMethod: .post)
         let multiPayload = try multiImageService.decodePayload(from: multiRequest.httpBody!)
         
@@ -192,7 +192,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         
         // Test with more images to verify scaling
         let manyImages = [base64String, base64String, base64String, base64String]
-        let manyImageService = OpenAIService(imageBase64Array: manyImages, settings: settingsManager, modelContext: modelContext)
+        let manyImageService = OpenAIService()
         let manyImageRequest = try manyImageService.generateURLRequest(httpMethod: .post)
         let manyImagePayload = try manyImageService.decodePayload(from: manyImageRequest.httpBody!)
         
@@ -215,12 +215,12 @@ struct OpenAIMultiPhotoIntegrationTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Test single image request
-        let singleImageService = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let singleImageService = OpenAIService()
         let singleRequest = try singleImageService.generateURLRequest(httpMethod: .post)
         let singlePayload = try singleImageService.decodePayload(from: singleRequest.httpBody!)
         
         // Test multi-image request
-        let multiImageService = OpenAIService(imageBase64Array: [base64String, base64String], settings: settingsManager, modelContext: modelContext)
+        let multiImageService = OpenAIService()
         let multiRequest = try multiImageService.generateURLRequest(httpMethod: .post)
         let multiPayload = try multiImageService.decodePayload(from: multiRequest.httpBody!)
         

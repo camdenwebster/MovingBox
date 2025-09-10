@@ -260,11 +260,15 @@ struct ItemCreationFlowView: View {
             }
             
             // Create OpenAI service and get image details
-            let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
+            let openAi = OpenAIService()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for image analysis...")
-            let imageDetails = try await openAi.getImageDetails()
+            let imageDetails = try await openAi.getImageDetails(
+                from: [capturedImage].compactMap { $0 },
+                settings: settings,
+                modelContext: modelContext
+            )
             print("OpenAI analysis complete, updating item...")
             
             // Update the item with the results
@@ -332,11 +336,15 @@ struct ItemCreationFlowView: View {
             }
             
             // Create OpenAI service with multiple images and get image details
-            let openAi = OpenAIService(imageBase64Array: imageBase64Array, settings: settings, modelContext: modelContext)
+            let openAi = OpenAIService()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for multi-image analysis...")
-            let imageDetails = try await openAi.getImageDetails()
+            let imageDetails = try await openAi.getImageDetails(
+                from: capturedImages,
+                settings: settings,
+                modelContext: modelContext
+            )
             print("OpenAI multi-image analysis complete, updating item...")
             
             // Update the item with the results

@@ -239,7 +239,7 @@ struct BatchAnalysisView: View {
     }
     
     private func analyzeItem(_ item: InventoryItem) async throws {
-        var imageBase64Array: [String] = []
+        var images: [UIImage] = []
         
         // Ensure migration is complete before trying to load images
         _ = await item.hasAnalyzableImageAfterMigration()
@@ -248,8 +248,7 @@ struct BatchAnalysisView: View {
         if let imageURL = item.imageURL {
             do {
                 let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                let base64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: [image])
-                imageBase64Array.append(contentsOf: base64Array)
+                images.append(image)
             } catch {
                 // Failed to load primary image - continue with secondary images
             }
@@ -259,27 +258,29 @@ struct BatchAnalysisView: View {
         if !item.secondaryPhotoURLs.isEmpty {
             do {
                 let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: item.secondaryPhotoURLs)
-                let base64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: secondaryImages)
-                imageBase64Array.append(contentsOf: base64Array)
+                images.append(contentsOf: secondaryImages)
             } catch {
                 // Failed to load secondary images - continue with available images
             }
         }
         
         // Handle legacy data if no modern images are available
-        if imageBase64Array.isEmpty, let data = item.data, let image = UIImage(data: data) {
-            let base64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: [image])
-            imageBase64Array.append(contentsOf: base64Array)
+        if images.isEmpty, let data = item.data, let image = UIImage(data: data) {
+            images.append(image)
         }
         
         // Skip if no images could be loaded
-        guard !imageBase64Array.isEmpty else {
+        guard !images.isEmpty else {
             throw NSError(domain: "BatchAnalysis", code: 1, userInfo: [NSLocalizedDescriptionKey: "No images could be loaded"])
         }
         
         // Perform AI analysis
-        let openAI = OpenAIService(imageBase64Array: imageBase64Array, settings: settings, modelContext: modelContext)
-        let imageDetails = try await openAI.getImageDetails()
+        let openAI = OpenAIService()
+        let imageDetails = try await openAI.getImageDetails(
+            from: images,
+            settings: settings,
+            modelContext: modelContext
+        )
         
         // Update the item with analysis results
         item.title = imageDetails.title
