@@ -1129,7 +1129,23 @@ struct InventoryDetailView: View {
             do {
                 let imageDetails = try await callOpenAI()
                 await MainActor.run {
-                    updateUIWithImageDetails(imageDetails)
+                    // Ensure the item is in the model context
+                    if inventoryItemToDisplay.modelContext == nil {
+                        modelContext.insert(inventoryItemToDisplay)
+                    }
+                    
+                    // Get all labels and locations for the unified update
+                    let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+                    let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                    
+                    inventoryItemToDisplay.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
+                    
+                    // Update display price string to reflect any price changes
+                    displayPriceString = formatInitialPrice(inventoryItemToDisplay.price)
+                    
+                    // Save the context
+                    try? modelContext.save()
+                    
                     isLoadingOpenAiResults = false
                 }
             } catch OpenAIError.invalidURL {
@@ -1189,159 +1205,6 @@ struct InventoryDetailView: View {
         )
     }
     
-    private func updateUIWithImageDetails(_ imageDetails: ImageDetails) {
-        if inventoryItemToDisplay.modelContext == nil {
-            modelContext.insert(inventoryItemToDisplay)
-        }
-        
-        // Core properties
-        inventoryItemToDisplay.title = imageDetails.title
-        inventoryItemToDisplay.quantityString = imageDetails.quantity
-        inventoryItemToDisplay.desc = imageDetails.description
-        inventoryItemToDisplay.make = imageDetails.make
-        inventoryItemToDisplay.model = imageDetails.model
-        inventoryItemToDisplay.serial = imageDetails.serialNumber
-        
-        // Price handling
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        if let price = Decimal(string: priceString) {
-            inventoryItemToDisplay.price = price
-            displayPriceString = formatInitialPrice(price)
-        }
-        
-        // Extended properties (if provided by AI)
-        if let condition = imageDetails.condition, !condition.isEmpty {
-            inventoryItemToDisplay.condition = condition
-        }
-        
-        if let color = imageDetails.color, !color.isEmpty {
-            inventoryItemToDisplay.color = color
-        }
-        
-        if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
-            // Parse consolidated dimensions like "9.4" x 6.6" x 0.29"" into separate fields
-            parseDimensions(dimensions)
-        }
-        
-        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
-            inventoryItemToDisplay.purchaseLocation = purchaseLocation
-        }
-        
-        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
-            let cleanedString = replacementCostString.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-            if let replacementCost = Decimal(string: cleanedString) {
-                inventoryItemToDisplay.replacementCost = replacementCost
-            }
-        }
-        
-        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
-            let cleanedString = depreciationRateString.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
-            if let depreciationRate = Double(cleanedString) {
-                // Convert percentage to decimal (15% -> 0.15)
-                inventoryItemToDisplay.depreciationRate = depreciationRate / 100.0
-            }
-        }
-        
-        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
-            inventoryItemToDisplay.storageRequirements = storageRequirements
-        }
-        
-        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
-            inventoryItemToDisplay.isFragile = isFragileString.lowercased() == "true"
-        }
-        
-        // Weight handling
-        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
-            inventoryItemToDisplay.weightValue = weightValue
-            if let weightUnit = imageDetails.weightUnit, !weightUnit.isEmpty {
-                inventoryItemToDisplay.weightUnit = weightUnit
-            } else {
-                inventoryItemToDisplay.weightUnit = "lbs" // default
-            }
-        }
-        
-        // Individual dimension handling (when not using consolidated dimensions)
-        if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
-            inventoryItemToDisplay.dimensionLength = dimensionLength
-        }
-        if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
-            inventoryItemToDisplay.dimensionWidth = dimensionWidth
-        }
-        if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
-            inventoryItemToDisplay.dimensionHeight = dimensionHeight
-        }
-        if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
-            inventoryItemToDisplay.dimensionUnit = dimensionUnit
-        }
-        
-        // Safe label assignment (only if no existing label)
-        let labels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>())
-        if inventoryItemToDisplay.label == nil {
-            inventoryItemToDisplay.label = labels?.first { $0.name == imageDetails.category }
-        }
-        
-        // Safe location assignment (only if no existing location - respecting user's requirement)
-        let locations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>())
-        if inventoryItemToDisplay.location == nil {
-            inventoryItemToDisplay.location = locations?.first { $0.name == imageDetails.location }
-        }
-        
-        inventoryItemToDisplay.hasUsedAI = true
-        
-        try? modelContext.save()
-    }
-    
-    private func parseDimensions(_ dimensionsString: String) {
-        // Parse formats like "9.4\" x 6.6\" x 0.29\"" or "12 x 8 x 4 inches"
-        let cleanedString = dimensionsString.replacingOccurrences(of: "\"", with: " inches")
-        let components = cleanedString.components(separatedBy: " x ").compactMap { $0.trimmingCharacters(in: .whitespaces) }
-        
-        if components.count >= 3 {
-            // Extract numeric values
-            let lengthStr = components[0].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            let widthStr = components[1].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            let heightStr = components[2].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            
-            inventoryItemToDisplay.dimensionLength = lengthStr
-            inventoryItemToDisplay.dimensionWidth = widthStr
-            inventoryItemToDisplay.dimensionHeight = heightStr
-            
-            // Determine unit from the original string
-            if dimensionsString.contains("\"") || dimensionsString.lowercased().contains("inch") {
-                inventoryItemToDisplay.dimensionUnit = "inches"
-            } else if dimensionsString.lowercased().contains("cm") {
-                inventoryItemToDisplay.dimensionUnit = "cm"
-            } else if dimensionsString.lowercased().contains("feet") || dimensionsString.lowercased().contains("ft") {
-                inventoryItemToDisplay.dimensionUnit = "feet"
-            } else if dimensionsString.lowercased().contains("m") && !dimensionsString.lowercased().contains("cm") {
-                inventoryItemToDisplay.dimensionUnit = "m"
-            } else {
-                inventoryItemToDisplay.dimensionUnit = "inches" // default
-            }
-        }
-    }
-    
-    private func parseWeight(_ weightString: String) {
-        // Parse formats like "1.03 lbs" or "2.5 kg"
-        let components = weightString.trimmingCharacters(in: .whitespaces).components(separatedBy: " ")
-        
-        if components.count >= 2 {
-            let valueStr = components[0].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            let unitStr = components[1].lowercased()
-            
-            inventoryItemToDisplay.weightValue = valueStr
-            
-            if unitStr.contains("kg") || unitStr.contains("kilogram") {
-                inventoryItemToDisplay.weightUnit = "kg"
-            } else if unitStr.contains("g") && !unitStr.contains("kg") {
-                inventoryItemToDisplay.weightUnit = "g"
-            } else if unitStr.contains("oz") || unitStr.contains("ounce") {
-                inventoryItemToDisplay.weightUnit = "oz"
-            } else {
-                inventoryItemToDisplay.weightUnit = "lbs" // default for "lbs", "lb", "pounds", etc.
-            }
-        }
-    }
     
     private func openFileViewer(url: String, fileName: String? = nil) {
         guard let fileURL = URL(string: url) else { return }

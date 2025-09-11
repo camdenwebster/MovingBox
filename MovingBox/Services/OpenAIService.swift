@@ -302,20 +302,7 @@ struct OpenAIResponseParser {
             throw OpenAIError.invalidData
         }
         
-        var result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
-        
-        // Capitalize each word in the title
-        result = ImageDetails(
-            title: result.title.capitalized,
-            quantity: result.quantity,
-            description: result.description,
-            make: result.make,
-            model: result.model,
-            category: result.category,
-            location: result.location,
-            price: result.price,
-            serialNumber: result.serialNumber
-        )
+        let result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
         
         return ParseResult(imageDetails: result, usage: gptResponse.usage)
     }

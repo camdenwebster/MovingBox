@@ -534,3 +534,134 @@ extension InventoryItem {
         return attachments
     }
 }
+
+// MARK: - AI Image Analysis Update Helper
+extension InventoryItem {
+    @MainActor
+    func updateFromImageDetails(_ imageDetails: ImageDetails, labels: [InventoryLabel], locations: [InventoryLocation]) {
+        // Core properties (always update)
+        self.title = imageDetails.title
+        self.quantityString = imageDetails.quantity
+        if let quantity = Int(imageDetails.quantity) {
+            self.quantityInt = quantity
+        }
+        self.desc = imageDetails.description
+        self.make = imageDetails.make
+        self.model = imageDetails.model
+        self.serial = imageDetails.serialNumber
+        
+        // Price handling
+        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+        if let price = Decimal(string: priceString) {
+            self.price = price
+        }
+        
+        // Location handling - NEVER overwrite existing location
+        if self.location == nil {
+            self.location = locations.first { $0.name == imageDetails.location }
+        }
+        
+        // Label handling - can be overwritten
+        self.label = labels.first { $0.name == imageDetails.category }
+        
+        // Extended properties - only update if provided by AI
+        if let condition = imageDetails.condition, !condition.isEmpty {
+            self.condition = condition
+        }
+        
+        if let color = imageDetails.color, !color.isEmpty {
+            self.color = color
+        }
+        
+        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
+            self.purchaseLocation = purchaseLocation
+        }
+        
+        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
+            let cleanedString = replacementCostString.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            if let replacementCost = Decimal(string: cleanedString) {
+                self.replacementCost = replacementCost
+            }
+        }
+        
+        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
+            let cleanedString = depreciationRateString.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+            if let depreciationRate = Double(cleanedString) {
+                // Convert percentage to decimal (15% -> 0.15)
+                self.depreciationRate = depreciationRate / 100.0
+            }
+        }
+        
+        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
+            self.storageRequirements = storageRequirements
+        }
+        
+        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
+            self.isFragile = isFragileString.lowercased() == "true"
+        }
+        
+        // Consolidated dimensions handling
+        if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
+            parseDimensions(dimensions)
+        } else {
+            // Individual dimension handling (when not using consolidated dimensions)
+            if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
+                self.dimensionLength = dimensionLength
+            }
+            if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
+                self.dimensionWidth = dimensionWidth
+            }
+            if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
+                self.dimensionHeight = dimensionHeight
+            }
+            if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
+                self.dimensionUnit = dimensionUnit
+            }
+        }
+        
+        // Weight handling
+        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
+            self.weightValue = weightValue
+            if let weightUnit = imageDetails.weightUnit, !weightUnit.isEmpty {
+                self.weightUnit = weightUnit
+            } else {
+                self.weightUnit = "lbs" // default
+            }
+        }
+        
+        // Mark as analyzed by AI
+        self.hasUsedAI = true
+    }
+    
+    // MARK: - Private Parsing Helpers
+    
+    private func parseDimensions(_ dimensionsString: String) {
+        // Parse formats like "9.4\" x 6.6\" x 0.29\"" or "12 x 8 x 4 inches"
+        let cleanedString = dimensionsString.replacingOccurrences(of: "\"", with: " inches")
+        let components = cleanedString.components(separatedBy: " x ").compactMap { $0.trimmingCharacters(in: .whitespaces) }
+        
+        if components.count >= 3 {
+            // Extract numeric values
+            let lengthStr = components[0].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+            let widthStr = components[1].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+            let heightStr = components[2].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+            
+            self.dimensionLength = lengthStr
+            self.dimensionWidth = widthStr
+            self.dimensionHeight = heightStr
+            
+            // Determine unit from the original string
+            if dimensionsString.contains("\"") || dimensionsString.lowercased().contains("inch") {
+                self.dimensionUnit = "inches"
+            } else if dimensionsString.lowercased().contains("cm") {
+                self.dimensionUnit = "cm"
+            } else if dimensionsString.lowercased().contains("feet") || dimensionsString.lowercased().contains("ft") {
+                self.dimensionUnit = "feet"
+            } else if dimensionsString.lowercased().contains("m") && !dimensionsString.lowercased().contains("cm") {
+                self.dimensionUnit = "m"
+            } else {
+                self.dimensionUnit = "inches" // default
+            }
+        }
+    }
+}

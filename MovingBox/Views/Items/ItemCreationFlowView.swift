@@ -273,8 +273,11 @@ struct ItemCreationFlowView: View {
             
             // Update the item with the results
             await MainActor.run {
-                updateItemWithImageDetails(item: item, imageDetails: imageDetails)
-                item.hasUsedAI = true // Mark as analyzed by AI
+                // Get all labels and locations for the unified update
+                let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+                let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                
+                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
                 try? modelContext.save()
                 
                 // Set processing flag to false
@@ -349,8 +352,11 @@ struct ItemCreationFlowView: View {
             
             // Update the item with the results
             await MainActor.run {
-                updateItemWithImageDetails(item: item, imageDetails: imageDetails)
-                item.hasUsedAI = true // Mark as analyzed by AI
+                // Get all labels and locations for the unified update
+                let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+                let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                
+                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
                 try? modelContext.save()
                 
                 // Set processing flag to false
@@ -394,150 +400,6 @@ struct ItemCreationFlowView: View {
         }
     }
     
-    private func updateItemWithImageDetails(item: InventoryItem, imageDetails: ImageDetails) {
-        // Get all labels for category matching
-        let labels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>())
-        
-        // Get all locations for location matching
-        let locations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>())
-        
-        // Core properties
-        item.title = imageDetails.title
-        item.quantityString = imageDetails.quantity
-        item.label = labels?.first { $0.name == imageDetails.category }
-        item.desc = imageDetails.description
-        item.make = imageDetails.make
-        item.model = imageDetails.model
-        item.serial = imageDetails.serialNumber
-        
-        if item.location == nil {
-            item.location = locations?.first { $0.name == imageDetails.location }
-        }
-        
-        // Price handling
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        if let price = Decimal(string: priceString) {
-            item.price = price
-        }
-        
-        // Extended properties (if provided by AI)
-        if let condition = imageDetails.condition, !condition.isEmpty {
-            item.condition = condition
-        }
-        
-        if let color = imageDetails.color, !color.isEmpty {
-            item.color = color
-        }
-        
-        if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
-            // Parse consolidated dimensions like "9.4" x 6.6" x 0.29"" into separate fields
-            parseDimensions(dimensions, for: item)
-        }
-        
-        
-        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
-            item.purchaseLocation = purchaseLocation
-        }
-        
-        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
-            let cleanedString = replacementCostString.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-            if let replacementCost = Decimal(string: cleanedString) {
-                item.replacementCost = replacementCost
-            }
-        }
-        
-        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
-            let cleanedString = depreciationRateString.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
-            if let depreciationRate = Double(cleanedString) {
-                // Convert percentage to decimal (15% -> 0.15)
-                item.depreciationRate = depreciationRate / 100.0
-            }
-        }
-        
-        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
-            item.storageRequirements = storageRequirements
-        }
-        
-        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
-            item.isFragile = isFragileString.lowercased() == "true"
-        }
-        
-        // Weight handling
-        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
-            item.weightValue = weightValue
-            if let weightUnit = imageDetails.weightUnit, !weightUnit.isEmpty {
-                item.weightUnit = weightUnit
-            } else {
-                item.weightUnit = "lbs" // default
-            }
-        }
-        
-        // Individual dimension handling (when not using consolidated dimensions)
-        if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
-            item.dimensionLength = dimensionLength
-        }
-        if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
-            item.dimensionWidth = dimensionWidth
-        }
-        if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
-            item.dimensionHeight = dimensionHeight
-        }
-        if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
-            item.dimensionUnit = dimensionUnit
-        }
-    }
-    
-    private func parseDimensions(_ dimensionsString: String, for item: InventoryItem) {
-        // Parse formats like "9.4\" x 6.6\" x 0.29\"" or "12 x 8 x 4 inches"
-        let cleanedString = dimensionsString.replacingOccurrences(of: "\"", with: " inches")
-        let components = cleanedString.components(separatedBy: " x ").compactMap { $0.trimmingCharacters(in: .whitespaces) }
-        
-        if components.count >= 3 {
-            // Extract numeric values
-            let lengthStr = components[0].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            let widthStr = components[1].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            let heightStr = components[2].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            
-            item.dimensionLength = lengthStr
-            item.dimensionWidth = widthStr
-            item.dimensionHeight = heightStr
-            
-            // Determine unit from the original string
-            if dimensionsString.contains("\"") || dimensionsString.lowercased().contains("inch") {
-                item.dimensionUnit = "inches"
-            } else if dimensionsString.lowercased().contains("cm") {
-                item.dimensionUnit = "cm"
-            } else if dimensionsString.lowercased().contains("feet") || dimensionsString.lowercased().contains("ft") {
-                item.dimensionUnit = "feet"
-            } else if dimensionsString.lowercased().contains("m") && !dimensionsString.lowercased().contains("cm") {
-                item.dimensionUnit = "m"
-            } else {
-                item.dimensionUnit = "inches" // default
-            }
-        }
-    }
-    
-    private func parseWeight(_ weightString: String, for item: InventoryItem) {
-        // Parse formats like "1.03 lbs" or "2.5 kg"
-        let components = weightString.trimmingCharacters(in: .whitespaces).components(separatedBy: " ")
-        
-        if components.count >= 2 {
-            let valueStr = components[0].replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
-            let unitStr = components[1].lowercased()
-            
-            item.weightValue = valueStr
-            
-            if unitStr.contains("kg") || unitStr.contains("kilogram") {
-                item.weightUnit = "kg"
-            } else if unitStr.contains("g") && !unitStr.contains("kg") {
-                item.weightUnit = "g"
-            } else if unitStr.contains("oz") || unitStr.contains("ounce") {
-                item.weightUnit = "oz"
-            } else {
-                item.weightUnit = "lbs" // default for "lbs", "lb", "pounds", etc.
-            }
-        }
-    }
     
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
