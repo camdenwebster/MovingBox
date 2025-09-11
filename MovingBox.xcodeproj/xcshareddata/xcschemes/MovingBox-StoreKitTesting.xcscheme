@@ -77,7 +77,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "Use-Test-Data"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "UI-Testing-Mock-Camera"

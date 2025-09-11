@@ -39,7 +39,7 @@ struct LocationItemCard: View {
                     }
                 } else {
                     Rectangle()
-                        .fill(Color(.systemGray5))
+                        .fill(Color(.secondarySystemGroupedBackground))
                         .frame(width: 160, height: 100)
                         .overlay(
                             Image(systemName: "photo")

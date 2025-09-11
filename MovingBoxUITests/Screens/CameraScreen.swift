@@ -6,6 +6,7 @@ class CameraScreen {
     
     // Camera controls
     let captureButton: XCUIElement
+    let takePhotoButton: XCUIElement
     let switchCameraButton: XCUIElement
     let dismissButton: XCUIElement
     let doneButton: XCUIElement
@@ -19,6 +20,7 @@ class CameraScreen {
         
         // Initialize camera controls based on MultiPhotoCameraView structure
         self.captureButton = app.buttons["cameraShutterButton"]
+        self.takePhotoButton = app.buttons["takePhotoButton"].firstMatch
         self.switchCameraButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'arrow.triangle.2.circlepath.camera'")).element
         self.dismissButton = app.buttons["cameraCloseButton"]
         self.doneButton = app.buttons["cameraDoneButton"]
@@ -48,7 +50,7 @@ class CameraScreen {
     func waitForCamera(timeout: TimeInterval = 5) -> Bool {
         app.tap()
         // In UI testing mode, we should see the mock tablet image
-        let cameraReady = doneButton.waitForExistence(timeout: timeout) || captureButton.waitForExistence(timeout: timeout)
+        let cameraReady = doneButton.waitForExistence(timeout: timeout) || captureButton.waitForExistence(timeout: timeout) || takePhotoButton.waitForExistence(timeout: timeout)
         
         return cameraReady
     }
@@ -62,10 +64,9 @@ class CameraScreen {
         
         if captureButton.waitForExistence(timeout: 2) {
             captureButton.tap()
+            doneButton.tap()
         } else {
-            // Fallback to coordinate tap
-            let centerButton = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
-            centerButton.tap()
+            takePhotoButton.tap()
         }
     }
     

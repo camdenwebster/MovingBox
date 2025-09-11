@@ -71,8 +71,7 @@ class SettingsManager: ObservableObject {
     
     // Pro feature constants
     public struct AppConstants: Sendable {
-        // Note: AI analysis limits have been removed as of high-resolution feature
-        static let maxFreeAiScans = -1 // Unlimited for all users
+        static let maxFreeAiScans = 50
     }
     
     private let revenueCatManager = RevenueCatManager.shared
@@ -83,7 +82,7 @@ class SettingsManager: ObservableObject {
     private let defaultMaxTokens = 2000
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
-    private let highQualityAnalysisEnabledDefault = true
+    private let highQualityAnalysisEnabledDefault = false
     private let hasLaunchedDefault = false
     
     init() {
@@ -237,8 +236,10 @@ class SettingsManager: ObservableObject {
     }
     
     func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-        // AI analysis is now unlimited for all users
-        return false
+        print("📱 SettingsManager - Checking shouldShowPaywallForAiScan")
+        print("📱 SettingsManager - Current isPro: \(isPro)")
+        print("📱 SettingsManager - Current count of items which have used AI scan: \(currentCount)")
+        return !isPro && currentCount >= AppConstants.maxFreeAiScans
     }
     
     // MARK: - Purchase Flow

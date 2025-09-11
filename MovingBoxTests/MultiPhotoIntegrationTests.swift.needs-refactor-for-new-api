@@ -60,9 +60,8 @@ struct MultiPhotoIntegrationTests {
         #expect(base64Images.count == 3)
         #expect(!base64Images.isEmpty)
         
-        // Verify OpenAI service can handle multiple images
-        let openAIService = OpenAIService(imageBase64Array: base64Images, settings: settingsManager, modelContext: modelContext)
-        #expect(openAIService.imageBase64Array.count == 3)
+        // Verify OpenAI service can be created
+        let openAIService = OpenAIService()
         
         // Test 3: Adding photos to existing item
         let additionalImages = createTestImages(count: 2)
@@ -199,9 +198,7 @@ struct MultiPhotoIntegrationTests {
         // Test 2: Empty image array for AI
         let emptyBase64Array: [String] = []
         let settingsManager = SettingsManager()
-        let openAIService = OpenAIService(imageBase64Array: emptyBase64Array, settings: settingsManager, modelContext: modelContext)
-        
-        #expect(openAIService.imageBase64Array.isEmpty)
+        let openAIService = OpenAIService()
         
         // Test 3: Invalid URL string for photo deletion
         let item = InventoryItem(

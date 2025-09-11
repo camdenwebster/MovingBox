@@ -19,7 +19,7 @@ struct OpenAILiveDebugTests {
         
         print("🧪 Testing SINGLE image API call...")
         
-        let service = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let service = OpenAIService()
         
         do {
             let result = try await service.getImageDetails()
@@ -45,7 +45,7 @@ struct OpenAILiveDebugTests {
         
         print("🧪 Testing MULTI image API call with \(base64Images.count) images...")
         
-        let service = OpenAIService(imageBase64Array: base64Images, settings: settingsManager, modelContext: modelContext)
+        let service = OpenAIService()
         
         do {
             let result = try await service.getImageDetails()
@@ -75,11 +75,11 @@ struct OpenAILiveDebugTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Single image request
-        let singleService = OpenAIService(imageBase64: base64String, settings: settingsManager, modelContext: modelContext)
+        let singleService = OpenAIService()
         let singleRequest = try singleService.generateURLRequest(httpMethod: .post)
         
         // Multi-image request (2 copies of same image)
-        let multiService = OpenAIService(imageBase64Array: [base64String, base64String], settings: settingsManager, modelContext: modelContext)
+        let multiService = OpenAIService()
         let multiRequest = try multiService.generateURLRequest(httpMethod: .post)
         
         // Compare sizes

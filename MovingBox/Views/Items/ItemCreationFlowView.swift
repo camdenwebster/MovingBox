@@ -260,17 +260,24 @@ struct ItemCreationFlowView: View {
             }
             
             // Create OpenAI service and get image details
-            let openAi = OpenAIService(imageBase64: imageBase64, settings: settings, modelContext: modelContext)
+            let openAi = OpenAIService()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for image analysis...")
-            let imageDetails = try await openAi.getImageDetails()
+            let imageDetails = try await openAi.getImageDetails(
+                from: [capturedImage].compactMap { $0 },
+                settings: settings,
+                modelContext: modelContext
+            )
             print("OpenAI analysis complete, updating item...")
             
             // Update the item with the results
             await MainActor.run {
-                updateItemWithImageDetails(item: item, imageDetails: imageDetails)
-                item.hasUsedAI = true // Mark as analyzed by AI
+                // Get all labels and locations for the unified update
+                let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+                let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                
+                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
                 try? modelContext.save()
                 
                 // Set processing flag to false
@@ -293,6 +300,12 @@ struct ItemCreationFlowView: View {
                     errorMessage = "Rate limit exceeded, please try again later"
                 case .serverError(_):
                     errorMessage = "Server error: \(openAIError.localizedDescription)"
+                case .networkCancelled:
+                    errorMessage = "Request was cancelled. Please try again."
+                case .networkTimeout:
+                    errorMessage = "Request timed out. Please check your connection and try again."
+                case .networkUnavailable:
+                    errorMessage = "Network unavailable. Please check your internet connection."
                 @unknown default:
                     errorMessage = "Unknown AI service error"
                 }
@@ -326,17 +339,24 @@ struct ItemCreationFlowView: View {
             }
             
             // Create OpenAI service with multiple images and get image details
-            let openAi = OpenAIService(imageBase64Array: imageBase64Array, settings: settings, modelContext: modelContext)
+            let openAi = OpenAIService()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for multi-image analysis...")
-            let imageDetails = try await openAi.getImageDetails()
+            let imageDetails = try await openAi.getImageDetails(
+                from: capturedImages,
+                settings: settings,
+                modelContext: modelContext
+            )
             print("OpenAI multi-image analysis complete, updating item...")
             
             // Update the item with the results
             await MainActor.run {
-                updateItemWithImageDetails(item: item, imageDetails: imageDetails)
-                item.hasUsedAI = true // Mark as analyzed by AI
+                // Get all labels and locations for the unified update
+                let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+                let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                
+                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
                 try? modelContext.save()
                 
                 // Set processing flag to false
@@ -359,6 +379,12 @@ struct ItemCreationFlowView: View {
                     errorMessage = "Rate limit exceeded, please try again later"
                 case .serverError(_):
                     errorMessage = "Server error: \(openAIError.localizedDescription)"
+                case .networkCancelled:
+                    errorMessage = "Request was cancelled. Please try again."
+                case .networkTimeout:
+                    errorMessage = "Request timed out. Please check your connection and try again."
+                case .networkUnavailable:
+                    errorMessage = "Network unavailable. Please check your internet connection."
                 @unknown default:
                     errorMessage = "Unknown AI service error"
                 }
@@ -374,30 +400,6 @@ struct ItemCreationFlowView: View {
         }
     }
     
-    private func updateItemWithImageDetails(item: InventoryItem, imageDetails: ImageDetails) {
-        // Get all labels for category matching
-        let labels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>())
-        
-        // Get all locations for location matching
-        let locations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>())
-        
-        item.title = imageDetails.title
-        item.quantityString = imageDetails.quantity
-        item.label = labels?.first { $0.name == imageDetails.category }
-        item.desc = imageDetails.description
-        item.make = imageDetails.make
-        item.model = imageDetails.model
-        item.serial = imageDetails.serialNumber
-        
-        if item.location == nil {
-            item.location = locations?.first { $0.name == imageDetails.location }
-        }
-        
-        let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        if let price = Decimal(string: priceString) {
-            item.price = price
-        }
-    }
     
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {

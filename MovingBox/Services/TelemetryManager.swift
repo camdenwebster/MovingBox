@@ -78,6 +78,28 @@ class TelemetryManager {
         ])
     }
     
+    func trackAITokenUsage(
+        totalTokens: Int,
+        promptTokens: Int,
+        completionTokens: Int,
+        requestTimeSeconds: Double,
+        imageCount: Int,
+        isProUser: Bool,
+        model: String
+    ) {
+        TelemetryManager.signal("ai-token-usage", with: [
+            "total_tokens": String(totalTokens),
+            "prompt_tokens": String(promptTokens),
+            "completion_tokens": String(completionTokens),
+            "request_time_seconds": String(format: "%.2f", requestTimeSeconds),
+            "image_count": String(imageCount),
+            "is_pro_user": isProUser ? "true" : "false",
+            "model": model,
+            "tokens_per_second": String(format: "%.1f", Double(totalTokens) / requestTimeSeconds),
+            "is_multi_image": imageCount > 1 ? "true" : "false"
+        ])
+    }
+    
     func trackHighQualityToggleUsed(enabled: Bool, isProUser: Bool) {
         TelemetryManager.signal("high-quality-toggle-used", with: [
             "enabled": enabled ? "true" : "false",
