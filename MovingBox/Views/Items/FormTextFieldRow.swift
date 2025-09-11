@@ -16,7 +16,6 @@ struct FormTextFieldRow: View {
     var body: some View {
         HStack {
             Text(label)
-//                .foregroundColor(isEditing ? .secondary : .primary)
             Spacer()
             TextField(placeholder, text: $text)
                 .multilineTextAlignment(.trailing)
@@ -66,7 +65,7 @@ struct PriceFieldRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .foregroundColor(isEditing ? .secondary : .primary)
+                .foregroundStyle(.primary)
             Spacer()
             HStack(spacing: 0) {
                 Text(currencySymbol)
@@ -78,7 +77,7 @@ struct PriceFieldRow: View {
                     .truncationMode(.tail)
                     .focused($isPriceFieldFocused)
                     .frame(minWidth: 60, maxWidth: 75, alignment: .trailing)
-                    .foregroundColor(.primary)
+                    .foregroundColor(isEditing ? .primary : .secondary)
                     .onChange(of: localPriceString) { _, newValue in
                         let filteredValue = newValue.filter { $0.isNumber }
                         

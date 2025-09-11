@@ -55,10 +55,20 @@ struct InventoryDetailView: View {
             inventoryItemToDisplay.color,
             inventoryItemToDisplay.storageRequirements,
             inventoryItemToDisplay.roomDestination,
+            inventoryItemToDisplay.dimensionLength,
+            inventoryItemToDisplay.dimensionWidth,
+            inventoryItemToDisplay.dimensionHeight,
+            inventoryItemToDisplay.dimensionUnit,
+            inventoryItemToDisplay.weightValue,
+            inventoryItemToDisplay.weightUnit,
             String(inventoryItemToDisplay.quantityInt),
             String(inventoryItemToDisplay.isFragile),
             String(inventoryItemToDisplay.hasWarranty),
-            String(inventoryItemToDisplay.movingPriority)
+            String(inventoryItemToDisplay.movingPriority),
+            String(describing: inventoryItemToDisplay.replacementCost),
+            String(describing: inventoryItemToDisplay.depreciationRate),
+            String(describing: inventoryItemToDisplay.purchaseDate),
+            String(describing: inventoryItemToDisplay.warrantyExpirationDate)
         ]
         return fields.joined(separator: "|")
     }
@@ -735,6 +745,12 @@ struct InventoryDetailView: View {
                                 .padding(.leading, 16)
                         }
                     }
+                    
+                    if isEditing || !inventoryItemToDisplay.condition.isEmpty {
+                        ConditionPickerRow(condition: $inventoryItemToDisplay.condition, isEditing: $isEditing)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
                 }
                 .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(UIConstants.cornerRadius)
@@ -816,19 +832,6 @@ struct InventoryDetailView: View {
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
-                        if (isEditing || !inventoryItemToDisplay.condition.isEmpty) ||
-                           (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
-                           (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
-                            Divider()
-                                .padding(.leading, 16)
-                        }
-                    }
-                    
-                    if isEditing || !inventoryItemToDisplay.condition.isEmpty {
-                        ConditionPickerRow(condition: $inventoryItemToDisplay.condition, isEditing: $isEditing)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
                         
                         if (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
                            (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
@@ -1063,6 +1066,13 @@ struct InventoryDetailView: View {
                     FileViewer(url: fileURL, fileName: fileViewerName)
                 }
             }
+            .fullScreenCover(isPresented: $showingFullScreenPhoto) {
+                FullScreenPhotoView(
+                    images: loadedImages,
+                    initialIndex: selectedImageIndex,
+                    isPresented: $showingFullScreenPhoto
+                )
+            }
             .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
                 Button("Take Photo") { showingSimpleCamera = true }
                     .accessibilityIdentifier("takePhoto")
@@ -1224,6 +1234,14 @@ struct InventoryDetailView: View {
             }
         }
         
+        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
+            let cleanedString = depreciationRateString.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+            if let depreciationRate = Double(cleanedString) {
+                // Convert percentage to decimal (15% -> 0.15)
+                inventoryItemToDisplay.depreciationRate = depreciationRate / 100.0
+            }
+        }
+        
         if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
             inventoryItemToDisplay.storageRequirements = storageRequirements
         }
@@ -1232,8 +1250,41 @@ struct InventoryDetailView: View {
             inventoryItemToDisplay.isFragile = isFragileString.lowercased() == "true"
         }
         
-        // Note: We'll need to handle label and location assignment differently since we don't have all loaded
-        // For now, we'll skip automatic assignment from AI to avoid data conflicts
+        // Weight handling
+        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
+            inventoryItemToDisplay.weightValue = weightValue
+            if let weightUnit = imageDetails.weightUnit, !weightUnit.isEmpty {
+                inventoryItemToDisplay.weightUnit = weightUnit
+            } else {
+                inventoryItemToDisplay.weightUnit = "lbs" // default
+            }
+        }
+        
+        // Individual dimension handling (when not using consolidated dimensions)
+        if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
+            inventoryItemToDisplay.dimensionLength = dimensionLength
+        }
+        if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
+            inventoryItemToDisplay.dimensionWidth = dimensionWidth
+        }
+        if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
+            inventoryItemToDisplay.dimensionHeight = dimensionHeight
+        }
+        if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
+            inventoryItemToDisplay.dimensionUnit = dimensionUnit
+        }
+        
+        // Safe label assignment (only if no existing label)
+        let labels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>())
+        if inventoryItemToDisplay.label == nil {
+            inventoryItemToDisplay.label = labels?.first { $0.name == imageDetails.category }
+        }
+        
+        // Safe location assignment (only if no existing location - respecting user's requirement)
+        let locations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>())
+        if inventoryItemToDisplay.location == nil {
+            inventoryItemToDisplay.location = locations?.first { $0.name == imageDetails.location }
+        }
         
         inventoryItemToDisplay.hasUsedAI = true
         

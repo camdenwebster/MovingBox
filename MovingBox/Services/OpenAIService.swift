@@ -496,6 +496,10 @@ struct AIPromptConfiguration {
             enabled: true,
             description: "Estimated current replacement cost in US dollars (e.g., $15.99), or empty string if unclear"
         ),
+        "depreciationRate": AIPropertyConfig(
+            enabled: true,
+            description: "Annual depreciation rate as a percentage (e.g., 15%), or empty string if unclear"
+        ),
         "storageRequirements": AIPropertyConfig(
             enabled: true,
             description: "Any special storage requirements (e.g., 'Keep dry', 'Climate controlled'), or empty string if none"
@@ -986,6 +990,7 @@ struct ImageDetails: Decodable {
     let weightUnit: String?
     let purchaseLocation: String?
     let replacementCost: String?
+    let depreciationRate: String?
     let storageRequirements: String?
     let isFragile: String?
     
@@ -1015,6 +1020,7 @@ struct ImageDetails: Decodable {
         weightUnit = try container.decodeIfPresent(String.self, forKey: .weightUnit)
         purchaseLocation = try container.decodeIfPresent(String.self, forKey: .purchaseLocation)
         replacementCost = try container.decodeIfPresent(String.self, forKey: .replacementCost)
+        depreciationRate = try container.decodeIfPresent(String.self, forKey: .depreciationRate)
         storageRequirements = try container.decodeIfPresent(String.self, forKey: .storageRequirements)
         isFragile = try container.decodeIfPresent(String.self, forKey: .isFragile)
     }
@@ -1022,7 +1028,7 @@ struct ImageDetails: Decodable {
     private enum CodingKeys: String, CodingKey {
         case title, quantity, description, make, model, category, location, price, serialNumber
         case condition, color, dimensions, dimensionLength, dimensionWidth, dimensionHeight, dimensionUnit
-        case weightValue, weightUnit, purchaseLocation, replacementCost, storageRequirements, isFragile
+        case weightValue, weightUnit, purchaseLocation, replacementCost, depreciationRate, storageRequirements, isFragile
     }
     
     // Static factory method for creating empty instances
@@ -1048,6 +1054,7 @@ struct ImageDetails: Decodable {
             weightUnit: nil,
             purchaseLocation: nil,
             replacementCost: nil,
+            depreciationRate: nil,
             storageRequirements: nil,
             isFragile: nil
         )
@@ -1060,7 +1067,7 @@ struct ImageDetails: Decodable {
          dimensionLength: String? = nil, dimensionWidth: String? = nil, dimensionHeight: String? = nil,
          dimensionUnit: String? = nil, weightValue: String? = nil,
          weightUnit: String? = nil, purchaseLocation: String? = nil, replacementCost: String? = nil,
-         storageRequirements: String? = nil, isFragile: String? = nil) {
+         depreciationRate: String? = nil, storageRequirements: String? = nil, isFragile: String? = nil) {
         
         self.title = title
         self.quantity = quantity
@@ -1082,6 +1089,7 @@ struct ImageDetails: Decodable {
         self.weightUnit = weightUnit
         self.purchaseLocation = purchaseLocation
         self.replacementCost = replacementCost
+        self.depreciationRate = depreciationRate
         self.storageRequirements = storageRequirements
         self.isFragile = isFragile
     }

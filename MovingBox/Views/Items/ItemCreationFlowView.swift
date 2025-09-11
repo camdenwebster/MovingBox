@@ -446,12 +446,44 @@ struct ItemCreationFlowView: View {
             }
         }
         
+        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
+            let cleanedString = depreciationRateString.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+            if let depreciationRate = Double(cleanedString) {
+                // Convert percentage to decimal (15% -> 0.15)
+                item.depreciationRate = depreciationRate / 100.0
+            }
+        }
+        
         if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
             item.storageRequirements = storageRequirements
         }
         
         if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
             item.isFragile = isFragileString.lowercased() == "true"
+        }
+        
+        // Weight handling
+        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
+            item.weightValue = weightValue
+            if let weightUnit = imageDetails.weightUnit, !weightUnit.isEmpty {
+                item.weightUnit = weightUnit
+            } else {
+                item.weightUnit = "lbs" // default
+            }
+        }
+        
+        // Individual dimension handling (when not using consolidated dimensions)
+        if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
+            item.dimensionLength = dimensionLength
+        }
+        if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
+            item.dimensionWidth = dimensionWidth
+        }
+        if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
+            item.dimensionHeight = dimensionHeight
+        }
+        if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
+            item.dimensionUnit = dimensionUnit
         }
     }
     
