@@ -1423,9 +1423,6 @@ struct InventoryDetailView: View {
     }
     
     private func loadAllImages() async {
-        // Use the view's modelContext instead of the item's modelContext
-        // The item's modelContext can become nil after saving
-        
         await MainActor.run {
             isLoading = true
         }
@@ -1437,23 +1434,31 @@ struct InventoryDetailView: View {
         
         var images: [UIImage] = []
         
-        // Load primary image
-        if let imageURL = inventoryItemToDisplay.imageURL {
-            do {
-                let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                images.append(image)
-            } catch {
-                print("Failed to load primary image: \(error)")
+        do {
+            // Use PhotoManageable protocol which handles URL migration automatically
+            images = try await inventoryItemToDisplay.allPhotos
+        } catch {
+            print("Failed to load images using PhotoManageable protocol: \(error)")
+            
+            // Fallback to direct loading if PhotoManageable fails
+            // Load primary image
+            if let imageURL = inventoryItemToDisplay.imageURL {
+                do {
+                    let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
+                    images.append(image)
+                } catch {
+                    print("Failed to load primary image: \(error)")
+                }
             }
-        }
-        
-        // Load secondary images
-        if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
-            do {
-                let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: inventoryItemToDisplay.secondaryPhotoURLs)
-                images.append(contentsOf: secondaryImages)
-            } catch {
-                print("Failed to load secondary images: \(error)")
+            
+            // Load secondary images
+            if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
+                do {
+                    let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: inventoryItemToDisplay.secondaryPhotoURLs)
+                    images.append(contentsOf: secondaryImages)
+                } catch {
+                    print("Failed to load secondary images: \(error)")
+                }
             }
         }
         
