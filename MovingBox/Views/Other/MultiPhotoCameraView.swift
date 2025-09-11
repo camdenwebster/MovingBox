@@ -243,7 +243,7 @@ struct MultiPhotoCameraView: View {
                     Spacer()
                     
                     // Done button
-                    Button("Done") {
+                    Button("Next") {
                         onComplete(model.capturedImages)
                     }
                     .font(.system(size: 16, weight: .medium))

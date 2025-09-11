@@ -39,6 +39,7 @@ class InventoryDetailScreen {
     // Confirmation dialog buttons
     let takePhotoButton: XCUIElement
     let chooseFromLibraryButton: XCUIElement
+    let scanDocumentButton: XCUIElement
     let removePhotoButton: XCUIElement
     let cancelButton: XCUIElement
     
@@ -69,8 +70,9 @@ class InventoryDetailScreen {
         self.labelPicker = app.pickers["labelPicker"]
         
         // Initialize confirmation dialog buttons
-        self.takePhotoButton = app.sheets.buttons["takePhoto"]
-        self.chooseFromLibraryButton = app.sheets.buttons["chooseFromLibrary"]
+        self.takePhotoButton = app.sheets.buttons["takePhoto"].firstMatch
+        self.chooseFromLibraryButton = app.sheets.buttons["chooseFromLibrary"].firstMatch
+        self.scanDocumentButton = app.sheets.buttons["scanDocument"].firstMatch
         self.removePhotoButton = app.sheets.buttons["removePhoto"]
         self.cancelButton = app.sheets.buttons["cancel"]
     }
@@ -91,9 +93,21 @@ class InventoryDetailScreen {
         chooseFromLibraryButton.tap()
         
         // Handle photo library selection
-        let photoLibrary = app.otherElements["photos_layout"]
-        XCTAssertTrue(photoLibrary.waitForExistence(timeout: 20), "Photo library did not appear after 20 seconds")
-        photoLibrary.images.firstMatch.tap()
+        let photosApp = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow.photospicker")
+        photosApp.activate()
+        let firstPhoto = photosApp.scrollViews.firstMatch.images.firstMatch
+        firstPhoto.tap()
+        
+        // Tap the Choose/Done button to confirm selection
+        photosApp.buttons["Choose"].tap()
+    }
+    
+    func saveItem() {
+        if saveButton.isEnabled {
+            saveButton.tap()
+        } else {
+            XCTFail("Save button was not enabled after fields were populated")
+        }
     }
     
     func updatePhotoFromLibrary() {
@@ -107,6 +121,35 @@ class InventoryDetailScreen {
         
         // Tap the Choose/Done button to confirm selection
         photosApp.buttons["Choose"].tap()
+    }
+    
+    func waitForAIAnalysisToComplete(timeout: TimeInterval = 30.0) {
+        // Wait for the progress view to appear (AI analysis started)
+        let progressViewAppeared = analyzeWithAiButton.staticTexts["Analyze with AI"].waitForNonExistence(timeout: 5.0)
+        XCTAssertTrue(progressViewAppeared, "AI analysis should have started (progress view should appear)")
+        
+        // Wait for the progress view to disappear and "Analyze with AI" text to return (AI analysis completed)
+        let analysisCompleted = analyzeWithAiButton.staticTexts["Analyze with AI"].waitForExistence(timeout: timeout)
+        XCTAssertTrue(analysisCompleted, "AI analysis should complete within \(timeout) seconds")
+    }
+    
+    func verifyPopulatedFields() {
+        // Wait for AI analysis to complete first
+        waitForAIAnalysisToComplete()
+        
+        // Then: Fields should contain non-empty values
+        XCTAssertFalse(
+            (titleField.value as? String)?.isEmpty ?? true,
+            "Title field should not be empty"
+        )
+        XCTAssertFalse(
+            (makeField.value as? String)?.isEmpty ?? true,
+            "Make field should not be empty"
+        )
+        XCTAssertFalse(
+            (modelField.value as? String)?.isEmpty ?? true,
+            "Model field should not be empty"
+        )
     }
     
     func removePhoto() {

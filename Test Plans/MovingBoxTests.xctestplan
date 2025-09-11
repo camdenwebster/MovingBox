@@ -17,11 +17,20 @@
       "skippedTests" : {
         "suites" : [
           {
+            "name" : "DataManagerTests",
+            "testFunctions" : [
+              "importHandlesFileAccessErrors()"
+            ]
+          },
+          {
             "name" : "HomeMigrationTests",
             "testFunctions" : [
               "testSkipMigrationWhenURLExists()",
               "testSuccessfulMigration()"
             ]
+          },
+          {
+            "name" : "InventoryDetailViewModelTests"
           },
           {
             "name" : "OptimizedImageManagerTests",

@@ -8,7 +8,7 @@
         }
       ],
       "color": "#444444",
-      "font_size": 48
+      "font_size": 100
     },
     "keyword": {
       "fonts": [
@@ -17,8 +17,7 @@
           "supported": ["en-US"]
         }
       ],
-      "color": "#333333",
-      "font_size": 80
+      "color": "#333333"
     },
     "background": "./background-light.png",
     "stack_title": true,
