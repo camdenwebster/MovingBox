@@ -59,7 +59,15 @@
       "mcp__context7__get-library-docs",
       "WebFetch(domain:nilcoalescing.com)",
       "Read(/Users/camden.webster/Downloads/**)",
-      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/**)"
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Models/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Views/Items/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Views/Items/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Models/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/**)",
+      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Models/**)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
