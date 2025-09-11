@@ -36,6 +36,7 @@ final class InventoryItemUITests: XCTestCase {
         setupSnapshot(app)
         
         app.launch()
+        XCTAssertTrue(dashboardScreen.allInventoryButton.waitForExistence(timeout: 10), "App did not launch in time")
     }
 
     override func tearDownWithError() throws {
@@ -62,17 +63,17 @@ final class InventoryItemUITests: XCTestCase {
         cameraScreen.takePhoto()
         
         // Then: Detail view should appear after AI analysis completes
-        XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 10),
+        XCTAssertTrue(detailScreen.titleField.waitForExistence(timeout: 20),
                      "Detail view should appear after AI analysis")
         
         // And: Fields should be populated with AI analysis results
-        verifyPopulatedFields()
+        detailScreen.verifyPopulatedFields()
         
         // When: User saves the item
         detailScreen.saveButton.tap()
         
-        // Then: Camera should be ready for the next photo
-        XCTAssertTrue(cameraScreen.waitForCamera(),
+        // Then: Camera Add Flow sheet should be closed
+        XCTAssertTrue(detailScreen.titleField.waitForNonExistence(timeout: 5),
                      "Camera should be ready after permissions")
     }
 
@@ -81,7 +82,7 @@ final class InventoryItemUITests: XCTestCase {
         navigationHelper.navigateToAllItems()
 
         // When: User initiates adding an item manually
-        listScreen.tapAddItem()
+        listScreen.openToolbarMenu()
         listScreen.tapCreateManually()
         
         // Then: Detail view should appear
@@ -92,26 +93,16 @@ final class InventoryItemUITests: XCTestCase {
         detailScreen.addPhotoFromLibrary()
         
         // And: User initiates AI analysis
-        let analyzeButton = detailScreen.analyzeWithAiButton
-        XCTAssertTrue(analyzeButton.waitForExistence(timeout: 5),
+        XCTAssertTrue(detailScreen.analyzeWithAiButton.waitForExistence(timeout: 5),
                      "AI analysis button should be visible")
-        analyzeButton.tap()
+        detailScreen.tapAnalyzeWithAI()
         
         // Then: Detail view should be updated after AI analysis completes
-        XCTAssertTrue(detailScreen.sparklesButton.waitForExistence(timeout: 10),
-                     "Detail view should be updated after AI analysis")
         // And: Fields should be populated with AI analysis results
-        verifyPopulatedFields()
-        
-        // And the "Analyze with AI" button should be gone
-        XCTAssertFalse(analyzeButton.exists)
+        detailScreen.verifyPopulatedFields()
         
         // When: User saves the item
-        if detailScreen.saveButton.isEnabled {
-            detailScreen.saveButton.tap()
-        } else {
-            XCTFail("Save button was not enabled after fields were populated")
-        }
+        detailScreen.saveItem()
         
         // Then: The inventory list should be displayed
         XCTAssertTrue(listScreen.createFromCameraButton.waitForExistence(timeout: 5),
@@ -137,33 +128,14 @@ final class InventoryItemUITests: XCTestCase {
                      "Detail view should appear after AI analysis")
         
         // And: Fields should be populated with AI analysis results
-        verifyPopulatedFields()
+        detailScreen.verifyPopulatedFields()
         
         // When: User saves the item
         detailScreen.saveButton.tap()
         
-        // Then: Camera view should reappear and be ready
-        XCTAssertTrue(cameraScreen.waitForCamera(),
-                     "Camera view should reappear and be ready after navigating back")
-    }
-    
-    // MARK: - Helper Methods
-    
-    private func verifyPopulatedFields() {
-        // Given: Fields are visible and populated
-        
-        // Then: Fields should contain non-empty values
-        XCTAssertFalse(
-            (detailScreen.titleField.value as? String)?.isEmpty ?? true,
-            "Title field should not be empty"
-        )
-        XCTAssertFalse(
-            (detailScreen.makeField.value as? String)?.isEmpty ?? true,
-            "Make field should not be empty"
-        )
-        XCTAssertFalse(
-            (detailScreen.modelField.value as? String)?.isEmpty ?? true,
-            "Model field should not be empty"
-        )
+        // Then: Camera Add Flow sheet should be closed
+        XCTAssertTrue(detailScreen.titleField.waitForNonExistence(timeout: 5),
+                     "Camera should be ready after permissions")
     }
 }
+

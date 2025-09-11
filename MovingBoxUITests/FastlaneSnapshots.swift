@@ -47,9 +47,6 @@ final class FastlaneSnapshots: XCTestCase {
     
     func testDashboardSnapshot() throws {
         // Given MovingBox has data in the inventory
-        app.launchArguments.append("Use-Test-Data")
-        app.launch()
-        
         // When the user launches the app
         // Then the dashboard should display the correct elements with the data
         snapshot("01_Dashboard")
@@ -103,8 +100,7 @@ final class FastlaneSnapshots: XCTestCase {
         analyzeButton.tap()
         
         // Then: Detail view should be updated after AI analysis completes
-        XCTAssertTrue(detailScreen.sparklesButton.waitForExistence(timeout: 10),
-                      "Detail view should be updated after AI analysis")
+        detailScreen.verifyPopulatedFields()
         snapshot("01_InventoryItemAfterAnalysis")
     }
 }

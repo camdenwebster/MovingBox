@@ -83,7 +83,7 @@ class SettingsManager: ObservableObject {
     private let defaultMaxTokens = 2000
     private let defaultApiKey = ""
     private let isHighDetailDefault = false
-    private let highQualityAnalysisEnabledDefault = true
+    private let highQualityAnalysisEnabledDefault = false
     private let hasLaunchedDefault = false
     
     init() {

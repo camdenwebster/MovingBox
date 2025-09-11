@@ -3,7 +3,9 @@ import XCTest
 final class InventoryListDeletionUITests: XCTestCase {
     
     var app: XCUIApplication!
+    var dashboardScreen: DashboardScreen!
     var inventoryListScreen: InventoryListScreen!
+    var navigationHelper: NavigationHelper!
     
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -15,7 +17,8 @@ final class InventoryListDeletionUITests: XCTestCase {
         inventoryListScreen = InventoryListScreen(app: app)
         
         // Navigate to All Items view
-        app.tabBars.buttons["All Items"].tap()
+        XCTAssertTrue(dashboardScreen.allInventoryButton.waitForExistence(timeout: 10), "App did not launch in time")
+        navigationHelper.navigateToAllItems()
         
         // Wait for items to load
         XCTAssertTrue(inventoryListScreen.waitForItemsToLoad(), "Items should load within timeout")

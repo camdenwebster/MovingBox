@@ -1065,8 +1065,11 @@ struct InventoryDetailView: View {
             }
             .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
                 Button("Take Photo") { showingSimpleCamera = true }
+                    .accessibilityIdentifier("takePhoto")
                 Button("Scan Document") { showDocumentScanner = true }
+                    .accessibilityIdentifier("scanDocument")
                 Button("Choose from Photos") { showPhotoPicker = true }
+                    .accessibilityIdentifier("chooseFromLibrary")
             }
             .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
                 Button("OK", role: .cancel) { }
@@ -1801,8 +1804,9 @@ struct PhotoPlaceholderView: View {
                         .padding(.vertical, 12)
                         .background(.blue)
                         .clipShape(Capsule())
-                        .accessibilityIdentifier("detailview-add-first-photo-button")
                     }
+                    .accessibilityIdentifier("detailview-add-first-photo-button")
+
                 }
             }
         }
