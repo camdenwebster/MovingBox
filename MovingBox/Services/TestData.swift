@@ -107,7 +107,6 @@ struct TestData {
         ("OLED TV", "65-inch 4K Smart TV", "LG", "OLED65C1", Decimal(1999.99), "tv", "Living Room", "Electronics"),
         ("Coffee Maker", "Programmable 12-cup", "Cuisinart", "DCC-3200", Decimal(99.99), "coffee-maker", "Kitchen", "Kitchen"),
         ("Desk Chair", "Ergonomic Office Chair", "Herman Miller", "Aeron", Decimal(1095.00), "desk-chair", "Home Office", "Furniture"),
-        ("Guitar", "Electric Guitar", "Fender", "Stratocaster", Decimal(1499.99), "guitar", "Living Room", "Art"),
         
         // Kitchen Items
         ("Stand Mixer", "Professional 5Qt Mixer", "KitchenAid", "Pro 5", Decimal(399.99), "stand-mixer", "Kitchen", "Kitchen"),
@@ -117,7 +116,6 @@ struct TestData {
         // Electronics
         ("Gaming Console", "Next-gen gaming system", "Sony", "PlayStation 5", Decimal(499.99), "gaming-console", "Living Room", "Electronics"),
         ("Smart Speaker", "Voice-controlled speaker", "Amazon", "Echo 4th Gen", Decimal(99.99), "smart-speaker", "Living Room", "Electronics"),
-        ("Tablet", "11-inch Tablet", "Apple", "iPad Pro", Decimal(799.99), "tablet", "Living Room", "Electronics"),
         
         // Furniture
         ("Sofa", "3-Seater Leather Sofa", "West Elm", "Hamilton", Decimal(2199.99), "sofa", "Living Room", "Furniture"),
@@ -126,7 +124,6 @@ struct TestData {
         
         // Sports Equipment
         ("Treadmill", "Smart Treadmill", "Peloton", "Tread+", Decimal(4295.00), "treadmill", "Basement", "Sports"),
-        ("Bicycle", "Mountain Bike", "Trek", "Fuel EX 8", Decimal(3299.99), "bicycle", "Garage", "Sports"),
         ("Weight Set", "Adjustable Dumbbells", "Bowflex", "SelectTech 552", Decimal(399.99), "weight-set", "Home Office", "Sports"),
         
         // Tools
@@ -160,9 +157,9 @@ struct TestData {
         ("Fire Pit", "Wood Burning", "Solo Stove", "Bonfire", Decimal(399.99), "fire-pit", "Garage", "Furniture"),
         
         // Musical Instruments
-        ("Digital Piano", "88-Key Digital Piano", "Roland", "FP-90X", Decimal(1899.99), "digital-piano", "Living Room", "Art"),
-        ("Bass Guitar", "4-String Electric Bass", "Fender", "Precision", Decimal(1499.99), "bass-guitar", "Living Room", "Art"),
-        ("Drum Kit", "5-Piece Acoustic Kit", "Pearl", "Export", Decimal(699.99), "drum-kit", "Living Room", "Art"),
+        ("Digital Piano", "88-Key Digital Piano", "Roland", "FP-90X", Decimal(1899.99), "digital-piano", "Living Room", "Collectibles"),
+        ("Saxophone", "Tenor sax by Jupiter", "Jupiter", "JTS700", Decimal(1499.99), "sax", "Living Room", "Collectibles"),
+        ("Drum Kit", "5-Piece Acoustic Kit", "Pearl", "Export", Decimal(699.99), "drum-kit", "Living Room", "Collectibles"),
         
         // Home Office
         ("Monitor", "27-inch 4K Display", "LG", "27UK850-W", Decimal(449.99), "monitor", "Home Office", "Electronics"),
@@ -187,7 +184,12 @@ struct TestData {
         // Lighting
         ("Chandelier", "Crystal Chandelier", "Pottery Barn", "Clarissa", Decimal(799.99), "chandelier", "Living Room", "Furniture"),
         ("Table Lamp Set", "Ceramic Table Lamps", "West Elm", "Asymmetry", Decimal(299.99), "table-lamps", "Living Room", "Furniture"),
-        ("Smart Bulbs", "Color Changing Set", "Philips", "Hue", Decimal(199.99), "smart-bulbs", "Home Office", "Electronics")
+        ("Smart Bulbs", "Color Changing Set", "Philips", "Hue", Decimal(199.99), "smart-bulbs", "Home Office", "Electronics"),
+        
+        // Most recent items
+        ("Tablet", "11-inch Tablet", "Apple", "iPad Pro", Decimal(799.99), "tablet", "Living Room", "Electronics"),
+        ("Bicycle", "Mountain Bike", "Trek", "Fuel EX 8", Decimal(3299.99), "bicycle", "Garage", "Sports"),
+        ("Guitar", "Electric Guitar", "Gibson", "ES-335", Decimal(1499.99), "guitar", "Living Room", "Collectibles")
     ]
     
     // Helper method to load default data (labels only) into SwiftData

@@ -123,8 +123,19 @@ class InventoryDetailScreen {
         photosApp.buttons["Choose"].tap()
     }
     
+    func waitForAIAnalysisToComplete(timeout: TimeInterval = 30.0) {
+        // Wait for the progress view to appear (AI analysis started)
+        let progressViewAppeared = analyzeWithAiButton.staticTexts["Analyze with AI"].waitForNonExistence(timeout: 5.0)
+        XCTAssertTrue(progressViewAppeared, "AI analysis should have started (progress view should appear)")
+        
+        // Wait for the progress view to disappear and "Analyze with AI" text to return (AI analysis completed)
+        let analysisCompleted = analyzeWithAiButton.staticTexts["Analyze with AI"].waitForExistence(timeout: timeout)
+        XCTAssertTrue(analysisCompleted, "AI analysis should complete within \(timeout) seconds")
+    }
+    
     func verifyPopulatedFields() {
-        // Given: Fields are visible and populated
+        // Wait for AI analysis to complete first
+        waitForAIAnalysisToComplete()
         
         // Then: Fields should contain non-empty values
         XCTAssertFalse(

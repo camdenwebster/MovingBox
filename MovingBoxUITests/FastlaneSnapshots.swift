@@ -101,6 +101,7 @@ final class FastlaneSnapshots: XCTestCase {
         
         // Then: Detail view should be updated after AI analysis completes
         detailScreen.verifyPopulatedFields()
+        detailScreen.saveItem()
         snapshot("01_InventoryItemAfterAnalysis")
     }
 }

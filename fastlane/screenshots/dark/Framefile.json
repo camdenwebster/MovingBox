@@ -7,7 +7,8 @@
           "supported": ["en-US"]
         }
       ],
-      "color": "#B0B0B0"
+      "color": "#B0B0B0",
+      "font_size": 100
     },
     "keyword": {
       "fonts": [
