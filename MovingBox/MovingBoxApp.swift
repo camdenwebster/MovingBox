@@ -155,10 +155,10 @@ struct MovingBoxApp: App {
                                         EmptyView()
                                     }
                                 }
-                                .tint(Color.customPrimary)
                             }
                     }
                     .environment(\.disableAnimations, disableAnimations)
+                    .tint(Color.customPrimary)
                 }
             }
             .task {

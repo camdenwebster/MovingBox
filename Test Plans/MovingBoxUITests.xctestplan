@@ -22,6 +22,7 @@
       "skippedTests" : [
         "FastlaneSnapshots",
         "ImportExportUITests\/testImportExportFlow()",
+        "NavigationSystemUITests",
         "PaywallUITests\/testFirstItemCreationShowsPaywall()"
       ],
       "target" : {

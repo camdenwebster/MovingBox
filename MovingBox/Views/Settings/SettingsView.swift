@@ -287,6 +287,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .navigationBarTitleDisplayMode(.large)
         .navigationTitle("Settings")
         .tint(Color.customPrimary)
         .sheet(item: $safariLink) { linkData in

@@ -236,7 +236,7 @@ struct InventoryDetailView: View {
                         isEditing: isEditing,
                         onAddPhoto: {
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
-                            if currentPhotoCount < 5 {
+                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
                                 showPhotoSourceAlert = true
                             }
                         },
@@ -318,7 +318,7 @@ struct InventoryDetailView: View {
                             
                             // Add photo button
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
-                            if currentPhotoCount < 5 {
+                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
                                 Button(action: {
                                     showPhotoSourceAlert = true
                                 }) {
@@ -1043,7 +1043,7 @@ struct InventoryDetailView: View {
                         showingSimpleCamera = false
                     }
             }
-            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotosPickerItems, maxSelectionCount: 5, matching: .images)
+            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotosPickerItems, maxSelectionCount: calculateRemainingPhotoCount(), matching: .images)
             .onChange(of: selectedPhotosPickerItems) { _, newItems in
                 if !newItems.isEmpty {
                     Task {
@@ -1384,6 +1384,12 @@ struct InventoryDetailView: View {
         }
     }
     
+    private func calculateRemainingPhotoCount() -> Int {
+        let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+        let maxPhotos = settings.isPro ? 5 : 1
+        return max(0, maxPhotos - currentPhotoCount)
+    }
+    
     private func formatInitialPrice(_ price: Decimal) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -1543,7 +1549,9 @@ struct DocumentCameraView: UIViewControllerRepresentable {
         
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
             var scannedImages: [UIImage] = []
-            for pageIndex in 0..<scan.pageCount {
+            // Limit to 1 image per session for simplicity
+            let maxImages = min(1, scan.pageCount)
+            for pageIndex in 0..<maxImages {
                 let image = scan.imageOfPage(at: pageIndex)
                 scannedImages.append(image)
             }

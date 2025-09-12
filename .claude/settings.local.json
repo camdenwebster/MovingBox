@@ -79,7 +79,9 @@
       "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Views/Settings/**)",
       "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Views/Settings/**)",
       "Read(/Users/camden.webster/dev/MovingBox-1.1.0/MovingBox/Views/Settings/**)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:www.aiproxy.com)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

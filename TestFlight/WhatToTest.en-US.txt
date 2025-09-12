@@ -7,6 +7,18 @@ We are excited to prepare for our 1.0 launch, and we will greatly appreciate any
 - Testing on a wide variety of iPhone/iPad models
 
 What's New?
+2.0.0
+- A beautiful, all-new design makes MovingBox even easier to use with full support for Liquid Glass (iOS 26+)
+- (MovingBox Pro) leverage the most powerful AI models with higher resolution images to capture more detail for your inventory
+- Users can now take and add multiple photos of items to inventory records. Capture the same item from different angles (labels, etc) to enhance the AI's recognition!
+- We've added a bunch of new inventory properties to help you collect a more accurate inventory or even help with a move: Warranty Expiration Date, Purchase Date, Purchase Location, Condition, Replacement Cost, Depreciation Rate, Dimensions, Weight, Color, Storage Requirements, Moving Priority, Fragility, Moving Destination
+- Users can now add attachments such as PDFs for receipts or other important documents related to an item
+- See recently added inventory items right on the Dashboard!
+- Customize your CSV export by selecting items and exporting your CSV/image ZIP file right from the list view
+- Quickly move, re-label, or delete items by selecting them in the list view
+- Users now have the ability to delete all data from both local storage and iCloud
+- Users can now 
+
 1.1.0
 - New Feature: import and export a ZIP archive containing CSV files of all your items, locations, labels and a folder of your photos!
 
@@ -17,7 +29,7 @@ What's New?
 - Remove the "Add Label" and "Add Location" buttons from the inventory item detail view to maximize real estate for inventory information
 
 1.0.0
-- Release candidate! Last change to test all major features prior to launch
+- Release candidate! Last chance to test all major features prior to launch
 
 0.9.0
 - Added emoji support for Labels

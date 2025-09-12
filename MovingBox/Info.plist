@@ -12,6 +12,8 @@
 	<string>$(TELEMETRY_DECK_APP_ID)</string>
 	<key>SENTRY_DSN</key>
 	<string>$(SENTRY_DSN)</string>
+	<key>AIPROXY_DEVICE_CHECK_BYPASS</key>
+	<string>$(AIPROXY_DEVICE_CHECK_BYPASS)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
