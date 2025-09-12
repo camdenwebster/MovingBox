@@ -99,8 +99,7 @@ import Foundation
         }
         
         func shouldShowPaywallForAiScan(currentCount: Int) -> Bool {
-            // AI analysis is now unlimited for all users
-            return false
+            return !isPro && currentCount >= 50 // AppConstants.maxFreeAiScans
         }
     }
     
@@ -158,12 +157,14 @@ import Foundation
         
         // When - Free tier
         #expect(manager.shouldShowPaywall() == true)
-        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false) // AI scans now unlimited
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == true) // At 50 scans (limit reached)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 49) == false) // Under limit
         
         // When - Pro tier
         manager.isPro = true
         #expect(manager.shouldShowPaywall() == false)
-        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false)
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false) // Pro users never see paywall
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 100) == false) // Pro users never see paywall, even with high count
     }
     
     @Test("Test reset functionality")
