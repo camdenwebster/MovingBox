@@ -96,6 +96,8 @@ final class FastlaneSnapshots: XCTestCase {
         detailScreen.takePhotoWithCamera()
         cameraScreen.takePhoto()
         
+        snapshot("01_InventoryItemBeforeAnalysis")
+        
         // And: user fills in fields
         detailScreen.fillInFields()
         

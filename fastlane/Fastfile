@@ -19,7 +19,7 @@ platform :ios do
   desc "Generate new localized screenshots"
   lane :screenshots do
     # Set simulator boot timeout
-    ENV["SNAPSHOT_SIMULATOR_WAIT_FOR_BOOT_TIMEOUT"] = "30"
+    ENV["SNAPSHOT_SIMULATOR_WAIT_FOR_BOOT_TIMEOUT"] = "10"
     
     # Reset simulators
     reset_simulator_contents
@@ -37,7 +37,6 @@ platform :ios do
     
     # Generate frames for both light and dark mode
     generate_frames(mode: "light")
-    generate_frames(mode: "dark")
   end
 
   desc "Generate frames for existing screenshots"

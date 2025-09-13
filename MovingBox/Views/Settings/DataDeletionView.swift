@@ -240,7 +240,7 @@ struct DataDeletionView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Image(systemName: scope.icon)
-                                    .foregroundStyle(selectedScope == scope ? Color.customPrimary : .secondary)
+                                    .foregroundStyle(selectedScope == scope ? .green : .secondary)
                                 Text(scope.rawValue)
                                     .foregroundStyle(.primary)
                                     .font(.headline)
@@ -251,7 +251,7 @@ struct DataDeletionView: View {
                         }
                         Spacer()
                         Image(systemName: selectedScope == scope ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(Color.customPrimary)
+                            
                             .font(.title)
                             .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.wholeSymbol), options: .nonRepeating))
                     }

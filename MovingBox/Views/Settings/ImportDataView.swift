@@ -24,7 +24,7 @@ struct ImportDataView: View {
                 Toggle(isOn: $importItems) {
                     HStack {
                         Image(systemName: "cube.box")
-                            .foregroundStyle(Color.customPrimary)
+                            
                         Text("Import Items")
                     }
                 }
@@ -32,7 +32,7 @@ struct ImportDataView: View {
                 Toggle(isOn: $importLocations) {
                     HStack {
                         Image(systemName: "map")
-                            .foregroundStyle(Color.customPrimary)
+                            
                         Text("Import Locations")
                     }
                 }
@@ -40,7 +40,7 @@ struct ImportDataView: View {
                 Toggle(isOn: $importLabels) {
                     HStack {
                         Image(systemName: "tag")
-                            .foregroundStyle(Color.customPrimary)
+                            
                         Text("Import Labels")
                     }
                 }
@@ -57,7 +57,7 @@ struct ImportDataView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.customPrimary)
+                        .background(.green)
                         .cornerRadius(10)
                 }
                 .disabled(!hasImportOptionsSelected || showImportLoading)

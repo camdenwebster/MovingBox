@@ -27,7 +27,7 @@ struct ExportDataView: View {
                 Toggle(isOn: $exportItems) {
                     HStack {
                         Image(systemName: "cube.box")
-                            .foregroundStyle(Color.customPrimary)
+                            
                         Text("Export Items")
                     }
                 }
@@ -35,7 +35,7 @@ struct ExportDataView: View {
                 Toggle(isOn: $exportLocations) {
                     HStack {
                         Image(systemName: "map")
-                            .foregroundStyle(Color.customPrimary)
+                            
                         Text("Export Locations")
                     }
                 }
@@ -43,7 +43,7 @@ struct ExportDataView: View {
                 Toggle(isOn: $exportLabels) {
                     HStack {
                         Image(systemName: "tag")
-                            .foregroundStyle(Color.customPrimary)
+                            
                         Text("Export Labels")
                     }
                 }
@@ -74,7 +74,7 @@ struct ExportDataView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.customPrimary)
+                .background(.green)
                 .cornerRadius(10)
                 .disabled(isProcessingExport || !hasExportOptionsSelected)
                 .listRowInsets(EdgeInsets())

@@ -171,7 +171,7 @@ struct DashboardView: View {
                                 } label: {
                                     HStack {
                                         Text("View All Items")
-                                            .foregroundStyle(Color.customPrimary)
+                                            
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .foregroundStyle(.tertiary)
@@ -244,7 +244,7 @@ struct DashboardView: View {
                 }
                 .accessibilityIdentifier("createFromCamera")
                 .buttonStyle(.borderedProminent)
-                .tint(Color.customPrimary)
+                
                 .backport.glassEffect(in: Circle())
             }
         }

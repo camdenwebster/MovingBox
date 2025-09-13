@@ -49,7 +49,7 @@ struct SplashView: View {
                 if containerManager.isLoading {
                     VStack(spacing: 12) {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: Color.customPrimary))
+                            .progressViewStyle(CircularProgressViewStyle(tint: .green))
                             .scaleEffect(1.2)
                         
                         Text("Migration in progress, please do not close the app")

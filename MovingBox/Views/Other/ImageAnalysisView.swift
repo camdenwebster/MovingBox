@@ -99,9 +99,9 @@ struct ImageAnalysisView: View {
                     
                     Spacer()
                     
-                    VStack(spacing: 16) {
+                    VStack {
                         Image(systemName: "brain")
-                            .foregroundStyle(Color.customPrimary)
+                            .foregroundStyle(.green)
                             .font(.title)
                             .symbolEffect(.pulse)
                         Text("AI Image Analysis in Progress...")
@@ -109,6 +109,9 @@ struct ImageAnalysisView: View {
                             .foregroundStyle(.primary)
                         Text(images.count > 1 ? "Please wait while we analyze your \(images.count) photos" : "Please wait while we analyze your photo")
                             .foregroundStyle(.secondary)
+                        Text("AI can make mistakes. Check important info.")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
                     }
                     .frame(height: 120)
                     .frame(maxWidth: .infinity)

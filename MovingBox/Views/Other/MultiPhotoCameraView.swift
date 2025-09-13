@@ -250,7 +250,7 @@ struct MultiPhotoCameraView: View {
                         onComplete(model.capturedImages)
                     }
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.customPrimary)
+                    .foregroundColor(.green)
                     .disabled(model.capturedImages.isEmpty)
                     .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
                     .accessibilityIdentifier("cameraDoneButton")
@@ -326,7 +326,7 @@ struct MultiPhotoCameraView: View {
                         } label: {
                             ZStack {
                                 Circle()
-                                    .fill(Color.customPrimary)
+                                    .fill(.green)
                                     .frame(width: 70, height: 70)
                                 Circle()
                                     .strokeBorder(.white, lineWidth: 5)

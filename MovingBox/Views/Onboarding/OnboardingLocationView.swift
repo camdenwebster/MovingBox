@@ -71,6 +71,7 @@ struct OnboardingLocationView: View {
                                         AddPhotoButton {
                                             showPhotoSourceAlert.wrappedValue = true
                                         }
+                                        .foregroundStyle(.green)
                                         .accessibilityIdentifier("onboarding-location-add-photo-button")
                                         .padding()
                                         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))

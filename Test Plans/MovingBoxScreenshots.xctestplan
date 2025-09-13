@@ -30,6 +30,10 @@
     {
       "parallelizable" : true,
       "selectedTests" : [
+        "FastlaneSnapshots\/testDashboardSnapshot()",
+        "FastlaneSnapshots\/testItemDetailViewSnapshots()",
+        "FastlaneSnapshots\/testItemListViewSnapshot()",
+        "FastlaneSnapshots\/testLocationsSnapshot()",
         "FastlaneSnapshots\/testSyncAndDataScreen()"
       ],
       "target" : {

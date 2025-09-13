@@ -215,6 +215,7 @@ struct InventoryDetailView: View {
                 isEditing = true
             }
             .accessibilityIdentifier("edit")
+            .foregroundStyle(.primary)
         }
     }
 
@@ -463,7 +464,7 @@ struct InventoryDetailView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .foregroundStyle(.white)
-            .background(Color.customPrimary)
+            .background(.green)
             .cornerRadius(8)
         }
         .buttonStyle(.automatic)
@@ -1037,7 +1038,7 @@ struct InventoryDetailView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(.blue)
+                        .background(.green)
                         .clipShape(Capsule())
                     }
                     .accessibilityIdentifier("detailview-add-first-photo-button")
@@ -1073,7 +1074,7 @@ struct InventoryDetailView: View {
     
     var body: some View {
         mainContent
-            .tint(Color.customPrimary)
+            
             .applyNavigationSettings(
                 title: inventoryItemToDisplay.title,
                 isEditing: isEditing,

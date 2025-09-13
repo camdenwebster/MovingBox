@@ -25,10 +25,10 @@ struct AddPhotoButton: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: 100, maxHeight: 100)
-                    .foregroundStyle(.secondary)
                     .symbolEffect(.bounce.down.byLayer, options: .nonRepeating, isActive: isBouncing)
                 Text("Tap to add a photo")
             }
+            .foregroundStyle(.secondary)
         }
         .accessibilityIdentifier("tapToAddPhoto")
     }

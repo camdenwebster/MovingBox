@@ -317,7 +317,7 @@ struct InventoryListView: View {
                 }
                 .accessibilityIdentifier("createFromCamera")
                 .buttonStyle(.borderedProminent)
-                .tint(Color.customPrimary)
+                
                 .backport.glassEffect(in: Circle())
             }
         }

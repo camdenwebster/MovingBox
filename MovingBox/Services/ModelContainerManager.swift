@@ -37,6 +37,12 @@ class ModelContainerManager: ObservableObject {
         return isCompleted
     }
     
+    private var shouldSkipMigrationForNewInstall: Bool {
+        let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunched")
+        print("📦 ModelContainerManager - hasLaunched check: \(hasLaunched)")
+        return !hasLaunched
+    }
+    
     private var deviceId: String {
         if let existingId = UserDefaults.standard.string(forKey: deviceIdKey) {
             return existingId
@@ -113,6 +119,23 @@ class ModelContainerManager: ObservableObject {
                     // isLoading already false, so no UI shows
                 }
                 print("📦 ModelContainerManager - Initialization complete, no migration UI shown")
+                return
+            }
+            
+            // Skip migration for new installs (app has never launched before)
+            if shouldSkipMigrationForNewInstall {
+                print("📦 ModelContainerManager - New install detected, skipping migration")
+                // Mark as completed to avoid showing migration on next launch
+                markMigrationCompleted()
+                
+                // Setup CloudKit for new install
+                try await enableCloudKitSync()
+                
+                await MainActor.run {
+                    self.isMigrationComplete = true
+                    // isLoading already false, so no UI shows
+                }
+                print("📦 ModelContainerManager - New install initialization complete, no migration UI shown")
                 return
             }
             
