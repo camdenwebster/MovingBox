@@ -295,7 +295,7 @@ struct HighResolutionAnalysisTests {
             #expect(settingsManager.highQualityAnalysisEnabled == false, "High quality should be disabled after reset")
             
             // Model should be back to default
-            #expect(settingsManager.aiModel == "gpt-4o-mini", "AI model should be back to default")
+            #expect(settingsManager.aiModel == "gpt-4o", "AI model should be back to default")
         }
     }
     
