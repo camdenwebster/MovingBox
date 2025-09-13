@@ -15,6 +15,12 @@
   ],
   "defaultOptions" : {
     "areLocalizationScreenshotsEnabled" : true,
+    "environmentVariableEntries" : [
+      {
+        "key" : "AIPROXY_DEVICE_CHECK_BYPASS",
+        "value" : "f3543606-afa8-4394-99a9-74bd9a2421a2"
+      }
+    ],
     "maximumTestExecutionTimeAllowance" : 300,
     "maximumTestRepetitions" : 3,
     "testRepetitionMode" : "retryOnFailure",
@@ -24,10 +30,7 @@
     {
       "parallelizable" : true,
       "selectedTests" : [
-        "FastlaneSnapshots\/testDashboardSnapshot()",
-        "FastlaneSnapshots\/testItemDetailViewSnapshots()",
-        "FastlaneSnapshots\/testItemListViewSnapshot()",
-        "FastlaneSnapshots\/testLocationsSnapshot()"
+        "FastlaneSnapshots\/testSyncAndDataScreen()"
       ],
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",

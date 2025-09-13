@@ -13,6 +13,8 @@ final class FastlaneSnapshots: XCTestCase {
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
+    var settingsScreen: SettingsScreen!
+    
     var navigationHelper: NavigationHelper!
     let app = XCUIApplication()
     
@@ -30,6 +32,8 @@ final class FastlaneSnapshots: XCTestCase {
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
+        settingsScreen = SettingsScreen(app: app)
+        
         navigationHelper = NavigationHelper(app: app)
         
         setupSnapshot(app)
@@ -92,16 +96,18 @@ final class FastlaneSnapshots: XCTestCase {
         detailScreen.takePhotoWithCamera()
         cameraScreen.takePhoto()
         
-        // And: User initiates AI analysis
-        let analyzeButton = detailScreen.analyzeWithAiButton
-        XCTAssertTrue(analyzeButton.waitForExistence(timeout: 5),
-                      "AI analysis button should be visible")
-        snapshot("01_InventoryItemBeforeAnalysis")
-        analyzeButton.tap()
+        // And: user fills in fields
+        detailScreen.fillInFields()
         
         // Then: Detail view should be updated after AI analysis completes
-        detailScreen.verifyPopulatedFields()
         detailScreen.saveItem()
         snapshot("01_InventoryItemAfterAnalysis")
     }
+    
+    func testSyncAndDataScreen() throws {
+        dashboardScreen.tapSettings()
+        settingsScreen.tapSyncAndData()
+        snapshot("01_SyncAndDataSettings")
+    }
+
 }

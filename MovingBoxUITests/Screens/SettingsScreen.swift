@@ -29,7 +29,7 @@ class SettingsScreen {
         self.exportDataButton = app.buttons["settings-export-data-button"]
         self.deleteAllDataButton = app.buttons["settings-delete-all-data-button"]
         self.subscriptionButton = app.buttons["settings-subscription-button"]
-        self.syncAndDataButton = app.staticTexts["Sync and Data"]
+        self.syncAndDataButton = app.buttons["syncDataLink"]
     }
     
     // MARK: - Actions

@@ -1096,14 +1096,6 @@ struct InventoryDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     trailingToolbarButton
                 }
-                
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        focusedField = nil
-                        isPriceFieldFocused = false
-                    }
-                }
             }
             .sheet(isPresented: $showingPaywall) {
                 revenueCatManager.presentPaywall(
