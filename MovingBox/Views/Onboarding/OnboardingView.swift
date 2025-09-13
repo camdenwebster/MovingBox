@@ -63,7 +63,7 @@ struct OnboardingView: View {
         }
         .environmentObject(manager)
         .environmentObject(settings)
-        .tint(Color.customPrimary)
+        
         .alert(manager.alertMessage, isPresented: $manager.showAlert) {
             Button("OK", role: .cancel) { }
         }
@@ -93,7 +93,7 @@ struct StepIndicator: View {
         HStack(spacing: 8) {
             ForEach(0..<totalSteps, id: \.self) { index in
                 Circle()
-                    .fill(index == currentStep ? Color.customPrimary : Color.gray.opacity(0.3))
+                    .fill(index == currentStep ? .green : Color.gray.opacity(0.3))
                     .frame(width: 8, height: 8)
                     .animation(.easeInOut, value: currentStep)
             }

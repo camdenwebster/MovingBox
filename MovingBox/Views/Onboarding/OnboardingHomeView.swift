@@ -79,6 +79,7 @@ struct OnboardingHomeView: View {
                                         AddPhotoButton {
                                             isPresented.wrappedValue = true
                                         }
+                                        .foregroundStyle(.green)
                                         .accessibilityIdentifier("onboarding-home-add-photo-button")
                                         .padding()
                                         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))

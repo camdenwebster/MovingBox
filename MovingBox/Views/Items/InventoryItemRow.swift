@@ -12,20 +12,39 @@ struct InventoryItemRow: View {
     
     var body: some View {
         HStack {
-            AsyncImage(url: item.thumbnailURL) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+            AsyncImage(url: item.thumbnailURL) { phase in
+                switch phase {
+                case .empty:
+                    ZStack {
+                        Color(.systemGray6)
+                        Image(systemName: "photo")
+                            .foregroundColor(.gray)
+                    }
                     .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            } placeholder: {
-                ZStack {
-                    Color(.systemGray6)
-                    Image(systemName: "photo")
-                        .foregroundColor(.gray)
+                    .cornerRadius(8)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                case .failure:
+                    ZStack {
+                        Color(.systemGray6)
+                        Image(systemName: "photo.trianglebadge.exclamationmark")
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 60, height: 60)
+                    .cornerRadius(8)
+                @unknown default:
+                    ZStack {
+                        Color(.systemGray6)
+                        Image(systemName: "photo")
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 60, height: 60)
+                    .cornerRadius(8)
                 }
-                .frame(width: 60, height: 60)
-                .cornerRadius(8)
             }
             VStack(alignment: .leading) {
                 Text(item.title)
@@ -72,3 +91,4 @@ struct InventoryItemRow: View {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
 }
+

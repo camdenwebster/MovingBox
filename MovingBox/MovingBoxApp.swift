@@ -155,10 +155,10 @@ struct MovingBoxApp: App {
                                         EmptyView()
                                     }
                                 }
-                                .tint(Color.customPrimary)
                             }
                     }
                     .environment(\.disableAnimations, disableAnimations)
+                    .tint(.green)
                 }
             }
             .task {
@@ -198,56 +198,4 @@ struct MovingBoxApp: App {
     }
 }
 
-struct SplashView: View {
-    @Environment(\.colorScheme) private var colorScheme
-    
-    private var backgroundImage: String {
-        colorScheme == .dark ? "background-dark" : "background-light"
-    }
-    
-    private var textColor: Color {
-        colorScheme == .dark ? .splashTextDark : .splashTextLight
-    }
-    
-    var body: some View {
-        ZStack {
-            Image(backgroundImage)
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-            
-            VStack(spacing: 20) {
-                if let appIcon = Bundle.main.icon {
-                    Image(uiImage: appIcon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-                
-                VStack {
-                    Text("MovingBox")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(textColor)
-                    Text("Home inventory, simplified")
-                        .fontWeight(.light)
-                        .foregroundColor(textColor)
-                }
-            }
-        }
-    }
-}
-
-extension Bundle {
-    var icon: UIImage? {
-        if let icons = infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
-           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
-           let lastIcon = iconFiles.last {
-            return UIImage(named: lastIcon)
-        }
-        return nil
-    }
-}
 

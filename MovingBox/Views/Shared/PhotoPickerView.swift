@@ -63,10 +63,12 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                 showCamera = true
             }
             .accessibilityIdentifier("takePhoto")
+            
             Button("Choose from Library") {
                 showPhotoPicker = true
             }
             .accessibilityIdentifier("chooseFromLibrary")
+            
             if showRemoveButton && (model.imageURL != nil) {
                 Button("Remove Photo", role: .destructive) {
                     model.imageURL = nil

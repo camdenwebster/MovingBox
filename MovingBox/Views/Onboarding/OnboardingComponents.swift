@@ -21,8 +21,8 @@ struct OnboardingContinueButton: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.customPrimary)
-                .cornerRadius(10)
+                .background(.green.gradient)
+                .cornerRadius(UIConstants.cornerRadius)
         }
         .padding(.horizontal)
         .padding(.bottom, 30)
@@ -44,7 +44,7 @@ struct OnboardingHeaderText: View {
 
 struct OnboardingFeatureRow: View {
     let icon: String
-    var iconColor: Color = .customPrimary
+    var iconColor: Color = .green
     let title: String
     let description: String
     
@@ -92,7 +92,7 @@ struct OnboardingContainer<Content: View>: View {
             content
 //            Spacer()
         }
-        .tint(Color.customPrimary)
+        
 
     }
 

@@ -5,15 +5,12 @@
 //  Created by Camden Webster on 5/14/24.
 //
 
+import AIProxy
 import Foundation
 import SwiftData
 import CryptoKit
 import UIKit
 
-enum HTTPMethod: String {
-    case post = "POST"
-    case get = "GET"
-}
 
 // MARK: - Service Protocols
 
@@ -46,51 +43,17 @@ protocol PriceFormatterProtocol {
 // MARK: - OpenAI Request Builder
 
 struct OpenAIRequestBuilder {
-    private let baseURL = "https://7mc060nx64.execute-api.us-east-2.amazonaws.com/prod"
+    let openAIService = AIProxy.openAIService(
+        partialKey: "v2|5c7e57d7|ilrKAnl-45-YCHAB",
+        serviceURL: "https://api.aiproxy.com/1530daf2/e2ce41d0"
+    )
     
     @MainActor
-    func buildRequest(
-        with images: [String],
+    func buildRequestBody(
+        with images: [UIImage],
         settings: SettingsManager,
         modelContext: ModelContext
-    ) throws -> URLRequest {
-        guard let url = URL(string: "\(baseURL)/v1/chat/completions") else {
-            throw OpenAIError.invalidURL
-        }
-        
-        // Get JWT token
-        let token = JWTManager.shared.generateToken()
-        
-        // Build the payload
-        let payload = buildPayload(with: images, settings: settings, modelContext: modelContext)
-        
-        // Create URL request
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = HTTPMethod.post.rawValue
-        urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        // Encode payload
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        
-        do {
-            let jsonData = try encoder.encode(payload)
-            urlRequest.httpBody = jsonData
-        } catch {
-            print("Error encoding payload: \(error)")
-            throw OpenAIError.invalidData
-        }
-        
-        return urlRequest
-    }
-    
-    @MainActor
-    private func buildPayload(
-        with images: [String],
-        settings: SettingsManager,
-        modelContext: ModelContext
-    ) -> GPTPayload {
+    ) async -> OpenAIChatCompletionRequestBody {
         let categories = DefaultDataManager.getAllLabels(from: modelContext)
         let locations = DefaultDataManager.getAllLocations(from: modelContext)
         
@@ -100,33 +63,36 @@ struct OpenAIRequestBuilder {
             categories: categories,
             locations: locations
         )
-        let tool = Tool(type: "function", function: function)
         
-        let messageContent = buildMessageContent(
+        let messageContent = await buildMessageContent(
             prompt: imagePrompt,
             images: images,
             settings: settings
         )
         
-        let message = Message(role: "user", content: messageContent)
-        let toolChoice = ToolChoice(
-            type: "function",
-            function: ToolChoiceFunction(name: "process_inventory_item")
-        )
+        // Calculate proper token limit based on image count and quality
+        let adjustedMaxTokens = calculateTokenLimit(imageCount: images.count, settings: settings)
         
-        // Adjust token limit for multiple images
-        let adjustedMaxTokens = images.count > 1 
-            ? max(settings.maxTokens, 2000)
-            : settings.maxTokens
+        // Build proper function definition with actual properties
+        let parametersDict = buildFunctionParameters(function: function)
         
-        return GPTPayload(
+        return OpenAIChatCompletionRequestBody(
             model: settings.effectiveAIModel,
-            messages: [message],
-            max_completion_tokens: adjustedMaxTokens,
-            tools: [tool],
-            tool_choice: toolChoice
+            messages: messageContent,
+            maxCompletionTokens: adjustedMaxTokens,
+            tools: [
+                .function(
+                    name: function.name,
+                    description: function.description,
+                    parameters: parametersDict,
+                    strict: function.strict ?? false
+                )
+            ],
+            toolChoice: .specific(functionName: "process_inventory_item")
         )
     }
+    
+    
     
     private func createImagePrompt(for imageCount: Int) -> String {
         if imageCount > 1 {
@@ -186,29 +152,27 @@ struct OpenAIRequestBuilder {
     @MainActor
     private func buildMessageContent(
         prompt: String,
-        images: [String],
+        images: [UIImage],
         settings: SettingsManager
-    ) -> [MessageContent] {
-        var messageContent: [MessageContent] = []
+    ) async -> [OpenAIChatCompletionRequestBody.Message] {
+        var parts: [OpenAIChatCompletionRequestBody.Message.ContentPart] = []
         
-        // Add text prompt
-        let textMessage = MessageContent(type: "text", text: prompt, image_url: nil)
-        messageContent.append(textMessage)
+        // Add the text prompt first
+        parts.append(.text(prompt))
         
-        // Add all images
-        for base64Image in images {
-            let imageMessage = MessageContent(
-                type: "image_url",
-                text: nil,
-                image_url: ImageURL(
-                    url: "data:image/png:base64,\(base64Image)",
-                    detail: settings.effectiveDetailLevel
-                )
-            )
-            messageContent.append(imageMessage)
+        // Resize and convert each UIImage using AIProxy's native method
+        for image in images {
+            // Resize image based on Pro settings to save bandwidth and improve API speed
+            let targetResolution = settings.effectiveImageResolution
+            let resizedImage = await OptimizedImageManager.shared.optimizeImage(image, maxDimension: targetResolution)
+            
+            if let imageURL = AIProxy.encodeImageAsURL(image: resizedImage, compressionQuality: 0.8) {
+                // Use .auto detail as shown in AIProxy documentation
+                parts.append(.imageURL(imageURL, detail: .auto))
+            }
         }
         
-        return messageContent
+        return [.user(content: .parts(parts))]
     }
     
     private func adjustDescriptionForMultipleImages(
@@ -236,6 +200,52 @@ struct OpenAIRequestBuilder {
             return "string"
         }
     }
+    
+    @MainActor
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+        // Base token limit for single image with low quality
+        let baseTokens = 3000
+        
+        // Add 300 tokens for each additional image (up to 5 images max)
+        let imageCount = min(imageCount, 5) // Cap at 5 images
+        let additionalTokens = max(0, (imageCount - 1)) * 300
+        let lowQualityTokens = baseTokens + additionalTokens
+        
+        // Apply 3x multiplier for high quality images (Pro + high quality enabled)
+        let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        
+        return finalTokens
+    }
+    
+    private func buildFunctionParameters(function: FunctionDefinition) -> [String: AIProxyJSONValue] {
+        var parametersDict: [String: AIProxyJSONValue] = [:]
+        
+        // Convert the function parameters to AIProxyJSONValue format
+        parametersDict["type"] = .string(function.parameters.type)
+        parametersDict["additionalProperties"] = .bool(function.parameters.additionalProperties)
+        parametersDict["required"] = .array(function.parameters.required.map { .string($0) })
+        
+        // Convert properties
+        var propertiesDict: [String: AIProxyJSONValue] = [:]
+        for (key, parameter) in function.parameters.properties {
+            var propertyDict: [String: AIProxyJSONValue] = [:]
+            propertyDict["type"] = .string(parameter.type)
+            
+            if let description = parameter.description {
+                propertyDict["description"] = .string(description)
+            }
+            
+            if let enumValues = parameter.enum_values {
+                propertyDict["enum"] = .array(enumValues.map { .string($0) })
+            }
+            
+            propertiesDict[key] = .object(propertyDict)
+        }
+        parametersDict["properties"] = .object(propertiesDict)
+        
+        return parametersDict
+    }
 }
 
 // MARK: - OpenAI Response Parser
@@ -248,31 +258,36 @@ struct OpenAIResponseParser {
     }
     
     @MainActor
-    func parseResponse(
-        from data: Data,
-        requestSize: Int,
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+        // Base token limit for single image with low quality
+        let baseTokens = 3000
+        
+        // Add 300 tokens for each additional image (up to 5 images max)
+        let imageCount = min(imageCount, 5) // Cap at 5 images
+        let additionalTokens = max(0, (imageCount - 1)) * 300
+        let lowQualityTokens = baseTokens + additionalTokens
+        
+        // Apply 3x multiplier for high quality images (Pro + high quality enabled)
+        let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        
+        return finalTokens
+    }
+    
+    @MainActor
+    func parseAIProxyResponse(
+        response: OpenAIChatCompletionResponseBody,
         imageCount: Int,
         startTime: Date,
         settings: SettingsManager
     ) throws -> ParseResult {
-        // First try to parse as a Lambda error response
-        if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
-           let errorMessage = errorResponse["error"] {
-            print("❌ Lambda error response: \(errorMessage)")
-            throw OpenAIError.serverError(errorMessage)
-        }
-        
-        // If not an error, try to parse as GPTResponse
-        let gptResponse = try JSONDecoder().decode(GPTResponse.self, from: data)
-        
-        print("✅ Received GPT response with \(gptResponse.choices.count) choices")
+        print("✅ Processing AIProxy response with \(response.choices.count) choices")
         
         // Log comprehensive token usage information
-        if let usage = gptResponse.usage {
-            logTokenUsage(
+        if let usage = response.usage {
+            logAIProxyTokenUsage(
                 usage: usage,
                 elapsedTime: Date().timeIntervalSince(startTime),
-                requestSize: requestSize,
                 imageCount: imageCount,
                 settings: settings
             )
@@ -281,12 +296,12 @@ struct OpenAIResponseParser {
         }
         
         // Extract and validate response
-        guard let choice = gptResponse.choices.first else {
+        guard let choice = response.choices.first else {
             print("❌ No choices in response")
             throw OpenAIError.invalidData
         }
         
-        guard let toolCalls = choice.message.tool_calls, !toolCalls.isEmpty else {
+        guard let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty else {
             print("❌ No tool calls in response")
             print("📝 Response message: \(choice.message)")
             throw OpenAIError.invalidData
@@ -294,17 +309,77 @@ struct OpenAIResponseParser {
         
         let toolCall = toolCalls[0]
         print("🎯 Tool call received: \(toolCall.function.name)")
-        print("📄 Arguments length: \(toolCall.function.arguments.count) characters")
         
-        guard let responseData = toolCall.function.arguments.data(using: .utf8) else {
+        // Get arguments as string - AIProxy provides argumentsRaw for JSON string
+        let argumentsString = toolCall.function.argumentsRaw ?? ""
+        print("📄 Arguments length: \(argumentsString.count) characters")
+        
+        guard let responseData = argumentsString.data(using: .utf8) else {
             print("❌ Cannot convert function arguments to data")
-            print("📄 Raw arguments: \(toolCall.function.arguments)")
+            print("📄 Raw arguments: \(argumentsString)")
             throw OpenAIError.invalidData
         }
         
         let result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
         
-        return ParseResult(imageDetails: result, usage: gptResponse.usage)
+        // Convert AIProxy usage to our TokenUsage type for compatibility
+        let tokenUsage = response.usage != nil ? convertAIProxyUsage(response.usage!) : nil
+        
+        return ParseResult(imageDetails: result, usage: tokenUsage)
+    }
+    
+    
+    private func convertAIProxyUsage(_ aiProxyUsage: OpenAIChatUsage) -> TokenUsage {
+        return TokenUsage(
+            prompt_tokens: aiProxyUsage.promptTokens ?? 0,
+            completion_tokens: aiProxyUsage.completionTokens ?? 0,
+            total_tokens: aiProxyUsage.totalTokens ?? 0,
+            prompt_tokens_details: nil,
+            completion_tokens_details: nil
+        )
+    }
+    
+    @MainActor
+    private func logAIProxyTokenUsage(
+        usage: OpenAIChatUsage,
+        elapsedTime: TimeInterval,
+        imageCount: Int,
+        settings: SettingsManager
+    ) {
+        print("💰 TOKEN USAGE REPORT")
+        print("   📊 Total tokens: \(usage.totalTokens ?? 0)")
+        print("   📝 Prompt tokens: \(usage.promptTokens ?? 0)")
+        print("   🤖 Completion tokens: \(usage.completionTokens ?? 0)")
+        print("   ⏱️ Request time: \(String(format: "%.2f", elapsedTime))s")
+        print("   🖼️ Images: \(imageCount) (\(imageCount == 1 ? "single" : "multi")-photo analysis)")
+        
+        // Calculate token efficiency metrics
+        let totalTokens = usage.totalTokens ?? 0
+        let tokensPerSecond = Double(totalTokens) / elapsedTime
+        print("   🚀 Efficiency: \(String(format: "%.1f", tokensPerSecond)) tokens/sec")
+        
+        // Check if we're approaching token limits
+        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
+        let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
+        
+        if usagePercentage > 90.0 {
+            print("⚠️ WARNING: Token usage at \(String(format: "%.1f", usagePercentage))% of limit (\(totalTokens)/\(adjustedMaxTokens))")
+        } else if usagePercentage > 75.0 {
+            print("⚡ High token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(totalTokens)/\(adjustedMaxTokens))")
+        } else {
+            print("✅ Token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(totalTokens)/\(adjustedMaxTokens))")
+        }
+        
+        // Track token usage in telemetry for monitoring trends
+        TelemetryManager.shared.trackAITokenUsage(
+            totalTokens: usage.totalTokens ?? 0,
+            promptTokens: usage.promptTokens ?? 0,
+            completionTokens: usage.completionTokens ?? 0,
+            requestTimeSeconds: elapsedTime,
+            imageCount: imageCount,
+            isProUser: settings.isPro,
+            model: settings.effectiveAIModel
+        )
     }
     
     @MainActor
@@ -358,7 +433,7 @@ struct OpenAIResponseParser {
         }
         
         // Check if we're approaching token limits
-        let adjustedMaxTokens = imageCount > 1 ? max(settings.maxTokens, 2000) : settings.maxTokens
+        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
         let usagePercentage = Double(usage.total_tokens) / Double(adjustedMaxTokens) * 100.0
         
         if usagePercentage > 90.0 {
@@ -581,10 +656,6 @@ struct FunctionParameter: Codable {
     }
 }
 
-struct Tool: Codable {
-    let type: String
-    let function: FunctionDefinition
-}
 
 struct FunctionDefinition: Codable {
     let name: String
@@ -602,15 +673,25 @@ struct FunctionDefinition: Codable {
 
 @MainActor
 class OpenAIService: OpenAIServiceProtocol {
+    
+    @MainActor
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+        // Base token limit for single image with low quality
+        let baseTokens = 3000
+        
+        // Add 300 tokens for each additional image (up to 5 images max)
+        let imageCount = min(imageCount, 5) // Cap at 5 images
+        let additionalTokens = max(0, (imageCount - 1)) * 300
+        let lowQualityTokens = baseTokens + additionalTokens
+        
+        // Apply 3x multiplier for high quality images (Pro + high quality enabled)
+        let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        
+        return finalTokens
+    }
     // Track current request to allow cancellation
     private var currentTask: Task<ImageDetails, Error>?
-    
-    private lazy var urlSession: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 120.0 // 2 minutes
-        config.timeoutIntervalForResource = 180.0 // 3 minutes
-        return URLSession(configuration: config)
-    }()
     
     private let requestBuilder = OpenAIRequestBuilder()
     private let responseParser = OpenAIResponseParser()
@@ -664,15 +745,72 @@ class OpenAIService: OpenAIServiceProtocol {
                     throw error
                 }
                 
-                // Check for specific network cancellation error
+                // Handle AIProxy specific errors
+                if let aiProxyError = error as? AIProxyError {
+                    switch aiProxyError {
+                    case .unsuccessfulRequest(let statusCode, let responseBody):
+                        print("🌐 AIProxy error \(statusCode): \(responseBody)")
+                        
+                        // Handle specific HTTP status codes
+                        switch statusCode {
+                        case 429: // Rate limited
+                            if attempt < maxAttempts {
+                                print("⏱️ Rate limited, retrying attempt \(attempt + 1)/\(maxAttempts)")
+                                let delay = min(pow(2.0, Double(attempt)), 8.0)
+                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                                try Task.checkCancellation()
+                                continue
+                            } else {
+                                throw OpenAIError.rateLimitExceeded
+                            }
+                        case 413: // Payload too large
+                            throw OpenAIError.serverError("Image is too large. Please try with a smaller image.")
+                        case 500...599: // Server errors - retryable
+                            if attempt < maxAttempts {
+                                print("🔄 Server error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
+                                let delay = min(pow(2.0, Double(attempt)), 8.0)
+                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                                try Task.checkCancellation()
+                                continue
+                            } else {
+                                throw OpenAIError.serverError("Server is temporarily unavailable. Please try again later.")
+                            }
+                        case 400...499: // Client errors - not retryable
+                            throw OpenAIError.invalidResponse(statusCode: statusCode, responseData: responseBody)
+                        default:
+                            if attempt < maxAttempts {
+                                print("🔄 Unknown AIProxy error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
+                                let delay = min(pow(2.0, Double(attempt)), 8.0)
+                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                                try Task.checkCancellation()
+                                continue
+                            } else {
+                                throw OpenAIError.serverError(responseBody)
+                            }
+                        }
+                    @unknown default:
+                        // Handle any future AIProxy error cases
+                        if attempt < maxAttempts {
+                            print("🔄 Unknown AIProxy error, retrying attempt \(attempt + 1)/\(maxAttempts)")
+                            let delay = min(pow(2.0, Double(attempt)), 8.0)
+                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                            try Task.checkCancellation()
+                            continue
+                        } else {
+                            throw OpenAIError.serverError("Unknown AIProxy error occurred")
+                        }
+                    }
+                }
+                
+                // Handle URLError for network-level issues (still possible with AIProxy)
                 if let urlError = error as? URLError {
                     switch urlError.code {
                     case .cancelled:
                         if attempt < maxAttempts {
                             print("🔄 Request cancelled, retrying attempt \(attempt + 1)/\(maxAttempts)")
-                            let delay = min(pow(2.0, Double(attempt)), 8.0) // Exponential backoff with max 8 seconds
+                            let delay = min(pow(2.0, Double(attempt)), 8.0)
                             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            try Task.checkCancellation() // Check again after delay
+                            try Task.checkCancellation()
                             continue
                         } else {
                             throw OpenAIError.networkCancelled
@@ -682,7 +820,7 @@ class OpenAIService: OpenAIServiceProtocol {
                             print("⏱️ Request timed out, retrying attempt \(attempt + 1)/\(maxAttempts)")
                             let delay = min(pow(2.0, Double(attempt)), 8.0)
                             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            try Task.checkCancellation() // Check again after delay
+                            try Task.checkCancellation()
                             continue
                         } else {
                             throw OpenAIError.networkTimeout
@@ -694,7 +832,7 @@ class OpenAIService: OpenAIServiceProtocol {
                             print("🌐 Network error: \(urlError.localizedDescription), retrying attempt \(attempt + 1)/\(maxAttempts)")
                             let delay = min(pow(2.0, Double(attempt)), 8.0)
                             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            try Task.checkCancellation() // Check again after delay
+                            try Task.checkCancellation()
                             continue
                         }
                     }
@@ -717,39 +855,30 @@ class OpenAIService: OpenAIServiceProtocol {
     }
     
     private func performSingleRequest(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int) async throws -> ImageDetails {
-        // Prepare all images for AI analysis
-        var imageBase64Array: [String] = []
-        for image in images {
-            if let base64 = await OptimizedImageManager.shared.prepareImageForAI(from: image) {
-                imageBase64Array.append(base64)
-            }
-        }
-        
-        guard !imageBase64Array.isEmpty else {
+        guard !images.isEmpty else {
             throw OpenAIError.invalidData
         }
         
-        // Build request using the new builder
-        let urlRequest = try await requestBuilder.buildRequest(
-            with: imageBase64Array,
+        // Build request body using AIProxy with UIImages directly - no base64 conversion needed
+        // AIProxy handles image encoding internally via encodeImageAsURL
+        let requestBody = await requestBuilder.buildRequestBody(
+            with: images,
             settings: settings,
             modelContext: modelContext
         )
         
-        let requestSize = urlRequest.httpBody?.count ?? 0
-        let imageCount = imageBase64Array.count
+        let imageCount = images.count
         let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
         
         if attempt == 1 {
-            print("🚀 Sending \(imageCount == 1 ? "single" : "multi") image request to: \(urlRequest.url?.absoluteString ?? "unknown URL")")
-            print("📊 Request size: \(Double(requestSize) / 1024.0) KB, Images: \(imageCount)")
+            print("🚀 Sending \(imageCount == 1 ? "single" : "multi") image request via AIProxy")
+            print("📊 Images: \(imageCount)")
             
             // Calculate and log the token limit being used
-            let adjustedMaxTokens = imageCount > 1 
-                ? max(settings.maxTokens, 2000)
-                : settings.maxTokens
-            print("🤖 AI Settings - Model: \(settings.effectiveAIModel), Detail: \(settings.effectiveDetailLevel), Pro: \(settings.isPro), High Quality: \(settings.highQualityAnalysisEnabled)")
-            print("🎯 Token limit: \(adjustedMaxTokens) (base: \(settings.maxTokens), adjusted for \(imageCount) images)")
+            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
+            let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+            print("🤖 AI Settings - Model: \(settings.effectiveAIModel), Detail: \(settings.effectiveDetailLevel), Pro: \(settings.isPro), High Quality: \(isHighQuality)")
+            print("🎯 Token limit: \(adjustedMaxTokens) (base: 3000, \(imageCount) images, \(isHighQuality ? "3x quality multiplier" : "standard quality"))")
             
             // Track analysis start (only on first attempt)
             TelemetryManager.shared.trackAIAnalysisStarted(
@@ -764,44 +893,15 @@ class OpenAIService: OpenAIServiceProtocol {
             print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
         }
         
-        // Safety check for extremely large requests
-        if requestSize > 20_000_000 { // 20MB limit
-            throw OpenAIError.serverError("Request too large: \(Double(requestSize) / 1_000_000.0) MB. Please use smaller images.")
-        }
-        
         let startTime = Date()
-        let (data, response) = try await urlSession.data(for: urlRequest)
+        let response = try await requestBuilder.openAIService.chatCompletionRequest(body: requestBody, secondsToWait: 60)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OpenAIError.invalidResponse(statusCode: 0, responseData: "Invalid HTTP Response")
-        }
-        
-        print("📥 Response status code: \(httpResponse.statusCode)")
-        
-        let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode response"
-        print("📥 Response body: \(responseString)")
-        
-        // Handle common HTTP error codes
-        switch httpResponse.statusCode {
-        case 200:
-            break // Success, continue processing
-        case 413:
-            throw OpenAIError.serverError("Image is too large. Please try with a smaller image.")
-        case 429:
-            throw OpenAIError.rateLimitExceeded
-        case 400...499:
-            throw OpenAIError.invalidResponse(statusCode: httpResponse.statusCode, responseData: responseString)
-        case 500...599:
-            throw OpenAIError.serverError("Server is temporarily unavailable. Please try again later.")
-        default:
-            throw OpenAIError.invalidResponse(statusCode: httpResponse.statusCode, responseData: responseString)
-        }
+        print("✅ Received AIProxy response with \(response.choices.count) choices")
         
         do {
-            // Use the new response parser
-            let parseResult = try await responseParser.parseResponse(
-                from: data,
-                requestSize: requestSize,
+            // Parse AIProxy response directly
+            let parseResult = try await responseParser.parseAIProxyResponse(
+                response: response,
                 imageCount: imageCount,
                 startTime: startTime,
                 settings: settings
@@ -825,23 +925,18 @@ class OpenAIService: OpenAIServiceProtocol {
             return result
         } catch DecodingError.dataCorrupted(let context) {
             print("❌ Data corruption error: \(context)")
-            print("📄 Response data: \(responseString)")
             throw OpenAIError.invalidData
         } catch DecodingError.keyNotFound(let key, let context) {
             print("❌ Key not found: \(key) in \(context)")
-            print("📄 Response data: \(responseString)")
             throw OpenAIError.invalidData
         } catch DecodingError.typeMismatch(let type, let context) {
             print("❌ Type mismatch: \(type) in \(context)")
-            print("📄 Response data: \(responseString)")
             throw OpenAIError.invalidData
         } catch DecodingError.valueNotFound(let type, let context) {
             print("❌ Value not found: \(type) in \(context)")
-            print("📄 Response data: \(responseString)")
             throw OpenAIError.invalidData
         } catch {
             print("❌ Error processing response: \(error)")
-            print("📄 Response data: \(responseString)")
             
             // Track failure for any unhandled errors
             let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
@@ -864,56 +959,8 @@ class OpenAIService: OpenAIServiceProtocol {
     }
 }
 
-#if DEBUG
-extension OpenAIService {
-    func decodePayload(from data: Data) throws -> GPTPayload {
-        return try JSONDecoder().decode(GPTPayload.self, from: data)
-    }
-    
-    func decodeResponse(from data: Data) throws -> GPTResponse {
-        return try JSONDecoder().decode(GPTResponse.self, from: data)
-    }
-}
-#endif
 
-struct Message: Codable {
-    let role: String
-    let content: [MessageContent]
-}
-
-struct MessageContent: Codable {
-    let type: String
-    let text: String?
-    let image_url: ImageURL?
-}
-
-struct ImageURL: Codable {
-    let url: String
-    let detail: String
-}
-
-struct GPTPayload: Codable {
-    let model: String
-    let messages: [Message]
-    let max_completion_tokens: Int
-    let tools: [Tool]
-    let tool_choice: ToolChoice
-}
-
-struct ToolChoice: Codable {
-    let type: String
-    let function: ToolChoiceFunction
-}
-
-struct ToolChoiceFunction: Codable {
-    let name: String
-}
-
-struct GPTResponse: Decodable {
-    let choices: [GPTCompletionResponse]
-    let usage: TokenUsage?
-}
-
+// Keep TokenUsage for compatibility with existing telemetry code
 struct TokenUsage: Decodable {
     let prompt_tokens: Int
     let completion_tokens: Int
@@ -932,25 +979,6 @@ struct CompletionTokensDetails: Decodable {
     let audio_tokens: Int?
     let accepted_prediction_tokens: Int?
     let rejected_prediction_tokens: Int?
-}
-
-struct GPTCompletionResponse: Decodable {
-    let message: GPTMessageResponse
-}
-
-struct GPTMessageResponse: Decodable {
-    let tool_calls: [ToolCall]?
-}
-
-struct ToolCall: Decodable {
-    let id: String
-    let type: String
-    let function: FunctionCall
-}
-
-struct FunctionCall: Decodable {
-    let name: String
-    let arguments: String
 }
 
 struct ImageDetails: Decodable {

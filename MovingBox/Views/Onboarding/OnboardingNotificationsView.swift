@@ -82,7 +82,7 @@ struct OnboardingNotificationsView: View {
                         }) {
                             Text("Open Settings")
                                 .font(.headline)
-                                .foregroundColor(Color.customPrimary)
+                                .foregroundColor(.green)
                         }
                         .padding(.vertical, 8)
                         

@@ -119,7 +119,7 @@ struct SettingsView: View {
                             .background(Color.accentColor)
                             .cornerRadius(10)
                     }
-                    .foregroundColor(.customPrimary)
+                    .foregroundStyle(Color.green.gradient)
                     .listRowInsets(EdgeInsets())
                 }
             }
@@ -132,7 +132,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.primary)
                         } icon: {
                             Image(systemName: "house")
-                                .foregroundStyle(Color.customPrimary)
+                                
                         }
                     }
                     NavigationLink(value: "locations") {
@@ -141,7 +141,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.primary)
                         } icon: {
                             Image(systemName: "location")
-                                .foregroundStyle(Color.customPrimary)
+                                
                         }
                     }
                     NavigationLink(value: "labels") {
@@ -150,7 +150,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.primary)
                         } icon: {
                             Image(systemName: "tag")
-                                .foregroundStyle(Color.customPrimary)
+                                
                         }
                     }
                 }
@@ -164,7 +164,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.primary)
                         } icon: {
                             Image(systemName: "creditcard")
-                                .foregroundStyle(Color.customPrimary)
+                                
                         }
                     }
                 }
@@ -177,7 +177,7 @@ struct SettingsView: View {
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "arrow.trianglehead.clockwise.icloud")
-                            .foregroundStyle(Color.customPrimary)
+                            
                     }
                 }
                 .accessibilityIdentifier("syncDataLink")
@@ -190,7 +190,7 @@ struct SettingsView: View {
                             .foregroundStyle(settingsManager.isPro ? .primary : .secondary)
                     } icon: {
                         Image(systemName: "brain")
-                            .foregroundStyle(settingsManager.isPro ? Color.customPrimary : .secondary)
+                            .foregroundStyle(settingsManager.isPro ? .green : .secondary)
                     }
                     
                     Spacer()
@@ -253,7 +253,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.primary)
                         } icon: {
                             Image(systemName: "star")
-                                .foregroundStyle(Color.customPrimary)
+                                
                         }
                         Spacer()
                         Image(systemName: "arrow.up.right.square")
@@ -272,7 +272,7 @@ struct SettingsView: View {
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "info.circle")
-                            .foregroundStyle(Color.customPrimary)
+                            
                     }
                     Spacer()
                     Text(appVersion)
@@ -287,8 +287,9 @@ struct SettingsView: View {
                 }
             }
         }
+        .navigationBarTitleDisplayMode(.large)
         .navigationTitle("Settings")
-        .tint(Color.customPrimary)
+        
         .sheet(item: $safariLink) { linkData in
             SafariView(url: linkData.url)
                 .edgesIgnoringSafeArea(.all)
@@ -371,7 +372,7 @@ struct SettingsView: View {
                         .foregroundStyle(.primary)
                 } icon: {
                     Image(systemName: link.icon)
-                        .foregroundStyle(Color.customPrimary)
+                        
                 }
                 Spacer()
                 Image(systemName: "arrow.up.right.square")

@@ -215,6 +215,7 @@ struct InventoryDetailView: View {
                 isEditing = true
             }
             .accessibilityIdentifier("edit")
+            .foregroundStyle(.primary)
         }
     }
 
@@ -223,8 +224,59 @@ struct InventoryDetailView: View {
     
     @ViewBuilder
     private var photoSection: some View {
-        // Photo banner section
-        if !loadedImages.isEmpty {
+        // Photo banner section with progressive loading states
+        if isLoading {
+            // Loading state - show progress indicator
+            ZStack {
+                Color(.systemGray6)
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .secondary))
+                        .scaleEffect(1.2)
+                    Text("Loading photos...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(height: 250)
+        } else if let loadingError = loadingError {
+            // Error state - show error placeholder
+            ZStack {
+                Color(.systemGray6)
+                VStack(spacing: 16) {
+                    Image(systemName: "photo.trianglebadge.exclamationmark")
+                        .font(.system(size: 50))
+                        .foregroundColor(.red)
+                    Text("Failed to load photos")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text(loadingError.localizedDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    if isEditing {
+                        Button(action: {
+                            showPhotoSourceAlert = true
+                        }) {
+                            HStack {
+                                Image(systemName: "camera")
+                                Text("Add Photo")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(.blue)
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+            .frame(height: 250)
+        } else if !loadedImages.isEmpty {
+            // Success state - show photo carousel
             ZStack {
                 GeometryReader { proxy in
                     let scrollY = proxy.frame(in: .global).minY
@@ -236,7 +288,7 @@ struct InventoryDetailView: View {
                         isEditing: isEditing,
                         onAddPhoto: {
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
-                            if currentPhotoCount < 5 {
+                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
                                 showPhotoSourceAlert = true
                             }
                         },
@@ -318,7 +370,7 @@ struct InventoryDetailView: View {
                             
                             // Add photo button
                             let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
-                            if currentPhotoCount < 5 {
+                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
                                 Button(action: {
                                     showPhotoSourceAlert = true
                                 }) {
@@ -337,13 +389,8 @@ struct InventoryDetailView: View {
                 }
             }
         } else {
-            // Show placeholder when no photos exist (both editing and viewing)
-            PhotoPlaceholderView(
-                isEditing: isEditing,
-                onAddPhoto: {
-                    showPhotoSourceAlert = true
-                }
-            )
+            // No photos state - show placeholder when no photos exist
+            photoPlaceHolder
             .frame(height: 250)
         }
     }
@@ -417,7 +464,7 @@ struct InventoryDetailView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .foregroundStyle(.white)
-            .background(Color.customPrimary)
+            .background(.green)
             .cornerRadius(8)
         }
         .buttonStyle(.automatic)
@@ -963,6 +1010,52 @@ struct InventoryDetailView: View {
             }
         }
     }
+    
+    @ViewBuilder
+    private var photoPlaceHolder: some View {
+        ZStack {
+            Color.gray.opacity(0.1)
+            
+            VStack(spacing: 20) {
+                Image(systemName: "photo")
+                    .font(.system(size: 60))
+                    .foregroundColor(.gray)
+                
+                Text("No photos yet")
+                    .font(.title2)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                
+                if isEditing {
+                    Button {
+                        showPhotoSourceAlert = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "camera")
+                            Text("Add Photo")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(.green)
+                        .clipShape(Capsule())
+                    }
+                    .accessibilityIdentifier("detailview-add-first-photo-button")
+                    .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
+                        Button("Take Photo") { showingSimpleCamera = true }
+                            .accessibilityIdentifier("takePhoto")
+                        Button("Scan Document") { showDocumentScanner = true }
+                            .accessibilityIdentifier("scanDocument")
+                        Button("Choose from Photos") { showPhotoPicker = true }
+                            .accessibilityIdentifier("chooseFromLibrary")
+                    }
+
+                }
+            }
+        }
+
+    }
 
     @ViewBuilder
     private var mainContent: some View {
@@ -981,7 +1074,7 @@ struct InventoryDetailView: View {
     
     var body: some View {
         mainContent
-            .tint(Color.customPrimary)
+            
             .applyNavigationSettings(
                 title: inventoryItemToDisplay.title,
                 isEditing: isEditing,
@@ -1003,14 +1096,6 @@ struct InventoryDetailView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     trailingToolbarButton
-                }
-                
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        focusedField = nil
-                        isPriceFieldFocused = false
-                    }
                 }
             }
             .sheet(isPresented: $showingPaywall) {
@@ -1043,7 +1128,7 @@ struct InventoryDetailView: View {
                         showingSimpleCamera = false
                     }
             }
-            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotosPickerItems, maxSelectionCount: 5, matching: .images)
+            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotosPickerItems, maxSelectionCount: calculateRemainingPhotoCount(), matching: .images)
             .onChange(of: selectedPhotosPickerItems) { _, newItems in
                 if !newItems.isEmpty {
                     Task {
@@ -1073,14 +1158,14 @@ struct InventoryDetailView: View {
                     isPresented: $showingFullScreenPhoto
                 )
             }
-            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
-                Button("Take Photo") { showingSimpleCamera = true }
-                    .accessibilityIdentifier("takePhoto")
-                Button("Scan Document") { showDocumentScanner = true }
-                    .accessibilityIdentifier("scanDocument")
-                Button("Choose from Photos") { showPhotoPicker = true }
-                    .accessibilityIdentifier("chooseFromLibrary")
-            }
+//            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
+//                Button("Take Photo") { showingSimpleCamera = true }
+//                    .accessibilityIdentifier("takePhoto")
+//                Button("Scan Document") { showDocumentScanner = true }
+//                    .accessibilityIdentifier("scanDocument")
+//                Button("Choose from Photos") { showPhotoPicker = true }
+//                    .accessibilityIdentifier("chooseFromLibrary")
+//            }
             .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -1339,6 +1424,7 @@ struct InventoryDetailView: View {
     private func loadAllImages() async {
         await MainActor.run {
             isLoading = true
+            loadingError = nil
         }
         defer {
             Task { @MainActor in
@@ -1347,12 +1433,14 @@ struct InventoryDetailView: View {
         }
         
         var images: [UIImage] = []
+        var encounteredError: Error?
         
         do {
             // Use PhotoManageable protocol which handles URL migration automatically
             images = try await inventoryItemToDisplay.allPhotos
         } catch {
             print("Failed to load images using PhotoManageable protocol: \(error)")
+            encounteredError = error
             
             // Fallback to direct loading if PhotoManageable fails
             // Load primary image
@@ -1360,6 +1448,7 @@ struct InventoryDetailView: View {
                 do {
                     let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
                     images.append(image)
+                    encounteredError = nil // Clear error if we successfully load at least one image
                 } catch {
                     print("Failed to load primary image: \(error)")
                 }
@@ -1370,6 +1459,7 @@ struct InventoryDetailView: View {
                 do {
                     let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: inventoryItemToDisplay.secondaryPhotoURLs)
                     images.append(contentsOf: secondaryImages)
+                    encounteredError = nil // Clear error if we successfully load at least one image
                 } catch {
                     print("Failed to load secondary images: \(error)")
                 }
@@ -1378,10 +1468,17 @@ struct InventoryDetailView: View {
         
         await MainActor.run {
             loadedImages = images
+            loadingError = images.isEmpty ? encounteredError : nil
             if selectedImageIndex >= images.count {
                 selectedImageIndex = max(0, images.count - 1)
             }
         }
+    }
+    
+    private func calculateRemainingPhotoCount() -> Int {
+        let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+        let maxPhotos = settings.isPro ? 5 : 1
+        return max(0, maxPhotos - currentPhotoCount)
     }
     
     private func formatInitialPrice(_ price: Decimal) -> String {
@@ -1543,7 +1640,9 @@ struct DocumentCameraView: UIViewControllerRepresentable {
         
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
             var scannedImages: [UIImage] = []
-            for pageIndex in 0..<scan.pageCount {
+            // Limit to 1 image per session for simplicity
+            let maxImages = min(1, scan.pageCount)
+            for pageIndex in 0..<maxImages {
                 let image = scan.imageOfPage(at: pageIndex)
                 scannedImages.append(image)
             }
@@ -1691,46 +1790,6 @@ struct AttachmentRowView: View {
     }
 }
 
-// MARK: - Photo Placeholder View
-
-struct PhotoPlaceholderView: View {
-    let isEditing: Bool
-    let onAddPhoto: () -> Void
-    
-    var body: some View {
-        ZStack {
-            Color.gray.opacity(0.1)
-            
-            VStack(spacing: 20) {
-                Image(systemName: "photo")
-                    .font(.system(size: 60))
-                    .foregroundColor(.gray)
-                
-                Text("No photos yet")
-                    .font(.title2)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                
-                if isEditing {
-                    Button(action: onAddPhoto) {
-                        HStack {
-                            Image(systemName: "camera")
-                            Text("Add Photo")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(.blue)
-                        .clipShape(Capsule())
-                    }
-                    .accessibilityIdentifier("detailview-add-first-photo-button")
-
-                }
-            }
-        }
-    }
-}
 
 #Preview {
     struct PreviewWrapper: View {

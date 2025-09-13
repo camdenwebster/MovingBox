@@ -4,6 +4,8 @@ import PhotosUI
 import UIKit
 
 struct MultiPhotoCameraView: View {
+    @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @StateObject private var model = MultiPhotoCameraViewModel()
     @Binding var capturedImages: [UIImage]
     let onPermissionCheck: (Bool) -> Void
@@ -22,6 +24,7 @@ struct MultiPhotoCameraView: View {
     @State private var focusPoint: CGPoint?
     @State private var showingFocusIndicator = false
     @State private var orientation = UIDeviceOrientation.portrait
+    @State private var showingPaywall = false
     
     // Default initializer with onCancel parameter
     init(
@@ -247,7 +250,7 @@ struct MultiPhotoCameraView: View {
                         onComplete(model.capturedImages)
                     }
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.customPrimary)
+                    .foregroundColor(.green)
                     .disabled(model.capturedImages.isEmpty)
                     .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
                     .accessibilityIdentifier("cameraDoneButton")
@@ -301,7 +304,7 @@ struct MultiPhotoCameraView: View {
                     // Shutter controls row
                     HStack(spacing: 50) {
                         // Photo count
-                        Text("\(model.capturedImages.count) of 5")
+                        Text("\(model.capturedImages.count) of \(settings.isPro ? "5" : "1")")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white)
                             .frame(width: 60)
@@ -309,7 +312,9 @@ struct MultiPhotoCameraView: View {
                         
                         // Shutter button
                         Button {
-                            if model.capturedImages.count >= 5 {
+                            if model.capturedImages.count >= 1 && !settings.isPro {
+                                model.showPhotoLimitAlert = true
+                            } else if model.capturedImages.count >= 5 {
                                 model.showPhotoLimitAlert = true
                             } else {
                                 if isUITesting {
@@ -321,7 +326,7 @@ struct MultiPhotoCameraView: View {
                         } label: {
                             ZStack {
                                 Circle()
-                                    .fill(Color.customPrimary)
+                                    .fill(.green)
                                     .frame(width: 70, height: 70)
                                 Circle()
                                     .strokeBorder(.white, lineWidth: 5)
@@ -332,7 +337,13 @@ struct MultiPhotoCameraView: View {
                         
                         // Photo picker button
                         Button {
-                            showingPhotoPicker = true
+                            if model.capturedImages.count >= 1 && !settings.isPro {
+                                model.showPhotoLimitAlert = true
+                            } else if model.capturedImages.count >= 5 {
+                                model.showPhotoLimitAlert = true
+                            } else {
+                                showingPhotoPicker = true
+                            }
                         } label: {
                             Image(systemName: "photo.on.rectangle")
                                 .font(.system(size: 22))
@@ -347,14 +358,25 @@ struct MultiPhotoCameraView: View {
             }
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {
-            Button("OK") { }
+            if settings.isPro {
+                Button("OK") { }
+            } else {
+                Button("Close") { }
+                Button("Go Pro") { 
+                    showingPaywall = true
+                }
+            }
         } message: {
-            Text("You can take up to 5 photos. Delete a photo to take another one.")
+            if settings.isPro {
+                Text("You can take up to 5 photos. Delete a photo to take another one.")
+            } else {
+                Text("You can only add one photo per item. Upgrade to MovingBox Pro to add more photos.")
+            }
         }
         .photosPicker(
             isPresented: $showingPhotoPicker,
             selection: $selectedItems,
-            maxSelectionCount: 5 - model.capturedImages.count,
+            maxSelectionCount: max(0, (settings.isPro ? 5 : 1) - model.capturedImages.count),
             matching: .images
         )
         .onChange(of: selectedItems) { _, newItems in
@@ -369,6 +391,13 @@ struct MultiPhotoCameraView: View {
             if newImages.count > oldImages.count, let newImage = newImages.last {
                 triggerCaptureAnimation(with: newImage)
             }
+        }
+        .sheet(isPresented: $showingPaywall) {
+            revenueCatManager.presentPaywall(
+                isPresented: $showingPaywall,
+                onCompletion: { settings.isPro = true },
+                onDismiss: nil
+            )
         }
     }
     

@@ -26,7 +26,6 @@ struct InventoryListView: View {
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
     @State private var showingImageAnalysis = false
-    @State private var showingFilteringSheet = false
     @State private var analyzingImage: UIImage?
     @State private var isContextValid = true
     
@@ -298,13 +297,6 @@ struct InventoryListView: View {
                 .disabled(selectedCount == 0)
             }
         } else {
-            ToolbarItem(placement: .bottomBar) {
-                Button(action: {
-                    showingFilteringSheet = true
-                }) {
-                    Label("Filter", systemImage: "line.3.horizontal.decrease")
-                }
-            }
             
             // Search field and spacers
             if #available(iOS 26.0, *) {
@@ -325,7 +317,7 @@ struct InventoryListView: View {
                 }
                 .accessibilityIdentifier("createFromCamera")
                 .buttonStyle(.borderedProminent)
-                .tint(Color.customPrimary)
+                
                 .backport.glassEffect(in: Circle())
             }
         }

@@ -146,7 +146,7 @@ struct SyncDataSettingsView: View {
                         .foregroundStyle(.primary)
                 } icon: {
                     Image(systemName: "icloud")
-                        .foregroundStyle(Color.customPrimary)
+                        
                 }
             }
             
@@ -156,7 +156,7 @@ struct SyncDataSettingsView: View {
                         .foregroundStyle(.primary)
                 } icon: {
                     Image(systemName: "server.rack")
-                        .foregroundStyle(Color.customPrimary)
+                        
                 }
                 Spacer()
                 Text("iCloud")
@@ -169,7 +169,7 @@ struct SyncDataSettingsView: View {
                         .foregroundStyle(.primary)
                 } icon: {
                     Image(systemName: syncMonitor.syncStatus.isError ? "exclamationmark.triangle" : "checkmark.circle")
-                        .foregroundStyle(syncMonitor.syncStatus.isError ? .red : Color.customPrimary)
+                        .foregroundStyle(syncMonitor.syncStatus.isError ? .red : .green)
                 }
                 Spacer()
                 HStack(spacing: 8) {
@@ -189,7 +189,7 @@ struct SyncDataSettingsView: View {
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "clock")
-                            .foregroundStyle(Color.customPrimary)
+                            
                     }
                     Spacer()
                     Text(lastSync, style: .relative)
@@ -221,7 +221,7 @@ struct SyncDataSettingsView: View {
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "square.and.arrow.down")
-                            .foregroundStyle(Color.customPrimary)
+                            
                     }
                 }
                 .accessibilityIdentifier("importDataLink")
@@ -232,7 +232,7 @@ struct SyncDataSettingsView: View {
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "square.and.arrow.up")
-                            .foregroundStyle(Color.customPrimary)
+                            
                     }
                 }
                 .accessibilityIdentifier("exportDataLink")

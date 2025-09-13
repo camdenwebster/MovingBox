@@ -110,6 +110,18 @@ class InventoryDetailScreen {
         }
     }
     
+    func fillInFields() {
+        titleField.tap()
+        titleField.typeText("iPad")
+        serialField.tap()
+        serialField.typeText("SN123456789")
+        makeField.tap()
+        makeField.typeText("Apple")
+        modelField.tap()
+        modelField.typeText("iPad (6th generation)")
+        
+    }
+    
     func updatePhotoFromLibrary() {
         changePhotoButton.tap()
         chooseFromLibraryButton.tap()

@@ -3,7 +3,7 @@
     "title": {
       "fonts": [
         {
-          "font": "../fonts/SF-Pro-Display-Regular.otf",
+          "font": "../fonts/BigCaslon.ttf",
           "supported": ["en-US"]
         }
       ],
@@ -13,7 +13,8 @@
     "keyword": {
       "fonts": [
         {
-          "font": "../fonts/SF-Pro-Display-Bold.otf",
+          "font": "../fonts/BigCaslon.ttf",
+          "font_weight": 700,
           "supported": ["en-US"]
         }
       ],

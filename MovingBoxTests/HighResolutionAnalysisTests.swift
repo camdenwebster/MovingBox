@@ -109,16 +109,31 @@ struct HighResolutionAnalysisTests {
         }
     }
     
-    @Test("Settings Manager - AI Scan Paywall Always Returns False")
-    func testAIScanPaywallRemoval() async throws {
+    @Test("Settings Manager - AI Scan Paywall for non-Pro")
+    func testAIScanPaywall() async throws {
         await MainActor.run {
             let settingsManager = SettingsManager()
             
             // Test with various counts - should always return false now
             #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 0) == false)
             #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 25) == false)
-            #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 50) == false)
-            #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 100) == false)
+            #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 50) == true)
+            #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 100) == true)
+        }
+    }
+    
+    @Test("Settings Manager - AI Scan Paywall Always Returns False for Pro")
+    func testAIScanPaywallRemoval() async throws {
+        await MainActor.run {
+            let settingsManager = SettingsManager()
+            
+            if settingsManager.isPro {
+                // Test with various counts - should always return false now
+                #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 0) == false)
+                #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 25) == false)
+                #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 50) == false)
+                #expect(settingsManager.shouldShowPaywallForAiScan(currentCount: 100) == false)
+            }
         }
     }
     
@@ -280,7 +295,7 @@ struct HighResolutionAnalysisTests {
             #expect(settingsManager.highQualityAnalysisEnabled == false, "High quality should be disabled after reset")
             
             // Model should be back to default
-            #expect(settingsManager.aiModel == "gpt-4o-mini", "AI model should be back to default")
+            #expect(settingsManager.aiModel == "gpt-4o", "AI model should be back to default")
         }
     }
     

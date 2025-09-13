@@ -3,3 +3,4 @@
 "01_Dashboard" = "Save receipts and track value of items";
 "01_Locations" = "Find any item by room or category";
 "01_InventoryItemList" = "Export insurance-ready lists with photos";
+"01_SyncAndDataSettings" = "Store data safely with iCloud (no login required)"
