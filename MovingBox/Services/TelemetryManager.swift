@@ -140,6 +140,38 @@ class TelemetryManager {
         ])
     }
     
+    // MARK: - PDF Reports
+    
+    func trackReportGenerated(itemCount: Int, locationCount: Int, fileSize: Int, success: Bool, error: String? = nil) {
+        var parameters = [
+            "item_count": String(itemCount),
+            "location_count": String(locationCount),
+            "file_size_bytes": String(fileSize),
+            "success": success ? "true" : "false"
+        ]
+        
+        if let error = error {
+            parameters["error"] = error
+        }
+        
+        TelemetryManager.signal("pdf-report-generated", with: parameters)
+    }
+    
+    func trackReportShared(reportId: String, itemCount: Int, fileSize: Int) {
+        TelemetryManager.signal("pdf-report-shared", with: [
+            "report_id": reportId,
+            "item_count": String(itemCount),
+            "file_size_bytes": String(fileSize)
+        ])
+    }
+    
+    func trackReportDeleted(reportId: String, itemCount: Int) {
+        TelemetryManager.signal("pdf-report-deleted", with: [
+            "report_id": reportId,
+            "item_count": String(itemCount)
+        ])
+    }
+    
     // MARK: - Helper
     
     private static func signal(_ name: String, with additionalInfo: [String: String] = [:]) {
