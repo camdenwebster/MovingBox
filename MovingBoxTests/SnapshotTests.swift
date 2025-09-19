@@ -671,4 +671,648 @@ extension SnapshotTests {
         
         await cleanup()
     }
+    
+    // MARK: - Dashboard Component Views
+    
+    @Test("Label Statistics View Layout - Empty State")
+    func labelStatisticsViewEmptySnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            LabelStatisticsView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "label_statistics_view_empty\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Label Statistics View Layout - With Data")
+    func labelStatisticsViewWithDataSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            LabelStatisticsView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "label_statistics_view_with_data\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Location Statistics View Layout - Empty State")
+    func locationStatisticsViewEmptySnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            LocationStatisticsView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "location_statistics_view_empty\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Location Statistics View Layout - With Data")
+    func locationStatisticsViewWithDataSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            LocationStatisticsView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "location_statistics_view_with_data\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Inventory Views
+    
+    @Test("Inventory List Sub View Layout - Empty State")
+    func inventoryListSubViewEmptySnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            InventoryListSubView(location: nil, searchString: "", sortOrder: [])
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "inventory_list_sub_view_empty\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Inventory List Sub View Layout - With Items")
+    func inventoryListSubViewWithItemsSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let descriptor = FetchDescriptor<InventoryLocation>(
+            predicate: #Predicate<InventoryLocation> { location in
+                location.name == "Kitchen"
+            }
+        )
+        let locations = try container.mainContext.fetch(descriptor)
+        let location = locations.first
+        
+        let view = configureViewForSnapshot(
+            InventoryListSubView(location: location, searchString: "", sortOrder: [])
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "inventory_list_sub_view_with_items\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Batch Analysis View Layout - Empty Selection")
+    func batchAnalysisViewEmptySnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            BatchAnalysisView(selectedItems: [], onDismiss: {})
+                .modelContainer(container)
+                .environmentObject(SettingsManager())
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "batch_analysis_view_empty\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Batch Analysis View Layout - With Items")
+    func batchAnalysisViewWithItemsSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let descriptor = FetchDescriptor<InventoryItem>(
+            sortBy: [SortDescriptor(\.title)]
+        )
+        let items = try container.mainContext.fetch(descriptor)
+        let selectedItems = Array(items.prefix(3))
+        
+        let view = configureViewForSnapshot(
+            BatchAnalysisView(selectedItems: selectedItems, onDismiss: {})
+                .modelContainer(container)
+                .environmentObject(SettingsManager())
+        )
+        
+        try await Task.sleep(for: .seconds(2))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "batch_analysis_view_with_items\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Selection Views
+    
+    @Test("Label Selection View Layout")
+    func labelSelectionViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let item = InventoryItem()
+        item.title = "Test Item"
+        
+        let view = configureViewForSnapshot(
+            LabelSelectionView(selectedItem: item)
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "label_selection_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Location Selection View Layout")
+    func locationSelectionViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let item = InventoryItem()
+        item.title = "Test Item"
+        
+        let view = configureViewForSnapshot(
+            LocationSelectionView(selectedItem: item)
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "location_selection_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Settings Views
+    
+    @Test("Import Export Settings View Layout")
+    func importExportSettingsViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            ImportExportSettingsView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "import_export_settings_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Import Data View Layout")
+    func importDataViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            ImportDataView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "import_data_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Export Data View Layout")
+    func exportDataViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            ExportDataView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "export_data_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Subscription Settings View Layout")
+    func subscriptionSettingsViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            SubscriptionSettingsView()
+                .modelContainer(container)
+                .environmentObject(RevenueCatManager())
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "subscription_settings_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Data Deletion View Layout")
+    func dataDeletionViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            DataDeletionView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "data_deletion_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Sync Data Settings View Layout")
+    func syncDataSettingsViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            SyncDataSettingsView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "sync_data_settings_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Photo and Display Views
+    
+    @Test("Full Screen Photo View Layout")
+    func fullScreenPhotoViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            FullScreenPhotoView(
+                images: ["test_image_url"],
+                initialIndex: 0,
+                isPresented: .constant(true)
+            )
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "full_screen_photo_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Horizontal Photo Scroll View Layout")
+    func horizontalPhotoScrollViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let urls = ["test_image_1", "test_image_2", "test_image_3"]
+        
+        let view = configureViewForSnapshot(
+            HorizontalPhotoScrollView(
+                imageURLs: urls,
+                maxHeight: 200,
+                onImageTap: { _ in }
+            )
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "horizontal_photo_scroll_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Utility Views
+    
+    @Test("MovingBox Paywall View Layout")
+    func movingBoxPaywallViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            MovingBoxPaywallView(isPresented: .constant(true))
+                .modelContainer(container)
+                .environmentObject(RevenueCatManager())
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "movingbox_paywall_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Splash View Layout")
+    func splashViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            SplashView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "splash_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Item Creation and Analysis Views
+    
+    @Test("Item Creation Flow View Layout - Camera Step")
+    func itemCreationFlowViewCameraSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let descriptor = FetchDescriptor<InventoryLocation>(
+            predicate: #Predicate<InventoryLocation> { location in
+                location.name == "Kitchen"
+            }
+        )
+        let locations = try container.mainContext.fetch(descriptor)
+        let location = locations.first
+        
+        let view = configureViewForSnapshot(
+            ItemCreationFlowView(location: location, onComplete: nil)
+                .modelContainer(container)
+                .environmentObject(SettingsManager())
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "item_creation_flow_view_camera\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Item Analysis Detail View Layout")
+    func itemAnalysisDetailViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let item = InventoryItem()
+        item.title = "Test Item"
+        container.mainContext.insert(item)
+        
+        // Create a test image
+        let testImage = UIImage(systemName: "photo") ?? UIImage()
+        
+        let view = configureViewForSnapshot(
+            ItemAnalysisDetailView(
+                item: item,
+                image: testImage,
+                onSave: {}
+            )
+                .modelContainer(container)
+                .environmentObject(SettingsManager())
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "item_analysis_detail_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    @Test("Image Analysis View Layout")
+    func imageAnalysisViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        // Create a test image
+        let testImage = UIImage(systemName: "photo") ?? UIImage()
+        
+        let view = configureViewForSnapshot(
+            ImageAnalysisView(image: testImage, onComplete: {})
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "image_analysis_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Notifications and Additional Onboarding
+    
+    @Test("Onboarding Notifications View Layout")
+    func onboardingNotificationsViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        let manager = OnboardingManager()
+        
+        let view = configureViewForSnapshot(
+            OnboardingNotificationsView()
+                .modelContainer(container)
+                .environmentObject(manager)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "onboarding_notifications_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Camera Views (Mock Versions for Testing)
+    
+    @Test("Multi Photo Camera View Layout - Mock")
+    func multiPhotoCameraViewMockSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        // Note: Testing camera views is challenging due to hardware dependencies
+        // This test would capture the UI structure but not actual camera functionality
+        
+        let view = configureViewForSnapshot(
+            VStack {
+                Text("Camera Preview")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                HStack {
+                    Button("Cancel") { }
+                    Spacer()
+                    Button("Capture") { }
+                        .background(Color.white)
+                        .clipShape(Circle())
+                    Spacer()
+                    Button("Done") { }
+                }
+                .padding()
+            }
+            .frame(width: 390, height: 844)
+            .background(Color.black)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "multi_photo_camera_view_mock\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
+    
+    // MARK: - Empty State and Error Views
+    
+    @Test("Import Loading View Layout")
+    func importLoadingViewSnapshot() async throws {
+        let container = try await createTestContainer()
+        
+        let view = configureViewForSnapshot(
+            ImportLoadingView()
+                .modelContainer(container)
+        )
+        
+        try await Task.sleep(for: .seconds(1))
+        
+        assertSnapshot(
+            of: view,
+            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
+            named: "import_loading_view\(snapshotSuffix)",
+            file: filePath
+        )
+        
+        await cleanup()
+    }
 }

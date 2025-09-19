@@ -41,11 +41,30 @@ class DashboardScreen {
     // MARK: - Navigation Actions
     
     func tapAllInventory() {
+        // Make sure user is on dashboard
+        XCTAssertTrue(isDisplayed(), "Dashboard should be visible")
         allInventoryButton.tap()
     }
     
     func tapLocations() {
+        // Wait for the element to exist
+        XCTAssertTrue(allLocationsButton.waitForExistence(timeout: 5), "Locations button should exist")
         allLocationsButton.tap()
+        // If we're still on the dashboard, scroll the locations button into view
+        if statCardLabel.exists {
+            // Find the main scroll view and scroll down to bring the button into view
+            let scrollView = app.scrollViews.firstMatch
+            if scrollView.exists {
+                // Scroll down a bit to bring bottom elements into view
+                scrollView.swipeUp()
+                // Wait for scroll animation to complete
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+            // Verify the button is now hittable after scrolling
+            XCTAssertTrue(allLocationsButton.isHittable, "Locations button should be hittable after scrolling")
+
+            allLocationsButton.tap()
+        }
     }
     
     func tapViewAllItems() {

@@ -34,7 +34,7 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(homeAddPhotoButton.waitForExistence(timeout: 10))
         homeAddPhotoButton.tap()
         
-        app.sheets.buttons["takePhoto"].tap()
+        app.sheets.buttons["takePhoto"].firstMatch.tap()
         
         // Then: Camera should be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),
@@ -57,7 +57,7 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(locationAddPhotoButton.waitForExistence(timeout: 5))
         locationAddPhotoButton.tap()
         
-        app.sheets.buttons["takePhoto"].tap()
+        app.sheets.buttons["takePhoto"].firstMatch.tap()
         
         // Then: Camera should be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),
@@ -112,8 +112,8 @@ final class OnboardingUITests: XCTestCase {
         completionContinueButton.tap()
         
         // Paywall
-        XCTAssertTrue(paywallScreen.okButton.waitForExistence(timeout: 5))
-        paywallScreen.okButton.tap()
+        XCTAssertTrue(paywallScreen.waitForPaywall())
+        paywallScreen.dismiss()
         
         // Verify we're on the dashboard
         XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
@@ -124,7 +124,6 @@ final class OnboardingUITests: XCTestCase {
         
         // The user should be brought straight to the dashboard
         XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
-
     }
 }
 

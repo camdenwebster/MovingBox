@@ -14,7 +14,9 @@ final class DataDeletionUITests: XCTestCase {
         app.launchArguments = [
             "Use-Test-Data",
             "Disable-Animations",
-            "Skip-Onboarding"
+            "Skip-Onboarding",
+            "UI-Testing-Mock-Camera"
+
         ]
         
         // Initialize screen objects

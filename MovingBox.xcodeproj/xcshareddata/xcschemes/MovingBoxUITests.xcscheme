@@ -52,6 +52,13 @@
             ReferencedContainer = "container:MovingBox.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "AIPROXY_DEVICE_CHECK_BYPASS"
+            value = "f3543606-afa8-4394-99a9-74bd9a2421a2"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
       <StoreKitConfigurationFileReference
          identifier = "../../MovingBox/MovingBoxStoreKit.storekit">
       </StoreKitConfigurationFileReference>

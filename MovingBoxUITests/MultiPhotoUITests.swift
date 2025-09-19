@@ -3,6 +3,7 @@ import XCTest
 @MainActor
 final class MultiPhotoUITests: XCTestCase {
     var app: XCUIApplication!
+    var dashboardScreen: DashboardScreen!
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var tabBar: TabBar!
@@ -19,12 +20,16 @@ final class MultiPhotoUITests: XCTestCase {
         ]
         
         // Initialize screen objects
+        dashboardScreen = DashboardScreen(app: app)
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         tabBar = TabBar(app: app)
         
         setupSnapshot(app)
         app.launch()
+        
+        // Make sure user is on dashboard
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
     }
 
     override func tearDownWithError() throws {
@@ -36,10 +41,10 @@ final class MultiPhotoUITests: XCTestCase {
 
     func testMultiPhotoDisplayInDetailView() throws {
         // Given: Navigate to an item with multiple photos
-        tabBar.tapAllItems()
+        dashboardScreen.tapAllInventory()
         
         // Wait for the list to load
-        XCTAssertTrue(app.navigationBars.staticTexts["All Items"].waitForExistence(timeout: 5))
+        XCTAssertTrue(listScreen.waitForItemsToLoad())
         
         // Tap on the first item in the list
         let firstItem = app.cells.firstMatch
@@ -60,10 +65,10 @@ final class MultiPhotoUITests: XCTestCase {
     
     func testEditModePhotoManagement() throws {
         // Given: Navigate to item detail view
-        tabBar.tapAllItems()
+        dashboardScreen.tapAllInventory()
         
         // Wait for the list to load
-        XCTAssertTrue(app.navigationBars.staticTexts["All Items"].waitForExistence(timeout: 5))
+        XCTAssertTrue(listScreen.waitForItemsToLoad())
         
         // Tap on first item
         let firstItem = app.cells.firstMatch
@@ -93,7 +98,7 @@ final class MultiPhotoUITests: XCTestCase {
     func testMultiPhotoCameraAccess() throws {
         // This test verifies that the multi-photo camera can be accessed
         // Given: Navigate to item creation
-        tabBar.tapAddItem()
+        dashboardScreen.tapAddItemFromCamera()
         
         // Wait for add item interface
         let expectation = XCTestExpectation(description: "Camera interface loads")
@@ -117,7 +122,11 @@ final class MultiPhotoUITests: XCTestCase {
     
     func testPhotoCountIndicator() throws {
         // This test checks for photo count indicators in the detail view
-        tabBar.tapAllItems()
+        // Given: Navigate to item detail view
+        dashboardScreen.tapAllInventory()
+        
+        // Wait for the list to load
+        XCTAssertTrue(listScreen.waitForItemsToLoad())
         
         let firstItem = app.cells.firstMatch
         if firstItem.exists {

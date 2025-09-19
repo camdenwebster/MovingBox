@@ -11,9 +11,10 @@ final class InventoryListDeletionUITests: XCTestCase {
         continueAfterFailure = false
         
         app = XCUIApplication()
-        app.launchArguments = ["Use-Test-Data", "Disable-Animations"]
+        app.launchArguments = ["Use-Test-Data", "Disable-Animations", "UI-Testing-Mock-Camera"]
         app.launch()
         
+        dashboardScreen = DashboardScreen(app: app)
         inventoryListScreen = InventoryListScreen(app: app)
         
         // Navigate to All Items view

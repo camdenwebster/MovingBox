@@ -15,7 +15,8 @@ final class DashboardNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "Disable-Persistence",
             "Use-Test-Data",
-            "Disable-Animations"
+            "Disable-Animations",
+            "UI-Testing-Mock-Camera"
         ]
         
         // Initialize screen objects

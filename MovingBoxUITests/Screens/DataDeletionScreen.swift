@@ -133,7 +133,21 @@ class DataDeletionScreen {
     }
     
     func isDeleteButtonEnabled() -> Bool {
-        return deleteButton.isHittable
+        // If it's already hittable, we're done
+        if deleteButton.isHittable {
+            return true
+        }
+        
+        // Try to bring it into view by scrolling
+        let scrollView = app.scrollViews.firstMatch
+        if scrollView.exists {
+            scrollView.swipeUp()
+            Thread.sleep(forTimeInterval: 0.5)
+            return deleteButton.isHittable
+        } else {
+            XCTFail("Couldn't find scrollview on delete screen")
+            return false
+        }
     }
     
     func getConfirmationText() -> String {
