@@ -32,6 +32,9 @@ struct DashboardView: View {
     @State private var loadingStartDate: Date? = nil
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
+    @State private var showCardPrototype = false
+    @State private var showGridPrototype = false
+    @State private var showTimelinePrototype = false
     
     private var home: Home? {
         return homes.last
@@ -146,7 +149,7 @@ struct DashboardView: View {
                                             InventoryItemRow(item: item)
                                             Spacer()
                                             Image(systemName: "chevron.right")
-                                                .foregroundStyle(.tertiary)
+                                                .foregroundStyle(.secondary)
                                                 .font(.footnote)
                                                 .fontWeight(.medium)
                                         }
@@ -174,7 +177,7 @@ struct DashboardView: View {
                                             
                                         Spacer()
                                         Image(systemName: "chevron.right")
-                                            .foregroundStyle(.tertiary)
+                                            .foregroundStyle(.secondary)
                                             .font(.footnote)
                                             .fontWeight(.medium)
                                     }
@@ -201,7 +204,50 @@ struct DashboardView: View {
                     // MARK: - Label Statistics
                     LabelStatisticsView()
                         .padding(.top, 24)
-                        .padding(.bottom, 24)
+                    
+                    // MARK: - Multi-Item Prototypes
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Multi-Item Prototypes")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                            .padding(.horizontal)
+                        
+                        VStack(spacing: 12) {
+                            Button(action: { showCardPrototype = true }) {
+                                prototypeLabelView(
+                                    title: "Card Flow",
+                                    description: "Card-based selection with smooth transitions",
+                                    icon: "rectangle.stack.fill",
+                                    color: .blue
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Button(action: { showGridPrototype = true }) {
+                                prototypeLabelView(
+                                    title: "Grid Flow",
+                                    description: "Interactive grid with drag animations",
+                                    icon: "grid",
+                                    color: .purple
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Button(action: { showTimelinePrototype = true }) {
+                                prototypeLabelView(
+                                    title: "Story Flow",
+                                    description: "Timeline-based progressive disclosure",
+                                    icon: "timeline.selection",
+                                    color: .green
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.top, 24)
+                    .padding(.bottom, 24)
                 }
 
                 
@@ -253,6 +299,15 @@ struct DashboardView: View {
             ItemCreationFlowView(location: nil) {
                 // Optional callback when item creation is complete
             }
+        }
+        .sheet(isPresented: $showCardPrototype) {
+            MultiItemCardPrototype()
+        }
+        .sheet(isPresented: $showGridPrototype) {
+            MultiItemGridPrototype()
+        }
+        .sheet(isPresented: $showTimelinePrototype) {
+            MultiItemTimelinePrototype()
         }
         .task(id: home?.imageURL) {
             guard let home = home, 
@@ -372,6 +427,42 @@ struct DashboardView: View {
             },
             onDismiss: nil
         )
+    }
+    
+    private func prototypeLabelView(title: String, description: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.white)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(color)
+                )
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+        .contentShape(Rectangle())
     }
 }
 
