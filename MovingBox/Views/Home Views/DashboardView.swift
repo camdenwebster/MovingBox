@@ -31,7 +31,6 @@ struct DashboardView: View {
     @State private var headerContentHeight: CGFloat = 0
     @State private var loadingStartDate: Date? = nil
     @State private var showingPaywall = false
-    @State private var showItemCreationFlow = false
     @State private var showCardPrototype = false
     @State private var showGridPrototype = false
     @State private var showTimelinePrototype = false
@@ -295,11 +294,6 @@ struct DashboardView: View {
             }
         }
         .sheet(isPresented: $showingPaywall, content: paywallSheet)
-        .sheet(isPresented: $showItemCreationFlow) {
-            ItemCreationFlowView(location: nil) {
-                // Optional callback when item creation is complete
-            }
-        }
         .sheet(isPresented: $showCardPrototype) {
             MultiItemCardPrototype()
         }
@@ -413,7 +407,7 @@ struct DashboardView: View {
         if settings.shouldShowPaywallForAiScan(currentCount: items.filter({ $0.hasUsedAI}).count) {
             showingPaywall = true
         } else {
-            showItemCreationFlow = true
+            router.navigate(to: .addInventoryItemView(location: nil))
         }
     }
     
@@ -423,7 +417,7 @@ struct DashboardView: View {
             isPresented: $showingPaywall,
             onCompletion: {
                 settings.isPro = true
-                showItemCreationFlow = true
+                router.navigate(to: .addInventoryItemView(location: nil))
             },
             onDismiss: nil
         )

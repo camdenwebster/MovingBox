@@ -15,6 +15,7 @@ class SettingsManager: ObservableObject {
         static let highQualityAnalysisEnabled = "highQualityAnalysisEnabled"
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
+        static let preferredCaptureMode = "preferredCaptureMode"
     }
     
     // Published properties that will update the UI
@@ -69,6 +70,12 @@ class SettingsManager: ObservableObject {
         }
     }
     
+    @Published var preferredCaptureMode: Int {
+        didSet {
+            UserDefaults.standard.set(preferredCaptureMode, forKey: Keys.preferredCaptureMode)
+        }
+    }
+    
     // Pro feature constants
     public struct AppConstants: Sendable {
         static let maxFreeAiScans = 50
@@ -84,6 +91,7 @@ class SettingsManager: ObservableObject {
     private let isHighDetailDefault = false
     private let highQualityAnalysisEnabledDefault = false
     private let hasLaunchedDefault = false
+    private let preferredCaptureModeDefault = 0 // 0 = singleItem, 1 = multiItem
     
     init() {
         print("📱 SettingsManager - Starting initialization")
@@ -98,6 +106,7 @@ class SettingsManager: ObservableObject {
         self.highQualityAnalysisEnabled = highQualityAnalysisEnabledDefault
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
+        self.preferredCaptureMode = preferredCaptureModeDefault
         
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
         
@@ -132,6 +141,7 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
+        self.preferredCaptureMode = UserDefaults.standard.integer(forKey: Keys.preferredCaptureMode)
         
         // Set high quality default based on Pro status, but allow override
         if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {

@@ -541,7 +541,7 @@ struct MultiItemTimelinePrototype: View {
     
     private func generateMockItems() {
         detectedItems = [
-            MockInventoryItem(title: "Vintage Camera", category: "Electronics", estimatedPrice: "$250", make: "Canon", icon: "camera.vintage"),
+            MockInventoryItem(title: "Vintage Camera", category: "Electronics", estimatedPrice: "$250", make: "Canon", icon: "camera"),
             MockInventoryItem(title: "Leather Journal", category: "Office", estimatedPrice: "$45", make: "Moleskine", icon: "book"),
             MockInventoryItem(title: "Brass Compass", category: "Collectibles", estimatedPrice: "$75", make: "", icon: "safari"),
             MockInventoryItem(title: "Wooden Clock", category: "Furniture", estimatedPrice: "$120", make: "", icon: "clock"),

@@ -2,10 +2,29 @@ import SwiftUI
 import SwiftData
 import AVFoundation
 
-enum ItemCreationStep {
+enum ItemCreationStep: CaseIterable {
     case camera
     case analyzing
+    case multiItemSelection
     case details
+    
+    var displayName: String {
+        switch self {
+        case .camera: return "Camera"
+        case .analyzing: return "Analyzing"
+        case .multiItemSelection: return "Select Items"
+        case .details: return "Details"
+        }
+    }
+    
+    static func getNavigationFlow(for captureMode: CaptureMode) -> [ItemCreationStep] {
+        switch captureMode {
+        case .singleItem:
+            return [.camera, .analyzing, .details]
+        case .multiItem:
+            return [.camera, .analyzing, .multiItemSelection, .details]
+        }
+    }
 }
 
 struct ItemCreationFlowView: View {
@@ -111,6 +130,13 @@ struct ItemCreationFlowView: View {
                         ))
                         .id("analysis-\(transitionId)")
                     }
+                    
+                case .multiItemSelection:
+                    // This view doesn't support multi-item selection, fall back to details
+                    Text("Multi-item selection not supported in this view")
+                        .onAppear {
+                            currentStep = .details
+                        }
                     
                 case .details:
                     if let item = item {
@@ -255,7 +281,7 @@ struct ItemCreationFlowView: View {
         
         do {
             // Prepare image for AI
-            guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+            guard await OptimizedImageManager.shared.prepareImageForAI(from: image) != nil else {
                 throw OpenAIError.invalidData
             }
             

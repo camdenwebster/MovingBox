@@ -3,11 +3,141 @@ import AVFoundation
 import PhotosUI
 import UIKit
 
+/// Represents the capture mode for the MultiPhotoCameraView
+enum CaptureMode: CaseIterable {
+    case singleItem  /// Multiple photos of one item (existing functionality)
+    case multiItem   /// One photo with multiple items (new functionality)
+    
+    // MARK: - Display Properties
+    
+    var displayName: String {
+        switch self {
+        case .singleItem: return "Single"
+        case .multiItem: return "Multi"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .singleItem: return "Multiple photos of one item"
+        case .multiItem: return "One photo with multiple items"
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .singleItem: return "photo"
+        case .multiItem: return "photo.stack"
+        }
+    }
+    
+    // MARK: - Photo Limits
+    
+    func maxPhotosAllowed(isPro: Bool) -> Int {
+        switch self {
+        case .singleItem:
+            return isPro ? 5 : 1
+        case .multiItem:
+            return 1 // Always 1 for multi-item mode
+        }
+    }
+    
+    func photoCounterText(currentCount: Int, isPro: Bool) -> String {
+        switch self {
+        case .singleItem:
+            let maxPhotos = maxPhotosAllowed(isPro: isPro)
+            return "\(currentCount) of \(maxPhotos)"
+        case .multiItem:
+            return "Capture items"
+        }
+    }
+    
+    // MARK: - Validation
+    
+    func isValidPhotoCount(_ count: Int) -> Bool {
+        switch self {
+        case .singleItem:
+            return count >= 1 && count <= 5
+        case .multiItem:
+            return count == 1
+        }
+    }
+    
+    func errorMessage(for error: CaptureModeError) -> String {
+        switch (self, error) {
+        case (.singleItem, .tooManyPhotos):
+            return "You can take up to 5 photos in single-item mode."
+        case (.multiItem, .tooManyPhotos):
+            return "You can only take one photo in multi-item mode."
+        case (.singleItem, .noPhotos):
+            return "Please take at least one photo."
+        case (.multiItem, .noPhotos):
+            return "Please take exactly one photo for multi-item analysis."
+        }
+    }
+    
+    // MARK: - UI Behavior
+    
+    var showsPhotoPickerButton: Bool {
+        switch self {
+        case .singleItem: return true
+        case .multiItem: return false
+        }
+    }
+    
+    var showsThumbnailScrollView: Bool {
+        switch self {
+        case .singleItem: return true
+        case .multiItem: return false
+        }
+    }
+    
+    var allowsMultipleCaptures: Bool {
+        switch self {
+        case .singleItem: return true
+        case .multiItem: return false
+        }
+    }
+    
+    func completionButtonText(photoCount: Int) -> String {
+        switch self {
+        case .singleItem:
+            return "Next"
+        case .multiItem:
+            return "Analyze"
+        }
+    }
+    
+    // MARK: - Navigation
+    
+    func postCaptureDestination(images: [UIImage], location: InventoryLocation?) -> PostCaptureDestination {
+        switch self {
+        case .singleItem:
+            return .itemCreationFlow(images: images, location: location)
+        case .multiItem:
+            return .multiItemSelection(images: images, location: location)
+        }
+    }
+}
+
+// MARK: - Supporting Types
+
+enum PostCaptureDestination {
+    case itemCreationFlow(images: [UIImage], location: InventoryLocation?)
+    case multiItemSelection(images: [UIImage], location: InventoryLocation?)
+}
+
+enum CaptureModeError {
+    case tooManyPhotos
+    case noPhotos
+}
+
 struct MultiPhotoCameraView: View {
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @StateObject private var model = MultiPhotoCameraViewModel()
     @Binding var capturedImages: [UIImage]
+    let captureMode: CaptureMode
     let onPermissionCheck: (Bool) -> Void
     let onComplete: ([UIImage]) -> Void
     let onCancel: (() -> Void)?
@@ -26,7 +156,22 @@ struct MultiPhotoCameraView: View {
     @State private var orientation = UIDeviceOrientation.portrait
     @State private var showingPaywall = false
     
-    // Default initializer with onCancel parameter
+    // New initializer with capture mode parameter
+    init(
+        capturedImages: Binding<[UIImage]>,
+        captureMode: CaptureMode = .singleItem,
+        onPermissionCheck: @escaping (Bool) -> Void,
+        onComplete: @escaping ([UIImage]) -> Void,
+        onCancel: (() -> Void)? = nil
+    ) {
+        self._capturedImages = capturedImages
+        self.captureMode = captureMode
+        self.onPermissionCheck = onPermissionCheck
+        self.onComplete = onComplete
+        self.onCancel = onCancel
+    }
+    
+    // Backward compatibility initializer
     init(
         capturedImages: Binding<[UIImage]>,
         onPermissionCheck: @escaping (Bool) -> Void,
@@ -34,6 +179,7 @@ struct MultiPhotoCameraView: View {
         onCancel: (() -> Void)? = nil
     ) {
         self._capturedImages = capturedImages
+        self.captureMode = .singleItem
         self.onPermissionCheck = onPermissionCheck
         self.onComplete = onComplete
         self.onCancel = onCancel
@@ -246,7 +392,7 @@ struct MultiPhotoCameraView: View {
                     Spacer()
                     
                     // Done button
-                    Button("Next") {
+                    Button(captureMode.completionButtonText(photoCount: model.capturedImages.count)) {
                         onComplete(model.capturedImages)
                     }
                     .font(.system(size: 16, weight: .medium))
@@ -259,8 +405,8 @@ struct MultiPhotoCameraView: View {
                 .padding(.top, 50)
                 .padding(.bottom, 10)
                 
-                // Thumbnails (moved above camera feed)
-                if !model.capturedImages.isEmpty {
+                // Thumbnails (only shown in single-item mode)
+                if captureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(Array(model.capturedImages.enumerated()), id: \.offset) { index, image in
@@ -304,7 +450,7 @@ struct MultiPhotoCameraView: View {
                     // Shutter controls row
                     HStack(spacing: 50) {
                         // Photo count
-                        Text("\(model.capturedImages.count) of \(settings.isPro ? "5" : "1")")
+                        Text(captureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro))
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white)
                             .frame(width: 60)
@@ -312,9 +458,8 @@ struct MultiPhotoCameraView: View {
                         
                         // Shutter button
                         Button {
-                            if model.capturedImages.count >= 1 && !settings.isPro {
-                                model.showPhotoLimitAlert = true
-                            } else if model.capturedImages.count >= 5 {
+                            let maxPhotos = captureMode.maxPhotosAllowed(isPro: settings.isPro)
+                            if model.capturedImages.count >= maxPhotos {
                                 model.showPhotoLimitAlert = true
                             } else {
                                 if isUITesting {
@@ -335,19 +480,24 @@ struct MultiPhotoCameraView: View {
                         }
                         .accessibilityIdentifier("cameraShutterButton")
                         
-                        // Photo picker button
-                        Button {
-                            if model.capturedImages.count >= 1 && !settings.isPro {
-                                model.showPhotoLimitAlert = true
-                            } else if model.capturedImages.count >= 5 {
-                                model.showPhotoLimitAlert = true
-                            } else {
-                                showingPhotoPicker = true
+                        // Photo picker button (only shown in single-item mode)
+                        if captureMode.showsPhotoPickerButton {
+                            Button {
+                                let maxPhotos = captureMode.maxPhotosAllowed(isPro: settings.isPro)
+                                if model.capturedImages.count >= maxPhotos {
+                                    model.showPhotoLimitAlert = true
+                                } else {
+                                    showingPhotoPicker = true
+                                }
+                            } label: {
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.white)
+                                    .frame(width: 60)
                             }
-                        } label: {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.system(size: 22))
-                                .foregroundColor(.white)
+                        } else {
+                            // Spacer to maintain layout in multi-item mode
+                            Spacer()
                                 .frame(width: 60)
                         }
                     }
@@ -358,7 +508,7 @@ struct MultiPhotoCameraView: View {
             }
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {
-            if settings.isPro {
+            if settings.isPro || captureMode == .multiItem {
                 Button("OK") { }
             } else {
                 Button("Close") { }
@@ -367,8 +517,10 @@ struct MultiPhotoCameraView: View {
                 }
             }
         } message: {
-            if settings.isPro {
-                Text("You can take up to 5 photos. Delete a photo to take another one.")
+            if captureMode == .multiItem {
+                Text(captureMode.errorMessage(for: .tooManyPhotos))
+            } else if settings.isPro {
+                Text(captureMode.errorMessage(for: .tooManyPhotos))
             } else {
                 Text("You can only add one photo per item. Upgrade to MovingBox Pro to add more photos.")
             }
@@ -376,7 +528,7 @@ struct MultiPhotoCameraView: View {
         .photosPicker(
             isPresented: $showingPhotoPicker,
             selection: $selectedItems,
-            maxSelectionCount: max(0, (settings.isPro ? 5 : 1) - model.capturedImages.count),
+            maxSelectionCount: max(0, captureMode.maxPhotosAllowed(isPro: settings.isPro) - model.capturedImages.count),
             matching: .images
         )
         .onChange(of: selectedItems) { _, newItems in
@@ -449,8 +601,9 @@ struct MultiPhotoCameraView: View {
     }
     
     private func processSelectedPhotos(_ items: [PhotosPickerItem]) async {
+        let maxPhotos = captureMode.maxPhotosAllowed(isPro: settings.isPro)
         for item in items {
-            guard model.capturedImages.count < 5 else { break }
+            guard model.capturedImages.count < maxPhotos else { break }
             
             if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
@@ -918,9 +1071,19 @@ struct PhotoThumbnailView: View {
     }
 }
 
-#Preview {
+#Preview("Single Item Mode") {
     MultiPhotoCameraView(
         capturedImages: .constant([]),
+        captureMode: .singleItem,
+        onPermissionCheck: { _ in },
+        onComplete: { _ in }
+    )
+}
+
+#Preview("Multi Item Mode") {
+    MultiPhotoCameraView(
+        capturedImages: .constant([]),
+        captureMode: .multiItem,
         onPermissionCheck: { _ in },
         onComplete: { _ in }
     )

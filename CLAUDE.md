@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 MovingBox is an iOS app that uses AI to help users manage home inventory by taking photos and automatically cataloging items. Built with SwiftUI and SwiftData, integrated with OpenAI Vision API, RevenueCat for subscriptions, and CloudKit for data sync.
 
 ## Response Style
-Respond in a concise and professional manner, keeping fluff to a minimum. Evaluate my ideas in an objective manner, and do not hesitate to tell me if an idea is suboptimal, but give me reasoning as to why a different solution is more appropriate.
+Respond in a concise and professional manner, keeping fluff to a minimum. Evaluate my ideas in an objective manner, and do not hesitate to challenge me if an idea is suboptimal, but give me reasoning as to why a different solution is more appropriate.
 
 ## Development Commands
 
@@ -38,6 +38,7 @@ Use launch arguments for testing:
 - `"Skip-Onboarding"` - Skip onboarding flow
 
 ## Architecture
+All new views should try to use MVVM where possible. Larger views should split the View and ViewModel into separate files, while smaller views could add the ViewModel as an extension on the view in the same file. Testability is critical.
 
 ### Core Data Flow
 - **SwiftData Models**: `InventoryItem`, `InventoryLocation`, `InventoryLabel`, `Home`, `InsurancePolicy`
