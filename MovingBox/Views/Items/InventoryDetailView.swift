@@ -1158,14 +1158,14 @@ struct InventoryDetailView: View {
                     isPresented: $showingFullScreenPhoto
                 )
             }
-//            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
-//                Button("Take Photo") { showingSimpleCamera = true }
-//                    .accessibilityIdentifier("takePhoto")
-//                Button("Scan Document") { showDocumentScanner = true }
-//                    .accessibilityIdentifier("scanDocument")
-//                Button("Choose from Photos") { showPhotoPicker = true }
-//                    .accessibilityIdentifier("chooseFromLibrary")
-//            }
+            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
+                Button("Take Photo") { showingSimpleCamera = true }
+                    .accessibilityIdentifier("takePhoto")
+                Button("Scan Document") { showDocumentScanner = true }
+                    .accessibilityIdentifier("scanDocument")
+                Button("Choose from Photos") { showPhotoPicker = true }
+                    .accessibilityIdentifier("chooseFromLibrary")
+            }
             .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
