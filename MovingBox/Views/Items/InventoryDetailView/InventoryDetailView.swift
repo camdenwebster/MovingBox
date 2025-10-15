@@ -216,7 +216,7 @@ struct InventoryDetailView: View {
                 isEditing = true
             }
             .accessibilityIdentifier("edit")
-            .foregroundStyle(.primary)
+            .tint(.green)
         }
     }
 
@@ -228,52 +228,64 @@ struct InventoryDetailView: View {
         // Photo banner section with progressive loading states
         if isLoading {
             // Loading state - show progress indicator
-            ZStack {
-                Color(.systemGray6)
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .secondary))
-                        .scaleEffect(1.2)
-                    Text("Loading photos...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .global).minY
+
+                ZStack {
+                    Color(.systemGray6)
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .secondary))
+                            .scaleEffect(1.2)
+                        Text("Loading photos...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .frame(width: proxy.size.width, height: 250 + (scrollY > 0 ? scrollY : 0))
+                .offset(y: scrollY > 0 ? -scrollY : 0)
             }
             .frame(height: 250)
         } else if let loadingError = loadingError {
             // Error state - show error placeholder
-            ZStack {
-                Color(.systemGray6)
-                VStack(spacing: 16) {
-                    Image(systemName: "photo.trianglebadge.exclamationmark")
-                        .font(.system(size: 50))
-                        .foregroundColor(.red)
-                    Text("Failed to load photos")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text(loadingError.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    
-                    if isEditing {
-                        Button(action: {
-                            showPhotoSourceAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "camera")
-                                Text("Add Photo")
-                            }
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .global).minY
+
+                ZStack {
+                    Color(.systemGray6)
+                    VStack(spacing: 16) {
+                        Image(systemName: "photo.trianglebadge.exclamationmark")
+                            .font(.system(size: 50))
+                            .foregroundColor(.red)
+                        Text("Failed to load photos")
                             .font(.headline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(.blue)
-                            .clipShape(Capsule())
+                            .foregroundColor(.primary)
+                        Text(loadingError.localizedDescription)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+
+                        if isEditing {
+                            Button(action: {
+                                showPhotoSourceAlert = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "camera")
+                                    Text("Add Photo")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(.blue)
+                                .clipShape(Capsule())
+                            }
                         }
                     }
                 }
+                .frame(width: proxy.size.width, height: 250 + (scrollY > 0 ? scrollY : 0))
+                .offset(y: scrollY > 0 ? -scrollY : 0)
             }
             .frame(height: 250)
         } else if !loadedImages.isEmpty {
@@ -281,7 +293,7 @@ struct InventoryDetailView: View {
             ZStack {
                 GeometryReader { proxy in
                     let scrollY = proxy.frame(in: .global).minY
-                    
+
                     FullScreenPhotoCarouselView(
                         images: loadedImages,
                         selectedIndex: $selectedImageIndex,
@@ -323,11 +335,9 @@ struct InventoryDetailView: View {
                         }
                     )
                     .frame(width: proxy.size.width, height: 350 + (scrollY > 0 ? scrollY : 0))
-                    .clipped()
                     .offset(y: scrollY > 0 ? -scrollY : 0)
                 }
                 .frame(height: 350)
-                .clipped()
                 
                 // Edit mode controls overlay - positioned at container bottom
                 if isEditing {
@@ -391,7 +401,13 @@ struct InventoryDetailView: View {
             }
         } else {
             // No photos state - show placeholder when no photos exist
-            photoPlaceHolder
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .global).minY
+
+                photoPlaceHolder
+                    .frame(width: proxy.size.width, height: 250 + (scrollY > 0 ? scrollY : 0))
+                    .offset(y: scrollY > 0 ? -scrollY : 0)
+            }
             .frame(height: 250)
         }
     }
@@ -2019,11 +2035,7 @@ struct InventoryItemSnapshot {
 extension View {
     func applyNavigationSettings(title: String, isEditing: Bool, colorScheme: ColorScheme) -> some View {
         self
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isEditing)
-            .modifier(ConditionalToolbarBackgroundModifier(colorScheme: colorScheme))
-            .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
     }
 }
 
