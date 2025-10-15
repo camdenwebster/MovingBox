@@ -1,3 +1,4 @@
+import SwiftUIBackports
 import SwiftUI
 
 struct OnboardingContinueButton: View {
@@ -21,9 +22,11 @@ struct OnboardingContinueButton: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(.green.gradient)
+//                .background(.green.gradient)
                 .cornerRadius(UIConstants.cornerRadius)
         }
+        .backport.glassProminentButtonStyle()
+        .tint(.green)
         .padding(.horizontal)
         .padding(.bottom, 30)
     }

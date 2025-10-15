@@ -203,6 +203,7 @@ struct InventoryDetailView: View {
                 isEditing = false
                 onSave?()
             }
+            .backport.glassProminentButtonStyle()
             .fontWeight(.bold)
             .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
             .accessibilityIdentifier("save")
@@ -465,7 +466,7 @@ struct InventoryDetailView: View {
             .frame(height: 44)
             .foregroundStyle(.white)
             .background(.green)
-            .cornerRadius(8)
+            .cornerRadius(UIConstants.cornerRadius)
         }
         .buttonStyle(.automatic)
         .disabled(isLoadingOpenAiResults)
@@ -1063,11 +1064,12 @@ struct InventoryDetailView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     photoSection
-                    
+
                     formContent
                         .background(Color(.systemGroupedBackground))
                 }
             }
+            .ignoresSafeArea(edges: .top)
             .background(Color(.systemGroupedBackground))
         }
     }
@@ -1116,8 +1118,9 @@ struct InventoryDetailView: View {
                     await handleAttachmentFileImport(result)
                 }
             }
-            .sheet(isPresented: $showingSimpleCamera) {
+            .fullScreenCover(isPresented: $showingSimpleCamera) {
                 SimpleCameraView(capturedImage: $capturedSingleImage)
+                    .ignoresSafeArea()
                     .onChange(of: capturedSingleImage) { _, newImage in
                         if let image = newImage {
                             Task {
@@ -2019,9 +2022,27 @@ extension View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isEditing)
-            .toolbarBackground(colorScheme == .dark ? .black : .white, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .modifier(ConditionalToolbarBackgroundModifier(colorScheme: colorScheme))
             .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+    }
+}
+
+// MARK: - Conditional Toolbar Background Modifier
+
+struct ConditionalToolbarBackgroundModifier: ViewModifier {
+    let colorScheme: ColorScheme
+    
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            // For iOS 26 and above, hide the toolbar background
+            content
+                .toolbarBackground(.hidden, for: .navigationBar)
+        } else {
+            // For iOS 18 and below, maintain existing functionality
+            content
+                .toolbarBackground(colorScheme == .dark ? .black : .white, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+        }
     }
 }
 
