@@ -3,6 +3,7 @@ import XCTest
 @MainActor
 final class PhotoButtonVisibilityUITests: XCTestCase {
     var app: XCUIApplication!
+    var cameraScreen: CameraScreen!
     var listScreen: InventoryListScreen!
     var detailScreen: InventoryDetailScreen!
     var navigationHelper: NavigationHelper!
@@ -13,6 +14,7 @@ final class PhotoButtonVisibilityUITests: XCTestCase {
         app = XCUIApplication()
 
         // Initialize screen objects
+        cameraScreen = CameraScreen(app: app, testCase: self)
         listScreen = InventoryListScreen(app: app)
         detailScreen = InventoryDetailScreen(app: app)
         navigationHelper = NavigationHelper(app: app)
@@ -85,37 +87,38 @@ final class PhotoButtonVisibilityUITests: XCTestCase {
                      "Add Photo button should be visible for standard user adding first photo")
     }
 
-    func testProUserCanAddAdditionalPhotos() throws {
+    func testProUserCanAddAdditionalPhotosFromCameral() throws {
         // Given: Pro user with an existing item that has at least one photo
-        app.launchArguments = [
+        let launchArguments = [
             "Is-Pro",
+            "Disable-Persistence",
             "Skip-Onboarding",
             "Use-Test-Data",
             "UI-Testing-Mock-Camera",
             "Disable-Animations"
         ]
-        app.launch()
+        navigationHelper.launchWithArguments(launchArguments)
         
-        // Make sure user is on dashboard
-        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
-
-        // When: User navigates to an existing item with a photo
-        navigationHelper.navigateToAllItems()
-
-        XCTAssertTrue(listScreen.allItemsNavigationTitle.waitForExistence(timeout: 5),
-                     "All Items list should be visible")
-
-        // Tap on the first item in the list
-        listScreen.tapFirstItem()
-
+        // When: User navigates to an existing item with a photo and enters edit mode
+        navigationHelper.navigateToAnExistingItem()
+        
         // Wait for detail view to load and enter edit mode
-        XCTAssertTrue(detailScreen.editButton.waitForExistence(timeout: 5),
-                     "Edit button should be visible")
-        detailScreen.editButton.tap()
-
+        detailScreen.enterEditMode()
+        
         // Then: Blue + button should be visible for adding additional photos
         XCTAssertTrue(detailScreen.waitForAddAdditionalPhotoButton(),
-                     "Blue + button should be visible for Pro user adding additional photos")
+                      "Blue + button should be visible for Pro user adding additional photos")
+        
+        // And: the confirmation dialog should display the available photo options when tapped
+        detailScreen.addPhotoThumbnailButton.tap()
+        XCTAssertTrue(detailScreen.takePhotoButton.isHittable && detailScreen.chooseFromLibraryButton.isHittable && detailScreen.scanDocumentButton.isHittable, "The confirmation dialog should display the available photo options when tapped")
+        
+        // And: the user should be able to add another photo using the camera
+        detailScreen.takePhotoButton.tap()
+        cameraScreen.takePhoto()
+        
+        // And: the label displaying the number of photos should read 1/2
+        XCTAssertEqual(detailScreen.photoCountText.label, "1 / 2", "The label displaying the number of photos should read 1/2")
     }
 
     // MARK: - Free User Tests
@@ -124,6 +127,7 @@ final class PhotoButtonVisibilityUITests: XCTestCase {
         // Given: Free user (non-Pro) with an existing item that has one photo
         app.launchArguments = [
             "Skip-Onboarding",
+            "Disable-Persistence",
             "Use-Test-Data",
             "UI-Testing-Mock-Camera",
             "Disable-Animations"

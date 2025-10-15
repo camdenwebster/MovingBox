@@ -1595,6 +1595,7 @@ struct FullScreenPhotoCarouselView: View {
                                 Text("\(selectedIndex + 1) / \(images.count)")
                                     .font(.caption)
                                     .fontWeight(.medium)
+                                    .accessibilityIdentifier("photoCountText")
                             }
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)

@@ -21,6 +21,15 @@ class NavigationHelper {
     
     // MARK: - Core Navigation Methods
     
+    /// Ensure app is launched with expected launch arguments
+    func launchWithArguments(_ launchArguments: [String]) {
+        app.launchArguments = launchArguments
+        app.launch()
+        guard dashboardScreen.isDisplayed() else {
+            return XCTFail("Dashboard not loaded")
+        }
+    }
+    
     /// Navigate to All Items view from dashboard
     func navigateToAllItems() {
         // If we're already on dashboard, use the button
@@ -57,6 +66,15 @@ class NavigationHelper {
             // Navigate back to dashboard first, then add item
             navigateBackToDashboard()
             dashboardScreen.tapAddItemFromCamera()
+        }
+    }
+    
+    func navigateToAnExistingItem() {
+        // Check if the Use-Test-Data launchargument is enabled
+        if app.launchArguments.contains("Use-Test-Data") {
+            dashboardScreen.tapFirstRecentItem()
+        } else {
+            XCTFail("Test data is not loaded, cannot test navigation to an existing item")
         }
     }
     
