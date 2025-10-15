@@ -381,6 +381,7 @@ struct InventoryDetailView: View {
                                         .background(.blue.opacity(0.8))
                                         .clipShape(Circle())
                                 }
+                                .accessibilityIdentifier("add-photo-button")
                             }
                         }
                         .padding(.horizontal, 20)

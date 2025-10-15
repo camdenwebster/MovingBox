@@ -9,14 +9,17 @@ import Foundation
 import XCTest
 
 class InventoryListScreen {
-    
+
     // Main app
     let app: XCUIApplication
-    
+
+    // Navigation
+    let allItemsNavigationTitle: XCUIElement
+
     // Buttons
     let createManuallyButton: XCUIElement
     let createFromCameraButton: XCUIElement
-    
+
     // Menu
     let toolbarMenu: XCUIElement
     
@@ -37,11 +40,14 @@ class InventoryListScreen {
     
     init(app: XCUIApplication) {
         self.app = app
-        
+
+        // Initialize navigation
+        self.allItemsNavigationTitle = app.navigationBars.staticTexts["All Items"]
+
         // Initialize buttons
         self.createManuallyButton = app.buttons["createManually"]
         self.createFromCameraButton = app.buttons["createFromCamera"]
-        
+
         // Initialize menu
         self.toolbarMenu = app.buttons["toolbarMenu"]
         
