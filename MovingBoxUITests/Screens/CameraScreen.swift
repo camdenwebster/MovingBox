@@ -50,9 +50,21 @@ class CameraScreen {
     func waitForCamera(timeout: TimeInterval = 5) -> Bool {
         app.tap()
         // In UI testing mode, we should see the mock tablet image
-        let cameraReady = doneButton.waitForExistence(timeout: timeout) || captureButton.waitForExistence(timeout: timeout) || takePhotoButton.waitForExistence(timeout: timeout)
         
-        return cameraReady
+        let startTime = Date()
+        let checkInterval: TimeInterval = 1.0
+        
+        while Date().timeIntervalSince(startTime) < timeout {
+            // Check all elements without waiting
+            if doneButton.exists || captureButton.exists || takePhotoButton.exists {
+                return true
+            }
+            
+            // Wait for the check interval before trying again
+            Thread.sleep(forTimeInterval: checkInterval)
+        }
+        
+        return false
     }
     
     func takePhoto(timeout: TimeInterval = 5) {

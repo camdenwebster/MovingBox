@@ -1,7 +1,6 @@
 import XCTest
 
 final class InventoryListDeletionUITests: XCTestCase {
-    
     var app: XCUIApplication!
     var dashboardScreen: DashboardScreen!
     var inventoryListScreen: InventoryListScreen!
@@ -9,15 +8,18 @@ final class InventoryListDeletionUITests: XCTestCase {
     
     override func setUpWithError() throws {
         continueAfterFailure = false
-        
         app = XCUIApplication()
+        
+        dashboardScreen = DashboardScreen(app: app)
+        inventoryListScreen = InventoryListScreen(app: app)
+        navigationHelper = NavigationHelper(app: app)
+        
         app.launchArguments = ["Use-Test-Data", "Disable-Animations"]
         app.launch()
         
-        inventoryListScreen = InventoryListScreen(app: app)
-        
         // Navigate to All Items view
-        XCTAssertTrue(dashboardScreen.allInventoryButton.waitForExistence(timeout: 10), "App did not launch in time")
+        // Make sure user is on dashboard
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
         navigationHelper.navigateToAllItems()
         
         // Wait for items to load
@@ -27,6 +29,8 @@ final class InventoryListDeletionUITests: XCTestCase {
     override func tearDownWithError() throws {
         app = nil
         inventoryListScreen = nil
+        dashboardScreen = nil
+        navigationHelper = nil
     }
     
     func testEnterAndExitSelectionMode() throws {

@@ -392,6 +392,7 @@ struct InventoryDetailView: View {
                                         .background(.blue.opacity(0.8))
                                         .clipShape(Circle())
                                 }
+                                .accessibilityIdentifier("add-photo-button")
                             }
                         }
                         .padding(.horizontal, 20)
@@ -1154,14 +1155,14 @@ struct InventoryDetailView: View {
                     isPresented: $showingFullScreenPhoto
                 )
             }
-//            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
-//                Button("Take Photo") { showingSimpleCamera = true }
-//                    .accessibilityIdentifier("takePhoto")
-//                Button("Scan Document") { showDocumentScanner = true }
-//                    .accessibilityIdentifier("scanDocument")
-//                Button("Choose from Photos") { showPhotoPicker = true }
-//                    .accessibilityIdentifier("chooseFromLibrary")
-//            }
+            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
+                Button("Take Photo") { showingSimpleCamera = true }
+                    .accessibilityIdentifier("takePhoto")
+                Button("Scan Document") { showDocumentScanner = true }
+                    .accessibilityIdentifier("scanDocument")
+                Button("Choose from Photos") { showPhotoPicker = true }
+                    .accessibilityIdentifier("chooseFromLibrary")
+            }
             .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -1590,6 +1591,7 @@ struct FullScreenPhotoCarouselView: View {
                                 Text("\(selectedIndex + 1) / \(images.count)")
                                     .font(.caption)
                                     .fontWeight(.medium)
+                                    .accessibilityIdentifier("photoCountText")
                             }
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
