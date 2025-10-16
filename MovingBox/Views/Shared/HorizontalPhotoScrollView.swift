@@ -285,9 +285,9 @@ struct ThumbnailView: View {
 
 struct AddPhotoThumbnailButton: View {
     let onTap: () -> Void
-    
+
     private let imageSize: CGFloat = 80
-    
+
     var body: some View {
         Button(action: onTap) {
             RoundedRectangle(cornerRadius: 8)
@@ -310,6 +310,7 @@ struct AddPhotoThumbnailButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("add-photo-thumbnail-button")
     }
 }
 

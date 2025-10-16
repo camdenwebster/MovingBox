@@ -64,6 +64,9 @@ final class FeatureUITests: XCTestCase {
         ]
         screenObject = ScreenObject(app: app)
         app.launch()
+        
+        // IMPORTANT: Make sure user is on dashboard (splash screen has disappeared)
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
     }
 }
 ```
