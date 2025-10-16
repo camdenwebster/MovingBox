@@ -2012,7 +2012,17 @@ struct InventoryItemSnapshot {
 extension View {
     func applyNavigationSettings(title: String, isEditing: Bool, colorScheme: ColorScheme) -> some View {
         self
+            .navigationTitle(getNavigationTitle(title: title))
+            .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isEditing)
+    }
+    
+    private func getNavigationTitle(title: String) -> String {
+        if #available(iOS 26.0, *) {
+            return title
+        } else {
+            return ""
+        }
     }
 }
 
