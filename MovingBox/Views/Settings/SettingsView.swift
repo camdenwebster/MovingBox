@@ -8,7 +8,6 @@
 import SwiftUIBackports
 import SwiftUI
 import SwiftData
-import SafariServices
 import StoreKit
 
 enum SettingsSection: Hashable {
@@ -30,7 +29,6 @@ struct SettingsView: View {
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
     @State private var selectedSection: SettingsSection? = .categories // Default selection
-    @State private var safariLink: SafariLinkData? = nil
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
     @State private var analyzedItemsCount: Int = 0
@@ -236,14 +234,6 @@ struct SettingsView: View {
             }
             
             Section("Community & Support") {
-                ForEach([
-                    externalLinks["knowledgeBase"]!,
-                    externalLinks["support"]!,
-                    externalLinks["bugs"]!
-                ], id: \.title) { link in
-                    externalLinkButton(for: link)
-                }
-                
                 Button {
                     requestAppReview()
                 } label: {
@@ -263,6 +253,27 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                
+                ForEach([
+                    externalLinks["knowledgeBase"]!,
+                    externalLinks["support"]!,
+                    externalLinks["bugs"]!
+                ], id: \.title) { link in
+                    Link(destination: link.url) {
+                        HStack {
+                            Label {
+                                Text(link.title)
+                                    .foregroundStyle(.primary)
+                            } icon: {
+                                Image(systemName: link.icon)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             
             Section("About") {
@@ -272,7 +283,7 @@ struct SettingsView: View {
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "info.circle")
-                            
+
                     }
                     Spacer()
                     Text(appVersion)
@@ -283,17 +294,25 @@ struct SettingsView: View {
                     externalLinks["privacyPolicy"]!,
                     externalLinks["termsOfService"]!
                 ], id: \.title) { link in
-                    externalLinkButton(for: link)
+                    Link(destination: link.url) {
+                        HStack {
+                            Label {
+                                Text(link.title)
+                                    .foregroundStyle(.primary)
+                            } icon: {
+                                Image(systemName: link.icon)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         }
         .navigationBarTitleDisplayMode(.large)
         .navigationTitle("Settings")
-        
-        .sheet(item: $safariLink) { linkData in
-            SafariView(url: linkData.url)
-                .edgesIgnoringSafeArea(.all)
-        }
         .sheet(isPresented: $showingPaywall) {
             revenueCatManager.presentPaywall(
                 isPresented: $showingPaywall,
@@ -361,29 +380,6 @@ struct SettingsView: View {
         }
     }
     
-    private func externalLinkButton(for link: ExternalLink) -> some View {
-        Button {
-            print("Button tapped for: \(link.title) with URL: \(link.url.absoluteString)")
-            safariLink = SafariLinkData(url: link.url)
-        } label: {
-            HStack {
-                Label {
-                    Text(link.title)
-                        .foregroundStyle(.primary)
-                } icon: {
-                    Image(systemName: link.icon)
-                        
-                }
-                Spacer()
-                Image(systemName: "arrow.up.right.square")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-    
     private func requestAppReview() {
         if #available(iOS 18.0, *) {
             if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
@@ -402,48 +398,6 @@ struct SettingsView: View {
             }
         }
     }
-}
-
-// MARK: - Safari View
-struct SafariView: UIViewControllerRepresentable {
-    let url: URL
-    @Environment(\.presentationMode) var presentationMode
-    
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        print("SafariView - Creating controller for URL: \(url.absoluteString)")
-        let config = SFSafariViewController.Configuration()
-        config.entersReaderIfAvailable = false
-        
-        let safariVC = SFSafariViewController(url: url, configuration: config)
-        safariVC.delegate = context.coordinator
-        return safariVC
-    }
-    
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
-        // We don't update the controller - each time we show a new URL, we create a new controller
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, SFSafariViewControllerDelegate {
-        let parent: SafariView
-        
-        init(_ parent: SafariView) {
-            self.parent = parent
-        }
-        
-        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-            parent.presentationMode.wrappedValue.dismiss()
-        }
-    }
-}
-
-// MARK: - Safari Link Data
-struct SafariLinkData: Identifiable {
-    let url: URL
-    let id = UUID()
 }
 
 // MARK: - Settings Menu SubViews

@@ -41,7 +41,11 @@ struct EditHomeView: View {
     @State private var isLoading = false
     @State private var cachedImageURL: URL?
     
-    @State private var tempHome = Home()
+    @State private var tempHome = {
+        var home = Home()
+        home.country = Locale.current.region?.identifier ?? "US"
+        return home
+    }()
     @State private var tempPolicy = InsurancePolicy()
     
     private var isNewHome: Bool {
@@ -58,7 +62,7 @@ struct EditHomeView: View {
     
     private func countryName(for code: String) -> String {
         let locale = Locale.current
-        return locale.localizedString(forIdentifier: code) ?? code
+        return locale.localizedString(forRegionCode: code) ?? code
     }
     
     var body: some View {
@@ -160,9 +164,18 @@ struct EditHomeView: View {
                 
                 if isEditingEnabled {
                     Picker("Country", selection: $tempHome.country) {
-                        ForEach(Locale.Region.isoRegions.map({ $0.identifier }).sorted(), id: \.self) { code in
-                            Text(countryName(for: code))
-                                .tag(code)
+                        // Current user's country at the top
+                        if let userCountry = Locale.current.region?.identifier {
+                            Text(countryName(for: userCountry))
+                                .tag(userCountry)
+                            
+                            Divider()
+                        }
+                        
+                        // All other countries, sorted alphabetically
+                        ForEach(Locale.Region.isoRegions.filter { $0.identifier != Locale.current.region?.identifier }.sorted(by: { countryName(for: $0.identifier) < countryName(for: $1.identifier) }), id: \.identifier) { region in
+                            Text(countryName(for: region.identifier))
+                                .tag(region.identifier)
                         }
                     }
                 } else {
@@ -281,6 +294,7 @@ struct EditHomeView: View {
                     tempPolicy = policy
                 }
             } else {
+                // Set default country for new homes
                 tempHome.country = Locale.current.region?.identifier ?? "US"
             }
         }
