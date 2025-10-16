@@ -481,10 +481,9 @@ struct InventoryDetailView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .foregroundStyle(.white)
-            .background(.green)
             .cornerRadius(UIConstants.cornerRadius)
         }
-        .buttonStyle(.automatic)
+        .backport.glassProminentButtonStyle()
         .disabled(isLoadingOpenAiResults)
         .accessibilityIdentifier("analyzeWithAi")
     }
@@ -506,9 +505,7 @@ struct InventoryDetailView: View {
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Details")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -571,9 +568,7 @@ struct InventoryDetailView: View {
     private var quantitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Quantity")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -591,9 +586,7 @@ struct InventoryDetailView: View {
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Description")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -617,9 +610,7 @@ struct InventoryDetailView: View {
     private var priceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Purchase Price")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -671,9 +662,7 @@ struct InventoryDetailView: View {
         if isEditing || inventoryItemToDisplay.location != nil || inventoryItemToDisplay.label != nil {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Locations & Labels")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -747,9 +736,7 @@ struct InventoryDetailView: View {
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Notes")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -776,9 +763,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyPurchaseTrackingData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Purchase & Ownership")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -827,9 +812,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyFinancialData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Financial Information")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -862,9 +845,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyPhysicalPropertiesData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Physical Properties")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -932,9 +913,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyMovingOptimizationData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Moving & Storage")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -992,9 +971,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyAttachments {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Attachments")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {

@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/4/24.
 //
 
+import SwiftUIBackports
 import SwiftUI
 import SwiftData
 import SafariServices
@@ -116,10 +117,9 @@ struct SettingsView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.accentColor)
                             .cornerRadius(10)
                     }
-                    .foregroundStyle(Color.green.gradient)
+                    .backport.glassProminentButtonStyle()
                     .listRowInsets(EdgeInsets())
                 }
             }

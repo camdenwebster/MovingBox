@@ -1,3 +1,4 @@
+import SwiftUIBackports
 import SwiftUI
 import SwiftData
 
@@ -289,12 +290,12 @@ struct DataDeletionView: View {
                         }
                     }
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(isConfirmationValid && !isDeleting ? Color.red : Color.gray)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(isConfirmationValid && !isDeleting ? Color.red : Color.gray)
-                    .cornerRadius(10)
+                    .cornerRadius(UIConstants.cornerRadius)
                 }
+                .backport.glassButtonStyle()
                 .disabled(!isConfirmationValid || isDeleting)
                 .listRowInsets(EdgeInsets())
             }
