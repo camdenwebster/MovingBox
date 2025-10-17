@@ -82,7 +82,20 @@
       "Bash(git push:*)",
       "WebFetch(domain:www.aiproxy.com)",
       "WebFetch(domain:github.com)",
-      "Bash(gem install:*)"
+      "Bash(gem install:*)",
+      "Bash(fastlane:*)",
+      "Bash(bundle install:*)",
+      "Bash(sudo gem install:*)",
+      "Bash(brew install:*)",
+      "Bash(/opt/homebrew/opt/ruby/bin/ruby --version)",
+      "Bash(/opt/homebrew/opt/ruby/bin/gem install bundler)",
+      "Bash(/opt/homebrew/opt/ruby/bin/bundle install)",
+      "Bash(/opt/homebrew/opt/ruby/bin/bundle exec fastlane screenshots)",
+      "Bash(/opt/homebrew/opt/ruby/bin/gem install abbrev)",
+      "Bash(/opt/homebrew/opt/ruby/bin/bundle update fastlane)",
+      "Read(//Users/camden.webster/Library/Logs/snapshot/**)",
+      "Bash(tee:*)",
+      "Read(//private/tmp/**)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
