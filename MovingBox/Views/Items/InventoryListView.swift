@@ -302,7 +302,6 @@ struct InventoryListView: View {
             if #available(iOS 26.0, *) {
                 ToolbarSpacer(placement: .bottomBar)
                 DefaultToolbarItem(kind: .search, placement: .bottomBar)
-                ToolbarSpacer(placement: .bottomBar)
             } else {
                 // For iOS < 26, add spacer to push + button to trailing edge
                 ToolbarItem(placement: .bottomBar) {

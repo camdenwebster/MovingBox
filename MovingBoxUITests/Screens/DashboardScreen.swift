@@ -69,7 +69,7 @@ class DashboardScreen {
         recentItemButton.tap()
     }
     
-    func tapFirstRecentItem() {
+    func  tapFirstRecentItem() {
         tapRecentItem(at: 0)
     }
     
