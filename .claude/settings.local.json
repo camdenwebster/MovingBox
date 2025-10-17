@@ -95,7 +95,8 @@
       "Bash(/opt/homebrew/opt/ruby/bin/bundle update fastlane)",
       "Read(//Users/camden.webster/Library/Logs/snapshot/**)",
       "Bash(tee:*)",
-      "Read(//private/tmp/**)"
+      "Read(//private/tmp/**)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

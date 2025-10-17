@@ -1,6 +1,11 @@
 Thank you for testing the latest build of MovingBox!
 
 What's New?
+2.0.1
+- Fixed additional photo button functionality on the Inventory Detail View
+- Improved Liquid Glass styling and implementation for iOS 26+
+- Fixed issue with home country picker in Settings
+
 2.0.0
 - A beautiful new design makes MovingBox even easier to use with full support for Liquid Glass (iOS 26+)
 - (MovingBox Pro) Leverage the most powerful AI models with higher resolution images to capture more detail for your inventory
