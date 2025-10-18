@@ -139,11 +139,17 @@ class TelemetryManager {
             "tab": tab
         ])
     }
-    
+
+    // MARK: - App Store Review
+
+    func trackAppReviewRequested() {
+        TelemetryManager.signal("app-review-requested")
+    }
+
     // MARK: - Helper
-    
+
     private static func signal(_ name: String, with additionalInfo: [String: String] = [:]) {
         TelemetryDeck.signal(name, parameters: additionalInfo)
     }
-    
+
 }
