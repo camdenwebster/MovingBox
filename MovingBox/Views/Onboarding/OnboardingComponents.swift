@@ -22,7 +22,6 @@ struct OnboardingContinueButton: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-//                .background(.green.gradient)
                 .cornerRadius(UIConstants.cornerRadius)
         }
         .backport.glassProminentButtonStyle()

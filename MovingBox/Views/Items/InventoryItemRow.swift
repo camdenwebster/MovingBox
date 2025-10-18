@@ -9,7 +9,9 @@ import SwiftUI
 
 struct InventoryItemRow: View {
     var item: InventoryItem
-    
+    @State private var imageLoadTrigger = 0
+    @State private var hasRetried = false
+
     var body: some View {
         HStack {
             AsyncImage(url: item.thumbnailURL) { phase in
@@ -36,6 +38,16 @@ struct InventoryItemRow: View {
                     }
                     .frame(width: 60, height: 60)
                     .cornerRadius(8)
+                    .onAppear {
+                        // Retry loading once after a brief delay to handle race conditions
+                        // where thumbnail file isn't quite ready yet
+                        guard !hasRetried else { return }
+                        hasRetried = true
+                        Task {
+                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                            imageLoadTrigger += 1
+                        }
+                    }
                 @unknown default:
                     ZStack {
                         Color(.systemGray6)
@@ -46,6 +58,7 @@ struct InventoryItemRow: View {
                     .cornerRadius(8)
                 }
             }
+            .id(imageLoadTrigger)
             VStack(alignment: .leading) {
                 Text(item.title)
                     .lineLimit(1)
