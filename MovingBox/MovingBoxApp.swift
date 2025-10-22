@@ -49,30 +49,25 @@ struct MovingBoxApp: App {
         Purchases.logLevel = .debug
         #endif
         
-        // Configure Sentry with improved error handling
-        // TODO: Fix Sentry SDK API compatibility issue
-        /*
         let dsn = "https://\(AppConfig.sentryDsn)"
-        guard dsn != "missing-sentry-dsn" else {
+        guard dsn != "https://missing-sentry-dsn" else {
             #if DEBUG
             print("⚠️ Error: Missing Sentry DSN configuration")
             #endif
             return
         }
         
-        SentrySDK.start(options: { options in
+        SentrySDK.start { options in
             options.dsn = dsn
-//            options.debug = AppConfig.shared.configuration == .debug
+            options.debug = AppConfig.shared.configuration == .debug
             options.tracesSampleRate = 0.2
             
-            #if canImport(SentryProfilingConditional)
-            options.profilesSampleRate = 0.3
+            #if DEBUG
+            options.environment = "debug"
+            #else
+            options.environment = AppConfig.shared.buildType == .beta ? "beta" : "production"
             #endif
-            
-            options.experimental.sessionReplay.onErrorSampleRate = 0.8
-            options.experimental.sessionReplay.sessionSampleRate = 0.1
-        })
-        */
+        }
     }
     
     private var disableAnimations: Bool {
