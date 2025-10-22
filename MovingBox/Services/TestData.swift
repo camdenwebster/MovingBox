@@ -84,7 +84,7 @@ struct TestData {
         ("Bedroom", "Additional bedroom", "bed.double"),
         ("Bathroom", "Bathroom facilities", "shower.fill"),
         ("Home Office", "Work and study space", "desktopcomputer"),
-        ("Garage", "Vehicle and tool storage", "car.garage"),
+        ("Garage", "Vehicle and tool storage", "door.garage.closed"),
         ("Basement", "Lower level storage and utility", "building.columns.fill"),
         ("Attic", "Upper level storage", "house.lodge.fill"),
         ("Dining Room", "Formal dining area", "table.furniture.fill"),

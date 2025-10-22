@@ -14,7 +14,6 @@ struct LocationsListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @State private var showingCamera = false
     @State private var showingImageAnalysis = false
@@ -63,16 +62,7 @@ struct LocationsListView: View {
         VStack(spacing: 0) {
             // Icon section
             Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(.systemOrange).opacity(0.3),
-                            Color(.systemOrange).opacity(0.2)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(Color(.secondarySystemGroupedBackground))
                 .frame(width: 160, height: 100)
                 .overlay(
                     Image(systemName: "questionmark.folder.fill")
@@ -180,11 +170,6 @@ struct LocationsListView: View {
         }
         .navigationDestination(for: InventoryLocation.self) { location in
             InventoryListView(location: location)
-        }
-        .navigationDestination(for: String.self) { value in
-            if value == "no-location" {
-                InventoryListView(location: nil, showOnlyUnassigned: true)
-            }
         }
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)

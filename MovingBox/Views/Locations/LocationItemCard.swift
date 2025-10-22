@@ -40,15 +40,7 @@ struct LocationItemCard: View {
                 } else if let sfSymbol = location.sfSymbolName {
                     // Show SF Symbol for default rooms
                     Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(.systemGray6),
-                                    Color(.systemGray5)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                        .fill(Color(.secondarySystemGroupedBackground)
                         )
                         .frame(width: 160, height: 100)
                         .overlay(
@@ -64,7 +56,7 @@ struct LocationItemCard: View {
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
+                                .tint(.secondary)
                         )
                 }
             }
