@@ -30,6 +30,9 @@ struct OnboardingView: View {
                     case .notifications:
                         OnboardingNotificationsView()
                             .transition(manager.transition)
+                    case .survey:
+                        OnboardingSurveyView()
+                            .transition(manager.transition)
                     case .completion:
                         OnboardingCompletionView(isPresented: $isPresented)
                             .transition(manager.transition)
@@ -55,7 +58,7 @@ struct OnboardingView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if shouldShowSkipButton {
                         Button("Skip") {
-                            manager.moveToNext()
+                            handleSkip()
                         }
                     }
                 }
@@ -79,9 +82,19 @@ struct OnboardingView: View {
         switch manager.currentStep {
         case .welcome, .completion:
             return false
-        case .homeDetails, .location, .item, .notifications:
+        case .homeDetails, .location, .item, .notifications, .survey:
             return true
         }
+    }
+
+    private func handleSkip() {
+        if manager.currentStep == .survey {
+            // Track telemetry for survey skip
+            TelemetryManager.shared.trackUsageSurveySkipped()
+            // Mark survey as completed even if skipped
+            UserDefaults.standard.set(true, forKey: "hasCompletedUsageSurvey")
+        }
+        manager.moveToNext()
     }
 }
 

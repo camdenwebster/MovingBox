@@ -114,8 +114,21 @@ class TelemetryManager {
         ])
     }
     
+    // MARK: - Onboarding
+
+    func trackUsageSurveySelected(usages: String, count: Int) {
+        TelemetryManager.signal("onboarding.usage_selected", with: [
+            "usages": usages,
+            "count": String(count)
+        ])
+    }
+
+    func trackUsageSurveySkipped() {
+        TelemetryManager.signal("onboarding.usage_skipped")
+    }
+
     // MARK: - Settings
-    
+
     func trackLocationCreated(name: String) {
         TelemetryManager.signal("location-created")
     }

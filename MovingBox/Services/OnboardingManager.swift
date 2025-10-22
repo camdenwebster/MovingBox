@@ -18,8 +18,9 @@ class OnboardingManager: ObservableObject {
         case location
         case item
         case notifications
+        case survey
         case completion
-        
+
         var title: String {
             switch self {
             case .welcome: return "Welcome"
@@ -27,13 +28,14 @@ class OnboardingManager: ObservableObject {
             case .location: return "Add Location"
             case .item: return "Add Item"
             case .notifications: return "Stay Updated"
+            case .survey: return "Usage Survey"
             case .completion: return "Great Job!"
             }
         }
-        
+
         // Steps that should show in navigation dots (excluding welcome and completion)
         static var navigationSteps: [OnboardingStep] {
-            [.homeDetails, .location, .item, .notifications]
+            [.homeDetails, .location, .item, .notifications, .survey]
         }
     }
     
