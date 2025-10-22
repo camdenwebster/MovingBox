@@ -14,8 +14,6 @@ class OnboardingManager: ObservableObject {
     
     enum OnboardingStep: Int, CaseIterable {
         case welcome
-        case homeDetails
-        case location
         case item
         case notifications
         case survey
@@ -24,8 +22,6 @@ class OnboardingManager: ObservableObject {
         var title: String {
             switch self {
             case .welcome: return "Welcome"
-            case .homeDetails: return "Home Details"
-            case .location: return "Add Location"
             case .item: return "Add Item"
             case .notifications: return "Stay Updated"
             case .survey: return "Usage Survey"
@@ -35,7 +31,7 @@ class OnboardingManager: ObservableObject {
 
         // Steps that should show in navigation dots (excluding welcome and completion)
         static var navigationSteps: [OnboardingStep] {
-            [.homeDetails, .location, .item, .notifications, .survey]
+            [.item, .notifications, .survey]
         }
     }
     

@@ -16,11 +16,14 @@ struct OnboardingSurveyView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 24) {
-                        VStack(spacing: 20) {
-                            OnboardingHeaderText(text: "What brings you to MovingBox?")
+                        Spacer()
+                        VStack(spacing: 16) {
+                            VStack(spacing: 0){
+                                OnboardingHeaderText(text: "What brings you to MovingBox?")
 
-                            OnboardingDescriptionText(text: "Select all that apply")
-                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                OnboardingDescriptionText(text: "Select all that apply")
+                                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                            }
 
                             // Usage Options
                             VStack(spacing: 12) {
@@ -32,6 +35,7 @@ struct OnboardingSurveyView: View {
                                             toggleSelection(for: usage)
                                         }
                                     )
+                                    .tint(.primary)
                                 }
                             }
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
@@ -106,7 +110,7 @@ struct UsageSurveyOptionButton: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(usage.title)
                         .font(.headline)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(isSelected ? .green : .secondary)
 
                     Text(usage.description)
                         .font(.callout)

@@ -18,12 +18,6 @@ struct OnboardingView: View {
                     case .welcome:
                         OnboardingWelcomeView()
                             .transition(manager.transition)
-                    case .homeDetails:
-                        OnboardingHomeView()
-                            .transition(manager.transition)
-                    case .location:
-                        OnboardingLocationView()
-                            .transition(manager.transition)
                     case .item:
                         OnboardingItemView()
                             .transition(manager.transition)
@@ -82,7 +76,7 @@ struct OnboardingView: View {
         switch manager.currentStep {
         case .welcome, .completion:
             return false
-        case .homeDetails, .location, .item, .notifications, .survey:
+        case .item, .notifications, .survey:
             return true
         }
     }

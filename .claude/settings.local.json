@@ -96,7 +96,8 @@
       "Read(//Users/camden.webster/Library/Logs/snapshot/**)",
       "Bash(tee:*)",
       "Read(//private/tmp/**)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(xcrun simctl erase:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

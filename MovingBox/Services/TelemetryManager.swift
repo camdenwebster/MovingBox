@@ -17,19 +17,19 @@ class TelemetryManager {
     // MARK: - Inventory Items
     
     func trackInventoryItemAdded(name: String) {
-        TelemetryManager.signal("inventory-item-added")
+        TelemetryManager.signal("Inventory.itemCreated")
     }
     
     func trackInventoryItemDeleted() {
-        TelemetryManager.signal("inventory-item-deleted")
+        TelemetryManager.signal("Inventory.itemDeleted")
     }
     
     func trackCameraAnalysisUsed() {
-        TelemetryManager.signal("camera-analysis-used")
+        TelemetryManager.signal("Inventory.Analysis.cameraUsed")
     }
     
     func trackPhotoAnalysisUsed() {
-        TelemetryManager.signal("photo-analysis-used")
+        TelemetryManager.signal("Inventory.Analysis.photoUsed")
     }
     
     // MARK: - AI Analysis Detailed Tracking
@@ -43,7 +43,7 @@ class TelemetryManager {
         imageCount: Int,
         itemId: String? = nil
     ) {
-        TelemetryManager.signal("ai-analysis-started", with: [
+        TelemetryManager.signal("AIAnalysis.started", with: [
             "is_pro_user": isProUser ? "true" : "false",
             "use_high_quality": useHighQuality ? "true" : "false",
             "model": model,
@@ -65,7 +65,7 @@ class TelemetryManager {
         success: Bool,
         itemId: String? = nil
     ) {
-        TelemetryManager.signal("ai-analysis-completed", with: [
+        TelemetryManager.signal("AIAnalysis.completed", with: [
             "is_pro_user": isProUser ? "true" : "false",
             "use_high_quality": useHighQuality ? "true" : "false",
             "model": model,
@@ -87,7 +87,7 @@ class TelemetryManager {
         isProUser: Bool,
         model: String
     ) {
-        TelemetryManager.signal("ai-token-usage", with: [
+        TelemetryManager.signal("AIAnalysis.tokenUsage", with: [
             "total_tokens": String(totalTokens),
             "prompt_tokens": String(promptTokens),
             "completion_tokens": String(completionTokens),
@@ -101,14 +101,14 @@ class TelemetryManager {
     }
     
     func trackHighQualityToggleUsed(enabled: Bool, isProUser: Bool) {
-        TelemetryManager.signal("high-quality-toggle-used", with: [
+        TelemetryManager.signal("Settings.Analysis.highQualityToggled", with: [
             "enabled": enabled ? "true" : "false",
             "is_pro_user": isProUser ? "true" : "false"
         ])
     }
     
     func trackMultipleAnalysisAttempt(itemId: String, attemptNumber: Int) {
-        TelemetryManager.signal("multiple-analysis-attempt", with: [
+        TelemetryManager.signal("AIAnalysis.retryAttempt", with: [
             "item_id": itemId,
             "attempt_number": String(attemptNumber)
         ])
@@ -117,38 +117,38 @@ class TelemetryManager {
     // MARK: - Onboarding
 
     func trackUsageSurveySelected(usages: String, count: Int) {
-        TelemetryManager.signal("onboarding.usage_selected", with: [
+        TelemetryManager.signal("Onboarding.Survey.usageSelected", with: [
             "usages": usages,
             "count": String(count)
         ])
     }
 
     func trackUsageSurveySkipped() {
-        TelemetryManager.signal("onboarding.usage_skipped")
+        TelemetryManager.signal("Onboarding.Survey.skipped")
     }
 
     // MARK: - Settings
 
     func trackLocationCreated(name: String) {
-        TelemetryManager.signal("location-created")
+        TelemetryManager.signal("Settings.Location.created")
     }
     
     func trackLocationDeleted() {
-        TelemetryManager.signal("location-deleted")
+        TelemetryManager.signal("Settings.Location.deleted")
     }
     
     func trackLabelCreated(name: String) {
-        TelemetryManager.signal("label-created")
+        TelemetryManager.signal("Settings.Label.created")
     }
     
     func trackLabelDeleted() {
-        TelemetryManager.signal("label-deleted")
+        TelemetryManager.signal("Settings.Label.deleted")
     }
     
     // MARK: - Navigation
     
     func trackTabSelected(tab: String) {
-        TelemetryManager.signal("tab-selected", with: [
+        TelemetryManager.signal("Navigation.tabSelected", with: [
             "tab": tab
         ])
     }
@@ -156,7 +156,7 @@ class TelemetryManager {
     // MARK: - App Store Review
 
     func trackAppReviewRequested() {
-        TelemetryManager.signal("app-review-requested")
+        TelemetryManager.signal("AppStore.reviewRequested")
     }
 
     // MARK: - Helper

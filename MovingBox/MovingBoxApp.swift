@@ -38,8 +38,8 @@ struct MovingBoxApp: App {
         // Configure TelemetryDeck
         let appId = AppConfig.telemetryDeckAppId
         let telemetryConfig = TelemetryDeck.Config(appID: appId)
-        telemetryConfig.defaultSignalPrefix = "App."
-        telemetryConfig.defaultParameterPrefix = "MyApp."
+        telemetryConfig.defaultSignalPrefix = "MovingBox."
+        telemetryConfig.defaultParameterPrefix = "MovingBox."
         TelemetryDeck.initialize(config: telemetryConfig)
         
         // Configure RevenueCat
