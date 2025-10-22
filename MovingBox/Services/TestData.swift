@@ -76,6 +76,22 @@ struct TestData {
         ("Basement", "Finished basement with storage", "basement")
     ]
     
+    // Default rooms for first launch with SFSymbol icons
+    static let defaultRooms: [(name: String, desc: String, sfSymbol: String)] = [
+        ("Living Room", "Main living and entertainment area", "sofa.fill"),
+        ("Kitchen", "Cooking and dining area", "fork.knife"),
+        ("Master Bedroom", "Primary bedroom", "bed.double.fill"),
+        ("Bedroom", "Additional bedroom", "bed.double"),
+        ("Bathroom", "Bathroom facilities", "shower.fill"),
+        ("Home Office", "Work and study space", "desktopcomputer"),
+        ("Garage", "Vehicle and tool storage", "car.garage"),
+        ("Basement", "Lower level storage and utility", "building.columns.fill"),
+        ("Attic", "Upper level storage", "house.lodge.fill"),
+        ("Dining Room", "Formal dining area", "table.furniture.fill"),
+        ("Laundry Room", "Washing and drying space", "washer.fill"),
+        ("Closet", "Storage closet", "cabinet.fill")
+    ]
+
     // Sample labels with softer, more pleasing colors and emojis
     static let labels: [(name: String, desc: String, color: UIColor, emoji: String)] = [
         ("Electronics", "Computers, phones, and gadgets", UIColor(red: 0.95, green: 0.61, blue: 0.61, alpha: 1.0), "📱"),   // Soft red

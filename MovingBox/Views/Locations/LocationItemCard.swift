@@ -37,7 +37,27 @@ struct LocationItemCard: View {
                                     .tint(.secondary)
                             }
                     }
+                } else if let sfSymbol = location.sfSymbolName {
+                    // Show SF Symbol for default rooms
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(.systemGray6),
+                                    Color(.systemGray5)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 160, height: 100)
+                        .overlay(
+                            Image(systemName: sfSymbol)
+                                .font(.system(size: 44, weight: .light))
+                                .foregroundStyle(.secondary)
+                        )
                 } else {
+                    // Fallback to generic photo placeholder
                     Rectangle()
                         .fill(Color(.secondarySystemGroupedBackground))
                         .frame(width: 160, height: 100)
