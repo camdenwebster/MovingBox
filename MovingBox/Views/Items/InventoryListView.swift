@@ -51,9 +51,15 @@ struct InventoryListView: View {
     @State private var showingExportError = false
     
     @Query private var allItems: [InventoryItem]
-    
+
     let location: InventoryLocation?
-    
+    let showOnlyUnassigned: Bool
+
+    init(location: InventoryLocation?, showOnlyUnassigned: Bool = false) {
+        self.location = location
+        self.showOnlyUnassigned = showOnlyUnassigned
+    }
+
     // Computed properties for selection state
     private var isSelectionMode: Bool {
         editMode == .active
@@ -93,17 +99,19 @@ struct InventoryListView: View {
         switch sortOrder.first?.order {
         case .reverse:
             InventoryListSubView(
-                location: location, 
-                searchString: searchText, 
+                location: location,
+                searchString: searchText,
                 sortOrder: sortOrder,
+                showOnlyUnassigned: showOnlyUnassigned,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("reverse-\(sortOrder.hashValue)")
         default:
             InventoryListSubView(
-                location: location, 
-                searchString: searchText, 
+                location: location,
+                searchString: searchText,
                 sortOrder: sortOrder,
+                showOnlyUnassigned: showOnlyUnassigned,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("forward-\(sortOrder.hashValue)")
@@ -113,7 +121,7 @@ struct InventoryListView: View {
     var body: some View {
         inventoryListContent
             .environment(\.editMode, $editMode)
-            .navigationTitle(location?.name ?? "All Items")
+            .navigationTitle(showOnlyUnassigned ? "No Location" : (location?.name ?? "All Items"))
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }

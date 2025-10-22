@@ -82,11 +82,11 @@ class DefaultDataManager {
     
     static func populateDefaultLabels(modelContext: ModelContext) async {
         let hasExistingLabels = await checkForExistingObjects(of: InventoryLabel.self, in: modelContext)
-        
+
         if !hasExistingLabels {
             print("🏷️ No existing labels found, creating default labels...")
             await TestData.loadDefaultData(context: modelContext)
-            
+
             do {
                 try modelContext.save()
                 print("✅ Default labels saved successfully")
@@ -95,6 +95,35 @@ class DefaultDataManager {
             }
         } else {
             print("🏷️ Existing labels found, skipping default label creation")
+        }
+    }
+
+    static func populateDefaultLocations(modelContext: ModelContext) async {
+        let hasExistingLocations = await checkForExistingObjects(of: InventoryLocation.self, in: modelContext)
+
+        if !hasExistingLocations {
+            print("📍 No existing locations found, creating default rooms...")
+            await createDefaultRooms(context: modelContext)
+
+            do {
+                try modelContext.save()
+                print("✅ Default rooms saved successfully")
+            } catch {
+                print("❌ Error saving default rooms: \(error)")
+            }
+        } else {
+            print("📍 Existing locations found, skipping default room creation")
+        }
+    }
+
+    private static func createDefaultRooms(context: ModelContext) async {
+        for roomData in TestData.defaultRooms {
+            let location = InventoryLocation(
+                name: roomData.name,
+                desc: roomData.desc
+            )
+            location.sfSymbolName = roomData.sfSymbol
+            context.insert(location)
         }
     }
     
@@ -119,12 +148,13 @@ class DefaultDataManager {
         if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
             do {
                 let _ = try await getOrCreateHome(modelContext: modelContext)
-                
-                // Only populate labels for first launch
+
+                // Only populate defaults for first launch
                 if !OnboardingManager.hasCompletedOnboarding() {
                     await populateDefaultLabels(modelContext: modelContext)
+                    await populateDefaultLocations(modelContext: modelContext)
                 }
-                
+
                 try modelContext.save()
             } catch {
                 print("❌ Error setting up default data: \(error)")

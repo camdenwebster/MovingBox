@@ -11,10 +11,11 @@ import SwiftUI
 struct InventoryListSubView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
-    
+
     let location: InventoryLocation?
     let searchString: String
     let sortOrder: [SortDescriptor<InventoryItem>]
+    let showOnlyUnassigned: Bool
     @Binding var selectedItemIDs: Set<PersistentIdentifier>
     
     // Use @Query for lazy loading with dynamic predicate and sort
@@ -86,23 +87,31 @@ struct InventoryListSubView: View {
     }
     
     
-    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
+    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
         self.location = location
         self.searchString = searchString
         self.sortOrder = sortOrder
+        self.showOnlyUnassigned = showOnlyUnassigned
         self._selectedItemIDs = selectedItemIDs
-        
-        // Build predicate based on location
+
+        // Build predicate based on location or unassigned filter
         let predicate: Predicate<InventoryItem>?
-        if let location = location {
+        if showOnlyUnassigned {
+            // Show only items without a location
+            predicate = #Predicate<InventoryItem> { item in
+                item.location == nil
+            }
+        } else if let location = location {
+            // Show items for specific location
             let locationID = location.persistentModelID
             predicate = #Predicate<InventoryItem> { item in
                 item.location?.persistentModelID == locationID
             }
         } else {
+            // Show all items (no filter)
             predicate = nil
         }
-        
+
         // Initialize @Query with predicate and sort descriptors
         let finalSortOrder = sortOrder.isEmpty ? [SortDescriptor(\InventoryItem.title)] : sortOrder
         _items = Query(filter: predicate, sort: finalSortOrder)
