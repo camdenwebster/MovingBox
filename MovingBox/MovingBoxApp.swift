@@ -146,6 +146,8 @@ struct MovingBoxApp: App {
                                         LabelSettingsView()
                                     case "home":
                                         EditHomeView()
+                                    case "no-location":
+                                        InventoryListView(location: nil, showOnlyUnassigned: true)
                                     default:
                                         EmptyView()
                                     }

@@ -13,6 +13,7 @@ import SwiftUI
 class InventoryLocation: PhotoManageable {
     var name: String = ""
     var desc: String = ""
+    var sfSymbolName: String? = nil  // Optional SF Symbol for default room icons
     var imageURL: URL?
     var secondaryPhotoURLs: [String] = []
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
