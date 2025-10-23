@@ -5,10 +5,13 @@ struct OnboardingSurveyView: View {
     @EnvironmentObject private var manager: OnboardingManager
 
     @State private var selectedUsages: Set<UsageType> = []
-    @State private var isLoading = false
 
     var isContinueDisabled: Bool {
         selectedUsages.isEmpty
+    }
+    
+    private var maxFrameWidth: CGFloat {
+        min(UIScreen.main.bounds.width - 32, 600)
     }
 
     var body: some View {
@@ -22,7 +25,7 @@ struct OnboardingSurveyView: View {
                                 OnboardingHeaderText(text: "What brings you to MovingBox?")
 
                                 OnboardingDescriptionText(text: "Select all that apply")
-                                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                                    .frame(maxWidth: maxFrameWidth)
                             }
 
                             // Usage Options
@@ -38,7 +41,7 @@ struct OnboardingSurveyView: View {
                                     .tint(.primary)
                                 }
                             }
-                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                            .frame(maxWidth: maxFrameWidth)
 
                             Spacer()
                                 .frame(height: 100)
@@ -53,12 +56,11 @@ struct OnboardingSurveyView: View {
                     }
                     .accessibilityIdentifier("onboarding-survey-continue-button")
                     .disabled(isContinueDisabled)
-                    .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                    .frame(maxWidth: maxFrameWidth)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
-        .disabled(isLoading)
     }
 
     private func toggleSelection(for usage: UsageType) {
@@ -70,24 +72,27 @@ struct OnboardingSurveyView: View {
     }
 
     private func handleContinue() {
-        isLoading = true
         let selectedCount = selectedUsages.count
         let selectedUsagesString = selectedUsages
             .sorted { $0.rawValue < $1.rawValue }
             .map { $0.rawValue }
             .joined(separator: ",")
 
-        // Track telemetry event
-        TelemetryManager.shared.trackUsageSurveySelected(
-            usages: selectedUsagesString,
-            count: selectedCount
-        )
+        // Track telemetry event with error handling
+        do {
+            TelemetryManager.shared.trackUsageSurveySelected(
+                usages: selectedUsagesString,
+                count: selectedCount
+            )
+        } catch {
+            // Log error but don't block user flow for telemetry failures
+            print("⚠️ Failed to track usage survey telemetry: \(error)")
+        }
 
         // Mark survey as completed
-        UserDefaults.standard.set(true, forKey: "hasCompletedUsageSurvey")
+        UserDefaults.standard.set(true, forKey: OnboardingManager.hasCompletedUsageSurveyKey)
 
         manager.moveToNext()
-        isLoading = false
     }
 }
 

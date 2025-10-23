@@ -83,10 +83,15 @@ struct OnboardingView: View {
 
     private func handleSkip() {
         if manager.currentStep == .survey {
-            // Track telemetry for survey skip
-            TelemetryManager.shared.trackUsageSurveySkipped()
+            // Track telemetry for survey skip with error handling
+            do {
+                TelemetryManager.shared.trackUsageSurveySkipped()
+            } catch {
+                // Log error but don't block user flow for telemetry failures
+                print("⚠️ Failed to track survey skip telemetry: \(error)")
+            }
             // Mark survey as completed even if skipped
-            UserDefaults.standard.set(true, forKey: "hasCompletedUsageSurvey")
+            UserDefaults.standard.set(true, forKey: OnboardingManager.hasCompletedUsageSurveyKey)
         }
         manager.moveToNext()
     }

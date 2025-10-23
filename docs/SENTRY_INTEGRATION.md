@@ -39,8 +39,8 @@ SentrySDK.start { options in
     options.enablePreWarmedAppStartTracing = true  // Disabled by default, enable for iOS 15+
     options.enableTimeToFullDisplayTracing = true  // Disabled by default
 
-    // Network Tracking - limit to OpenAI API only for privacy
-    options.tracePropagationTargets = ["api.openai.com"]
+    // Network Tracking - limit to OpenAI API proxy only for privacy
+    options.tracePropagationTargets = ["api.aiproxy.com"]
 
     // Environment tracking
     #if DEBUG
@@ -77,8 +77,8 @@ The following features are **automatically enabled** and require no configuratio
 - **Time to Full Display**: Measures perceived performance - call `SentrySDK.reportFullyDisplayed()` when fully loaded
 
 #### Network Tracking Configuration
-- **tracePropagationTargets**: Limited to `["api.openai.com"]` for privacy
-- This restricts Sentry trace headers to only OpenAI API calls, preventing data leakage to other domains
+- **tracePropagationTargets**: Limited to `["api.aiproxy.com"]` for privacy
+- This restricts Sentry trace headers to only OpenAI API proxy calls, preventing data leakage to other domains
 
 ### Session Replay
 - **On Errors**: 100% of sessions with errors are recorded

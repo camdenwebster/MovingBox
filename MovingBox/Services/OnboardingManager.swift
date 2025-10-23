@@ -37,6 +37,7 @@ class OnboardingManager: ObservableObject {
     
     static let hasCompletedOnboardingKey = "hasCompletedOnboardingKey"
     static let hasLaunchedKey = "hasLaunched"
+    static let hasCompletedUsageSurveyKey = "hasCompletedUsageSurvey"
     
     var transition: AnyTransition {
         if isMovingForward {
