@@ -1,3 +1,4 @@
+import SentrySwiftUI
 import SwiftUI
 
 struct ImageAnalysisView: View {
@@ -173,6 +174,7 @@ struct ImageAnalysisView: View {
                 checkAndComplete()
             }
         }
+        .sentryTrace("ImageAnalysisView")
     }
     
     // Function to start cycling through images during analysis

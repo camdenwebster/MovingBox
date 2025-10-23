@@ -97,7 +97,12 @@
       "Bash(tee:*)",
       "Read(//private/tmp/**)",
       "Bash(git log:*)",
-      "Bash(xcrun simctl erase:*)"
+      "Bash(xcrun simctl erase:*)",
+      "WebFetch(domain:docs.sentry.io)",
+      "Bash(cat:*)",
+      "Read(//Users/camden.webster/Library/Developer/Xcode/DerivedData/**)",
+      "Read(///**)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

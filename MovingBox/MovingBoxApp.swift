@@ -62,6 +62,26 @@ struct MovingBoxApp: App {
             options.debug = AppConfig.shared.configuration == .debug
             options.tracesSampleRate = 0.2
             
+            options.configureProfiling = {
+                $0.lifecycle = .trace
+                $0.sessionSampleRate = 1
+            }
+            
+            // Record session replays for 100% of errors and 10% of sessions
+            options.sessionReplay.onErrorSampleRate = 1.0
+            options.sessionReplay.sessionSampleRate = 0.1
+
+            // Enable logs to be sent to Sentry
+            options.experimental.enableLogs = true
+
+            // Automatic iOS Instrumentation (most features enabled by default in v8+)
+            // Only configure non-default settings:
+            options.enablePreWarmedAppStartTracing = true  // Disabled by default, enable for iOS 15+
+            options.enableTimeToFullDisplayTracing = true  // Disabled by default
+
+            // Network Tracking - limit to OpenAI API only for privacy
+            options.tracePropagationTargets = ["api.aiproxy.com"]
+
             #if DEBUG
             options.environment = "debug"
             #else

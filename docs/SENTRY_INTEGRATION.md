@@ -21,7 +21,27 @@ SentrySDK.start { options in
     options.dsn = "https://\(AppConfig.sentryDsn)"
     options.debug = AppConfig.shared.configuration == .debug
     options.tracesSampleRate = 0.2
-    
+
+    options.configureProfiling = {
+        $0.lifecycle = .trace
+        $0.sessionSampleRate = 1
+    }
+
+    // Session Replay
+    options.sessionReplay.onErrorSampleRate = 1.0
+    options.sessionReplay.sessionSampleRate = 0.1
+
+    // Logs
+    options.experimental.enableLogs = true
+
+    // Automatic iOS Instrumentation (most features enabled by default in v8+)
+    // Only configure non-default settings:
+    options.enablePreWarmedAppStartTracing = true  // Disabled by default, enable for iOS 15+
+    options.enableTimeToFullDisplayTracing = true  // Disabled by default
+
+    // Network Tracking - limit to OpenAI API only for privacy
+    options.tracePropagationTargets = ["api.openai.com"]
+
     // Environment tracking
     #if DEBUG
     options.environment = "debug"
@@ -38,14 +58,40 @@ SentrySDK.start { options in
 - Native iOS crashes are tracked
 - Swift errors are captured when thrown
 
+### Performance Monitoring
+- `tracesSampleRate = 0.2` - Captures 20% of transactions for performance analysis
+- **Profiling**: Enabled for all traces with 100% sample rate
+
+#### Automatic Instrumentation (Enabled by Default in v8+)
+The following features are **automatically enabled** and require no configuration:
+- **UIViewController Tracing**: Tracks native UIViewController load times
+- **App Start Tracking**: Measures cold and warm app start times
+- **Frame Tracking**: Detects slow (>16ms) and frozen (>700ms) frames
+- **Network Tracking**: Monitors all URLSession HTTP requests
+- **File I/O Tracking**: Instruments NSData operations
+- **Core Data Tracking**: Traces fetch and save operations
+- **User Interaction Tracking**: Captures UI interaction transactions
+
+#### Explicitly Enabled Features
+- **Prewarmed App Start Tracking**: iOS 15+ prewarmed app start detection (disabled by default)
+- **Time to Full Display**: Measures perceived performance - call `SentrySDK.reportFullyDisplayed()` when fully loaded
+
+#### Network Tracking Configuration
+- **tracePropagationTargets**: Limited to `["api.openai.com"]` for privacy
+- This restricts Sentry trace headers to only OpenAI API calls, preventing data leakage to other domains
+
+### Session Replay
+- **On Errors**: 100% of sessions with errors are recorded
+- **General Sessions**: 10% sample rate for user session recording
+- Provides video-like replay of user sessions with performance metrics
+
+### Logging
+- **Experimental Logs**: Enabled to send log messages to Sentry
+
 ### Environment Separation
 - **Debug**: `environment = "debug"` - Full debug logging enabled
 - **Beta**: `environment = "beta"` - Production tracking with beta flag
 - **Production**: `environment = "production"` - Production tracking
-
-### Performance Monitoring
-- `tracesSampleRate = 0.2` - Captures 20% of transactions for performance analysis
-- Tracks app launch time, network requests, and other performance metrics
 
 ### Debug Symbol Upload
 The project includes a build phase script that automatically uploads debug symbols to Sentry for symbolicated crash reports. This runs during release builds.
@@ -97,12 +143,68 @@ If you see "⚠️ Error: Missing Sentry DSN configuration" in debug logs:
 2. Verify the DSN is not set to `missing-sentry-dsn`
 3. Clean build folder and rebuild
 
+## SwiftUI View Tracing (Optional)
+
+MovingBox is built with SwiftUI. While Sentry automatically tracks UIViewController loads, SwiftUI views require manual instrumentation using the `SentrySwiftUI` package (already included).
+
+### Adding View Tracing
+
+To trace specific SwiftUI views, import `SentrySwiftUI` and wrap views:
+
+```swift
+import SentrySwiftUI
+
+var body: some View {
+    SentryTracedView("InventoryDetailView") {
+        // Your view code
+    }
+}
+
+// Or use the modifier syntax:
+var body: some View {
+    List {
+        // Your list content
+    }
+    .sentryTrace("InventoryListView")
+}
+```
+
+### Recommended Views to Trace
+
+Priority views for performance monitoring:
+1. **InventoryDetailView** - Photo-heavy, AI analysis
+2. **InventoryListView** - Large dataset scrolling
+3. **ImageAnalysisView** - AI processing UI
+4. **HorizontalPhotoScrollView** - Image loading performance
+5. **DashboardView** - App entry point
+6. **ExportDataView** - Heavy operations
+
+### Nested Tracing
+
+For detailed performance analysis, trace sub-components:
+
+```swift
+SentryTracedView("InventoryDetailView") {
+    VStack {
+        SentryTracedView("PhotoCarousel") {
+            HorizontalPhotoScrollView(...)
+        }
+
+        SentryTracedView("ItemDetails") {
+            // Form fields
+        }
+    }
+}
+```
+
 ## Best Practices
 
 1. **Don't Log Sensitive Data**: Never send PII (personally identifiable information) to Sentry
 2. **Use Breadcrumbs**: Add context to errors with breadcrumbs for better debugging
 3. **Set User Context**: Use `SentrySDK.setUser()` to track errors by user (with user consent)
 4. **Tag Errors**: Use tags to categorize and filter errors in the Sentry dashboard
+5. **Report Full Display**: Call `SentrySDK.reportFullyDisplayed()` when views are fully loaded
+6. **Network Privacy**: `tracePropagationTargets` limits tracking to specified domains only
 
 ## Resources
 

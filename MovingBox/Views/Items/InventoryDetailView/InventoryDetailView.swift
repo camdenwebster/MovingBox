@@ -9,6 +9,7 @@ import RevenueCatUI
 import PhotosUI
 import PDFKit
 import QuickLook
+import SentrySwiftUI
 import SwiftData
 import SwiftUI
 import VisionKit
@@ -1212,6 +1213,7 @@ struct InventoryDetailView: View {
             .task(id: inventoryItemToDisplay.imageURL) {
                 await loadAllImages()
             }
+            .sentryTrace("InventoryDetailView")
     }
 
     private func performAIAnalysis() {
