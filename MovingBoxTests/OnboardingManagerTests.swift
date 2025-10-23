@@ -118,20 +118,20 @@ import Foundation
         
         // When - Move forward
         manager.moveToNext()
-        #expect(manager.currentStep == .homeDetails)
-        
-        manager.moveToNext()
-        #expect(manager.currentStep == .location)
-        
-        manager.moveToNext()
         #expect(manager.currentStep == .item)
+        
+        manager.moveToNext()
+        #expect(manager.currentStep == .notifications)
+        
+        manager.moveToNext()
+        #expect(manager.currentStep == .survey)
         
         // When - Move backward
         manager.moveToPrevious()
-        #expect(manager.currentStep == .location)
+        #expect(manager.currentStep == .notifications)
         
         manager.moveToPrevious()
-        #expect(manager.currentStep == .homeDetails)
+        #expect(manager.currentStep == .item)
     }
     
     @Test("Test error handling")
@@ -149,11 +149,10 @@ import Foundation
         let steps = OnboardingManager.OnboardingStep.allCases
         
         #expect(steps[0].title == "Welcome")
-        #expect(steps[1].title == "Home Details")
-        #expect(steps[2].title == "Add Location")
-        #expect(steps[3].title == "Add Item")
-        #expect(steps[4].title == "Stay Updated")
-        #expect(steps[5].title == "Great Job!")
+        #expect(steps[1].title == "Add Item")
+        #expect(steps[2].title == "Stay Updated")
+        #expect(steps[3].title == "Usage Survey")
+        #expect(steps[4].title == "Great Job!")
     }
     
     @Test("Test welcome screen conditions")
