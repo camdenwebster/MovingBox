@@ -54,6 +54,9 @@ import Foundation
         // Step 5: Complete onboarding
         manager.markOnboardingComplete()
         
+        // Mark as launched to complete the welcome flow
+        UserDefaults.standard.set(true, forKey: OnboardingManager.hasLaunchedKey)
+        
         // Then - Verify final state
         #expect(manager.hasCompleted)
         #expect(OnboardingManager.hasCompletedOnboarding())
