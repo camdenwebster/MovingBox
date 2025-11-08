@@ -12,9 +12,14 @@ struct LocationItemCard: View {
     var showCost: Bool = false
     @State private var thumbnail: UIImage?
     @State private var loadingError: Error?
-    
+    @Environment(\.modelContext) private var modelContext
+
     private var totalReplacementCost: Decimal {
         location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
+    }
+
+    private var childCount: Int {
+        location.getChildren(in: modelContext).count
     }
     
     var body: some View {
@@ -58,6 +63,23 @@ struct LocationItemCard: View {
                                 .font(.system(size: 40))
                                 .tint(.secondary)
                         )
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                // Show child location count badge
+                if childCount > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 10))
+                        Text("\(childCount)")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .padding(6)
                 }
             }
             .task(id: location.imageURL) {

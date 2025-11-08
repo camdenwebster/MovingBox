@@ -125,6 +125,9 @@ struct InventoryListView: View {
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
+            .navigationDestination(for: InventoryLocation.self) { childLocation in
+                InventoryListView(location: childLocation)
+            }
             .navigationBarTitleDisplayMode(.large)
             .navigationBarBackButtonHidden(isSelectionMode)
             .searchable(text: $searchText, isPresented: $isSearchPresented)

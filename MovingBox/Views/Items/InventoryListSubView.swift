@@ -28,6 +28,11 @@ struct InventoryListSubView: View {
     @ViewBuilder
     private var listContent: some View {
         List(selection: $selectedItemIDs) {
+            // Show child locations if viewing a specific location
+            if let location = location, searchString.isEmpty {
+                childLocationsSection(for: location)
+            }
+
             if filteredItems.isEmpty {
                 emptyStateView
             } else {
@@ -85,8 +90,51 @@ struct InventoryListSubView: View {
                 .listRowInsets(EdgeInsets())
         }
     }
-    
-    
+
+    @ViewBuilder
+    private func childLocationsSection(for location: InventoryLocation) -> some View {
+        let children = location.getChildren(in: modelContext)
+
+        if !children.isEmpty {
+            Section(header: Text("Child Locations")) {
+                ForEach(children, id: \.persistentModelID) { childLocation in
+                    NavigationLink(value: childLocation) {
+                        HStack {
+                            // Icon
+                            if let sfSymbol = childLocation.sfSymbolName {
+                                Image(systemName: sfSymbol)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Image(systemName: "folder.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            VStack(alignment: .leading) {
+                                Text(childLocation.name)
+                                    .font(.body)
+                                if childLocation.getChildren(in: modelContext).count > 0 {
+                                    Text("\(childLocation.inventoryItems?.count ?? 0) items • \(childLocation.getChildren(in: modelContext).count) locations")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("\(childLocation.inventoryItems?.count ?? 0) items")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
         self.location = location
         self.searchString = searchString

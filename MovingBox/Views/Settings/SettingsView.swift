@@ -504,6 +504,11 @@ struct LocationSettingsView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) var locations: [InventoryLocation]
+
+    @State private var locationToDelete: InventoryLocation?
+    @State private var showDeleteOptions = false
+    @State private var showMoveChildrenPicker = false
+    @State private var selectedNewParent: InventoryLocation?
     
     var body: some View {
         List {
@@ -535,18 +540,187 @@ struct LocationSettingsView: View {
                 .accessibilityIdentifier("addLocation")
             }
         }
+        .confirmationDialog(
+            "Delete Location",
+            isPresented: $showDeleteOptions,
+            presenting: locationToDelete
+        ) { location in
+            let children = location.getChildren(in: modelContext)
+            if !children.isEmpty {
+                Button("Delete All (Location + \(children.count) Child Location\(children.count == 1 ? "" : "s"))", role: .destructive) {
+                    cascadeDelete(location: location)
+                }
+                Button("Move Child Locations to Another Parent") {
+                    showMoveChildrenPicker = true
+                }
+            } else {
+                Button("Delete Location", role: .destructive) {
+                    deleteLocation(location)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { location in
+            let children = location.getChildren(in: modelContext)
+            if !children.isEmpty {
+                Text("This location has \(children.count) child location\(children.count == 1 ? "" : "s"). What would you like to do?")
+            } else {
+                Text("Are you sure you want to delete \(location.name)?")
+            }
+        }
+        .sheet(isPresented: $showMoveChildrenPicker) {
+            NavigationStack {
+                MoveChildrenView(
+                    locationToDelete: $locationToDelete,
+                    selectedNewParent: $selectedNewParent,
+                    availableLocations: availableParentLocationsForChildren(),
+                    onConfirm: {
+                        if let location = locationToDelete {
+                            moveChildrenAndDelete(location: location)
+                        }
+                    }
+                )
+            }
+        }
     }
     
     func addLocation() {
         router.navigate(to: .editLocationView(location: nil, isEditing: true))
     }
-    
+
     func deleteLocations(at offsets: IndexSet) {
         for index in offsets {
-            let locationToDelete = locations[index]
-            modelContext.delete(locationToDelete)
-            print("Deleting location: \(locationToDelete.name)")
-            TelemetryManager.shared.trackLocationDeleted()
+            locationToDelete = locations[index]
+            showDeleteOptions = true
+        }
+    }
+
+    /// Get available parent locations for moving children (excluding the location to delete and its descendants)
+    private func availableParentLocationsForChildren() -> [InventoryLocation] {
+        guard let location = locationToDelete else { return [] }
+
+        return locations.filter { possibleParent in
+            // Can't move to the location being deleted
+            guard possibleParent.persistentModelID != location.persistentModelID else {
+                return false
+            }
+
+            // Can't move to a descendant of the location being deleted
+            guard !possibleParent.isDescendant(of: location) else {
+                return false
+            }
+
+            // Parent must be able to add children (depth < 10)
+            return possibleParent.canAddChild()
+        }
+    }
+
+    /// Delete a single location without children
+    private func deleteLocation(_ location: InventoryLocation) {
+        // Unassign all items from this location
+        if let items = location.inventoryItems {
+            for item in items {
+                item.location = nil
+            }
+        }
+
+        modelContext.delete(location)
+        print("Deleting location: \(location.name)")
+        TelemetryManager.shared.trackLocationDeleted()
+        try? modelContext.save()
+    }
+
+    /// Cascade delete a location and all its children
+    private func cascadeDelete(location: InventoryLocation) {
+        let children = location.getChildren(in: modelContext)
+
+        // Recursively delete all children first
+        for child in children {
+            cascadeDelete(location: child)
+        }
+
+        // Then delete the location itself
+        deleteLocation(location)
+    }
+
+    /// Move children to a new parent and then delete the location
+    private func moveChildrenAndDelete(location: InventoryLocation) {
+        let children = location.getChildren(in: modelContext)
+
+        // Move all children to the new parent
+        for child in children {
+            child.parent = selectedNewParent
+        }
+
+        // Delete the location (items will be unassigned)
+        deleteLocation(location)
+
+        // Reset state
+        showMoveChildrenPicker = false
+        selectedNewParent = nil
+        locationToDelete = nil
+    }
+}
+
+struct MoveChildrenView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var locationToDelete: InventoryLocation?
+    @Binding var selectedNewParent: InventoryLocation?
+    let availableLocations: [InventoryLocation]
+    let onConfirm: () -> Void
+
+    var body: some View {
+        List {
+            Section {
+                Button {
+                    selectedNewParent = nil
+                    onConfirm()
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text("None (Root Level)")
+                        Spacer()
+                        if selectedNewParent == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                }
+                .foregroundStyle(.primary)
+            }
+
+            Section {
+                ForEach(availableLocations, id: \.persistentModelID) { location in
+                    Button {
+                        selectedNewParent = location
+                        onConfirm()
+                        dismiss()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(location.name)
+                                    .foregroundStyle(.primary)
+                                Text(location.getFullPath())
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if selectedNewParent?.persistentModelID == location.persistentModelID {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Select New Parent")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
         }
     }
 }

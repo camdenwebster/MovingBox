@@ -25,7 +25,12 @@ struct LocationsListView: View {
     // Use @Query with sort descriptor for efficient loading
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
-    ]) private var locations: [InventoryLocation]
+    ]) private var allLocations: [InventoryLocation]
+
+    // Computed property to get only root locations (no parent)
+    private var rootLocations: [InventoryLocation] {
+        allLocations.filter { $0.parent == nil }
+    }
 
     // Query for items without location
     @Query(filter: #Predicate<InventoryItem> { item in
@@ -41,13 +46,15 @@ struct LocationsListView: View {
         unassignedItems.reduce(0) { $0 + $1.price }
     }
 
-    // Filtered locations based on search
+    // Filtered locations based on search (searches all locations including nested)
     private var filteredLocations: [InventoryLocation] {
         if searchText.isEmpty {
-            return locations
+            return rootLocations
         }
-        return locations.filter { location in
-            location.name.localizedCaseInsensitiveContains(searchText)
+        // When searching, show all matching locations (including nested ones)
+        return allLocations.filter { location in
+            location.name.localizedCaseInsensitiveContains(searchText) ||
+            location.getFullPath().localizedCaseInsensitiveContains(searchText)
         }
     }
     

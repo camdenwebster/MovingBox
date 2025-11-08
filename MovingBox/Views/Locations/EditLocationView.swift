@@ -17,6 +17,7 @@ struct EditLocationView: View {
     @State private var locationInstance = InventoryLocation()
     @State private var locationName: String
     @State private var locationDesc: String
+    @State private var selectedParent: InventoryLocation?
     @State private var isEditing = false
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
@@ -36,15 +37,39 @@ struct EditLocationView: View {
         }
         _locationName = State(initialValue: location?.name ?? "")
         _locationDesc = State(initialValue: location?.desc ?? "")
+        _selectedParent = State(initialValue: location?.parent)
     }
 
     // Computed properties
     private var isNewLocation: Bool {
         location == nil
     }
-    
+
     private var isEditingEnabled: Bool {
         isNewLocation || isEditing
+    }
+
+    /// Available parent locations (excluding self and descendants to prevent circular references)
+    private var availableParentLocations: [InventoryLocation] {
+        guard let currentLocation = location else {
+            // For new locations, filter out locations at max depth
+            return locations.filter { $0.canAddChild() }
+        }
+
+        return locations.filter { possibleParent in
+            // Can't be parent of itself
+            guard possibleParent.persistentModelID != currentLocation.persistentModelID else {
+                return false
+            }
+
+            // Can't be a descendant of current location (circular reference)
+            guard !possibleParent.isDescendant(of: currentLocation) else {
+                return false
+            }
+
+            // Parent must be able to add children (depth < 10)
+            return possibleParent.canAddChild()
+        }
     }
     
     var body: some View {
@@ -109,6 +134,32 @@ struct EditLocationView: View {
                         }
                 }
             }
+
+            // Parent location selection
+            if isEditingEnabled || selectedParent != nil {
+                Section(header: Text("Parent Location")) {
+                    Picker("Parent", selection: $selectedParent) {
+                        Text("None (Root Level)")
+                            .tag(nil as InventoryLocation?)
+
+                        ForEach(availableParentLocations, id: \.persistentModelID) { parentOption in
+                            Text(parentOption.getFullPath())
+                                .tag(parentOption as InventoryLocation?)
+                        }
+                    }
+                    .disabled(!isEditingEnabled)
+                    .onChange(of: selectedParent) { _, newValue in
+                        locationInstance.parent = newValue
+                    }
+
+                    if let parent = selectedParent {
+                        let depth = parent.getDepth() + 1
+                        Text("Depth: \(depth)/10")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
         .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "") Details")
         .navigationBarTitleDisplayMode(.inline)
@@ -120,6 +171,7 @@ struct EditLocationView: View {
                             existingLocation.name = locationInstance.name
                             existingLocation.desc = locationInstance.desc
                             existingLocation.imageURL = locationInstance.imageURL
+                            existingLocation.parent = selectedParent
                             try? modelContext.save()
                         }
                         isEditing = false
@@ -137,6 +189,7 @@ struct EditLocationView: View {
                                 locationInstance.imageURL = imageURL
                             }
                         }
+                        locationInstance.parent = selectedParent
                         modelContext.insert(locationInstance)
                         TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
                         print("EditLocationView: Created new location - \(locationInstance.name)")
