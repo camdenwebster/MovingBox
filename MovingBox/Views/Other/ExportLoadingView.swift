@@ -12,6 +12,7 @@ struct ExportLoadingView: View {
     let onShare: () -> Void
     
     @State private var showFinishButton = false
+    @State private var showShareSheet = false
     
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
@@ -116,7 +117,7 @@ struct ExportLoadingView: View {
                                 
                                 VStack(spacing: 12) {
                                     Button {
-                                        onShare()
+                                        showShareSheet = true
                                     } label: {
                                         HStack {
                                             Image(systemName: "square.and.arrow.up")
@@ -163,6 +164,15 @@ struct ExportLoadingView: View {
                 withAnimation {
                     showFinishButton = true
                 }
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let archiveURL {
+                ShareSheet(activityItems: [archiveURL])
+                    .onDisappear {
+                        // Clean up the file after sharing
+                        try? FileManager.default.removeItem(at: archiveURL)
+                    }
             }
         }
     }
