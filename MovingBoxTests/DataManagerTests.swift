@@ -476,6 +476,98 @@ struct DataManagerTests {
         #expect(true) // Test passes if no crash occurs
     }
     
+    @Test("Export with large dataset uses batched processing")
+    func exportWithLargeDatasetUsesBatching() async throws {
+        // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        // Create 150 items to test batching (batch size is 100)
+        for i in 1...150 {
+            let item = InventoryItem()
+            item.title = "Test Item \(i)"
+            item.desc = "Description \(i)"
+            context.insert(item)
+        }
+        try context.save()
+        
+        // When
+        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        defer {
+            try? fileManager.removeItem(at: url)
+        }
+        
+        // Then
+        #expect(fileManager.fileExists(atPath: url.path))
+        
+        // Verify the archive contains all items
+        do {
+            let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
+            #expect(archive.contains { $0.path == "inventory.csv" })
+            
+            // Extract and verify CSV content
+            if let entry = archive["inventory.csv"] {
+                var csvData = Data()
+                _ = try archive.extract(entry) { data in
+                    csvData.append(data)
+                }
+                
+                let csvString = String(data: csvData, encoding: .utf8)
+                let lines = csvString?.components(separatedBy: .newlines).filter { !$0.isEmpty }
+                
+                // Should have header + 150 items = 151 lines
+                #expect(lines?.count == 151)
+            }
+        } catch {
+            Issue.record("Unable to verify archive: \(error)")
+        }
+    }
+    
+    @Test("Batched export with locations and labels")
+    func batchedExportWithMultipleTypes() async throws {
+        // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        // Create 150 items, 50 locations, 30 labels
+        for i in 1...150 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+        
+        for i in 1...50 {
+            let location = InventoryLocation(name: "Location \(i)")
+            context.insert(location)
+        }
+        
+        for i in 1...30 {
+            let label = InventoryLabel(name: "Label \(i)")
+            context.insert(label)
+        }
+        
+        try context.save()
+        
+        // When
+        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        defer {
+            try? fileManager.removeItem(at: url)
+        }
+        
+        // Then
+        #expect(fileManager.fileExists(atPath: url.path))
+        
+        // Verify all CSV files are present
+        do {
+            let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
+            #expect(archive.contains { $0.path == "inventory.csv" })
+            #expect(archive.contains { $0.path == "locations.csv" })
+            #expect(archive.contains { $0.path == "labels.csv" })
+        } catch {
+            Issue.record("Unable to verify archive: \(error)")
+        }
+    }
+    
     @Test("Import handles filename sanitization")
     func importHandlesFilenameSanitization() async throws {
         // Given

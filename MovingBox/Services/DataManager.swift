@@ -30,55 +30,27 @@ actor DataManager {
     /// inside the temporary directory – caller is expected to share / move / delete.
     @MainActor
     func exportInventory(modelContext: ModelContext, fileName: String? = nil, config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)) async throws -> URL {
-        var itemData: [(title: String, desc: String, locationName: String, labelName: String, quantity: Int, serial: String, model: String, make: String, price: Decimal, insured: Bool, notes: String, imageURL: URL?, hasUsedAI: Bool)] = []
-        var locationData: [(name: String, desc: String, imageURL: URL?)] = []
-        var labelData: [(name: String, desc: String, color: UIColor?, emoji: String)] = []
+        var itemData: [ItemData] = []
+        var locationData: [LocationData] = []
+        var labelData: [LabelData] = []
+        var allPhotoURLs: [URL] = []
         
-        // Only fetch data for enabled types
+        // Fetch data in batches to reduce memory pressure
         if config.includeItems {
-            let items = try modelContext.fetch(FetchDescriptor<InventoryItem>())
-            guard !items.isEmpty else { throw DataError.nothingToExport }
-            
-            itemData = items.map { item in
-                (
-                    title: item.title,
-                    desc: item.desc,
-                    locationName: item.location?.name ?? "",
-                    labelName: item.label?.name ?? "",
-                    quantity: item.quantityInt,
-                    serial: item.serial,
-                    model: item.model,
-                    make: item.make,
-                    price: item.price,
-                    insured: item.insured,
-                    notes: item.notes,
-                    imageURL: item.imageURL,
-                    hasUsedAI: item.hasUsedAI
-                )
-            }
+            let result = try await fetchItemsInBatches(modelContext: modelContext)
+            guard !result.items.isEmpty else { throw DataError.nothingToExport }
+            itemData = result.items
+            allPhotoURLs.append(contentsOf: result.photoURLs)
         }
         
         if config.includeLocations {
-            let locations = try modelContext.fetch(FetchDescriptor<InventoryLocation>())
-            locationData = locations.map { location in
-                (
-                    name: location.name,
-                    desc: location.desc,
-                    imageURL: location.imageURL
-                )
-            }
+            let result = try await fetchLocationsInBatches(modelContext: modelContext)
+            locationData = result.locations
+            allPhotoURLs.append(contentsOf: result.photoURLs)
         }
         
         if config.includeLabels {
-            let labels = try modelContext.fetch(FetchDescriptor<InventoryLabel>())
-            labelData = labels.map { label in
-                (
-                    name: label.name,
-                    desc: label.desc,
-                    color: label.color,
-                    emoji: label.emoji
-                )
-            }
+            labelData = try await fetchLabelsInBatches(modelContext: modelContext)
         }
         
         // Don't export if nothing is selected
@@ -115,10 +87,8 @@ actor DataManager {
         }
 
         // Copy photos in background to avoid blocking main thread
-        let photoURLs = (config.includeItems ? itemData.compactMap(\.imageURL) : []) +
-                       (config.includeLocations ? locationData.compactMap(\.imageURL) : [])
-        
-        try await copyPhotosToDirectory(photoURLs: photoURLs, destinationDir: photosDir)
+        // Photo URLs were already collected during batched fetching
+        try await copyPhotosToDirectory(photoURLs: allPhotoURLs, destinationDir: photosDir)
 
         // Zip with proper permissions - run on background
         let archiveURL = try await Task.detached {
@@ -172,6 +142,39 @@ actor DataManager {
         let locationCount: Int
         let labelCount: Int
     }
+    
+    // MARK: - Batch Processing Configuration
+    
+    private static let batchSize = 100
+    
+    private typealias ItemData = (
+        title: String,
+        desc: String,
+        locationName: String,
+        labelName: String,
+        quantity: Int,
+        serial: String,
+        model: String,
+        make: String,
+        price: Decimal,
+        insured: Bool,
+        notes: String,
+        imageURL: URL?,
+        hasUsedAI: Bool
+    )
+    
+    private typealias LocationData = (
+        name: String,
+        desc: String,
+        imageURL: URL?
+    )
+    
+    private typealias LabelData = (
+        name: String,
+        desc: String,
+        color: UIColor?,
+        emoji: String
+    )
 
     /// Exports inventory from a zip file and reports progress through an async sequence
     func importInventory(
@@ -474,6 +477,146 @@ actor DataManager {
         }
     }
 
+    // MARK: - Batch Fetching Helpers
+    
+    @MainActor
+    private func fetchItemsInBatches(
+        modelContext: ModelContext
+    ) async throws -> (items: [ItemData], photoURLs: [URL]) {
+        var allItemData: [ItemData] = []
+        var allPhotoURLs: [URL] = []
+        var offset = 0
+        
+        while true {
+            var descriptor = FetchDescriptor<InventoryItem>(
+                sortBy: [SortDescriptor(\.title)]
+            )
+            descriptor.fetchLimit = Self.batchSize
+            descriptor.fetchOffset = offset
+            
+            let batch = try modelContext.fetch(descriptor)
+            
+            if batch.isEmpty {
+                break
+            }
+            
+            for item in batch {
+                let itemData = (
+                    title: item.title,
+                    desc: item.desc,
+                    locationName: item.location?.name ?? "",
+                    labelName: item.label?.name ?? "",
+                    quantity: item.quantityInt,
+                    serial: item.serial,
+                    model: item.model,
+                    make: item.make,
+                    price: item.price,
+                    insured: item.insured,
+                    notes: item.notes,
+                    imageURL: item.imageURL,
+                    hasUsedAI: item.hasUsedAI
+                )
+                allItemData.append(itemData)
+                
+                if let imageURL = item.imageURL {
+                    allPhotoURLs.append(imageURL)
+                }
+            }
+            
+            offset += batch.count
+            
+            if batch.count < Self.batchSize {
+                break
+            }
+        }
+        
+        return (allItemData, allPhotoURLs)
+    }
+    
+    @MainActor
+    private func fetchLocationsInBatches(
+        modelContext: ModelContext
+    ) async throws -> (locations: [LocationData], photoURLs: [URL]) {
+        var allLocationData: [LocationData] = []
+        var allPhotoURLs: [URL] = []
+        var offset = 0
+        
+        while true {
+            var descriptor = FetchDescriptor<InventoryLocation>(
+                sortBy: [SortDescriptor(\.name)]
+            )
+            descriptor.fetchLimit = Self.batchSize
+            descriptor.fetchOffset = offset
+            
+            let batch = try modelContext.fetch(descriptor)
+            
+            if batch.isEmpty {
+                break
+            }
+            
+            for location in batch {
+                let locationData = (
+                    name: location.name,
+                    desc: location.desc,
+                    imageURL: location.imageURL
+                )
+                allLocationData.append(locationData)
+                
+                if let imageURL = location.imageURL {
+                    allPhotoURLs.append(imageURL)
+                }
+            }
+            
+            offset += batch.count
+            
+            if batch.count < Self.batchSize {
+                break
+            }
+        }
+        
+        return (allLocationData, allPhotoURLs)
+    }
+    
+    @MainActor
+    private func fetchLabelsInBatches(
+        modelContext: ModelContext
+    ) async throws -> [LabelData] {
+        var allLabelData: [LabelData] = []
+        var offset = 0
+        
+        while true {
+            var descriptor = FetchDescriptor<InventoryLabel>(
+                sortBy: [SortDescriptor(\.name)]
+            )
+            descriptor.fetchLimit = Self.batchSize
+            descriptor.fetchOffset = offset
+            
+            let batch = try modelContext.fetch(descriptor)
+            
+            if batch.isEmpty {
+                break
+            }
+            
+            for label in batch {
+                let labelData = (
+                    name: label.name,
+                    desc: label.desc,
+                    color: label.color,
+                    emoji: label.emoji
+                )
+                allLabelData.append(labelData)
+            }
+            
+            offset += batch.count
+            
+            if batch.count < Self.batchSize {
+                break
+            }
+        }
+        
+        return allLabelData
+    }
+    
     // MARK: - Photo Copy Helpers
     
     private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
@@ -575,22 +718,8 @@ actor DataManager {
         return destURL
     }
     
-    // MARK: - Helpers
-    private func writeCSV(items: [(
-        title: String,
-        desc: String,
-        locationName: String,
-        labelName: String,
-        quantity: Int,
-        serial: String,
-        model: String,
-        make: String,
-        price: Decimal,
-        insured: Bool,
-        notes: String,
-        imageURL: URL?,
-        hasUsedAI: Bool
-    )], to url: URL) async throws {
+    // MARK: - CSV Writing Helpers
+    private func writeCSV(items: [ItemData], to url: URL) async throws {
         let csvLines: [String] = {
             var lines: [String] = []
             let header = [
@@ -651,11 +780,7 @@ actor DataManager {
         return values.map { $0.trimmingCharacters(in: .whitespaces) }
     }
     
-    private func writeLocationsCSV(locations: [(
-        name: String,
-        desc: String,
-        imageURL: URL?
-    )], to url: URL) async throws {
+    private func writeLocationsCSV(locations: [LocationData], to url: URL) async throws {
         let csvLines: [String] = {
             var lines: [String] = []
             let header = ["Name", "Description", "PhotoFilename"]
@@ -676,12 +801,7 @@ actor DataManager {
         try csvString.data(using: .utf8)?.write(to: url)
     }
     
-    private func writeLabelsCSV(labels: [(
-        name: String,
-        desc: String,
-        color: UIColor?,
-        emoji: String
-    )], to url: URL) async throws {
+    private func writeLabelsCSV(labels: [LabelData], to url: URL) async throws {
         let csvLines: [String] = {
             var lines: [String] = []
             let header = ["Name", "Description", "ColorHex", "Emoji"]
@@ -720,12 +840,16 @@ actor DataManager {
     func exportSpecificItems(items: [InventoryItem], modelContext: ModelContext, fileName: String? = nil) async throws -> URL {
         guard !items.isEmpty else { throw DataError.nothingToExport }
         
-        // Get all locations and labels (as requested)
-        let allLocations = try modelContext.fetch(FetchDescriptor<InventoryLocation>())
-        let allLabels = try modelContext.fetch(FetchDescriptor<InventoryLabel>())
+        // Get all locations and labels using batched fetching for efficiency
+        let locationResult = try await fetchLocationsInBatches(modelContext: modelContext)
+        let labelData = try await fetchLabelsInBatches(modelContext: modelContext)
         
-        let itemData = items.map { item in
-            (
+        // Extract item data and collect photo URLs
+        var itemData: [ItemData] = []
+        var allPhotoURLs: [URL] = []
+        
+        for item in items {
+            let data: ItemData = (
                 title: item.title,
                 desc: item.desc,
                 locationName: item.location?.name ?? "",
@@ -740,24 +864,15 @@ actor DataManager {
                 imageURL: item.imageURL,
                 hasUsedAI: item.hasUsedAI
             )
+            itemData.append(data)
+            
+            if let imageURL = item.imageURL {
+                allPhotoURLs.append(imageURL)
+            }
         }
         
-        let locationData = allLocations.map { location in
-            (
-                name: location.name,
-                desc: location.desc,
-                imageURL: location.imageURL
-            )
-        }
-        
-        let labelData = allLabels.map { label in
-            (
-                name: label.name,
-                desc: label.desc,
-                color: label.color,
-                emoji: label.emoji
-            )
-        }
+        let locationData = locationResult.locations
+        allPhotoURLs.append(contentsOf: locationResult.photoURLs)
 
         let archiveName = fileName ?? "Selected-Items-export-\(DateFormatter.exportDateFormatter.string(from: .init()))".replacingOccurrences(of: " ", with: "-") + ".zip"
 
@@ -787,10 +902,8 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos in background - collect unique URLs
-        let allPhotoURLs = (itemData.compactMap(\.imageURL) + locationData.compactMap(\.imageURL))
+        // Copy photos in background - deduplicate URLs
         let uniquePhotoURLs = Array(Set(allPhotoURLs))
-        
         try await copyPhotosToDirectory(photoURLs: uniquePhotoURLs, destinationDir: photosDir)
 
         // Create ZIP archive in background
