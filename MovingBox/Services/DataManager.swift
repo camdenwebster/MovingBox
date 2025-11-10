@@ -191,20 +191,20 @@ actor DataManager {
     /// contains `inventory.csv`.  The returned `URL` points to the finished archive
     /// inside the temporary directory – caller is expected to share / move / delete.
     /// For progress reporting, use `exportInventoryWithProgress` instead.
-    @MainActor
     func exportInventory(modelContext: ModelContext, fileName: String? = nil, config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)) async throws -> URL {
         var itemData: [ItemData] = []
         var locationData: [LocationData] = []
         var labelData: [LabelData] = []
         var allPhotoURLs: [URL] = []
-        
+
         // Fetch data in batches to reduce memory pressure
+        // SwiftData operations run on MainActor
         if config.includeItems {
             let result = try await fetchItemsInBatches(modelContext: modelContext)
             guard !result.items.isEmpty else { throw DataError.nothingToExport }
             itemData = result.items
             allPhotoURLs.append(contentsOf: result.photoURLs)
-            
+
             let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824.0
             TelemetryManager.shared.trackExportBatchSize(
                 batchSize: Self.batchSize,
@@ -212,17 +212,17 @@ actor DataManager {
                 itemCount: result.items.count
             )
         }
-        
+
         if config.includeLocations {
             let result = try await fetchLocationsInBatches(modelContext: modelContext)
             locationData = result.locations
             allPhotoURLs.append(contentsOf: result.photoURLs)
         }
-        
+
         if config.includeLabels {
             labelData = try await fetchLabelsInBatches(modelContext: modelContext)
         }
-        
+
         // Don't export if nothing is selected
         guard !itemData.isEmpty || !locationData.isEmpty || !labelData.isEmpty else {
             throw DataError.nothingToExport
@@ -622,212 +622,251 @@ actor DataManager {
         }
     }
     
-    @MainActor
-    private func createAndConfigureLocation(name: String, desc: String) -> InventoryLocation {
-        let location = InventoryLocation(name: name)
-        location.desc = desc
-        return location
-    }
-    
-    @MainActor
-    private func createAndConfigureItem(title: String, desc: String) -> InventoryItem {
-        let item = InventoryItem()
-        item.title = title
-        item.desc = desc
-        return item
-    }
-    
-    @MainActor
-    private func createAndConfigureLabel(name: String, desc: String, colorHex: String, emoji: String) -> InventoryLabel {
-        let label = InventoryLabel(name: name, desc: desc)
-        label.emoji = emoji
-        
-        // Convert hex to UIColor if provided
-        if !colorHex.isEmpty {
-            var hexString = colorHex.trimmingCharacters(in: .whitespacesAndNewlines)
-            if hexString.hasPrefix("#") {
-                hexString.remove(at: hexString.startIndex)
-            }
-            
-            if hexString.count == 6 {
-                var rgbValue: UInt64 = 0
-                Scanner(string: hexString).scanHexInt64(&rgbValue)
-                
-                label.color = UIColor(
-                    red: CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0,
-                    green: CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0,
-                    blue: CGFloat(rgbValue & 0x0000FF) / 255.0,
-                    alpha: 1.0
-                )
-            }
-        }
-        
-        return label
-    }
-    
-    @MainActor
-    private func findOrCreateLocation(name: String, modelContext: ModelContext) -> InventoryLocation {
-        if let existing = try? modelContext.fetch(FetchDescriptor<InventoryLocation>(
-            predicate: #Predicate<InventoryLocation> { $0.name == name }
-        )).first {
-            return existing
-        } else {
+    // Note: These helpers are marked nonisolated so they can be called from the actor,
+    // but they contain MainActor.assumeIsolated since they're only called from @MainActor Task blocks
+    nonisolated private func createAndConfigureLocation(name: String, desc: String) -> InventoryLocation {
+        MainActor.assumeIsolated {
             let location = InventoryLocation(name: name)
-            modelContext.insert(location)
+            location.desc = desc
             return location
         }
     }
-    
-    @MainActor
-    private func findOrCreateLabel(name: String, modelContext: ModelContext) -> InventoryLabel {
-        if let existing = try? modelContext.fetch(FetchDescriptor<InventoryLabel>(
-            predicate: #Predicate<InventoryLabel> { $0.name == name }
-        )).first {
-            return existing
-        } else {
-            let label = InventoryLabel(name: name)
-            modelContext.insert(label)
+
+    nonisolated private func createAndConfigureItem(title: String, desc: String) -> InventoryItem {
+        MainActor.assumeIsolated {
+            let item = InventoryItem()
+            item.title = title
+            item.desc = desc
+            return item
+        }
+    }
+
+    nonisolated private func createAndConfigureLabel(name: String, desc: String, colorHex: String, emoji: String) -> InventoryLabel {
+        MainActor.assumeIsolated {
+            let label = InventoryLabel(name: name, desc: desc)
+            label.emoji = emoji
+
+            // Convert hex to UIColor if provided
+            if !colorHex.isEmpty {
+                var hexString = colorHex.trimmingCharacters(in: .whitespacesAndNewlines)
+                if hexString.hasPrefix("#") {
+                    hexString.remove(at: hexString.startIndex)
+                }
+
+                if hexString.count == 6 {
+                    var rgbValue: UInt64 = 0
+                    Scanner(string: hexString).scanHexInt64(&rgbValue)
+
+                    label.color = UIColor(
+                        red: CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0,
+                        green: CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0,
+                        blue: CGFloat(rgbValue & 0x0000FF) / 255.0,
+                        alpha: 1.0
+                    )
+                }
+            }
+
             return label
         }
     }
 
+    nonisolated private func findOrCreateLocation(name: String, modelContext: ModelContext) -> InventoryLocation {
+        MainActor.assumeIsolated {
+            if let existing = try? modelContext.fetch(FetchDescriptor<InventoryLocation>(
+                predicate: #Predicate<InventoryLocation> { $0.name == name }
+            )).first {
+                return existing
+            } else {
+                let location = InventoryLocation(name: name)
+                modelContext.insert(location)
+                return location
+            }
+        }
+    }
+
+    nonisolated private func findOrCreateLabel(name: String, modelContext: ModelContext) -> InventoryLabel {
+        MainActor.assumeIsolated {
+            if let existing = try? modelContext.fetch(FetchDescriptor<InventoryLabel>(
+                predicate: #Predicate<InventoryLabel> { $0.name == name }
+            )).first {
+                return existing
+            } else {
+                let label = InventoryLabel(name: name)
+                modelContext.insert(label)
+                return label
+            }
+        }
+    }
+
     // MARK: - Batch Fetching Helpers
-    
-    @MainActor
+
     private func fetchItemsInBatches(
         modelContext: ModelContext
     ) async throws -> (items: [ItemData], photoURLs: [URL]) {
         var allItemData: [ItemData] = []
         var allPhotoURLs: [URL] = []
         var offset = 0
-        
+
         while true {
-            var descriptor = FetchDescriptor<InventoryItem>(
-                sortBy: [SortDescriptor(\.title)]
-            )
-            descriptor.fetchLimit = Self.batchSize
-            descriptor.fetchOffset = offset
-            
-            let batch = try modelContext.fetch(descriptor)
-            
+            // SwiftData fetch must run on MainActor
+            let batch = try await MainActor.run {
+                var descriptor = FetchDescriptor<InventoryItem>(
+                    sortBy: [SortDescriptor(\.title)]
+                )
+                descriptor.fetchLimit = Self.batchSize
+                descriptor.fetchOffset = offset
+
+                return try modelContext.fetch(descriptor)
+            }
+
             if batch.isEmpty {
                 break
             }
-            
-            for item in batch {
-                let itemData = (
-                    title: item.title,
-                    desc: item.desc,
-                    locationName: item.location?.name ?? "",
-                    labelName: item.label?.name ?? "",
-                    quantity: item.quantityInt,
-                    serial: item.serial,
-                    model: item.model,
-                    make: item.make,
-                    price: item.price,
-                    insured: item.insured,
-                    notes: item.notes,
-                    imageURL: item.imageURL,
-                    hasUsedAI: item.hasUsedAI
-                )
-                allItemData.append(itemData)
-                
-                if let imageURL = item.imageURL {
-                    allPhotoURLs.append(imageURL)
+
+            // Process batch data on MainActor since we're accessing model properties
+            let batchResult = await MainActor.run {
+                var batchData: [ItemData] = []
+                var batchPhotoURLs: [URL] = []
+
+                for item in batch {
+                    let itemData = (
+                        title: item.title,
+                        desc: item.desc,
+                        locationName: item.location?.name ?? "",
+                        labelName: item.label?.name ?? "",
+                        quantity: item.quantityInt,
+                        serial: item.serial,
+                        model: item.model,
+                        make: item.make,
+                        price: item.price,
+                        insured: item.insured,
+                        notes: item.notes,
+                        imageURL: item.imageURL,
+                        hasUsedAI: item.hasUsedAI
+                    )
+                    batchData.append(itemData)
+
+                    if let imageURL = item.imageURL {
+                        batchPhotoURLs.append(imageURL)
+                    }
                 }
+
+                return (batchData, batchPhotoURLs)
             }
-            
+
+            allItemData.append(contentsOf: batchResult.0)
+            allPhotoURLs.append(contentsOf: batchResult.1)
+
             offset += batch.count
-            
+
             if batch.count < Self.batchSize {
                 break
             }
         }
-        
+
         return (allItemData, allPhotoURLs)
     }
     
-    @MainActor
     private func fetchLocationsInBatches(
         modelContext: ModelContext
     ) async throws -> (locations: [LocationData], photoURLs: [URL]) {
         var allLocationData: [LocationData] = []
         var allPhotoURLs: [URL] = []
         var offset = 0
-        
+
         while true {
-            var descriptor = FetchDescriptor<InventoryLocation>(
-                sortBy: [SortDescriptor(\.name)]
-            )
-            descriptor.fetchLimit = Self.batchSize
-            descriptor.fetchOffset = offset
-            
-            let batch = try modelContext.fetch(descriptor)
-            
+            // SwiftData fetch must run on MainActor
+            let batch = try await MainActor.run {
+                var descriptor = FetchDescriptor<InventoryLocation>(
+                    sortBy: [SortDescriptor(\.name)]
+                )
+                descriptor.fetchLimit = Self.batchSize
+                descriptor.fetchOffset = offset
+
+                return try modelContext.fetch(descriptor)
+            }
+
             if batch.isEmpty {
                 break
             }
-            
-            for location in batch {
-                let locationData = (
-                    name: location.name,
-                    desc: location.desc,
-                    imageURL: location.imageURL
-                )
-                allLocationData.append(locationData)
-                
-                if let imageURL = location.imageURL {
-                    allPhotoURLs.append(imageURL)
+
+            // Process batch data on MainActor since we're accessing model properties
+            let batchResult = await MainActor.run {
+                var batchData: [LocationData] = []
+                var batchPhotoURLs: [URL] = []
+
+                for location in batch {
+                    let locationData = (
+                        name: location.name,
+                        desc: location.desc,
+                        imageURL: location.imageURL
+                    )
+                    batchData.append(locationData)
+
+                    if let imageURL = location.imageURL {
+                        batchPhotoURLs.append(imageURL)
+                    }
                 }
+
+                return (batchData, batchPhotoURLs)
             }
-            
+
+            allLocationData.append(contentsOf: batchResult.0)
+            allPhotoURLs.append(contentsOf: batchResult.1)
+
             offset += batch.count
-            
+
             if batch.count < Self.batchSize {
                 break
             }
         }
-        
+
         return (allLocationData, allPhotoURLs)
     }
     
-    @MainActor
     private func fetchLabelsInBatches(
         modelContext: ModelContext
     ) async throws -> [LabelData] {
         var allLabelData: [LabelData] = []
         var offset = 0
-        
+
         while true {
-            var descriptor = FetchDescriptor<InventoryLabel>(
-                sortBy: [SortDescriptor(\.name)]
-            )
-            descriptor.fetchLimit = Self.batchSize
-            descriptor.fetchOffset = offset
-            
-            let batch = try modelContext.fetch(descriptor)
-            
+            // SwiftData fetch must run on MainActor
+            let batch = try await MainActor.run {
+                var descriptor = FetchDescriptor<InventoryLabel>(
+                    sortBy: [SortDescriptor(\.name)]
+                )
+                descriptor.fetchLimit = Self.batchSize
+                descriptor.fetchOffset = offset
+
+                return try modelContext.fetch(descriptor)
+            }
+
             if batch.isEmpty {
                 break
             }
-            
-            for label in batch {
-                let labelData = (
-                    name: label.name,
-                    desc: label.desc,
-                    color: label.color,
-                    emoji: label.emoji
-                )
-                allLabelData.append(labelData)
+
+            // Process batch data on MainActor since we're accessing model properties
+            let batchData = await MainActor.run {
+                batch.map { label in
+                    (
+                        name: label.name,
+                        desc: label.desc,
+                        color: label.color,
+                        emoji: label.emoji
+                    )
+                }
             }
-            
+
+            allLabelData.append(contentsOf: batchData)
+
             offset += batch.count
-            
+
             if batch.count < Self.batchSize {
                 break
             }
         }
-        
+
         return allLabelData
     }
     
@@ -1114,42 +1153,48 @@ actor DataManager {
     }
     
     /// Exports specific InventoryItems (and their photos) along with all locations and labels into a zip file
-    @MainActor
     func exportSpecificItems(items: [InventoryItem], modelContext: ModelContext, fileName: String? = nil) async throws -> URL {
         guard !items.isEmpty else { throw DataError.nothingToExport }
-        
+
         // Get all locations and labels using batched fetching for efficiency
+        // SwiftData operations run on MainActor
         let locationResult = try await fetchLocationsInBatches(modelContext: modelContext)
         let labelData = try await fetchLabelsInBatches(modelContext: modelContext)
-        
+
         // Extract item data and collect photo URLs
-        var itemData: [ItemData] = []
-        var allPhotoURLs: [URL] = []
-        
-        for item in items {
-            let data: ItemData = (
-                title: item.title,
-                desc: item.desc,
-                locationName: item.location?.name ?? "",
-                labelName: item.label?.name ?? "",
-                quantity: item.quantityInt,
-                serial: item.serial,
-                model: item.model,
-                make: item.make,
-                price: item.price,
-                insured: item.insured,
-                notes: item.notes,
-                imageURL: item.imageURL,
-                hasUsedAI: item.hasUsedAI
-            )
-            itemData.append(data)
-            
-            if let imageURL = item.imageURL {
-                allPhotoURLs.append(imageURL)
+        // Item property access must be on MainActor
+        let (itemData, itemPhotoURLs) = await MainActor.run {
+            var itemData: [ItemData] = []
+            var photoURLs: [URL] = []
+
+            for item in items {
+                let data: ItemData = (
+                    title: item.title,
+                    desc: item.desc,
+                    locationName: item.location?.name ?? "",
+                    labelName: item.label?.name ?? "",
+                    quantity: item.quantityInt,
+                    serial: item.serial,
+                    model: item.model,
+                    make: item.make,
+                    price: item.price,
+                    insured: item.insured,
+                    notes: item.notes,
+                    imageURL: item.imageURL,
+                    hasUsedAI: item.hasUsedAI
+                )
+                itemData.append(data)
+
+                if let imageURL = item.imageURL {
+                    photoURLs.append(imageURL)
+                }
             }
+
+            return (itemData, photoURLs)
         }
-        
+
         let locationData = locationResult.locations
+        var allPhotoURLs = itemPhotoURLs
         allPhotoURLs.append(contentsOf: locationResult.photoURLs)
 
         let archiveName = fileName ?? "Selected-Items-export-\(DateFormatter.exportDateFormatter.string(from: .init()))".replacingOccurrences(of: " ", with: "-") + ".zip"
