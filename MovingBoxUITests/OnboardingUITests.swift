@@ -29,57 +29,6 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10))
         app.buttons["onboarding-welcome-continue-button"].tap()
         
-        // Home View
-        let homeAddPhotoButton = app.buttons["onboarding-home-add-photo-button"]
-        XCTAssertTrue(homeAddPhotoButton.waitForExistence(timeout: 10))
-        homeAddPhotoButton.tap()
-        
-        app.sheets.buttons["takePhoto"].tap()
-        
-        // Then: Camera should be ready
-        XCTAssertTrue(cameraScreen.waitForCamera(),
-                     "Camera should be ready after permissions")
-        
-        // When: User takes a photo
-        cameraScreen.takePhoto()
-        
-        let homeNameField = app.textFields["onboarding-home-name-field"]
-        XCTAssertTrue(homeNameField.exists)
-        homeNameField.tap()
-        homeNameField.typeText("My Home")
-        
-        let homeContinueButton = app.buttons["onboarding-home-continue-button"]
-        XCTAssertTrue(homeContinueButton.exists)
-        homeContinueButton.tap()
-        
-        // Location View
-        let locationAddPhotoButton = app.buttons["onboarding-location-add-photo-button"]
-        XCTAssertTrue(locationAddPhotoButton.waitForExistence(timeout: 5))
-        locationAddPhotoButton.tap()
-        
-        app.sheets.buttons["takePhoto"].tap()
-        
-        // Then: Camera should be ready
-        XCTAssertTrue(cameraScreen.waitForCamera(),
-                     "Camera should be ready after permissions")
-        
-        // When: User takes a photo
-        cameraScreen.takePhoto()
-        
-        let locationNameField = app.textFields["onboarding-location-name-field"]
-        XCTAssertTrue(locationNameField.exists)
-        locationNameField.tap()
-        locationNameField.typeText("Kitchen")
-        
-        let locationDescField = app.textFields["onboarding-location-description-field"]
-        XCTAssertTrue(locationDescField.exists)
-        locationDescField.tap()
-        locationDescField.typeText("My awesome kitchen")
-        
-        let locationContinueButton = app.buttons["onboarding-location-continue-button"]
-        XCTAssertTrue(locationContinueButton.exists)
-        locationContinueButton.tap()
-        
         // Item View
         let itemTakePhotoButton = app.buttons["onboarding-item-take-photo-button"]
         XCTAssertTrue(itemTakePhotoButton.waitForExistence(timeout: 5))
@@ -90,11 +39,11 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(alertContinueButton.waitForExistence(timeout: 5))
         alertContinueButton.tap()
         
-        // Then: Camera should be ready
+        // Camera should be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),
                      "Camera should be ready after permissions")
         
-        // When: User takes a photo
+        // User takes a photo
         cameraScreen.takePhoto()
         
         // Wait for AI processing and save item
@@ -105,6 +54,19 @@ final class OnboardingUITests: XCTestCase {
         let enableNotificationsButton = app.buttons["notificationsButton"]
         XCTAssertTrue(enableNotificationsButton.waitForExistence(timeout: 10))
         enableNotificationsButton.tap()
+        
+        // Survey View
+        let surveyProtectOption = app.buttons["onboarding-survey-option-protect"]
+        XCTAssertTrue(surveyProtectOption.waitForExistence(timeout: 5))
+        surveyProtectOption.tap()
+        
+        let surveyOrganizeOption = app.buttons["onboarding-survey-option-organize"]
+        XCTAssertTrue(surveyOrganizeOption.exists)
+        surveyOrganizeOption.tap()
+        
+        let surveyContinueButton = app.buttons["onboarding-survey-continue-button"]
+        XCTAssertTrue(surveyContinueButton.exists)
+        surveyContinueButton.tap()
         
         // Completion View
         let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
@@ -125,6 +87,101 @@ final class OnboardingUITests: XCTestCase {
         // The user should be brought straight to the dashboard
         XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
 
+    }
+    
+    func testOnboardingSurveyRequiresSelection() throws {
+        
+        // Navigate to survey screen
+        app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10)
+        app.buttons["onboarding-welcome-continue-button"].tap()
+        
+        app.buttons["onboarding-item-take-photo-button"].waitForExistence(timeout: 5)
+        app.navigationBars.buttons["Skip"].tap()
+        
+        app.buttons["notificationsButton"].waitForExistence(timeout: 10)
+        app.navigationBars.buttons["Skip"].tap()
+        
+        // Survey View - continue button should be disabled without selection
+        let surveyContinueButton = app.buttons["onboarding-survey-continue-button"]
+        XCTAssertTrue(surveyContinueButton.waitForExistence(timeout: 5))
+        XCTAssertFalse(surveyContinueButton.isEnabled, "Continue button should be disabled without selection")
+        
+        // Select an option
+        let surveyProtectOption = app.buttons["onboarding-survey-option-protect"]
+        XCTAssertTrue(surveyProtectOption.exists)
+        surveyProtectOption.tap()
+        
+        // Continue button should now be enabled
+        XCTAssertTrue(surveyContinueButton.isEnabled, "Continue button should be enabled after selection")
+        
+        // Deselect the option
+        surveyProtectOption.tap()
+        
+        // Continue button should be disabled again
+        XCTAssertFalse(surveyContinueButton.isEnabled, "Continue button should be disabled when all options deselected")
+    }
+    
+    func testOnboardingSurveySkip() throws {
+        
+        // Navigate to survey screen
+        app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10)
+        app.buttons["onboarding-welcome-continue-button"].tap()
+        
+        app.buttons["onboarding-item-take-photo-button"].waitForExistence(timeout: 5)
+        app.navigationBars.buttons["Skip"].tap()
+        
+        app.buttons["notificationsButton"].waitForExistence(timeout: 10)
+        app.navigationBars.buttons["Skip"].tap()
+        
+        // Survey View - skip should work
+        let surveyProtectOption = app.buttons["onboarding-survey-option-protect"]
+        XCTAssertTrue(surveyProtectOption.waitForExistence(timeout: 5))
+        
+        app.navigationBars.buttons["Skip"].tap()
+        
+        // Should reach completion view
+        let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
+        XCTAssertTrue(completionContinueButton.waitForExistence(timeout: 5))
+    }
+    
+    func testOnboardingSurveyMultipleSelections() throws {
+        
+        // Navigate to survey screen
+        app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10)
+        app.buttons["onboarding-welcome-continue-button"].tap()
+        
+        app.buttons["onboarding-item-take-photo-button"].waitForExistence(timeout: 5)
+        app.navigationBars.buttons["Skip"].tap()
+        
+        app.buttons["notificationsButton"].waitForExistence(timeout: 10)
+        app.navigationBars.buttons["Skip"].tap()
+        
+        // Survey View - select multiple options
+        let surveyProtectOption = app.buttons["onboarding-survey-option-protect"]
+        XCTAssertTrue(surveyProtectOption.waitForExistence(timeout: 5))
+        surveyProtectOption.tap()
+        
+        let surveyOrganizeOption = app.buttons["onboarding-survey-option-organize"]
+        XCTAssertTrue(surveyOrganizeOption.exists)
+        surveyOrganizeOption.tap()
+        
+        let surveyMoveOption = app.buttons["onboarding-survey-option-move"]
+        XCTAssertTrue(surveyMoveOption.exists)
+        surveyMoveOption.tap()
+        
+        let surveyExploringOption = app.buttons["onboarding-survey-option-exploring"]
+        XCTAssertTrue(surveyExploringOption.exists)
+        surveyExploringOption.tap()
+        
+        // All options should be selectable
+        let surveyContinueButton = app.buttons["onboarding-survey-continue-button"]
+        XCTAssertTrue(surveyContinueButton.isEnabled, "Continue button should be enabled with multiple selections")
+        
+        surveyContinueButton.tap()
+        
+        // Should reach completion view
+        let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
+        XCTAssertTrue(completionContinueButton.waitForExistence(timeout: 5))
     }
 }
 
