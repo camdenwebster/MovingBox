@@ -9,6 +9,7 @@ import SwiftUIBackports
 import SwiftUI
 import SwiftData
 import StoreKit
+import Sentry
 
 enum SettingsSection: Hashable {
     case categories
@@ -275,6 +276,47 @@ struct SettingsView: View {
                     }
                 }
             }
+            
+            #if DEBUG
+            Section("Debug") {
+                Button {
+                    SentrySDK.capture(message: "Test message from MovingBox Settings")
+                } label: {
+                    Label {
+                        Text("Send Test Message to Sentry")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                    }
+                }
+                
+                Button {
+                    enum TestError: Error {
+                        case sentryTestError
+                    }
+                    SentrySDK.capture(error: TestError.sentryTestError)
+                } label: {
+                    Label {
+                        Text("Send Test Error to Sentry")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                    }
+                }
+                
+                Button {
+                    fatalError("Test crash for Sentry")
+                } label: {
+                    Label {
+                        Text("Trigger Test Crash")
+                            .foregroundStyle(.red)
+                    } icon: {
+                        Image(systemName: "xmark.octagon")
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            #endif
             
             Section("About") {
                 HStack {

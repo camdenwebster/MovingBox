@@ -555,11 +555,11 @@ extension SnapshotTests {
         await cleanup()
     }
     
-    @Test("Onboarding Home View Layout")
+    @Test("Onboarding Notification View Layout")
     func onboardingHomeViewSnapshot() async throws {
         let container = try await createTestContainer()
         let manager = OnboardingManager()
-        manager.currentStep = .homeDetails
+        manager.currentStep = .notifications
         
         let view = configureViewForSnapshot(
             OnboardingHomeView()
@@ -579,11 +579,11 @@ extension SnapshotTests {
         await cleanup()
     }
     
-    @Test("Onboarding Location View Layout")
+    @Test("Onboarding Survey View Layout")
     func onboardingLocationViewSnapshot() async throws {
         let container = try await createTestContainer()
         let manager = OnboardingManager()
-        manager.currentStep = .location
+        manager.currentStep = .survey
         
         let view = configureViewForSnapshot(
             OnboardingLocationView()
@@ -596,7 +596,7 @@ extension SnapshotTests {
         assertSnapshot(
             of: view,
             as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "onboarding_location_view\(snapshotSuffix)",
+            named: "onboarding_survey_view\(snapshotSuffix)",
             file: filePath
         )
         

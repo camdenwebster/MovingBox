@@ -5,6 +5,8 @@
 //  Created by Claude Code on 9/9/25.
 //
 
+// NOTE: THIS IS NOT IN USE YET - ALL BUSINESS LOGIC IS IN InventoryDetailView.swift
+
 import Foundation
 import SwiftUI
 import SwiftData
