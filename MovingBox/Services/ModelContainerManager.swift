@@ -23,7 +23,8 @@ class ModelContainerManager: ObservableObject {
     private var initStartTime: Date?
     private let minimumDisplayTime: TimeInterval = 2.0 // 2 seconds minimum
     private var syncStartTime: Date?
-    private let syncUIThreshold: TimeInterval = 2.0 // Show UI if sync takes > 2 seconds
+    private let initialCloudKitWait: TimeInterval = 3.0 // Wait for CloudKit to initialize
+    private let syncUIThreshold: TimeInterval = 5.0 // Show UI if sync takes > 5 seconds (3s initial + 2s buffer)
     private let minimumSyncUIDisplay: TimeInterval = 0.5 // Show sync UI for at least 0.5 seconds
     private var syncUIShownTime: Date?
     
@@ -489,9 +490,15 @@ class ModelContainerManager: ObservableObject {
         print("📦 ModelContainerManager - Starting initial sync wait for first launch")
         syncStartTime = Date()
 
-        // Check for existing data every 0.5 seconds
+        // Give CloudKit time to initialize and connect before checking
+        // This is critical - CloudKit doesn't start syncing instantly
+        let initialWaitNanoseconds = UInt64(initialCloudKitWait * 1_000_000_000)
+        print("📦 ModelContainerManager - Waiting \(Int(initialCloudKitWait))s for CloudKit to initialize...")
+        try? await Task.sleep(nanoseconds: initialWaitNanoseconds)
+
+        // Check for existing data every 0.5 seconds after initial wait
         let checkInterval: UInt64 = 500_000_000 // 0.5 seconds in nanoseconds
-        let maxWaitTime: TimeInterval = 10.0 // Maximum 10 seconds
+        let maxWaitTime: TimeInterval = 20.0 // Maximum 20 seconds total (including initial wait)
 
         var hasShownUI = false
 
@@ -500,7 +507,7 @@ class ModelContainerManager: ObservableObject {
 
             // Check if we've exceeded maximum wait time
             if elapsed > maxWaitTime {
-                print("📦 ModelContainerManager - Max wait time reached, proceeding")
+                print("📦 ModelContainerManager - Max wait time reached, proceeding without iCloud data")
                 break
             }
 
