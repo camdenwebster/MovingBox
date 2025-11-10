@@ -201,8 +201,35 @@ struct ExportDataView: View {
     }
     
     private func handleExportShare() {
-        showExportLoading = false
-        showShareSheet = true
+        guard let archiveURL = archiveURL else { return }
+        
+        // Copy to Documents directory for better share sheet compatibility
+        do {
+            let documentsURL = try FileManager.default.url(
+                for: .documentDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            
+            let shareableURL = documentsURL.appendingPathComponent(archiveURL.lastPathComponent)
+            
+            // Remove if exists
+            try? FileManager.default.removeItem(at: shareableURL)
+            
+            // Copy file
+            try FileManager.default.copyItem(at: archiveURL, to: shareableURL)
+            
+            // Update the archive URL to the new location
+            self.archiveURL = shareableURL
+            
+            showExportLoading = false
+            showShareSheet = true
+        } catch {
+            print("❌ Failed to prepare file for sharing: \(error)")
+            exportError = error
+            showExportLoading = false
+        }
     }
 }
 
