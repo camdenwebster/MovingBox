@@ -41,6 +41,13 @@ actor DataManager {
             guard !result.items.isEmpty else { throw DataError.nothingToExport }
             itemData = result.items
             allPhotoURLs.append(contentsOf: result.photoURLs)
+            
+            let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824.0
+            TelemetryManager.shared.trackExportBatchSize(
+                batchSize: Self.batchSize,
+                deviceMemoryGB: memoryGB,
+                itemCount: result.items.count
+            )
         }
         
         if config.includeLocations {
@@ -145,7 +152,21 @@ actor DataManager {
     
     // MARK: - Batch Processing Configuration
     
-    private static let batchSize = 100
+    private static var batchSize: Int {
+        let memoryBytes = ProcessInfo.processInfo.physicalMemory
+        let memoryGB = Double(memoryBytes) / 1_073_741_824.0
+        
+        switch memoryGB {
+        case ..<3:
+            return 50
+        case 3..<6:
+            return 100
+        case 6..<10:
+            return 200
+        default:
+            return 300
+        }
+    }
     
     private typealias ItemData = (
         title: String,

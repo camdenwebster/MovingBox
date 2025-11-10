@@ -155,6 +155,14 @@ class TelemetryManager {
             "failure_rate": String(format: "%.2f", failureRate)
         ])
     }
+    
+    func trackExportBatchSize(batchSize: Int, deviceMemoryGB: Double, itemCount: Int) {
+        TelemetryManager.signal("export-batch-size-used", with: [
+            "batch_size": String(batchSize),
+            "device_memory_gb": String(format: "%.1f", deviceMemoryGB),
+            "item_count": String(itemCount)
+        ])
+    }
 
     // MARK: - Helper
 

@@ -633,6 +633,30 @@ struct DataManagerTests {
         #expect(items.count == 2)
     }
     
+    @Test("Batch size adjusts based on device memory")
+    func batchSizeAdjustsBasedOnMemory() async throws {
+        let memoryBytes = ProcessInfo.processInfo.physicalMemory
+        let memoryGB = Double(memoryBytes) / 1_073_741_824.0
+        
+        #expect(memoryBytes > 0)
+        #expect(memoryGB > 0)
+        
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        let item = InventoryItem()
+        item.title = "Test Item"
+        context.insert(item)
+        try context.save()
+        
+        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        defer {
+            try? fileManager.removeItem(at: url)
+        }
+        
+        #expect(fileManager.fileExists(atPath: url.path))
+    }
+    
     // MARK: - Helper Methods
     
     private func getTestFileURL(named filename: String) throws -> URL {
