@@ -164,16 +164,20 @@ struct MovingBoxApp: App {
                 }
             }
             .task {
-                // Initialize container
+                // Initialize container (handles migration)
                 await containerManager.initialize()
-                
+
+                // Wait for initial iCloud sync on first launch
+                // This shows progress UI only if sync takes > 2 seconds
+                await containerManager.waitForInitialSync()
+
                 // Check RevenueCat subscription status
                 do {
                     try await revenueCatManager.updateCustomerInfo()
                 } catch {
                     print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
                 }
-                
+
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     await TestData.loadTestData(modelContext: containerManager.container.mainContext)
@@ -183,7 +187,7 @@ struct MovingBoxApp: App {
                     // Determine if we should show the welcome screen
                     appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
                 }
-                
+
                 // Record that we've launched
                 settings.hasLaunched = true
 

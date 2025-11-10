@@ -44,14 +44,14 @@ struct SplashView: View {
                         .fontWeight(.light)
                         .foregroundColor(textColor)
                 }
-                
-                // Migration Progress (only show when loading)
+
+                // Migration Progress (only show during migration)
                 if containerManager.isLoading {
                     VStack(spacing: 12) {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .green))
                             .scaleEffect(1.2)
-                        
+
                         Text("Migration in progress, please do not close the app")
                             .font(.caption)
                             .foregroundColor(textColor.opacity(0.8))
@@ -64,12 +64,32 @@ struct SplashView: View {
                     .onDisappear {
                         print("🔄 SplashView - Migration UI disappeared")
                     }
-                } else {
-                    // Debug when not loading
-                    Text("")
-                        .onAppear {
-                            print("🔄 SplashView - No migration UI shown (isLoading = \(containerManager.isLoading))")
-                        }
+                }
+
+                // iCloud Sync Progress (only show during initial sync)
+                if containerManager.isWaitingForInitialSync {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                            .scaleEffect(1.2)
+
+                        Text(containerManager.syncStatus)
+                            .font(.caption)
+                            .foregroundColor(textColor.opacity(0.8))
+                            .multilineTextAlignment(.center)
+
+                        Text("Checking for existing data from other devices")
+                            .font(.caption2)
+                            .foregroundColor(textColor.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 20)
+                    .onAppear {
+                        print("🔄 SplashView - Sync UI appeared (isWaitingForInitialSync = \(containerManager.isWaitingForInitialSync))")
+                    }
+                    .onDisappear {
+                        print("🔄 SplashView - Sync UI disappeared")
+                    }
                 }
             }
         }

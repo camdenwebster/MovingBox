@@ -95,19 +95,33 @@ class OnboardingManager: ObservableObject {
         guard !hasCompletedOnboarding() && !ProcessInfo.processInfo.arguments.contains("Show-Onboarding") else {
             return false
         }
-        
+
         do {
-            let descriptor = FetchDescriptor<InventoryItem>()
-            let items = try modelContext.fetch(descriptor)
+            // Check for existing items
+            let itemDescriptor = FetchDescriptor<InventoryItem>()
+            let items = try modelContext.fetch(itemDescriptor)
             print("⚡️ Checking for existing items: \(items.count) found")
-            
-            if !items.isEmpty {
+
+            // Check for existing locations
+            let locationDescriptor = FetchDescriptor<InventoryLocation>()
+            let locations = try modelContext.fetch(locationDescriptor)
+            print("⚡️ Checking for existing locations: \(locations.count) found")
+
+            // Check for existing homes
+            let homeDescriptor = FetchDescriptor<Home>()
+            let homes = try modelContext.fetch(homeDescriptor)
+            print("⚡️ Checking for existing homes: \(homes.count) found")
+
+            // If any data exists, skip onboarding
+            if !items.isEmpty || !locations.isEmpty || !homes.isEmpty {
+                print("⚡️ Existing data found, skipping onboarding")
                 UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
                 return true
             }
+
             return false
         } catch let error as NSError {
-            print("❌ Error checking for items: \(error), \(error.userInfo)")
+            print("❌ Error checking for existing data: \(error), \(error.userInfo)")
             throw OnboardingError.itemCheckFailed(error)
         }
     }

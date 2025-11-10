@@ -5,19 +5,27 @@ import UIKit
 @MainActor
 class ModelContainerManager: ObservableObject {
     static let shared = ModelContainerManager()
-    
+
     @Published private(set) var container: ModelContainer
     @Published private(set) var isLoading = false
-    
+
     // Migration Progress Properties
     @Published var migrationProgress: Double = 0.0
     @Published var migrationStatus: String = "Initializing..."
     @Published var migrationDetailMessage: String = "Preparing your data for the new version"
     @Published var isMigrationComplete: Bool = false
-    
+
+    // iCloud Sync Properties
+    @Published var isWaitingForInitialSync: Bool = false
+    @Published var syncStatus: String = "Checking for existing data..."
+
     // UI timing
     private var initStartTime: Date?
     private let minimumDisplayTime: TimeInterval = 2.0 // 2 seconds minimum
+    private var syncStartTime: Date?
+    private let syncUIThreshold: TimeInterval = 2.0 // Show UI if sync takes > 2 seconds
+    private let minimumSyncUIDisplay: TimeInterval = 0.5 // Show sync UI for at least 0.5 seconds
+    private var syncUIShownTime: Date?
     
     // Track migration completion in UserDefaults
     private var migrationCompletedKey = "MovingBox_v2_MigrationCompleted"
@@ -448,15 +456,128 @@ class ModelContainerManager: ObservableObject {
     var isSyncEnabled: Bool {
         UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
     }
-    
+
     func getCurrentSyncStatus() -> String {
         // This is a simplified sync status check
         // In practice, you would monitor NSPersistentCloudKitContainer notifications
         if !isSyncEnabled {
             return "Disabled"
         }
-        
+
         // Check if we have network connectivity and return appropriate status
         return "Ready"
+    }
+
+    // MARK: - Initial iCloud Sync
+
+    /// Wait for initial iCloud sync on first launch
+    /// Shows progress UI only if sync takes longer than 2 seconds
+    /// Keeps UI visible for minimum 0.5 seconds once shown
+    func waitForInitialSync() async {
+        // Only wait for sync on first launch
+        guard shouldSkipMigrationForNewInstall else {
+            print("📦 ModelContainerManager - Not first launch, skipping initial sync wait")
+            return
+        }
+
+        // Only wait if iCloud sync is enabled
+        guard isSyncEnabled else {
+            print("📦 ModelContainerManager - iCloud sync disabled, skipping wait")
+            return
+        }
+
+        print("📦 ModelContainerManager - Starting initial sync wait for first launch")
+        syncStartTime = Date()
+
+        // Check for existing data every 0.5 seconds
+        let checkInterval: UInt64 = 500_000_000 // 0.5 seconds in nanoseconds
+        let maxWaitTime: TimeInterval = 10.0 // Maximum 10 seconds
+
+        var hasShownUI = false
+
+        while true {
+            let elapsed = Date().timeIntervalSince(syncStartTime!)
+
+            // Check if we've exceeded maximum wait time
+            if elapsed > maxWaitTime {
+                print("📦 ModelContainerManager - Max wait time reached, proceeding")
+                break
+            }
+
+            // Check for existing data
+            let hasData = await checkForExistingCloudKitData()
+
+            if hasData {
+                print("📦 ModelContainerManager - Found existing data in \(String(format: "%.1f", elapsed))s")
+                break
+            }
+
+            // If we've passed the UI threshold and haven't shown UI yet, show it
+            if elapsed > syncUIThreshold && !hasShownUI {
+                print("📦 ModelContainerManager - Sync taking longer than \(syncUIThreshold)s, showing UI")
+                isWaitingForInitialSync = true
+                syncUIShownTime = Date()
+                hasShownUI = true
+            }
+
+            // Update sync status message
+            if hasShownUI {
+                let timeWaited = Int(elapsed)
+                syncStatus = "Syncing with iCloud... (\(timeWaited)s)"
+            }
+
+            // Wait before next check
+            try? await Task.sleep(nanoseconds: checkInterval)
+        }
+
+        // If we showed UI, ensure it's visible for minimum duration
+        if hasShownUI, let shownTime = syncUIShownTime {
+            let uiElapsed = Date().timeIntervalSince(shownTime)
+            let remaining = minimumSyncUIDisplay - uiElapsed
+
+            if remaining > 0 {
+                print("📦 ModelContainerManager - Ensuring minimum UI display time (\(String(format: "%.1f", remaining))s remaining)")
+                syncStatus = "Sync complete!"
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            }
+        }
+
+        // Hide sync UI
+        isWaitingForInitialSync = false
+        print("📦 ModelContainerManager - Initial sync wait complete")
+    }
+
+    /// Check if existing data exists in CloudKit
+    private func checkForExistingCloudKitData() async -> Bool {
+        do {
+            let context = container.mainContext
+
+            // Check for any existing Home, Location, or Item data
+            let homeDescriptor = FetchDescriptor<Home>()
+            let homes = try context.fetch(homeDescriptor)
+            if !homes.isEmpty {
+                print("📦 ModelContainerManager - Found \(homes.count) home(s)")
+                return true
+            }
+
+            let locationDescriptor = FetchDescriptor<InventoryLocation>()
+            let locations = try context.fetch(locationDescriptor)
+            if !locations.isEmpty {
+                print("📦 ModelContainerManager - Found \(locations.count) location(s)")
+                return true
+            }
+
+            let itemDescriptor = FetchDescriptor<InventoryItem>()
+            let items = try context.fetch(itemDescriptor)
+            if !items.isEmpty {
+                print("📦 ModelContainerManager - Found \(items.count) item(s)")
+                return true
+            }
+
+            return false
+        } catch {
+            print("📦 ModelContainerManager - Error checking for existing data: \(error)")
+            return false
+        }
     }
 }
