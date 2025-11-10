@@ -114,47 +114,34 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos only for enabled types
-        if config.includeItems {
-            for item in itemData {
-                if let src = item.imageURL,
-                   FileManager.default.fileExists(atPath: src.path) {
-                    let dest = photosDir.appendingPathComponent(src.lastPathComponent)
-                    try? FileManager.default.removeItem(at: dest)
-                    try FileManager.default.copyItem(at: src, to: dest)
-                }
-            }
-        }
+        // Copy photos in background to avoid blocking main thread
+        let photoURLs = (config.includeItems ? itemData.compactMap(\.imageURL) : []) +
+                       (config.includeLocations ? locationData.compactMap(\.imageURL) : [])
         
-        if config.includeLocations {
-            for location in locationData {
-                if let src = location.imageURL,
-                   FileManager.default.fileExists(atPath: src.path) {
-                    let dest = photosDir.appendingPathComponent(src.lastPathComponent)
-                    try? FileManager.default.removeItem(at: dest)
-                    try FileManager.default.copyItem(at: src, to: dest)
-                }
-            }
-        }
+        try await copyPhotosToDirectory(photoURLs: photoURLs, destinationDir: photosDir)
 
-        // Zip with proper permissions
-        let archiveURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(archiveName)
-        try? FileManager.default.removeItem(at: archiveURL)         // overwrite if exists
-        
-        // Create archive with proper permissions
-        try FileManager.default.zipItem(at: workingRoot,
-                                      to: archiveURL,
-                                      shouldKeepParent: false,
-                                      compressionMethod: .deflate)
-        
-        // Set proper file permissions (read/write for user)
-        try FileManager.default.setAttributes([
-            .posixPermissions: 0o644
-        ], ofItemAtPath: archiveURL.path)
+        // Zip with proper permissions - run on background
+        let archiveURL = try await Task.detached {
+            let archiveURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(archiveName)
+            try? FileManager.default.removeItem(at: archiveURL)
+            
+            try FileManager.default.zipItem(at: workingRoot,
+                                          to: archiveURL,
+                                          shouldKeepParent: false,
+                                          compressionMethod: .deflate)
+            
+            try FileManager.default.setAttributes([
+                .posixPermissions: 0o644
+            ], ofItemAtPath: archiveURL.path)
+            
+            return archiveURL
+        }.value
 
-        // Clean up working directory asynchronously – no await, fire-and-forget
-        Task.detached { try? FileManager.default.removeItem(at: workingRoot) }
+        // Clean up working directory with proper error handling
+        Task.detached {
+            try? FileManager.default.removeItem(at: workingRoot)
+        }
 
         guard FileManager.default.fileExists(atPath: archiveURL.path)
         else { throw DataError.failedCreateZip }
@@ -487,6 +474,24 @@ actor DataManager {
         }
     }
 
+    // MARK: - Photo Copy Helpers
+    
+    private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for photoURL in photoURLs {
+                group.addTask {
+                    guard FileManager.default.fileExists(atPath: photoURL.path) else { return }
+                    
+                    let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
+                    try? FileManager.default.removeItem(at: dest)
+                    try FileManager.default.copyItem(at: photoURL, to: dest)
+                }
+            }
+            
+            try await group.waitForAll()
+        }
+    }
+    
     // MARK: - Security Helpers
     private nonisolated func sanitizeFilename(_ filename: String) -> String {
         // Remove directory traversal attempts and invalid characters
@@ -748,61 +753,39 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos from selected items
-        var photoFileNames: Set<String> = []
-        for item in itemData {
-            if let imageURL = item.imageURL,
-               FileManager.default.fileExists(atPath: imageURL.path) {
-                let fileName = imageURL.lastPathComponent
-                let destURL = photosDir.appendingPathComponent(fileName)
-                
-                // Avoid duplicate copies
-                if !photoFileNames.contains(fileName) {
-                    try FileManager.default.copyItem(at: imageURL, to: destURL)
-                    photoFileNames.insert(fileName)
-                }
-            }
-        }
+        // Copy photos in background - collect unique URLs
+        let allPhotoURLs = (itemData.compactMap(\.imageURL) + locationData.compactMap(\.imageURL))
+        let uniquePhotoURLs = Array(Set(allPhotoURLs))
         
-        // Copy photos from all locations  
-        for location in locationData {
-            if let imageURL = location.imageURL,
-               FileManager.default.fileExists(atPath: imageURL.path) {
-                let fileName = imageURL.lastPathComponent
-                let destURL = photosDir.appendingPathComponent(fileName)
-                
-                // Avoid duplicate copies
-                if !photoFileNames.contains(fileName) {
-                    try FileManager.default.copyItem(at: imageURL, to: destURL)
-                    photoFileNames.insert(fileName)
-                }
-            }
-        }
+        try await copyPhotosToDirectory(photoURLs: uniquePhotoURLs, destinationDir: photosDir)
 
-        // Create ZIP archive
-        let archiveURL = FileManager.default.temporaryDirectory.appendingPathComponent(archiveName)
-        
-        // Remove existing file
-        try? FileManager.default.removeItem(at: archiveURL)
-        
-        let archive = try Archive(url: archiveURL, accessMode: .create)
-
-        // Add all files to ZIP
-        let workingRootPath = workingRoot.path
-        let enumerator = FileManager.default.enumerator(atPath: workingRootPath)
-        
-        while let relativePath = enumerator?.nextObject() as? String {
-            let fullPath = workingRoot.appendingPathComponent(relativePath)
-            var isDir: ObjCBool = false
+        // Create ZIP archive in background
+        let archiveURL = try await Task.detached {
+            let archiveURL = FileManager.default.temporaryDirectory.appendingPathComponent(archiveName)
+            try? FileManager.default.removeItem(at: archiveURL)
             
-            if FileManager.default.fileExists(atPath: fullPath.path, isDirectory: &isDir),
-               !isDir.boolValue {
-                try archive.addEntry(with: relativePath, relativeTo: workingRoot)
+            let archive = try Archive(url: archiveURL, accessMode: .create)
+            
+            let workingRootPath = workingRoot.path
+            let enumerator = FileManager.default.enumerator(atPath: workingRootPath)
+            
+            while let relativePath = enumerator?.nextObject() as? String {
+                let fullPath = workingRoot.appendingPathComponent(relativePath)
+                var isDir: ObjCBool = false
+                
+                if FileManager.default.fileExists(atPath: fullPath.path, isDirectory: &isDir),
+                   !isDir.boolValue {
+                    try archive.addEntry(with: relativePath, relativeTo: workingRoot)
+                }
             }
-        }
+            
+            return archiveURL
+        }.value
 
         // Clean up working directory
-        try? FileManager.default.removeItem(at: workingRoot)
+        Task.detached {
+            try? FileManager.default.removeItem(at: workingRoot)
+        }
         
         return archiveURL
     }
