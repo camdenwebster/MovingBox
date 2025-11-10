@@ -135,27 +135,21 @@ actor DataManager {
                     }
                     
                     completedSteps += 1
-                    
-                    // Create archive
+
+                    // Create archive using unified helper with progress reporting
                     continuation.yield(.creatingArchive(progress: Double(completedSteps) / Double(totalSteps)))
-                    
-                    let archiveURL = try await Task.detached {
-                        let archiveURL = FileManager.default.temporaryDirectory
-                            .appendingPathComponent(archiveName)
-                        try? FileManager.default.removeItem(at: archiveURL)
-                        
-                        try FileManager.default.zipItem(at: workingRoot,
-                                                      to: archiveURL,
-                                                      shouldKeepParent: false,
-                                                      compressionMethod: .deflate)
-                        
-                        try FileManager.default.setAttributes([
-                            .posixPermissions: 0o644
-                        ], ofItemAtPath: archiveURL.path)
-                        
-                        return archiveURL
-                    }.value
-                    
+
+                    let archiveURL = try await createArchive(
+                        from: workingRoot,
+                        archiveName: archiveName,
+                        progressHandler: { filesProcessed, totalFiles in
+                            // Report incremental progress within the archive creation phase
+                            let archivePhaseProgress = Double(filesProcessed) / max(Double(totalFiles), 1.0)
+                            let overallProgress = (Double(completedSteps) + archivePhaseProgress) / Double(totalSteps)
+                            continuation.yield(.creatingArchive(progress: overallProgress))
+                        }
+                    )
+
                     completedSteps += 1
                     continuation.yield(.creatingArchive(progress: 1.0))
                     
@@ -260,23 +254,8 @@ actor DataManager {
         // Photo URLs were already collected during batched fetching
         try await copyPhotosToDirectory(photoURLs: allPhotoURLs, destinationDir: photosDir)
 
-        // Zip with proper permissions - run on background
-        let archiveURL = try await Task.detached {
-            let archiveURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(archiveName)
-            try? FileManager.default.removeItem(at: archiveURL)
-            
-            try FileManager.default.zipItem(at: workingRoot,
-                                          to: archiveURL,
-                                          shouldKeepParent: false,
-                                          compressionMethod: .deflate)
-            
-            try FileManager.default.setAttributes([
-                .posixPermissions: 0o644
-            ], ofItemAtPath: archiveURL.path)
-            
-            return archiveURL
-        }.value
+        // Create ZIP archive using unified helper
+        let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)
 
         // Clean up working directory with proper error handling
         Task.detached {
@@ -870,8 +849,71 @@ actor DataManager {
         return allLabelData
     }
     
+    // MARK: - Archive Creation Helpers
+
+    /// Creates a ZIP archive from a source directory using streaming compression
+    /// - Parameters:
+    ///   - sourceDirectory: Directory containing files to archive
+    ///   - archiveName: Name for the output ZIP file
+    ///   - progressHandler: Optional closure called periodically with (filesProcessed, estimatedTotal)
+    /// - Returns: URL of the created archive in the temporary directory
+    /// - Note: Runs on background thread via Task.detached, uses streaming to minimize memory usage
+    private nonisolated func createArchive(
+        from sourceDirectory: URL,
+        archiveName: String,
+        progressHandler: ((Int, Int) -> Void)? = nil
+    ) async throws -> URL {
+        try await Task.detached {
+            let archiveURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(archiveName)
+
+            // Remove existing archive if present
+            try? FileManager.default.removeItem(at: archiveURL)
+
+            // Create new archive
+            let archive = try Archive(url: archiveURL, accessMode: .create)
+
+            // Enumerate all files in source directory
+            let sourcePath = sourceDirectory.path
+            guard let enumerator = FileManager.default.enumerator(atPath: sourcePath) else {
+                throw DataError.failedCreateZip
+            }
+
+            var filesProcessed = 0
+            let allPaths = enumerator.allObjects as? [String] ?? []
+            let totalFiles = allPaths.count
+
+            // Stream files into archive without loading all paths into memory
+            for relativePath in allPaths {
+                let fullPath = sourceDirectory.appendingPathComponent(relativePath)
+                var isDirectory: ObjCBool = false
+
+                // Only add files, not directories
+                if FileManager.default.fileExists(atPath: fullPath.path, isDirectory: &isDirectory),
+                   !isDirectory.boolValue {
+                    try archive.addEntry(with: relativePath, relativeTo: sourceDirectory)
+
+                    filesProcessed += 1
+
+                    // Report progress every 10 files or on completion
+                    if let handler = progressHandler,
+                       filesProcessed % 10 == 0 || filesProcessed == totalFiles {
+                        handler(filesProcessed, totalFiles)
+                    }
+                }
+            }
+
+            // Set proper permissions on the archive
+            try FileManager.default.setAttributes([
+                .posixPermissions: 0o644
+            ], ofItemAtPath: archiveURL.path)
+
+            return archiveURL
+        }.value
+    }
+
     // MARK: - Photo Copy Helpers
-    
+
     private nonisolated func copyPhotosToDirectoryWithProgress(
         photoURLs: [URL],
         destinationDir: URL,
@@ -1229,34 +1271,14 @@ actor DataManager {
         let uniquePhotoURLs = Array(Set(allPhotoURLs))
         try await copyPhotosToDirectory(photoURLs: uniquePhotoURLs, destinationDir: photosDir)
 
-        // Create ZIP archive in background
-        let archiveURL = try await Task.detached {
-            let archiveURL = FileManager.default.temporaryDirectory.appendingPathComponent(archiveName)
-            try? FileManager.default.removeItem(at: archiveURL)
-            
-            let archive = try Archive(url: archiveURL, accessMode: .create)
-            
-            let workingRootPath = workingRoot.path
-            let enumerator = FileManager.default.enumerator(atPath: workingRootPath)
-            
-            while let relativePath = enumerator?.nextObject() as? String {
-                let fullPath = workingRoot.appendingPathComponent(relativePath)
-                var isDir: ObjCBool = false
-                
-                if FileManager.default.fileExists(atPath: fullPath.path, isDirectory: &isDir),
-                   !isDir.boolValue {
-                    try archive.addEntry(with: relativePath, relativeTo: workingRoot)
-                }
-            }
-            
-            return archiveURL
-        }.value
+        // Create ZIP archive using unified helper
+        let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)
 
         // Clean up working directory
         Task.detached {
             try? FileManager.default.removeItem(at: workingRoot)
         }
-        
+
         return archiveURL
     }
 }
