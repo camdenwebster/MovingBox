@@ -7,7 +7,9 @@ struct ExportLoadingView: View {
     let progress: Double
     let phase: String
     let error: Error?
+    let archiveURL: URL?
     let onCancel: () -> Void
+    let onShare: () -> Void
     
     @State private var showFinishButton = false
     
@@ -111,15 +113,33 @@ struct ExportLoadingView: View {
                                     .multilineTextAlignment(.center)
                                 
                                 Spacer()
-                                Button("Done") {
-                                    isComplete = false
+                                
+                                VStack(spacing: 12) {
+                                    Button {
+                                        onShare()
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "square.and.arrow.up")
+                                            Text("Share Export")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .background(.green)
+                                    .cornerRadius(10)
+                                    
+                                    Button("Done") {
+                                        isComplete = false
+                                    }
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.secondary.opacity(0.2))
+                                    .cornerRadius(10)
                                 }
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(.green)
-                                .cornerRadius(10)
                             }
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))

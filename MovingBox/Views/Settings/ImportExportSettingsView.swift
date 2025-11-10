@@ -183,7 +183,9 @@ struct ImportExportSettingsView: View {
                 progress: exportProgress,
                 phase: exportPhase,
                 error: exportError,
-                onCancel: cancelExport
+                archiveURL: archiveURL,
+                onCancel: cancelExport,
+                onShare: handleExportShare
             )
         }
         .sheet(isPresented: $showShareSheet) {
@@ -255,22 +257,7 @@ struct ImportExportSettingsView: View {
                     case .completed(let result):
                         archiveURL = result.archiveURL
                         exportCompleted = true
-                        
-                        // Small delay to ensure file is fully written and accessible
-                        try? await Task.sleep(for: .milliseconds(100))
-                        
-                        // Verify file exists before showing share sheet
-                        if FileManager.default.fileExists(atPath: result.archiveURL.path) {
-                            showExportLoading = false
-                            showShareSheet = true
-                        } else {
-                            exportError = NSError(
-                                domain: "ExportError",
-                                code: -1,
-                                userInfo: [NSLocalizedDescriptionKey: "Export file not found"]
-                            )
-                            showExportLoading = false
-                        }
+                        // Don't auto-dismiss - let user tap Share button
                         
                     case .error(let error):
                         exportError = error
@@ -291,6 +278,11 @@ struct ImportExportSettingsView: View {
         exportTask?.cancel()
         exportTask = nil
         showExportLoading = false
+    }
+    
+    private func handleExportShare() {
+        showExportLoading = false
+        showShareSheet = true
     }
 
     private func handleImport(url: URL) async {
