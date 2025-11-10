@@ -12,22 +12,26 @@ Respond in a concise and professional manner, keeping fluff to a minimum. Evalua
 ## Development Commands
 
 ### Building and Testing
+Always pipe `xcodebuild` commands through `xcsift` to provide concise JSON output.
+
 ```bash
 # Build the project
-xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'platform=iOS Simulator,name=iPhone 16 Pro' 2>&1 | xcsift
 
 # Run unit tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' 2>&1 | xcsift
 
 # Run UI tests  
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' 2>&1 | xcsift
 
 # Run snapshot tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -testPlan MovingBoxSnapshotTests -destination 'platform=iOS Simulator,name=iPhone 14 Pro'
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -testPlan MovingBoxSnapshotTests -destination 'platform=iOS Simulator,name=iPhone 14 Pro' 2>&1 | xcsift
 
 # Generate App Store screenshots
 fastlane screenshots
 ```
+
+If warnings are detected, re-run with `--print-warnings` to view warning details. For example: `xcodebuild build 2>&1 | xcsift --print-warnings`
 
 ### Test Configuration
 Use launch arguments for testing:
