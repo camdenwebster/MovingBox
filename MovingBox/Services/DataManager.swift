@@ -477,18 +477,52 @@ actor DataManager {
     // MARK: - Photo Copy Helpers
     
     private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for photoURL in photoURLs {
-                group.addTask {
-                    guard FileManager.default.fileExists(atPath: photoURL.path) else { return }
-                    
-                    let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
-                    try? FileManager.default.removeItem(at: dest)
-                    try FileManager.default.copyItem(at: photoURL, to: dest)
+        let maxConcurrentCopies = 5
+        var failedCopies: [(url: URL, error: Error)] = []
+        var activeTasks = 0
+        
+        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
+            var pendingURLs = photoURLs[...]
+            
+            while !pendingURLs.isEmpty || activeTasks > 0 {
+                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
+                    activeTasks += 1
+                    group.addTask {
+                        do {
+                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
+                                return (photoURL, DataError.photoNotFound)
+                            }
+                            
+                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
+                            try? FileManager.default.removeItem(at: dest)
+                            try FileManager.default.copyItem(at: photoURL, to: dest)
+                            return (photoURL, nil)
+                        } catch {
+                            return (photoURL, error)
+                        }
+                    }
+                }
+                
+                if let result = try await group.next() {
+                    activeTasks -= 1
+                    if let error = result.1 {
+                        failedCopies.append((url: result.0, error: error))
+                    }
                 }
             }
+        }
+        
+        if !failedCopies.isEmpty {
+            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
+            TelemetryManager.shared.trackPhotoCopyFailures(
+                failureCount: failedCopies.count,
+                totalPhotos: photoURLs.count,
+                failureRate: failureRate
+            )
             
-            try await group.waitForAll()
+            for failure in failedCopies {
+                print("⚠️ Failed to copy photo \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
+            }
         }
     }
     

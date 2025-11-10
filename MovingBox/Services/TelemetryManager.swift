@@ -145,6 +145,16 @@ class TelemetryManager {
     func trackAppReviewRequested() {
         TelemetryManager.signal("app-review-requested")
     }
+    
+    // MARK: - Data Export/Import
+    
+    func trackPhotoCopyFailures(failureCount: Int, totalPhotos: Int, failureRate: Double) {
+        TelemetryManager.signal("photo-copy-failures", with: [
+            "failure_count": String(failureCount),
+            "total_photos": String(totalPhotos),
+            "failure_rate": String(format: "%.2f", failureRate)
+        ])
+    }
 
     // MARK: - Helper
 
