@@ -12,6 +12,9 @@ import UniformTypeIdentifiers
 struct ImportExportSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var isProcessingExport = false
+    @State private var exportProgress: Double = 0
+    @State private var exportPhase: String = ""
+    @State private var showExportLoading = false
     @State private var archiveURL: URL?
     @State private var showShareSheet = false
     @State private var showFileImporter = false
@@ -22,6 +25,8 @@ struct ImportExportSettingsView: View {
     @State private var importCompleted = false
     @State private var importProgress: Double = 0
     @State private var importError: Error?
+    @State private var exportError: Error?
+    @State private var exportCompleted = false
     @State private var showDuplicateWarning = false
     @State private var importItems = true
     @State private var importLocations = true
@@ -32,6 +37,7 @@ struct ImportExportSettingsView: View {
     @State private var showNoOptionsAlert = false
     @State private var noOptionsAlertType: NoOptionsAlertType = .export
     @State private var importTask: Task<Void, Never>?
+    @State private var exportTask: Task<Void, Never>?
     
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -170,6 +176,16 @@ struct ImportExportSettingsView: View {
                 onCancel: cancelImport
             )
         }
+        .fullScreenCover(isPresented: $showExportLoading) {
+            ExportLoadingView(
+                isComplete: $showExportLoading,
+                exportCompleted: exportCompleted,
+                progress: exportProgress,
+                phase: exportPhase,
+                error: exportError,
+                onCancel: cancelExport
+            )
+        }
         .sheet(isPresented: $showShareSheet) {
             if let archiveURL {
                 ShareSheet(activityItems: [archiveURL])
@@ -185,26 +201,82 @@ struct ImportExportSettingsView: View {
     
     @MainActor
     private func startExport() async {
-        isProcessingExport = true
-        defer { isProcessingExport = false }
-        do {
-            let timestamp = dateFormatter.string(from: Date())
-            let fileName = "MovingBox-export-\(timestamp).zip"
-            let config = DataManager.ExportConfig(
-                includeItems: exportItems,
-                includeLocations: exportLocations,
-                includeLabels: exportLabels
-            )
-            let url = try await DataManager.shared.exportInventory(
-                modelContext: modelContext,
-                fileName: fileName,
-                config: config
-            )
-            archiveURL = url
-            showShareSheet = true
-        } catch {
-            print("❌ Export error: \(error.localizedDescription)")
+        exportTask = Task {
+            do {
+                exportError = nil
+                exportProgress = 0
+                exportCompleted = false
+                exportPhase = ""
+                showExportLoading = true
+                
+                let timestamp = dateFormatter.string(from: Date())
+                let fileName = "MovingBox-export-\(timestamp).zip"
+                let config = DataManager.ExportConfig(
+                    includeItems: exportItems,
+                    includeLocations: exportLocations,
+                    includeLabels: exportLabels
+                )
+                
+                for await progress in DataManager.shared.exportInventoryWithProgress(
+                    modelContext: modelContext,
+                    fileName: fileName,
+                    config: config
+                ) {
+                    if Task.isCancelled {
+                        throw NSError(
+                            domain: "ExportError",
+                            code: -999,
+                            userInfo: [NSLocalizedDescriptionKey: "Export cancelled by user"]
+                        )
+                    }
+                    
+                    switch progress {
+                    case .preparing:
+                        exportPhase = "Preparing export..."
+                        exportProgress = 0.0
+                        
+                    case .fetchingData(let phase, let progressValue):
+                        exportPhase = "Fetching \(phase)..."
+                        exportProgress = progressValue * 0.3 // 0-30% for data fetching
+                        
+                    case .writingCSV(let progressValue):
+                        exportPhase = "Writing CSV files..."
+                        exportProgress = 0.3 + (progressValue * 0.2) // 30-50% for CSV
+                        
+                    case .copyingPhotos(let current, let total):
+                        exportPhase = "Copying photos (\(current)/\(total))..."
+                        let photoProgress = Double(current) / Double(total)
+                        exportProgress = 0.5 + (photoProgress * 0.3) // 50-80% for photos
+                        
+                    case .creatingArchive(let progressValue):
+                        exportPhase = "Creating archive..."
+                        exportProgress = 0.8 + (progressValue * 0.2) // 80-100% for archive
+                        
+                    case .completed(let result):
+                        archiveURL = result.archiveURL
+                        exportCompleted = true
+                        showExportLoading = false
+                        showShareSheet = true
+                        
+                    case .error(let error):
+                        exportError = error
+                        exportCompleted = false
+                        showExportLoading = false
+                    }
+                }
+            } catch {
+                print("❌ Export error: \(error.localizedDescription)")
+                exportError = error
+                exportCompleted = false
+                showExportLoading = false
+            }
         }
+    }
+    
+    private func cancelExport() {
+        exportTask?.cancel()
+        exportTask = nil
+        showExportLoading = false
     }
 
     private func handleImport(url: URL) async {

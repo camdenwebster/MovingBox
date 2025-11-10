@@ -25,9 +25,172 @@ actor DataManager {
     static let shared = DataManager()
     private init() {}
 
+    /// Exports inventory with progress reporting via AsyncStream
+    nonisolated func exportInventoryWithProgress(
+        modelContext: ModelContext,
+        fileName: String? = nil,
+        config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+    ) -> AsyncStream<ExportProgress> {
+        AsyncStream { continuation in
+            Task { @MainActor in
+                do {
+                    continuation.yield(.preparing)
+                    
+                    var itemData: [ItemData] = []
+                    var locationData: [LocationData] = []
+                    var labelData: [LabelData] = []
+                    var allPhotoURLs: [URL] = []
+                    
+                    var totalSteps = 0
+                    var completedSteps = 0
+                    
+                    if config.includeItems { totalSteps += 1 }
+                    if config.includeLocations { totalSteps += 1 }
+                    if config.includeLabels { totalSteps += 1 }
+                    totalSteps += 3 // CSV writing, photo copying, archiving
+                    
+                    // Fetch data in batches with progress
+                    if config.includeItems {
+                        continuation.yield(.fetchingData(phase: "items", progress: 0.0))
+                        let result = try await fetchItemsInBatches(modelContext: modelContext)
+                        guard !result.items.isEmpty else { throw DataError.nothingToExport }
+                        itemData = result.items
+                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        
+                        completedSteps += 1
+                        continuation.yield(.fetchingData(phase: "items", progress: Double(completedSteps) / Double(totalSteps)))
+                        
+                        let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824.0
+                        TelemetryManager.shared.trackExportBatchSize(
+                            batchSize: Self.batchSize,
+                            deviceMemoryGB: memoryGB,
+                            itemCount: result.items.count
+                        )
+                    }
+                    
+                    if config.includeLocations {
+                        continuation.yield(.fetchingData(phase: "locations", progress: Double(completedSteps) / Double(totalSteps)))
+                        let result = try await fetchLocationsInBatches(modelContext: modelContext)
+                        locationData = result.locations
+                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        
+                        completedSteps += 1
+                        continuation.yield(.fetchingData(phase: "locations", progress: Double(completedSteps) / Double(totalSteps)))
+                    }
+                    
+                    if config.includeLabels {
+                        continuation.yield(.fetchingData(phase: "labels", progress: Double(completedSteps) / Double(totalSteps)))
+                        labelData = try await fetchLabelsInBatches(modelContext: modelContext)
+                        
+                        completedSteps += 1
+                        continuation.yield(.fetchingData(phase: "labels", progress: Double(completedSteps) / Double(totalSteps)))
+                    }
+                    
+                    guard !itemData.isEmpty || !locationData.isEmpty || !labelData.isEmpty else {
+                        throw DataError.nothingToExport
+                    }
+                    
+                    let archiveName = fileName ?? "MovingBox-export-\(DateFormatter.exportDateFormatter.string(from: .init()))".replacingOccurrences(of: " ", with: "-") + ".zip"
+                    
+                    // Working directory in tmp
+                    let workingRoot = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("export-\(UUID().uuidString)", isDirectory: true)
+                    let photosDir = workingRoot.appendingPathComponent("photos", isDirectory: true)
+                    try FileManager.default.createDirectory(at: photosDir,
+                                                         withIntermediateDirectories: true)
+                    try FileManager.default.setAttributes([
+                        .posixPermissions: 0o755
+                    ], ofItemAtPath: photosDir.path)
+                    
+                    // Write CSV files
+                    continuation.yield(.writingCSV(progress: Double(completedSteps) / Double(totalSteps)))
+                    
+                    if config.includeItems {
+                        let itemsCSVURL = workingRoot.appendingPathComponent("inventory.csv")
+                        try await writeCSV(items: itemData, to: itemsCSVURL)
+                    }
+                    
+                    if config.includeLocations {
+                        let locationsCSVURL = workingRoot.appendingPathComponent("locations.csv")
+                        try await writeLocationsCSV(locations: locationData, to: locationsCSVURL)
+                    }
+                    
+                    if config.includeLabels {
+                        let labelsCSVURL = workingRoot.appendingPathComponent("labels.csv")
+                        try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
+                    }
+                    
+                    completedSteps += 1
+                    continuation.yield(.writingCSV(progress: Double(completedSteps) / Double(totalSteps)))
+                    
+                    // Copy photos with progress
+                    if !allPhotoURLs.isEmpty {
+                        try await copyPhotosToDirectoryWithProgress(
+                            photoURLs: allPhotoURLs,
+                            destinationDir: photosDir,
+                            progressHandler: { current, total in
+                                continuation.yield(.copyingPhotos(current: current, total: total))
+                            }
+                        )
+                    }
+                    
+                    completedSteps += 1
+                    
+                    // Create archive
+                    continuation.yield(.creatingArchive(progress: Double(completedSteps) / Double(totalSteps)))
+                    
+                    let archiveURL = try await Task.detached {
+                        let archiveURL = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(archiveName)
+                        try? FileManager.default.removeItem(at: archiveURL)
+                        
+                        try FileManager.default.zipItem(at: workingRoot,
+                                                      to: archiveURL,
+                                                      shouldKeepParent: false,
+                                                      compressionMethod: .deflate)
+                        
+                        try FileManager.default.setAttributes([
+                            .posixPermissions: 0o644
+                        ], ofItemAtPath: archiveURL.path)
+                        
+                        return archiveURL
+                    }.value
+                    
+                    completedSteps += 1
+                    continuation.yield(.creatingArchive(progress: 1.0))
+                    
+                    // Clean up
+                    Task.detached {
+                        try? FileManager.default.removeItem(at: workingRoot)
+                    }
+                    
+                    guard FileManager.default.fileExists(atPath: archiveURL.path) else {
+                        throw DataError.failedCreateZip
+                    }
+                    
+                    let result = ExportResult(
+                        archiveURL: archiveURL,
+                        itemCount: itemData.count,
+                        locationCount: locationData.count,
+                        labelCount: labelData.count,
+                        photoCount: allPhotoURLs.count
+                    )
+                    
+                    continuation.yield(.completed(result))
+                    continuation.finish()
+                    
+                } catch {
+                    continuation.yield(.error(error))
+                    continuation.finish()
+                }
+            }
+        }
+    }
+    
     /// Exports all `InventoryItem`s (and their photos) into a single **zip** file that also
     /// contains `inventory.csv`.  The returned `URL` points to the finished archive
     /// inside the temporary directory – caller is expected to share / move / delete.
+    /// For progress reporting, use `exportInventoryWithProgress` instead.
     @MainActor
     func exportInventory(modelContext: ModelContext, fileName: String? = nil, config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)) async throws -> URL {
         var itemData: [ItemData] = []
@@ -148,6 +311,24 @@ actor DataManager {
         let itemCount: Int
         let locationCount: Int
         let labelCount: Int
+    }
+    
+    enum ExportProgress {
+        case preparing
+        case fetchingData(phase: String, progress: Double)
+        case writingCSV(progress: Double)
+        case copyingPhotos(current: Int, total: Int)
+        case creatingArchive(progress: Double)
+        case completed(ExportResult)
+        case error(Error)
+    }
+    
+    struct ExportResult {
+        let archiveURL: URL
+        let itemCount: Int
+        let locationCount: Int
+        let labelCount: Int
+        let photoCount: Int
     }
     
     // MARK: - Batch Processing Configuration
@@ -639,6 +820,69 @@ actor DataManager {
     }
     
     // MARK: - Photo Copy Helpers
+    
+    private nonisolated func copyPhotosToDirectoryWithProgress(
+        photoURLs: [URL],
+        destinationDir: URL,
+        progressHandler: @escaping (Int, Int) -> Void
+    ) async throws {
+        let maxConcurrentCopies = 5
+        var failedCopies: [(url: URL, error: Error)] = []
+        var activeTasks = 0
+        var completedCount = 0
+        let totalCount = photoURLs.count
+        
+        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
+            var pendingURLs = photoURLs[...]
+            
+            while !pendingURLs.isEmpty || activeTasks > 0 {
+                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
+                    activeTasks += 1
+                    group.addTask {
+                        do {
+                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
+                                return (photoURL, DataError.photoNotFound)
+                            }
+                            
+                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
+                            try? FileManager.default.removeItem(at: dest)
+                            try FileManager.default.copyItem(at: photoURL, to: dest)
+                            return (photoURL, nil)
+                        } catch {
+                            return (photoURL, error)
+                        }
+                    }
+                }
+                
+                if let result = try await group.next() {
+                    activeTasks -= 1
+                    completedCount += 1
+                    
+                    if let error = result.1 {
+                        failedCopies.append((url: result.0, error: error))
+                    }
+                    
+                    // Report progress every 5 photos or at the end
+                    if completedCount % 5 == 0 || completedCount == totalCount {
+                        progressHandler(completedCount, totalCount)
+                    }
+                }
+            }
+        }
+        
+        if !failedCopies.isEmpty {
+            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
+            TelemetryManager.shared.trackPhotoCopyFailures(
+                failureCount: failedCopies.count,
+                totalPhotos: photoURLs.count,
+                failureRate: failureRate
+            )
+            
+            for failure in failedCopies {
+                print("⚠️ Failed to copy photo \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
+            }
+        }
+    }
     
     private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
         let maxConcurrentCopies = 5
