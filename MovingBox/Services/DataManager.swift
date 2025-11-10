@@ -313,6 +313,18 @@ actor DataManager {
         let labelCount: Int
     }
     
+    /// Progress updates during export operations
+    ///
+    /// Progress phases and their typical duration:
+    /// - **preparing**: Instant - setting up export directory
+    /// - **fetchingData**: 0-30% - Batched fetching from SwiftData (scales with item count)
+    /// - **writingCSV**: 30-50% - Fast, typically <1s for most exports
+    /// - **copyingPhotos**: 50-80% - Longest phase, scales with photo count and sizes
+    /// - **creatingArchive**: 80-100% - Scales with total data size (compression)
+    /// - **completed**: Terminal state with export results
+    /// - **error**: Terminal state with error details
+    ///
+    /// Use `ProgressMapper.mapExportProgress()` to convert to 0-1 normalized progress.
     enum ExportProgress {
         case preparing
         case fetchingData(phase: String, progress: Double)
@@ -862,8 +874,9 @@ actor DataManager {
                         failedCopies.append((url: result.0, error: error))
                     }
                     
-                    // Report progress every 5 photos or at the end
-                    if completedCount % 5 == 0 || completedCount == totalCount {
+                    // Report progress based on total photo count for optimal UX
+                    let threshold = ProgressMapper.photoProgressThreshold(for: totalCount)
+                    if completedCount % threshold == 0 || completedCount == totalCount {
                         progressHandler(completedCount, totalCount)
                     }
                 }

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0CBDBBF6E6C64A42B24D9534 /* ProgressMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */; };
+		A96F973C0F954591AB5191A0 /* ProgressMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */; };
+
 		190DFBA42D6FC2170062D079 /* CurrencyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */; };
 		191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191FEA602D6D04E5006FF067 /* SettingsManager.swift */; };
 		1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 1920B0D52D88B13000CFA1E9 /* TelemetryDeck */; };
@@ -62,6 +65,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
+		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
+
 		190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatter.swift; sourceTree = "<group>"; };
 		191FEA602D6D04E5006FF067 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryManager.swift; sourceTree = "<group>"; };
@@ -278,6 +284,7 @@
 			isa = PBXGroup;
 			children = (
 				19BA29922DC464A70064C5A9 /* DataManager.swift */,
+				675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */,
 				19F765D42DAB558000AE287D /* OptimizedImageManager.swift */,
 				19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */,
 				194195652DA4805B008CABAA /* ModelContainerManager.swift */,
@@ -543,6 +550,7 @@
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
 				19BA29932DC464A70064C5A9 /* DataManager.swift in Sources */,
+				0CBDBBF6E6C64A42B24D9534 /* ProgressMapper.swift in Sources */,
 				196109F52D764D9100A76504 /* ColorExtension.swift in Sources */,
 				19D3430E2C12146800F8B2C7 /* Router.swift in Sources */,
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
@@ -568,6 +576,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */,
+				A96F973C0F954591AB5191A0 /* ProgressMapperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

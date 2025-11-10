@@ -175,8 +175,22 @@ struct ExportDataView: View {
                     case .completed(let result):
                         archiveURL = result.archiveURL
                         exportCompleted = true
-                        showExportLoading = false
-                        showShareSheet = true
+                        
+                        // Small delay to ensure file is fully written and accessible
+                        try? await Task.sleep(for: .milliseconds(100))
+                        
+                        // Verify file exists before showing share sheet
+                        if FileManager.default.fileExists(atPath: result.archiveURL.path) {
+                            showExportLoading = false
+                            showShareSheet = true
+                        } else {
+                            exportError = NSError(
+                                domain: "ExportError",
+                                code: -1,
+                                userInfo: [NSLocalizedDescriptionKey: "Export file not found"]
+                            )
+                            showExportLoading = false
+                        }
                         
                     case .error(let error):
                         exportError = error

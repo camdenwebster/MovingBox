@@ -16,13 +16,13 @@ Always pipe `xcodebuild` commands through `xcsift` to provide concise JSON outpu
 
 ```bash
 # Build the project
-xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'platform=iOS Simulator,name=iPhone 16 Pro' 2>&1 | xcsift
+xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcsift
 
 # Run unit tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcsift
 
 # Run UI tests  
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro' 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcsift
 
 # Run snapshot tests
 xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -testPlan MovingBoxSnapshotTests -destination 'platform=iOS Simulator,name=iPhone 14 Pro' 2>&1 | xcsift

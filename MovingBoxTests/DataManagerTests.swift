@@ -657,6 +657,126 @@ struct DataManagerTests {
         #expect(fileManager.fileExists(atPath: url.path))
     }
     
+    @Test("Export progress reports all phases")
+    func exportProgressReportsAllPhases() async throws {
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        for i in 1...10 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+        try context.save()
+        
+        var receivedPhases: Set<String> = []
+        
+        for await progress in DataManager.shared.exportInventoryWithProgress(
+            modelContext: context
+        ) {
+            switch progress {
+            case .preparing:
+                receivedPhases.insert("preparing")
+            case .fetchingData:
+                receivedPhases.insert("fetchingData")
+            case .writingCSV:
+                receivedPhases.insert("writingCSV")
+            case .copyingPhotos:
+                receivedPhases.insert("copyingPhotos")
+            case .creatingArchive:
+                receivedPhases.insert("creatingArchive")
+            case .completed(let result):
+                receivedPhases.insert("completed")
+                try? fileManager.removeItem(at: result.archiveURL)
+                break
+            case .error:
+                Issue.record("Export should not error")
+            }
+        }
+        
+        #expect(receivedPhases.contains("preparing"))
+        #expect(receivedPhases.contains("fetchingData"))
+        #expect(receivedPhases.contains("writingCSV"))
+        #expect(receivedPhases.contains("creatingArchive"))
+        #expect(receivedPhases.contains("completed"))
+    }
+    
+    @Test("Export can be cancelled mid-operation")
+    func exportCanBeCancelled() async throws {
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        for i in 1...200 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+        try context.save()
+        
+        let task = Task {
+            var phaseCount = 0
+            for await progress in DataManager.shared.exportInventoryWithProgress(
+                modelContext: context
+            ) {
+                phaseCount += 1
+                if case .fetchingData = progress, phaseCount > 1 {
+                    return false
+                }
+            }
+            return true
+        }
+        
+        task.cancel()
+        let completed = await task.value
+        
+        #expect(completed == false)
+    }
+    
+    @Test("Export result contains correct counts")
+    func exportResultContainsCorrectCounts() async throws {
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        for i in 1...15 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+        
+        for i in 1...5 {
+            let location = InventoryLocation(name: "Location \(i)")
+            context.insert(location)
+        }
+        
+        for i in 1...3 {
+            let label = InventoryLabel(name: "Label \(i)")
+            context.insert(label)
+        }
+        
+        try context.save()
+        
+        var exportResult: DataManager.ExportResult?
+        
+        for await progress in DataManager.shared.exportInventoryWithProgress(
+            modelContext: context
+        ) {
+            if case .completed(let result) = progress {
+                exportResult = result
+                try? fileManager.removeItem(at: result.archiveURL)
+                break
+            }
+        }
+        
+        guard let result = exportResult else {
+            Issue.record("Export should complete")
+            return
+        }
+        
+        #expect(result.itemCount == 15)
+        #expect(result.locationCount == 5)
+        #expect(result.labelCount == 3)
+    }
+    
     // MARK: - Helper Methods
     
     private func getTestFileURL(named filename: String) throws -> URL {

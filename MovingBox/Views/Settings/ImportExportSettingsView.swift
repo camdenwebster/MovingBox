@@ -237,26 +237,40 @@ struct ImportExportSettingsView: View {
                         
                     case .fetchingData(let phase, let progressValue):
                         exportPhase = "Fetching \(phase)..."
-                        exportProgress = progressValue * 0.3 // 0-30% for data fetching
+                        exportProgress = progressValue * 0.3
                         
                     case .writingCSV(let progressValue):
                         exportPhase = "Writing CSV files..."
-                        exportProgress = 0.3 + (progressValue * 0.2) // 30-50% for CSV
+                        exportProgress = 0.3 + (progressValue * 0.2)
                         
                     case .copyingPhotos(let current, let total):
                         exportPhase = "Copying photos (\(current)/\(total))..."
                         let photoProgress = Double(current) / Double(total)
-                        exportProgress = 0.5 + (photoProgress * 0.3) // 50-80% for photos
+                        exportProgress = 0.5 + (photoProgress * 0.3)
                         
                     case .creatingArchive(let progressValue):
                         exportPhase = "Creating archive..."
-                        exportProgress = 0.8 + (progressValue * 0.2) // 80-100% for archive
+                        exportProgress = 0.8 + (progressValue * 0.2)
                         
                     case .completed(let result):
                         archiveURL = result.archiveURL
                         exportCompleted = true
-                        showExportLoading = false
-                        showShareSheet = true
+                        
+                        // Small delay to ensure file is fully written and accessible
+                        try? await Task.sleep(for: .milliseconds(100))
+                        
+                        // Verify file exists before showing share sheet
+                        if FileManager.default.fileExists(atPath: result.archiveURL.path) {
+                            showExportLoading = false
+                            showShareSheet = true
+                        } else {
+                            exportError = NSError(
+                                domain: "ExportError",
+                                code: -1,
+                                userInfo: [NSLocalizedDescriptionKey: "Export file not found"]
+                            )
+                            showExportLoading = false
+                        }
                         
                     case .error(let error):
                         exportError = error
