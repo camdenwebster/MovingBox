@@ -10,31 +10,15 @@ import SwiftData
 
 struct MainSplitView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @Binding var navigationPath: NavigationPath
 
     var body: some View {
-        if horizontalSizeClass == .regular {
-            // iPad and Mac: Use NavigationSplitView
-            NavigationSplitView {
-                SidebarView(selection: $router.sidebarSelection)
-            } detail: {
-                NavigationStack(path: $navigationPath) {
-                    detailView(for: router.sidebarSelection)
-                        .navigationDestination(for: Router.Destination.self) { destination in
-                            destinationView(for: destination, navigationPath: $navigationPath)
-                        }
-                        .navigationDestination(for: String.self) { destination in
-                            stringDestinationView(for: destination)
-                        }
-                }
-                .tint(.green)
-            }
-        } else {
-            // iPhone: Use traditional NavigationStack
+        NavigationSplitView {
+            SidebarView(selection: $router.sidebarSelection)
+        } detail: {
             NavigationStack(path: $navigationPath) {
-                DashboardView()
+                detailView(for: router.sidebarSelection)
                     .navigationDestination(for: Router.Destination.self) { destination in
                         destinationView(for: destination, navigationPath: $navigationPath)
                     }
