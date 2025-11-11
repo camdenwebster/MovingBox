@@ -166,24 +166,21 @@ struct ImportPreviewView: View {
         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
     }
     
-    private func startImport() {
-        isImporting = true
-        print("🔵 ImportPreviewView: startImport() called")
-        importTask = Task {
-            do {
-                print("🔵 ImportPreviewView: accessing security-scoped resource")
-                guard zipURL.startAccessingSecurityScopedResource() else {
-                    throw NSError(
-                        domain: "ImportError",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"]
-                    )
-                }
-                
-                defer {
-                    print("🔵 ImportPreviewView: stopping security-scoped resource access")
-                    zipURL.stopAccessingSecurityScopedResource()
-                }
+     private func startImport() {
+         isImporting = true
+         importTask = Task {
+             do {
+                 guard zipURL.startAccessingSecurityScopedResource() else {
+                     throw NSError(
+                         domain: "ImportError",
+                         code: 1,
+                         userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"]
+                     )
+                 }
+                 
+                 defer {
+                     zipURL.stopAccessingSecurityScopedResource()
+                 }
                 
                 let documentsDirectory = FileManager.default.urls(
                     for: .documentDirectory,
@@ -204,23 +201,14 @@ struct ImportPreviewView: View {
                     try FileManager.default.removeItem(at: importURL)
                 }
                 
-                print("🔵 ImportPreviewView: copying ZIP file")
                 try FileManager.default.copyItem(at: zipURL, to: importURL)
-                print("🔵 ImportPreviewView: ZIP copied, starting import")
                 
-                var progressCount = 0
                 for try await progress in await DataManager.shared.importInventory(
                     from: importURL,
                     modelContext: modelContext,
                     config: config
                 ) {
-                    progressCount += 1
-                    if progressCount % 50 == 0 {
-                        print("🔵 ImportPreviewView: progress update #\(progressCount)")
-                    }
-                    
                     if Task.isCancelled {
-                        print("🔵 ImportPreviewView: task cancelled")
                         try? FileManager.default.removeItem(at: importURL)
                         throw NSError(
                             domain: "ImportError",
@@ -235,23 +223,18 @@ struct ImportPreviewView: View {
                             importProgress = value
                         }
                     case .completed(let result):
-                        print("🔵 ImportPreviewView: import completed with \(result.itemCount) items, \(result.locationCount) locations, \(result.labelCount) labels")
                         try? FileManager.default.removeItem(at: importURL)
                         if let contents = try? FileManager.default.contentsOfDirectory(
                             at: importDirectory,
                             includingPropertiesForKeys: nil
                         ), contents.isEmpty {
                             try? FileManager.default.removeItem(at: importDirectory)
-                        }
-                        
-                        print("🔵 ImportPreviewView: calling onImportComplete on MainActor")
-                        await MainActor.run {
-                            print("🔵 ImportPreviewView: on MainActor, calling onImportComplete")
-                            onImportComplete(result)
-                            print("🔵 ImportPreviewView: onImportComplete called, NOT dismissing - success view will handle it")
-                        }
+                         }
+                         
+                         await MainActor.run {
+                             onImportComplete(result)
+                         }
                     case .error(let error):
-                        print("🔵 ImportPreviewView: import error: \(error.localizedDescription)")
                         try? FileManager.default.removeItem(at: importURL)
                         await MainActor.run {
                             importError = error
@@ -259,9 +242,7 @@ struct ImportPreviewView: View {
                         }
                     }
                 }
-                print("🔵 ImportPreviewView: for-await loop completed")
-            } catch {
-                print("🔵 ImportPreviewView: caught error: \(error.localizedDescription)")
+             } catch {
                 await MainActor.run {
                     importError = error
                     isImporting = false

@@ -92,7 +92,6 @@ struct ImportDataView: View {
                 if let url = try? result.get().first {
                     await validateAndPreview(url: url)
                 } else {
-                    print("❌ Import error: No file selected")
                     validationError = NSError(domain: "ImportError", code: 0, userInfo: [NSLocalizedDescriptionKey: "No file selected"])
                 }
             }
@@ -113,9 +112,7 @@ struct ImportDataView: View {
                         includeLabels: importLabels
                     ),
                     onImportComplete: { result in
-                        print("🟢 ImportDataView: onImportComplete called with \(result.itemCount) items")
                         importResult = result
-                        print("🟢 ImportDataView: importResult set, sheet will update")
                     }
                 )
             }
@@ -166,7 +163,6 @@ struct ImportDataView: View {
             showPreviewView = true
             
         } catch {
-            print("❌ Validation error: \(error.localizedDescription)")
             validationError = error
             isValidatingZip = false
         }

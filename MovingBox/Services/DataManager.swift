@@ -375,8 +375,6 @@ actor DataManager {
         config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
     ) async throws -> ImportResult {
         return try await Task.detached(priority: .userInitiated) {
-            print("📦 Previewing import from: \(zipURL.lastPathComponent)")
-            
             let workingDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("preview-\(UUID().uuidString)", isDirectory: true)
             
@@ -432,11 +430,9 @@ actor DataManager {
                 let rows = csvString.components(separatedBy: .newlines)
                     .filter { !$0.isEmpty }
                 labelCount = max(0, rows.count - 1)
-            }
-            
-            print("📦 Preview complete: \(itemCount) items, \(locationCount) locations, \(labelCount) labels")
-            
-            return ImportResult(
+             }
+             
+             return ImportResult(
                 itemCount: itemCount,
                 locationCount: locationCount,
                 labelCount: labelCount
@@ -453,9 +449,6 @@ actor DataManager {
         AsyncStream { continuation in
             Task.detached(priority: .userInitiated) {
                 do {
-                    print("📦 Starting import from: \(zipURL.lastPathComponent)")
-                    
-                    // Create working directory with proper permissions
                     let workingDir = FileManager.default.temporaryDirectory
                         .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
                     
@@ -463,15 +456,12 @@ actor DataManager {
                         try? FileManager.default.removeItem(at: workingDir)
                     }
                     
-                    // Create local copy and unzip with proper permissions
-                    print("📦 Creating local copy and unzipping...")
                     let localZipURL = FileManager.default.temporaryDirectory
                         .appendingPathComponent(zipURL.lastPathComponent)
                     try? FileManager.default.removeItem(at: localZipURL)
                     
                     // Check if we can access the file
                     guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
-                        print("❌ File access denied: \(zipURL.path)")
                         continuation.yield(.error(DataError.fileAccessDenied))
                         continuation.finish()
                         return
@@ -904,11 +894,10 @@ actor DataManager {
                                 for (index, task) in batch.enumerated() {
                                     group.addTask {
                                         do {
-                                            let copiedURL = try self.copyImageToDocuments(task.sourceURL, filename: task.destinationFilename)
-                                            return (batchStart + index, task.sourceURL, copiedURL)
-                                        } catch {
-                                            print("⚠️ Failed to copy image \(task.destinationFilename): \(error)")
-                                            return (batchStart + index, task.sourceURL, nil)
+                                             let copiedURL = try self.copyImageToDocuments(task.sourceURL, filename: task.destinationFilename)
+                                             return (batchStart + index, task.sourceURL, copiedURL)
+                                         } catch {
+                                             return (batchStart + index, task.sourceURL, nil)
                                         }
                                     }
                                 }
@@ -940,19 +929,14 @@ actor DataManager {
                                 // Save image URL updates for this batch
                                 try? modelContext.save()
                             }
-                            
-                            print("📸 Completed image batch \(batchEnd)/\(imageCopyTasks.count)")
-                        }
-                        print("✅ Image copying completed")
+                         }
                     }
                     
-                    print("📦 DataManager: yielding completion with \(itemCount) items, \(locationCount) locations, \(labelCount) labels")
                     continuation.yield(.completed(ImportResult(
                         itemCount: itemCount,
                         locationCount: locationCount,
                         labelCount: labelCount
                     )))
-                    print("📦 DataManager: finished continuation")
                     continuation.finish()
                     
                 } catch {

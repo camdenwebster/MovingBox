@@ -38,7 +38,6 @@ struct ImportSuccessView: View {
                 HStack {
                     Spacer()
                     Button("Done") {
-                        print("🟢 ImportSuccessView: Done button tapped")
                         dismiss()
                     }
                     .font(.headline)
@@ -93,7 +92,6 @@ struct ImportSuccessView: View {
                 Spacer()
                 
                 Button {
-                    print("🟢 ImportSuccessView: Go to Dashboard button tapped")
                     navigateToDashboard()
                 } label: {
                     Text("Go to Dashboard")
@@ -108,9 +106,8 @@ struct ImportSuccessView: View {
                 .padding()
             }
         }
-        .onAppear {
-            print("🟢 ImportSuccessView: appeared with \(importResult.itemCount) items")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+         .onAppear {
+             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.6)) {
                     showCheckmark = true
                 }
@@ -122,17 +119,13 @@ struct ImportSuccessView: View {
         }
     }
     
-    private func navigateToDashboard() {
-        print("🟢 ImportSuccessView: navigateToDashboard called")
-        // Dismiss the sheet first, then navigate
-        dismiss()
-        
-        // Give sheet time to dismiss before navigating
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            print("🟢 ImportSuccessView: navigating to dashboard")
-            router.navigateToRoot()
-            router.navigate(to: .dashboardView)
-        }
+     private func navigateToDashboard() {
+         dismiss()
+         
+         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+             router.navigateToRoot()
+             router.navigate(to: .dashboardView)
+         }
     }
 }
 
