@@ -13,6 +13,7 @@ struct InventoryListSubView: View {
     @EnvironmentObject var router: Router
 
     let location: InventoryLocation?
+    let filterLabel: InventoryLabel?
     let searchString: String
     let sortOrder: [SortDescriptor<InventoryItem>]
     let showOnlyUnassigned: Bool
@@ -87,14 +88,15 @@ struct InventoryListSubView: View {
     }
     
     
-    init(location: InventoryLocation?, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
+    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
         self.location = location
+        self.filterLabel = filterLabel
         self.searchString = searchString
         self.sortOrder = sortOrder
         self.showOnlyUnassigned = showOnlyUnassigned
         self._selectedItemIDs = selectedItemIDs
 
-        // Build predicate based on location or unassigned filter
+        // Build predicate based on location, label, or unassigned filter
         let predicate: Predicate<InventoryItem>?
         if showOnlyUnassigned {
             // Show only items without a location
@@ -106,6 +108,12 @@ struct InventoryListSubView: View {
             let locationID = location.persistentModelID
             predicate = #Predicate<InventoryItem> { item in
                 item.location?.persistentModelID == locationID
+            }
+        } else if let filterLabel = filterLabel {
+            // Show items with specific label
+            let labelID = filterLabel.persistentModelID
+            predicate = #Predicate<InventoryItem> { item in
+                item.labels?.contains(where: { $0.persistentModelID == labelID }) ?? false
             }
         } else {
             // Show all items (no filter)

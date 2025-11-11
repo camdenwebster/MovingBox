@@ -54,10 +54,12 @@ struct InventoryListView: View {
     @Query private var allItems: [InventoryItem]
 
     let location: InventoryLocation?
+    let filterLabel: InventoryLabel?
     let showOnlyUnassigned: Bool
 
-    init(location: InventoryLocation?, showOnlyUnassigned: Bool = false) {
+    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false) {
         self.location = location
+        self.filterLabel = filterLabel
         self.showOnlyUnassigned = showOnlyUnassigned
     }
 
@@ -101,6 +103,7 @@ struct InventoryListView: View {
         case .reverse:
             InventoryListSubView(
                 location: location,
+                filterLabel: filterLabel,
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
@@ -110,6 +113,7 @@ struct InventoryListView: View {
         default:
             InventoryListSubView(
                 location: location,
+                filterLabel: filterLabel,
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
@@ -122,7 +126,7 @@ struct InventoryListView: View {
     var body: some View {
         inventoryListContent
             .environment(\.editMode, $editMode)
-            .navigationTitle(showOnlyUnassigned ? "No Location" : (location?.name ?? "All Items"))
+            .navigationTitle(showOnlyUnassigned ? "No Location" : (filterLabel?.name ?? location?.name ?? "All Items"))
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
