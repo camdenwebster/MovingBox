@@ -51,18 +51,26 @@ struct ImportLoadingView: View {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 60))
                                     .foregroundColor(.red)
-                                
+
                                 Text("Import Failed")
                                     .font(.title2.bold())
-                                
+
                                 Text(error.localizedDescription)
                                     .font(.body)
                                     .multilineTextAlignment(.center)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.primary)
                                     .padding(.horizontal)
-                                
+
+                                if let recoverySuggestion = (error as? LocalizedError)?.recoverySuggestion {
+                                    Text(recoverySuggestion)
+                                        .font(.callout)
+                                        .multilineTextAlignment(.center)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal)
+                                }
+
                                 Spacer()
-                                
+
                                 Button("Close") {
                                     print(" Error view close button tapped")
                                     isComplete = false
