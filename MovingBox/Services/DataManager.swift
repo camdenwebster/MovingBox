@@ -376,7 +376,7 @@ actor DataManager {
         config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
     ) -> AsyncStream<ImportProgress> {
         AsyncStream { continuation in
-            Task { @MainActor in
+            Task.detached(priority: .userInitiated) {
                 do {
                     print("📦 Starting import from: \(zipURL.lastPathComponent)")
                     
@@ -459,6 +459,39 @@ actor DataManager {
                     var labelCount = 0
                     var itemCount = 0
                     
+                    let batchSize = 50
+                    
+                    // Pre-fetch existing locations and labels for caching (MainActor required for SwiftData)
+                    var locationCache: [String: InventoryLocation] = [:]
+                    var labelCache: [String: InventoryLabel] = [:]
+                    
+                    await MainActor.run {
+                        if config.includeLocations {
+                            if let existingLocations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>()) {
+                                for location in existingLocations {
+                                    locationCache[location.name] = location
+                                }
+                            }
+                        }
+                        
+                        if config.includeLabels {
+                            if let existingLabels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>()) {
+                                for label in existingLabels {
+                                    labelCache[label.name] = label
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Collect image copy tasks for concurrent processing
+                    struct ImageCopyTask {
+                        let sourceURL: URL
+                        let destinationFilename: String
+                        let targetObject: AnyObject
+                        let isLocation: Bool
+                    }
+                    var imageCopyTasks: [ImageCopyTask] = []
+                    
                     // Import locations if enabled
                     if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
                         let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
@@ -466,35 +499,93 @@ actor DataManager {
                             .filter { !$0.isEmpty }
                         
                         if rows.count > 1 {
+                            // Parse CSV off main thread
+                            struct LocationData {
+                                let name: String
+                                let desc: String
+                                let photoFilename: String
+                                let photoURL: URL?
+                            }
+                            
+                            var locationDataBatch: [LocationData] = []
+                            
                             for row in rows.dropFirst() {
-                                // Yield control to prevent UI freezing
-                                await Task.yield()
-                                
-                                let values = await parseCSVRow(row)
+                                let values = await self.parseCSVRow(row)
                                 guard values.count >= 3 else { continue }
                                 
-                                let location = createAndConfigureLocation(
-                                    name: values[0],
-                                    desc: values[1]
-                                )
-                                
+                                var photoURL: URL? = nil
                                 if !values[2].isEmpty {
-                                    let sanitizedFilename = sanitizeFilename(values[2])
-                                    let photoURL = photosDir.appendingPathComponent(sanitizedFilename)
-                                    if FileManager.default.fileExists(atPath: photoURL.path) {
-                                        do {
-                                            location.imageURL = try copyImageToDocuments(photoURL, filename: values[2])
-                                        } catch {
-                                            print("⚠️ Failed to copy location image: \(error)")
-                                        }
+                                    let sanitizedFilename = self.sanitizeFilename(values[2])
+                                    let url = photosDir.appendingPathComponent(sanitizedFilename)
+                                    if FileManager.default.fileExists(atPath: url.path) {
+                                        photoURL = url
                                     }
                                 }
                                 
-                                modelContext.insert(location)
-                                locationCount += 1
+                                locationDataBatch.append(LocationData(
+                                    name: values[0],
+                                    desc: values[1],
+                                    photoFilename: values[2],
+                                    photoURL: photoURL
+                                ))
+                                
                                 processedRows += 1
-                                let progress = Double(processedRows) / Double(totalRows)
-                                continuation.yield(.progress(progress))
+                                
+                                // Process batch on MainActor when full
+                                if locationDataBatch.count >= batchSize {
+                                    let batchToProcess = locationDataBatch
+                                    locationDataBatch.removeAll()
+                                    
+                                    await MainActor.run {
+                                        for data in batchToProcess {
+                                            let location = self.createAndConfigureLocation(name: data.name, desc: data.desc)
+                                            
+                                            if let photoURL = data.photoURL {
+                                                imageCopyTasks.append(ImageCopyTask(
+                                                    sourceURL: photoURL,
+                                                    destinationFilename: data.photoFilename,
+                                                    targetObject: location,
+                                                    isLocation: true
+                                                ))
+                                            }
+                                            
+                                            locationCache[location.name] = location
+                                            modelContext.insert(location)
+                                            locationCount += 1
+                                        }
+                                        try? modelContext.save()
+                                    }
+                                }
+                                
+                                if processedRows % 50 == 0 || processedRows == totalRows {
+                                    let progress = Double(processedRows) / Double(totalRows)
+                                    continuation.yield(.progress(progress))
+                                }
+                            }
+                            
+                            // Process remaining locations
+                            if !locationDataBatch.isEmpty {
+                                let batchToProcess = locationDataBatch
+                                
+                                await MainActor.run {
+                                    for data in batchToProcess {
+                                        let location = self.createAndConfigureLocation(name: data.name, desc: data.desc)
+                                        
+                                        if let photoURL = data.photoURL {
+                                            imageCopyTasks.append(ImageCopyTask(
+                                                sourceURL: photoURL,
+                                                destinationFilename: data.photoFilename,
+                                                targetObject: location,
+                                                isLocation: true
+                                            ))
+                                        }
+                                        
+                                        locationCache[location.name] = location
+                                        modelContext.insert(location)
+                                        locationCount += 1
+                                    }
+                                    try? modelContext.save()
+                                }
                             }
                         }
                     }
@@ -506,25 +597,76 @@ actor DataManager {
                             .filter { !$0.isEmpty }
                         
                         if rows.count > 1 {
+                            // Parse CSV off main thread
+                            struct LabelData {
+                                let name: String
+                                let desc: String
+                                let colorHex: String
+                                let emoji: String
+                            }
+                            
+                            var labelDataBatch: [LabelData] = []
+                            
                             for row in rows.dropFirst() {
-                                // Yield control to prevent UI freezing
-                                await Task.yield()
-                                
-                                let values = await parseCSVRow(row)
+                                let values = await self.parseCSVRow(row)
                                 guard values.count >= 4 else { continue }
                                 
-                                let label = createAndConfigureLabel(
+                                labelDataBatch.append(LabelData(
                                     name: values[0],
                                     desc: values[1],
                                     colorHex: values[2],
                                     emoji: values[3]
-                                )
+                                ))
                                 
-                                modelContext.insert(label)
-                                labelCount += 1
                                 processedRows += 1
-                                let progress = Double(processedRows) / Double(totalRows)
-                                continuation.yield(.progress(progress))
+                                
+                                // Process batch on MainActor when full
+                                if labelDataBatch.count >= batchSize {
+                                    let batchToProcess = labelDataBatch
+                                    labelDataBatch.removeAll()
+                                    
+                                    await MainActor.run {
+                                        for data in batchToProcess {
+                                            let label = self.createAndConfigureLabel(
+                                                name: data.name,
+                                                desc: data.desc,
+                                                colorHex: data.colorHex,
+                                                emoji: data.emoji
+                                            )
+                                            
+                                            labelCache[label.name] = label
+                                            modelContext.insert(label)
+                                            labelCount += 1
+                                        }
+                                        try? modelContext.save()
+                                    }
+                                }
+                                
+                                if processedRows % 50 == 0 || processedRows == totalRows {
+                                    let progress = Double(processedRows) / Double(totalRows)
+                                    continuation.yield(.progress(progress))
+                                }
+                            }
+                            
+                            // Process remaining labels
+                            if !labelDataBatch.isEmpty {
+                                let batchToProcess = labelDataBatch
+                                
+                                await MainActor.run {
+                                    for data in batchToProcess {
+                                        let label = self.createAndConfigureLabel(
+                                            name: data.name,
+                                            desc: data.desc,
+                                            colorHex: data.colorHex,
+                                            emoji: data.emoji
+                                        )
+                                        
+                                        labelCache[label.name] = label
+                                        modelContext.insert(label)
+                                        labelCount += 1
+                                    }
+                                    try? modelContext.save()
+                                }
                             }
                         }
                     }
@@ -536,54 +678,188 @@ actor DataManager {
                             .filter { !$0.isEmpty }
                         
                         if rows.count > 1 {
+                            // Parse CSV data off main thread
+                            struct ItemData {
+                                let title: String
+                                let desc: String
+                                let locationName: String
+                                let labelName: String
+                                let photoFilename: String
+                                let photoURL: URL?
+                            }
+                            
+                            var itemDataBatch: [ItemData] = []
+                            
                             for row in rows.dropFirst() {
-                                // Yield control to prevent UI freezing
-                                await Task.yield()
-                                
-                                let values = await parseCSVRow(row)
+                                let values = await self.parseCSVRow(row)
                                 guard values.count >= 13 else { continue }
                                 
-                                let item = createAndConfigureItem(
-                                    title: values[0],
-                                    desc: values[1]
-                                )
-                                
-                                if config.includeLocations {
-                                    let location = findOrCreateLocation(
-                                        name: values[2],
-                                        modelContext: modelContext
-                                    )
-                                    item.location = location
-                                }
-                                
-                                if config.includeLabels {
-                                    let label = findOrCreateLabel(
-                                        name: values[3],
-                                        modelContext: modelContext
-                                    )
-                                    item.label = label
-                                }
-                                
                                 let photoFilename = values[11]
+                                var photoURL: URL? = nil
                                 if !photoFilename.isEmpty {
-                                    let sanitizedFilename = sanitizeFilename(photoFilename)
-                                    let photoURL = photosDir.appendingPathComponent(sanitizedFilename)
-                                    if FileManager.default.fileExists(atPath: photoURL.path) {
-                                        do {
-                                            item.imageURL = try copyImageToDocuments(photoURL, filename: photoFilename)
-                                        } catch {
-                                            print("⚠️ Failed to copy item image: \(error)")
-                                        }
+                                    let sanitizedFilename = self.sanitizeFilename(photoFilename)
+                                    let url = photosDir.appendingPathComponent(sanitizedFilename)
+                                    if FileManager.default.fileExists(atPath: url.path) {
+                                        photoURL = url
                                     }
                                 }
                                 
-                                modelContext.insert(item)
-                                itemCount += 1
+                                itemDataBatch.append(ItemData(
+                                    title: values[0],
+                                    desc: values[1],
+                                    locationName: values[2],
+                                    labelName: values[3],
+                                    photoFilename: photoFilename,
+                                    photoURL: photoURL
+                                ))
+                                
                                 processedRows += 1
-                                let progress = Double(processedRows) / Double(totalRows)
-                                continuation.yield(.progress(progress))
+                                
+                                // Process batch on MainActor when full
+                                if itemDataBatch.count >= batchSize {
+                                    let batchToProcess = itemDataBatch
+                                    itemDataBatch.removeAll()
+                                    
+                                    await MainActor.run {
+                                        for data in batchToProcess {
+                                            let item = self.createAndConfigureItem(title: data.title, desc: data.desc)
+                                            
+                                            if config.includeLocations && !data.locationName.isEmpty {
+                                                if let cachedLocation = locationCache[data.locationName] {
+                                                    item.location = cachedLocation
+                                                } else {
+                                                    let location = self.createAndConfigureLocation(name: data.locationName, desc: "")
+                                                    modelContext.insert(location)
+                                                    locationCache[data.locationName] = location
+                                                    item.location = location
+                                                }
+                                            }
+                                            
+                                            if config.includeLabels && !data.labelName.isEmpty {
+                                                if let cachedLabel = labelCache[data.labelName] {
+                                                    item.label = cachedLabel
+                                                } else {
+                                                    let label = self.createAndConfigureLabel(name: data.labelName, desc: "", colorHex: "", emoji: "")
+                                                    modelContext.insert(label)
+                                                    labelCache[data.labelName] = label
+                                                    item.label = label
+                                                }
+                                            }
+                                            
+                                            if let photoURL = data.photoURL {
+                                                imageCopyTasks.append(ImageCopyTask(
+                                                    sourceURL: photoURL,
+                                                    destinationFilename: data.photoFilename,
+                                                    targetObject: item,
+                                                    isLocation: false
+                                                ))
+                                            }
+                                            
+                                            modelContext.insert(item)
+                                            itemCount += 1
+                                        }
+                                        try? modelContext.save()
+                                    }
+                                }
+                                
+                                if processedRows % 50 == 0 || processedRows == totalRows {
+                                    let progress = Double(processedRows) / Double(totalRows)
+                                    continuation.yield(.progress(progress))
+                                }
+                            }
+                            
+                            // Process remaining items
+                            if !itemDataBatch.isEmpty {
+                                let batchToProcess = itemDataBatch
+                                
+                                await MainActor.run {
+                                    for data in batchToProcess {
+                                        let item = self.createAndConfigureItem(title: data.title, desc: data.desc)
+                                        
+                                        if config.includeLocations && !data.locationName.isEmpty {
+                                            if let cachedLocation = locationCache[data.locationName] {
+                                                item.location = cachedLocation
+                                            } else {
+                                                let location = self.createAndConfigureLocation(name: data.locationName, desc: "")
+                                                modelContext.insert(location)
+                                                locationCache[data.locationName] = location
+                                                item.location = location
+                                            }
+                                        }
+                                        
+                                        if config.includeLabels && !data.labelName.isEmpty {
+                                            if let cachedLabel = labelCache[data.labelName] {
+                                                item.label = cachedLabel
+                                            } else {
+                                                let label = self.createAndConfigureLabel(name: data.labelName, desc: "", colorHex: "", emoji: "")
+                                                modelContext.insert(label)
+                                                labelCache[data.labelName] = label
+                                                item.label = label
+                                            }
+                                        }
+                                        
+                                        if let photoURL = data.photoURL {
+                                            imageCopyTasks.append(ImageCopyTask(
+                                                sourceURL: photoURL,
+                                                destinationFilename: data.photoFilename,
+                                                targetObject: item,
+                                                isLocation: false
+                                            ))
+                                        }
+                                        
+                                        modelContext.insert(item)
+                                        itemCount += 1
+                                    }
+                                    try? modelContext.save()
+                                }
                             }
                         }
+                    }
+                    
+                    // Copy all images concurrently after parsing
+                    if !imageCopyTasks.isEmpty {
+                        print("📸 Copying \(imageCopyTasks.count) images concurrently...")
+                        
+                        let copyResults = try await withThrowingTaskGroup(of: (AnyObject, URL?, Bool).self) { group in
+                            for task in imageCopyTasks {
+                                group.addTask {
+                                    do {
+                                        let copiedURL = try self.copyImageToDocuments(task.sourceURL, filename: task.destinationFilename)
+                                        return (task.targetObject, copiedURL, task.isLocation)
+                                    } catch {
+                                        print("⚠️ Failed to copy image \(task.destinationFilename): \(error)")
+                                        return (task.targetObject, nil, task.isLocation)
+                                    }
+                                }
+                            }
+                            
+                            var results: [(AnyObject, URL?, Bool)] = []
+                            for try await result in group {
+                                results.append(result)
+                            }
+                            return results
+                        }
+                        
+                        // Update image URLs on objects (MainActor required for model updates)
+                        await MainActor.run {
+                            for (targetObject, copiedURL, isLocation) in copyResults {
+                                guard let copiedURL = copiedURL else { continue }
+                                
+                                if isLocation {
+                                    if let location = targetObject as? InventoryLocation {
+                                        location.imageURL = copiedURL
+                                    }
+                                } else {
+                                    if let item = targetObject as? InventoryItem {
+                                        item.imageURL = copiedURL
+                                    }
+                                }
+                            }
+                            
+                            // Save all image URL updates
+                            try? modelContext.save()
+                        }
+                        print("✅ Image copying completed")
                     }
                     
                     continuation.yield(.completed(ImportResult(

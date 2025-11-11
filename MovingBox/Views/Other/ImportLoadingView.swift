@@ -1,3 +1,4 @@
+import SwiftUIBackports
 import SwiftUI
 
 struct ImportLoadingView: View {
@@ -72,7 +73,8 @@ struct ImportLoadingView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.red)
-                                .cornerRadius(10)
+                                .backport.glassProminentButtonStyle()
+
                             }
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
@@ -128,16 +130,19 @@ struct ImportLoadingView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Button("Done") {
-                                    print(" Success view done button tapped")
+                                Button {
+                                    print("Success view done button tapped")
                                     isComplete = false
+                                } label: {
+                                    Text("Done")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
                                 }
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(.green)
-                                .cornerRadius(10)
+                                .tint(.green)
+                                .backport.glassProminentButtonStyle()
+
                             }
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
