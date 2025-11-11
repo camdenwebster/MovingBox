@@ -327,7 +327,6 @@ struct SettingsView: View {
                 case "home": EditHomeView()
                 case "locations": LocationSettingsView()
                 case "labels": LabelSettingsView()
-                case "importExport": ImportExportSettingsView()
                 case "syncData": SyncDataSettingsView()
                 case "importData": ImportDataView()
                 case "exportData": ExportDataView()
