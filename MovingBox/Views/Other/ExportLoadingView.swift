@@ -1,3 +1,4 @@
+import SwiftUIBackports
 import SwiftUI
 
 struct ExportLoadingView: View {
@@ -13,6 +14,8 @@ struct ExportLoadingView: View {
     
     @State private var showFinishButton = false
     @State private var showShareSheet = false
+    @State private var shareableURL: URL?
+    @State private var isPreparingShare = false
     
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
@@ -117,29 +120,36 @@ struct ExportLoadingView: View {
                                 
                                 VStack(spacing: 12) {
                                     Button {
-                                        showShareSheet = true
+                                        prepareForSharing()
                                     } label: {
                                         HStack {
-                                            Image(systemName: "square.and.arrow.up")
-                                            Text("Share Export")
+                                            if isPreparingShare {
+                                                ProgressView()
+                                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                                    .scaleEffect(0.8)
+                                                Text("Preparing...")
+                                            } else {
+                                                Image(systemName: "square.and.arrow.up")
+                                                Text("Share Export")
+                                            }
                                         }
+                                        .font(.headline)
                                         .frame(maxWidth: .infinity)
+                                        .padding()
                                     }
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(.green)
-                                    .cornerRadius(10)
-                                    
-                                    Button("Done") {
+                                    .backport.glassProminentButtonStyle()
+                                    .disabled(isPreparingShare)
+
+                                    Button {
                                         isComplete = false
+                                    } label: {
+                                        Text("Done")
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
                                     }
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.secondary.opacity(0.2))
-                                    .cornerRadius(10)
+                                    .tint(Color.secondary.opacity(0.2))
+                                    .backport.glassProminentButtonStyle()
+                                    .disabled(isPreparingShare)
                                 }
                             }
                             .padding(.horizontal)
@@ -167,13 +177,102 @@ struct ExportLoadingView: View {
             }
         }
         .sheet(isPresented: $showShareSheet) {
-            if let archiveURL {
-                ShareSheet(activityItems: [archiveURL])
-                    .onDisappear {
-                        // Clean up the file after sharing
-                        try? FileManager.default.removeItem(at: archiveURL)
-                    }
+            Group {
+                if let shareableURL {
+                    ShareSheet(activityItems: [shareableURL])
+                        .onAppear {
+                            print("🎭 Sheet content appeared with URL: \(shareableURL.path)")
+                            isPreparingShare = false
+                        }
+                        .onDisappear {
+                            print("🎭 Sheet dismissed, cleaning up files and closing export view")
+                            // Clean up both the shareable copy and original temp file
+                            try? FileManager.default.removeItem(at: shareableURL)
+                            if let archiveURL {
+                                try? FileManager.default.removeItem(at: archiveURL)
+                            }
+                            // Close the export loading view after sharing completes
+                            isComplete = false
+                        }
+                } else {
+                    Text("No file available")
+                        .onAppear {
+                            print("❌ Sheet appeared but shareableURL is nil!")
+                            isPreparingShare = false
+                        }
+                }
             }
+        }
+        .onChange(of: showShareSheet) { oldValue, newValue in
+            print("🔄 showShareSheet changed: \(oldValue) -> \(newValue)")
+            print("   shareableURL is: \(shareableURL?.path ?? "nil")")
+        }
+    }
+
+    /// Copies the ZIP file to Documents directory for reliable share sheet access
+    private func prepareForSharing() {
+        guard let archiveURL else {
+            print("❌ No archive URL available")
+            return
+        }
+
+        isPreparingShare = true
+        print("📦 Preparing to share: \(archiveURL.path)")
+        print("   File exists: \(FileManager.default.fileExists(atPath: archiveURL.path))")
+
+        do {
+            // Verify source file exists
+            guard FileManager.default.fileExists(atPath: archiveURL.path) else {
+                print("❌ Source file does not exist at: \(archiveURL.path)")
+                return
+            }
+
+            // Get Documents directory
+            let documentsURL = try FileManager.default.url(
+                for: .documentDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+
+            // Create destination URL with same filename
+            let destinationURL = documentsURL.appendingPathComponent(archiveURL.lastPathComponent)
+            print("📁 Destination: \(destinationURL.path)")
+
+            // Remove existing file if present
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+                print("   Removed existing file")
+            }
+
+            // Copy file to Documents (synchronously to ensure it's ready before sheet presents)
+            try FileManager.default.copyItem(at: archiveURL, to: destinationURL)
+            print("✅ File copied successfully")
+
+            // Verify destination file exists
+            guard FileManager.default.fileExists(atPath: destinationURL.path) else {
+                print("❌ Destination file does not exist after copy")
+                return
+            }
+
+            // Set proper permissions
+            try FileManager.default.setAttributes([
+                .posixPermissions: 0o644
+            ], ofItemAtPath: destinationURL.path)
+            print("✅ Permissions set")
+
+            // Update state - file is now ready
+            shareableURL = destinationURL
+
+            // Small delay to ensure SwiftUI processes the state update
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                showShareSheet = true
+                print("✅ Share sheet presenting with: \(destinationURL.path)")
+            }
+        } catch {
+            print("❌ Failed to prepare file for sharing: \(error)")
+            print("   Error details: \(error.localizedDescription)")
+            isPreparingShare = false
         }
     }
 }

@@ -971,13 +971,26 @@ actor DataManager {
                 totalPhotos: photoURLs.count,
                 failureRate: failureRate
             )
-            
-            for failure in failedCopies {
-                print("⚠️ Failed to copy photo \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
+
+            // Log summary instead of individual failures to reduce console noise
+            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
+            let otherErrors = failedCopies.count - notFoundCount
+
+            print("⚠️ Photo copy completed with \(failedCopies.count) failures:")
+            if notFoundCount > 0 {
+                print("   • \(notFoundCount) photos not found (may have been deleted)")
             }
+            if otherErrors > 0 {
+                print("   • \(otherErrors) photos failed due to other errors")
+                // Log first few other errors for debugging
+                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
+                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
+                }
+            }
+            print("   Export will continue without missing photos.")
         }
     }
-    
+
     private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
         let maxConcurrentCopies = 5
         var failedCopies: [(url: URL, error: Error)] = []
@@ -1013,7 +1026,7 @@ actor DataManager {
                 }
             }
         }
-        
+
         if !failedCopies.isEmpty {
             let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
             TelemetryManager.shared.trackPhotoCopyFailures(
@@ -1021,13 +1034,26 @@ actor DataManager {
                 totalPhotos: photoURLs.count,
                 failureRate: failureRate
             )
-            
-            for failure in failedCopies {
-                print("⚠️ Failed to copy photo \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
+
+            // Log summary instead of individual failures to reduce console noise
+            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
+            let otherErrors = failedCopies.count - notFoundCount
+
+            print("⚠️ Photo copy completed with \(failedCopies.count) failures:")
+            if notFoundCount > 0 {
+                print("   • \(notFoundCount) photos not found (may have been deleted)")
             }
+            if otherErrors > 0 {
+                print("   • \(otherErrors) photos failed due to other errors")
+                // Log first few other errors for debugging
+                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
+                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
+                }
+            }
+            print("   Export will continue without missing photos.")
         }
     }
-    
+
     // MARK: - Security Helpers
     private nonisolated func sanitizeFilename(_ filename: String) -> String {
         // Remove directory traversal attempts and invalid characters
