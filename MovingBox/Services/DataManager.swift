@@ -369,6 +369,81 @@ actor DataManager {
         emoji: String
     )
 
+    /// Preview import without actually creating objects - just validates and counts
+    func previewImport(
+        from zipURL: URL,
+        config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+    ) async throws -> ImportResult {
+        return try await Task.detached(priority: .userInitiated) {
+            print("📦 Previewing import from: \(zipURL.lastPathComponent)")
+            
+            let workingDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("preview-\(UUID().uuidString)", isDirectory: true)
+            
+            defer {
+                try? FileManager.default.removeItem(at: workingDir)
+            }
+            
+            let localZipURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(zipURL.lastPathComponent)
+            try? FileManager.default.removeItem(at: localZipURL)
+            
+            guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
+                throw DataError.fileAccessDenied
+            }
+            
+            try FileManager.default.copyItem(at: zipURL, to: localZipURL)
+            try FileManager.default.setAttributes([
+                .posixPermissions: 0o644
+            ], ofItemAtPath: localZipURL.path)
+            
+            try FileManager.default.createDirectory(
+                at: workingDir,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o755]
+            )
+            
+            try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
+            
+            let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
+            let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
+            let labelsCSVURL = workingDir.appendingPathComponent("labels.csv")
+            
+            var itemCount = 0
+            var locationCount = 0
+            var labelCount = 0
+            
+            if config.includeItems, FileManager.default.fileExists(atPath: itemsCSVURL.path) {
+                let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
+                let rows = csvString.components(separatedBy: .newlines)
+                    .filter { !$0.isEmpty }
+                itemCount = max(0, rows.count - 1)
+            }
+            
+            if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
+                let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
+                let rows = csvString.components(separatedBy: .newlines)
+                    .filter { !$0.isEmpty }
+                locationCount = max(0, rows.count - 1)
+            }
+            
+            if config.includeLabels, FileManager.default.fileExists(atPath: labelsCSVURL.path) {
+                let csvString = try String(contentsOf: labelsCSVURL, encoding: .utf8)
+                let rows = csvString.components(separatedBy: .newlines)
+                    .filter { !$0.isEmpty }
+                labelCount = max(0, rows.count - 1)
+            }
+            
+            print("📦 Preview complete: \(itemCount) items, \(locationCount) locations, \(labelCount) labels")
+            
+            return ImportResult(
+                itemCount: itemCount,
+                locationCount: locationCount,
+                labelCount: labelCount
+            )
+        }.value
+    }
+
     /// Exports inventory from a zip file and reports progress through an async sequence
     func importInventory(
         from zipURL: URL,
@@ -816,57 +891,68 @@ actor DataManager {
                         }
                     }
                     
-                    // Copy all images concurrently after parsing
+                    // Copy images sequentially in small batches to avoid memory issues with large imports
                     if !imageCopyTasks.isEmpty {
-                        print("📸 Copying \(imageCopyTasks.count) images concurrently...")
+                        print("📸 Copying \(imageCopyTasks.count) images...")
                         
-                        let copyResults = try await withThrowingTaskGroup(of: (AnyObject, URL?, Bool).self) { group in
-                            for task in imageCopyTasks {
-                                group.addTask {
-                                    do {
-                                        let copiedURL = try self.copyImageToDocuments(task.sourceURL, filename: task.destinationFilename)
-                                        return (task.targetObject, copiedURL, task.isLocation)
-                                    } catch {
-                                        print("⚠️ Failed to copy image \(task.destinationFilename): \(error)")
-                                        return (task.targetObject, nil, task.isLocation)
+                        let imageBatchSize = 20
+                        for batchStart in stride(from: 0, to: imageCopyTasks.count, by: imageBatchSize) {
+                            let batchEnd = min(batchStart + imageBatchSize, imageCopyTasks.count)
+                            let batch = Array(imageCopyTasks[batchStart..<batchEnd])
+                            
+                            let copyResults = try await withThrowingTaskGroup(of: (Int, URL?, URL?).self) { group in
+                                for (index, task) in batch.enumerated() {
+                                    group.addTask {
+                                        do {
+                                            let copiedURL = try self.copyImageToDocuments(task.sourceURL, filename: task.destinationFilename)
+                                            return (batchStart + index, task.sourceURL, copiedURL)
+                                        } catch {
+                                            print("⚠️ Failed to copy image \(task.destinationFilename): \(error)")
+                                            return (batchStart + index, task.sourceURL, nil)
+                                        }
                                     }
                                 }
-                            }
-                            
-                            var results: [(AnyObject, URL?, Bool)] = []
-                            for try await result in group {
-                                results.append(result)
-                            }
-                            return results
-                        }
-                        
-                        // Update image URLs on objects (MainActor required for model updates)
-                        await MainActor.run {
-                            for (targetObject, copiedURL, isLocation) in copyResults {
-                                guard let copiedURL = copiedURL else { continue }
                                 
-                                if isLocation {
-                                    if let location = targetObject as? InventoryLocation {
-                                        location.imageURL = copiedURL
-                                    }
-                                } else {
-                                    if let item = targetObject as? InventoryItem {
-                                        item.imageURL = copiedURL
-                                    }
+                                var results: [(Int, URL?, URL?)] = []
+                                for try await result in group {
+                                    results.append(result)
                                 }
+                                return results
                             }
                             
-                            // Save all image URL updates
-                            try? modelContext.save()
+                            // Update image URLs on objects (MainActor required for model updates)
+                            await MainActor.run {
+                                for (originalIndex, _, copiedURL) in copyResults {
+                                    guard let copiedURL = copiedURL else { continue }
+                                    
+                                    let task = imageCopyTasks[originalIndex]
+                                    if task.isLocation {
+                                        if let location = task.targetObject as? InventoryLocation {
+                                            location.imageURL = copiedURL
+                                        }
+                                    } else {
+                                        if let item = task.targetObject as? InventoryItem {
+                                            item.imageURL = copiedURL
+                                        }
+                                    }
+                                }
+                                
+                                // Save image URL updates for this batch
+                                try? modelContext.save()
+                            }
+                            
+                            print("📸 Completed image batch \(batchEnd)/\(imageCopyTasks.count)")
                         }
                         print("✅ Image copying completed")
                     }
                     
+                    print("📦 DataManager: yielding completion with \(itemCount) items, \(locationCount) locations, \(labelCount) labels")
                     continuation.yield(.completed(ImportResult(
                         itemCount: itemCount,
                         locationCount: locationCount,
                         labelCount: labelCount
                     )))
+                    print("📦 DataManager: finished continuation")
                     continuation.finish()
                     
                 } catch {
