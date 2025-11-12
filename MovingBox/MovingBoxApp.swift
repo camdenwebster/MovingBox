@@ -38,8 +38,8 @@ struct MovingBoxApp: App {
         // Configure TelemetryDeck
         let appId = AppConfig.telemetryDeckAppId
         let telemetryConfig = TelemetryDeck.Config(appID: appId)
-        telemetryConfig.defaultSignalPrefix = "App."
-        telemetryConfig.defaultParameterPrefix = "MyApp."
+        telemetryConfig.defaultSignalPrefix = "MovingBox."
+        telemetryConfig.defaultParameterPrefix = "MovingBox."
         TelemetryDeck.initialize(config: telemetryConfig)
         
         // Configure RevenueCat
@@ -49,30 +49,45 @@ struct MovingBoxApp: App {
         Purchases.logLevel = .debug
         #endif
         
-        // Configure Sentry with improved error handling
-        // TODO: Fix Sentry SDK API compatibility issue
-        /*
         let dsn = "https://\(AppConfig.sentryDsn)"
-        guard dsn != "missing-sentry-dsn" else {
+        guard dsn != "https://missing-sentry-dsn" else {
             #if DEBUG
             print("⚠️ Error: Missing Sentry DSN configuration")
             #endif
             return
         }
         
-        SentrySDK.start(options: { options in
+        SentrySDK.start { options in
             options.dsn = dsn
-//            options.debug = AppConfig.shared.configuration == .debug
+            options.debug = AppConfig.shared.configuration == .debug
             options.tracesSampleRate = 0.2
             
-            #if canImport(SentryProfilingConditional)
-            options.profilesSampleRate = 0.3
-            #endif
+            options.configureProfiling = {
+                $0.lifecycle = .trace
+                $0.sessionSampleRate = 1
+            }
             
-            options.experimental.sessionReplay.onErrorSampleRate = 0.8
-            options.experimental.sessionReplay.sessionSampleRate = 0.1
-        })
-        */
+            // Record session replays for 100% of errors and 10% of sessions
+            options.sessionReplay.onErrorSampleRate = 1.0
+            options.sessionReplay.sessionSampleRate = 0.1
+
+            // Enable logs to be sent to Sentry
+            options.experimental.enableLogs = true
+
+            // Automatic iOS Instrumentation (most features enabled by default in v8+)
+            // Only configure non-default settings:
+            options.enablePreWarmedAppStartTracing = true  // Disabled by default, enable for iOS 15+
+            options.enableTimeToFullDisplayTracing = true  // Disabled by default
+
+            // Network Tracking - limit to OpenAI API only for privacy
+            options.tracePropagationTargets = ["api.aiproxy.com"]
+
+            #if DEBUG
+            options.environment = "debug"
+            #else
+            options.environment = AppConfig.shared.buildType == .beta ? "beta" : "production"
+            #endif
+        }
     }
     
     private var disableAnimations: Bool {
@@ -151,6 +166,8 @@ struct MovingBoxApp: App {
                                         LabelSettingsView()
                                     case "home":
                                         EditHomeView()
+                                    case "no-location":
+                                        InventoryListView(location: nil, showOnlyUnassigned: true)
                                     default:
                                         EmptyView()
                                     }

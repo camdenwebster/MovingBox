@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import StoreKit
 
 enum ItemCreationStep: CaseIterable {
     case camera
@@ -381,13 +382,19 @@ struct ItemCreationFlowView: View {
                 // Get all labels and locations for the unified update
                 let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-                
+
                 item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
                 try? modelContext.save()
-                
+
+                // Increment successful AI analysis count and check for review request
+                settings.incrementSuccessfulAIAnalysis()
+                if settings.shouldRequestReview() {
+                    requestAppReview()
+                }
+
                 // Set processing flag to false
                 processingImage = false
-                
+
                 // Set analysis complete flag to trigger UI update
                 analysisComplete = true
                 print("Multi-image analysis complete, item updated")
@@ -430,6 +437,24 @@ struct ItemCreationFlowView: View {
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
+        }
+    }
+
+    private func requestAppReview() {
+        // Delay review request by 2 seconds to let user glance at results
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            TelemetryManager.shared.trackAppReviewRequested()
+            if #available(iOS 18.0, *) {
+                if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                    AppStore.requestReview(in: scene)
+                    print("📱 Requested app review using AppStore API")
+                }
+            } else {
+                if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                    SKStoreReviewController.requestReview(in: scene)
+                    print("📱 Requested app review using legacy API")
+                }
+            }
         }
     }
 }

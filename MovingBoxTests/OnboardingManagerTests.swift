@@ -79,17 +79,17 @@ import Foundation
         
         static func checkAndUpdateOnboardingState(modelContext: ModelContext, defaults: TestUserDefaults) throws -> Bool {
             do {
-                let descriptor = FetchDescriptor<Home>()
-                let homes = try modelContext.fetch(descriptor)
-                print("⚡️ Checking for existing homes: \(homes.count) found")
+                let descriptor = FetchDescriptor<InventoryItem>()
+                let items = try modelContext.fetch(descriptor)
+                print("⚡️ Checking for existing items: \(items.count) found")
                 
-                if !homes.isEmpty {
+                if !items.isEmpty {
                     defaults.set(true, forKey: OnboardingManager.hasCompletedOnboardingKey)
                     return true
                 }
                 return false
             } catch let error as NSError {
-                print("❌ Error checking for homes: \(error), \(error.userInfo)")
+                print("❌ Error checking for items: \(error), \(error.userInfo)")
                 throw OnboardingManager.OnboardingError.itemCheckFailed(error)
             }
         }
@@ -118,20 +118,20 @@ import Foundation
         
         // When - Move forward
         manager.moveToNext()
-        #expect(manager.currentStep == .homeDetails)
-        
-        manager.moveToNext()
-        #expect(manager.currentStep == .location)
-        
-        manager.moveToNext()
         #expect(manager.currentStep == .item)
+        
+        manager.moveToNext()
+        #expect(manager.currentStep == .notifications)
+        
+        manager.moveToNext()
+        #expect(manager.currentStep == .survey)
         
         // When - Move backward
         manager.moveToPrevious()
-        #expect(manager.currentStep == .location)
+        #expect(manager.currentStep == .notifications)
         
         manager.moveToPrevious()
-        #expect(manager.currentStep == .homeDetails)
+        #expect(manager.currentStep == .item)
     }
     
     @Test("Test error handling")
@@ -149,11 +149,10 @@ import Foundation
         let steps = OnboardingManager.OnboardingStep.allCases
         
         #expect(steps[0].title == "Welcome")
-        #expect(steps[1].title == "Home Details")
-        #expect(steps[2].title == "Add Location")
-        #expect(steps[3].title == "Add Item")
-        #expect(steps[4].title == "Stay Updated")
-        #expect(steps[5].title == "Great Job!")
+        #expect(steps[1].title == "Add Item")
+        #expect(steps[2].title == "Stay Updated")
+        #expect(steps[3].title == "Usage Survey")
+        #expect(steps[4].title == "Great Job!")
     }
     
     @Test("Test welcome screen conditions")
@@ -191,37 +190,37 @@ import Foundation
         let (_, defaults) = createTestEnvironment()
         
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Home.self, configurations: config)
+        let container = try ModelContainer(for: InventoryItem.self, configurations: config)
         let context = ModelContext(container)
         
         defaults.removeObject(forKey: OnboardingManager.hasCompletedOnboardingKey)
         
-        // Test with no homes
+        // Test with no items
         let initialState = try TestOnboardingManager.checkAndUpdateOnboardingState(
             modelContext: context,
             defaults: defaults
         )
-        #expect(!initialState, "Should be false with no homes")
+        #expect(!initialState, "Should be false with no items")
         
-        // Add a home
-        let home = Home(name: "Test Home")
-        context.insert(home)
+        // Add an inventory item
+        let item = InventoryItem(title: "Test Item")
+        context.insert(item)
         try context.save()
         
-        // Verify home was saved
-        let homes = try context.fetch(FetchDescriptor<Home>())
-        #expect(homes.count == 1, "Should have one home")
+        // Verify item was saved
+        let items = try context.fetch(FetchDescriptor<InventoryItem>())
+        #expect(items.count == 1, "Should have one item")
         
-        // Test with home
+        // Test with item
         let updatedState = try TestOnboardingManager.checkAndUpdateOnboardingState(
             modelContext: context,
             defaults: defaults
         )
-        #expect(updatedState, "Should be true after adding a home")
+        #expect(updatedState, "Should be true after adding an item")
         #expect(defaults.bool(forKey: OnboardingManager.hasCompletedOnboardingKey),
                "Completion flag should be set in defaults")
         
         // Cleanup
-        try context.delete(model: Home.self)
+        try context.delete(model: InventoryItem.self)
     }
 }

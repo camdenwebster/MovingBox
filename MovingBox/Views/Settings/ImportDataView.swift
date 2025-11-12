@@ -63,7 +63,7 @@ struct ImportDataView: View {
                 .disabled(!hasImportOptionsSelected || showImportLoading)
                 .listRowInsets(EdgeInsets())
             } footer: {
-                Text("Restore items from a previously exported ZIP file.")
+                Text("Restore data from a ZIP file that was previously exported from MovingBox. Files from other apps cannot be imported.")
                     .font(.footnote)
             }
         }

@@ -14,7 +14,6 @@ struct LocationsListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @State private var showingCamera = false
     @State private var showingImageAnalysis = false
@@ -27,7 +26,21 @@ struct LocationsListView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) private var locations: [InventoryLocation]
-    
+
+    // Query for items without location
+    @Query(filter: #Predicate<InventoryItem> { item in
+        item.location == nil
+    }) private var unassignedItems: [InventoryItem]
+
+    // Computed property for unassigned items count and total value
+    private var unassignedItemsCount: Int {
+        unassignedItems.count
+    }
+
+    private var unassignedItemsTotalValue: Decimal {
+        unassignedItems.reduce(0) { $0 + $1.price }
+    }
+
     // Filtered locations based on search
     private var filteredLocations: [InventoryLocation] {
         if searchText.isEmpty {
@@ -43,7 +56,56 @@ struct LocationsListView: View {
         let maximumCardWidth: CGFloat = 220
         return [GridItem(.adaptive(minimum: minimumCardWidth, maximum: maximumCardWidth))]
     }
-    
+
+    // Special card for items without a location
+    private var noLocationCard: some View {
+        VStack(spacing: 0) {
+            // Icon section
+            Rectangle()
+                .fill(Color(.secondarySystemGroupedBackground))
+                .frame(width: 160, height: 100)
+                .overlay(
+                    Image(systemName: "questionmark.folder.fill")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(.orange)
+                )
+
+            // Location details
+            VStack(alignment: .leading) {
+                Text("No Location")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color(.label))
+                HStack {
+                    Text("Items")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabel))
+                    Spacer()
+                    Text("\(unassignedItemsCount)")
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color(.label))
+                }
+                HStack {
+                    Text("Value")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabel))
+                    Spacer()
+                    Text(CurrencyFormatter.format(unassignedItemsTotalValue))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color(.label))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
+        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
+            .fill(Color(.secondarySystemGroupedBackground))
+            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+        .padding(1)
+    }
+
     var body: some View {
         Group {
             if filteredLocations.isEmpty && searchText.isEmpty {
@@ -78,6 +140,14 @@ struct LocationsListView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
+                        // Special "No Location" card - only show if there are unassigned items
+                        if unassignedItemsCount > 0 && searchText.isEmpty {
+                            NavigationLink(value: "no-location") {
+                                noLocationCard
+                                    .frame(maxWidth: 180)
+                            }
+                        }
+
                         ForEach(filteredLocations) { location in
                             NavigationLink(value: location) {
                                 LocationItemCard(location: location)

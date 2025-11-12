@@ -81,8 +81,6 @@ struct MockCameraView: View {
     
     var imageName: String {
         switch onboardingManager.currentStep {
-        case .homeDetails: return "craftsman-home"
-        case .location: return "kitchen"
         default: return "tablet"
         }
     }
@@ -103,7 +101,7 @@ struct MockCameraView: View {
             .padding()
             .background(Color.blue)
             .foregroundColor(.white)
-            .cornerRadius(8)
+            .cornerRadius(UIConstants.cornerRadius)
             .padding(.bottom, 30)
         }
     }

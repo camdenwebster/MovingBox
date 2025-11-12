@@ -9,6 +9,7 @@ import RevenueCatUI
 import PhotosUI
 import PDFKit
 import QuickLook
+import SentrySwiftUI
 import SwiftData
 import SwiftUI
 import VisionKit
@@ -23,6 +24,10 @@ struct InventoryDetailView: View {
     @EnvironmentObject private var onboardingManager: OnboardingManager
     @Query private var allItems: [InventoryItem]
     @FocusState private var isPriceFieldFocused: Bool
+
+    // Photo section frame height constants
+    private static let photoSectionHeight: CGFloat = 300
+    private static let photoSectionHeightWithPhotos: CGFloat = 350
     
     @State private var displayPriceString: String = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails.empty()
@@ -201,8 +206,15 @@ struct InventoryDetailView: View {
                 hasUserMadeChanges = false // Reset after successful save
                 originalValues = nil // Clear original values after successful save
                 isEditing = false
+
+                // Regenerate thumbnails if missing
+                Task {
+                    await regenerateMissingThumbnails()
+                }
+
                 onSave?()
             }
+            .backport.glassProminentButtonStyle()
             .fontWeight(.bold)
             .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
             .accessibilityIdentifier("save")
@@ -215,7 +227,7 @@ struct InventoryDetailView: View {
                 isEditing = true
             }
             .accessibilityIdentifier("edit")
-            .foregroundStyle(.primary)
+            .tint(.green)
         }
     }
 
@@ -227,60 +239,72 @@ struct InventoryDetailView: View {
         // Photo banner section with progressive loading states
         if isLoading {
             // Loading state - show progress indicator
-            ZStack {
-                Color(.systemGray6)
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .secondary))
-                        .scaleEffect(1.2)
-                    Text("Loading photos...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .global).minY
+
+                ZStack {
+                    Color(.systemGray6)
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .secondary))
+                            .scaleEffect(1.2)
+                        Text("Loading photos...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .frame(width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0))
+                .offset(y: scrollY > 0 ? -scrollY : 0)
             }
-            .frame(height: 250)
+            .frame(height: Self.photoSectionHeight)
         } else if let loadingError = loadingError {
             // Error state - show error placeholder
-            ZStack {
-                Color(.systemGray6)
-                VStack(spacing: 16) {
-                    Image(systemName: "photo.trianglebadge.exclamationmark")
-                        .font(.system(size: 50))
-                        .foregroundColor(.red)
-                    Text("Failed to load photos")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text(loadingError.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    
-                    if isEditing {
-                        Button(action: {
-                            showPhotoSourceAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "camera")
-                                Text("Add Photo")
-                            }
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .global).minY
+
+                ZStack {
+                    Color(.systemGray6)
+                    VStack(spacing: 16) {
+                        Image(systemName: "photo.trianglebadge.exclamationmark")
+                            .font(.system(size: 50))
+                            .foregroundColor(.red)
+                        Text("Failed to load photos")
                             .font(.headline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(.blue)
-                            .clipShape(Capsule())
+                            .foregroundColor(.primary)
+                        Text(loadingError.localizedDescription)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+
+                        if isEditing {
+                            Button(action: {
+                                showPhotoSourceAlert = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "camera")
+                                    Text("Add Photo")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(.blue)
+                                .clipShape(Capsule())
+                            }
                         }
                     }
                 }
+                .frame(width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0))
+                .offset(y: scrollY > 0 ? -scrollY : 0)
             }
-            .frame(height: 250)
+            .frame(height: Self.photoSectionHeight)
         } else if !loadedImages.isEmpty {
             // Success state - show photo carousel
             ZStack {
                 GeometryReader { proxy in
                     let scrollY = proxy.frame(in: .global).minY
-                    
+
                     FullScreenPhotoCarouselView(
                         images: loadedImages,
                         selectedIndex: $selectedImageIndex,
@@ -321,12 +345,10 @@ struct InventoryDetailView: View {
                             }
                         }
                     )
-                    .frame(width: proxy.size.width, height: 350 + (scrollY > 0 ? scrollY : 0))
-                    .clipped()
+                    .frame(width: proxy.size.width, height: Self.photoSectionHeightWithPhotos + (scrollY > 0 ? scrollY : 0))
                     .offset(y: scrollY > 0 ? -scrollY : 0)
                 }
-                .frame(height: 350)
-                .clipped()
+                .frame(height: Self.photoSectionHeightWithPhotos)
                 
                 // Edit mode controls overlay - positioned at container bottom
                 if isEditing {
@@ -374,13 +396,14 @@ struct InventoryDetailView: View {
                                 Button(action: {
                                     showPhotoSourceAlert = true
                                 }) {
-                                    Image(systemName: "plus")
+                                    Image(systemName: "photo.badge.plus")
                                         .font(.title3)
                                         .foregroundColor(.white)
                                         .frame(width: 44, height: 44)
                                         .background(.blue.opacity(0.8))
                                         .clipShape(Circle())
                                 }
+                                .accessibilityIdentifier("add-photo-button")
                             }
                         }
                         .padding(.horizontal, 20)
@@ -390,8 +413,14 @@ struct InventoryDetailView: View {
             }
         } else {
             // No photos state - show placeholder when no photos exist
-            photoPlaceHolder
-            .frame(height: 250)
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .global).minY
+
+                photoPlaceHolder
+                    .frame(width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0))
+                    .offset(y: scrollY > 0 ? -scrollY : 0)
+            }
+            .frame(height: Self.photoSectionHeight)
         }
     }
     
@@ -464,10 +493,9 @@ struct InventoryDetailView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .foregroundStyle(.white)
-            .background(.green)
-            .cornerRadius(8)
+            .cornerRadius(UIConstants.cornerRadius)
         }
-        .buttonStyle(.automatic)
+        .backport.glassProminentButtonStyle()
         .disabled(isLoadingOpenAiResults)
         .accessibilityIdentifier("analyzeWithAi")
     }
@@ -489,9 +517,7 @@ struct InventoryDetailView: View {
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Details")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -554,9 +580,7 @@ struct InventoryDetailView: View {
     private var quantitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Quantity")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -574,9 +598,7 @@ struct InventoryDetailView: View {
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Description")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -600,9 +622,7 @@ struct InventoryDetailView: View {
     private var priceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Purchase Price")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -654,9 +674,7 @@ struct InventoryDetailView: View {
         if isEditing || inventoryItemToDisplay.location != nil || inventoryItemToDisplay.label != nil {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Locations & Labels")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -730,9 +748,7 @@ struct InventoryDetailView: View {
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Notes")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
+                .sectionHeaderStyle()
                 .padding(.horizontal, 16)
             
             VStack(spacing: 0) {
@@ -759,9 +775,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyPurchaseTrackingData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Purchase & Ownership")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -810,9 +824,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyFinancialData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Financial Information")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -845,9 +857,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyPhysicalPropertiesData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Physical Properties")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -915,9 +925,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyMovingOptimizationData {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Moving & Storage")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -975,9 +983,7 @@ struct InventoryDetailView: View {
         if isEditing || hasAnyAttachments {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Attachments")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+                    .sectionHeaderStyle()
                     .padding(.horizontal, 16)
                 
                 VStack(spacing: 0) {
@@ -1015,17 +1021,10 @@ struct InventoryDetailView: View {
     private var photoPlaceHolder: some View {
         ZStack {
             Color.gray.opacity(0.1)
-            
+
             VStack(spacing: 20) {
-                Image(systemName: "photo")
-                    .font(.system(size: 60))
-                    .foregroundColor(.gray)
-                
-                Text("No photos yet")
-                    .font(.title2)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                
+                Spacer()
+
                 if isEditing {
                     Button {
                         showPhotoSourceAlert = true
@@ -1038,9 +1037,8 @@ struct InventoryDetailView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(.green)
-                        .clipShape(Capsule())
                     }
+                    .backport.glassProminentButtonStyle()
                     .accessibilityIdentifier("detailview-add-first-photo-button")
                     .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
                         Button("Take Photo") { showingSimpleCamera = true }
@@ -1050,8 +1048,18 @@ struct InventoryDetailView: View {
                         Button("Choose from Photos") { showPhotoPicker = true }
                             .accessibilityIdentifier("chooseFromLibrary")
                     }
+                } else {
+                    Image(systemName: "photo")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
 
+                    Text("No photos yet")
+                        .font(.title2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
                 }
+                Spacer()
+                    .frame(height: 60)
             }
         }
 
@@ -1063,11 +1071,12 @@ struct InventoryDetailView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     photoSection
-                    
+
                     formContent
                         .background(Color(.systemGroupedBackground))
                 }
             }
+            .ignoresSafeArea(edges: .top)
             .background(Color(.systemGroupedBackground))
         }
     }
@@ -1116,8 +1125,9 @@ struct InventoryDetailView: View {
                     await handleAttachmentFileImport(result)
                 }
             }
-            .sheet(isPresented: $showingSimpleCamera) {
+            .fullScreenCover(isPresented: $showingSimpleCamera) {
                 SimpleCameraView(capturedImage: $capturedSingleImage)
+                    .ignoresSafeArea()
                     .onChange(of: capturedSingleImage) { _, newImage in
                         if let image = newImage {
                             Task {
@@ -1158,14 +1168,14 @@ struct InventoryDetailView: View {
                     isPresented: $showingFullScreenPhoto
                 )
             }
-//            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
-//                Button("Take Photo") { showingSimpleCamera = true }
-//                    .accessibilityIdentifier("takePhoto")
-//                Button("Scan Document") { showDocumentScanner = true }
-//                    .accessibilityIdentifier("scanDocument")
-//                Button("Choose from Photos") { showPhotoPicker = true }
-//                    .accessibilityIdentifier("chooseFromLibrary")
-//            }
+            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
+                Button("Take Photo") { showingSimpleCamera = true }
+                    .accessibilityIdentifier("takePhoto")
+                Button("Scan Document") { showDocumentScanner = true }
+                    .accessibilityIdentifier("scanDocument")
+                Button("Choose from Photos") { showPhotoPicker = true }
+                    .accessibilityIdentifier("chooseFromLibrary")
+            }
             .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -1203,6 +1213,7 @@ struct InventoryDetailView: View {
             .task(id: inventoryItemToDisplay.imageURL) {
                 await loadAllImages()
             }
+            .sentryTrace("InventoryDetailView")
     }
 
     private func performAIAnalysis() {
@@ -1518,21 +1529,42 @@ struct InventoryDetailView: View {
                 if let imageURL = inventoryItemToDisplay.imageURL {
                     try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: imageURL.absoluteString)
                 }
-                
+
                 for photoURL in inventoryItemToDisplay.secondaryPhotoURLs {
                     try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: photoURL)
                 }
             } catch {
                 print("Error deleting images during cancellation: \(error)")
             }
-            
+
             await MainActor.run {
                 // Remove the item from the model context
                 modelContext.delete(inventoryItemToDisplay)
                 try? modelContext.save()
-                
+
                 // Call the onCancel callback to close the sheet
                 onCancel?()
+            }
+        }
+    }
+
+    private func regenerateMissingThumbnails() async {
+        // Check and regenerate primary image thumbnail
+        if let imageURL = inventoryItemToDisplay.imageURL {
+            do {
+                try await OptimizedImageManager.shared.regenerateThumbnail(for: imageURL)
+            } catch {
+                print("📸 Failed to regenerate thumbnail for primary image: \(error)")
+            }
+        }
+
+        // Check and regenerate secondary image thumbnails
+        for urlString in inventoryItemToDisplay.secondaryPhotoURLs {
+            guard let url = URL(string: urlString) else { continue }
+            do {
+                try await OptimizedImageManager.shared.regenerateThumbnail(for: url)
+            } catch {
+                print("📸 Failed to regenerate thumbnail for secondary image: \(error)")
             }
         }
     }
@@ -1594,6 +1626,7 @@ struct FullScreenPhotoCarouselView: View {
                                 Text("\(selectedIndex + 1) / \(images.count)")
                                     .font(.caption)
                                     .fontWeight(.medium)
+                                    .accessibilityIdentifier("photoCountText")
                             }
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
@@ -2016,12 +2049,36 @@ struct InventoryItemSnapshot {
 extension View {
     func applyNavigationSettings(title: String, isEditing: Bool, colorScheme: ColorScheme) -> some View {
         self
-            .navigationTitle(title)
+            .navigationTitle(getNavigationTitle(title: title))
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isEditing)
-            .toolbarBackground(colorScheme == .dark ? .black : .white, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+    }
+    
+    private func getNavigationTitle(title: String) -> String {
+        if #available(iOS 26.0, *) {
+            return title
+        } else {
+            return ""
+        }
+    }
+}
+
+// MARK: - Conditional Toolbar Background Modifier
+
+struct ConditionalToolbarBackgroundModifier: ViewModifier {
+    let colorScheme: ColorScheme
+    
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            // For iOS 26 and above, hide the toolbar background
+            content
+                .toolbarBackground(.hidden, for: .navigationBar)
+        } else {
+            // For iOS 18 and below, maintain existing functionality
+            content
+                .toolbarBackground(colorScheme == .dark ? .black : .white, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+        }
     }
 }
 

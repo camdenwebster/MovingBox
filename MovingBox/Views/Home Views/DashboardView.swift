@@ -112,17 +112,8 @@ struct DashboardView: View {
                     // MARK: - Recently Added Items
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Recently Added")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .textCase(.uppercase)
+                            .sectionHeaderStyle()
                             .padding(.horizontal)
-                        //                        Button {
-//                            router.navigate(to: .inventoryListView(location: nil))
-//                        } label: {
-//
-////                            DashboardSectionLabel(text: "Recently Added", useSubTitle: true)
-//                        }
-//                        .buttonStyle(.plain)
                         
                         if topRecentItems.isEmpty {
                             ContentUnavailableView {

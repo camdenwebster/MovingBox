@@ -13,6 +13,9 @@ class InventoryDetailScreen {
     // Main app
     let app: XCUIApplication
     
+    // Text
+    let photoCountText: XCUIElement
+    
     // Buttons
     let analyzeWithAiButton: XCUIElement
     let sparklesButton: XCUIElement
@@ -20,6 +23,7 @@ class InventoryDetailScreen {
     let saveButton: XCUIElement
     let changePhotoButton: XCUIElement
     let tapToAddPhotoButton: XCUIElement
+    let addPhotoThumbnailButton: XCUIElement
     let addLabelButton: XCUIElement
     let addLocationButton: XCUIElement
     
@@ -46,6 +50,9 @@ class InventoryDetailScreen {
     init(app: XCUIApplication) {
         self.app = app
         
+        // Initialize UI Text
+        self.photoCountText = app.staticTexts["photoCountText"]
+        
         // Initialize buttons
         self.analyzeWithAiButton = app.buttons["analyzeWithAi"]
         self.sparklesButton = app.buttons["sparkles"]
@@ -53,6 +60,7 @@ class InventoryDetailScreen {
         self.saveButton = app.buttons["save"]
         self.changePhotoButton = app.buttons["changePhoto"]
         self.tapToAddPhotoButton = app.buttons["detailview-add-first-photo-button"]
+        self.addPhotoThumbnailButton = app.buttons["add-photo-button"]
         self.addLabelButton = app.buttons["addNewLabel"]
         self.addLocationButton = app.buttons["addNewLocation"]
         
@@ -103,11 +111,17 @@ class InventoryDetailScreen {
     }
     
     func saveItem() {
-        if saveButton.isEnabled {
-            saveButton.tap()
-        } else {
-            XCTFail("Save button was not enabled after fields were populated")
+        guard saveButton.isEnabled else {
+            return XCTFail("Save button was not enabled after fields were populated")
         }
+        saveButton.tap()
+    }
+    
+    func enterEditMode() {
+        guard editButton.waitForExistence(timeout: 5) else {
+            return XCTFail("Edit button was not hittable")
+        }
+        editButton.tap()
     }
     
     func fillInFields() {
@@ -176,4 +190,23 @@ class InventoryDetailScreen {
     func tapSparkles() {
         sparklesButton.tap()
     }
+
+    // MARK: - Photo Button Visibility Helpers
+
+    func isAddFirstPhotoButtonVisible() -> Bool {
+        return tapToAddPhotoButton.exists
+    }
+
+    func isAddAdditionalPhotoButtonVisible() -> Bool {
+        return addPhotoThumbnailButton.exists
+    }
+
+    func waitForAddFirstPhotoButton(timeout: TimeInterval = 5) -> Bool {
+        return tapToAddPhotoButton.waitForExistence(timeout: timeout)
+    }
+
+    func waitForAddAdditionalPhotoButton(timeout: TimeInterval = 5) -> Bool {
+        return addPhotoThumbnailButton.waitForExistence(timeout: timeout)
+    }
+    
 }

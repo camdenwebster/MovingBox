@@ -57,7 +57,7 @@ struct EditLabelView: View {
                             .font(.system(size: 32))
                             .frame(width: 50, height: 40)
                             .background(isEditingEnabled ? Color.gray.opacity(0.2) : Color.clear)
-                            .cornerRadius(8)
+                            .cornerRadius(UIConstants.cornerRadius)
                     }
                     .disabled(!isEditingEnabled)
                     .sheet(isPresented: $showEmojiPicker) {

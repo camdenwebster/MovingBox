@@ -16,6 +16,9 @@ class SettingsManager: ObservableObject {
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
         static let preferredCaptureMode = "preferredCaptureMode"
+        static let successfulAIAnalysisCount = "successfulAIAnalysisCount"
+        static let firstLaunchDate = "firstLaunchDate"
+        static let hasRequestedReviewAfter30Days = "hasRequestedReviewAfter30Days"
     }
     
     // Published properties that will update the UI
@@ -76,6 +79,34 @@ class SettingsManager: ObservableObject {
         }
     }
     
+
+    @Published var successfulAIAnalysisCount: Int {
+        didSet {
+            UserDefaults.standard.set(successfulAIAnalysisCount, forKey: Keys.successfulAIAnalysisCount)
+        }
+    }
+
+    var firstLaunchDate: Date {
+        get {
+            if let date = UserDefaults.standard.object(forKey: Keys.firstLaunchDate) as? Date {
+                return date
+            } else {
+                let now = Date()
+                UserDefaults.standard.set(now, forKey: Keys.firstLaunchDate)
+                return now
+            }
+        }
+    }
+
+    var hasRequestedReviewAfter30Days: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: Keys.hasRequestedReviewAfter30Days)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Keys.hasRequestedReviewAfter30Days)
+        }
+    }
+
     // Pro feature constants
     public struct AppConstants: Sendable {
         static let maxFreeAiScans = 50
@@ -96,7 +127,7 @@ class SettingsManager: ObservableObject {
     init() {
         print("📱 SettingsManager - Starting initialization")
         print("📱 SettingsManager - Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))")
-        
+
         // Initialize with default values first
         self.aiModel = defaultAIModel
         self.temperature = defaultTemperature
@@ -107,6 +138,7 @@ class SettingsManager: ObservableObject {
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         self.preferredCaptureMode = preferredCaptureModeDefault
+        self.successfulAIAnalysisCount = UserDefaults.standard.integer(forKey: Keys.successfulAIAnalysisCount)
         
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
         
@@ -283,12 +315,40 @@ class SettingsManager: ObservableObject {
         highQualityAnalysisEnabled = false
         hasLaunched = hasLaunchedDefault
         isPro = false
-        
+        successfulAIAnalysisCount = 0
+
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {
             isPro = true
         }
         #endif
+    }
+
+    // MARK: - App Store Review Request
+
+    func incrementSuccessfulAIAnalysis() {
+        successfulAIAnalysisCount += 1
+        print("📱 SettingsManager - Successful AI analysis count: \(successfulAIAnalysisCount)")
+    }
+
+    func shouldRequestReview() -> Bool {
+        // Condition 1: After exactly 3 successful AI analyses
+        if successfulAIAnalysisCount == 3 {
+            return true
+        }
+
+        // Condition 2: After 30 days + 50 items analyzed (only once)
+        if !hasRequestedReviewAfter30Days && hasUsedAppFor30Days() && successfulAIAnalysisCount >= 50 {
+            hasRequestedReviewAfter30Days = true
+            return true
+        }
+
+        return false
+    }
+
+    private func hasUsedAppFor30Days() -> Bool {
+        let daysSinceFirstLaunch = Calendar.current.dateComponents([.day], from: firstLaunchDate, to: Date()).day ?? 0
+        return daysSinceFirstLaunch >= 30
     }
 }
 

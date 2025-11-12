@@ -1,12 +1,11 @@
 Thank you for testing the latest build of MovingBox!
 
-We are excited to prepare for our 1.0 launch, and we will greatly appreciate any help we can get testing the following features:
-- Creating new inventory records from the Camera view (can be accessed from the "Add Item" tab)
-- Updating existing inventory records with AI (either the "Anlayze with AI" button or the "sparkle" button in an existing inventory record)
-- Analyzing a wide variety of items
-- Testing on a wide variety of iPhone/iPad models
-
 What's New?
+2.0.1
+- Fixed additional photo button functionality on the Inventory Detail View
+- Improved Liquid Glass styling and implementation for iOS 26+
+- Fixed issue with home country picker in Settings
+
 2.0.0
 - A beautiful new design makes MovingBox even easier to use with full support for Liquid Glass (iOS 26+)
 - (MovingBox Pro) Leverage the most powerful AI models with higher resolution images to capture more detail for your inventory

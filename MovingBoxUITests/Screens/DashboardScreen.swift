@@ -69,7 +69,7 @@ class DashboardScreen {
         recentItemButton.tap()
     }
     
-    func tapFirstRecentItem() {
+    func  tapFirstRecentItem() {
         tapRecentItem(at: 0)
     }
     
@@ -84,7 +84,7 @@ class DashboardScreen {
         return allInventoryButton.waitForExistence(timeout: 10) ||
                addItemFromCameraButton.waitForExistence(timeout: 10) ||
                emptyStateAddItemButton.waitForExistence(timeout: 10) ||
-               app.staticTexts["Dashboard"].waitForExistence(timeout: 5)
+               app.staticTexts["Dashboard"].waitForExistence(timeout: 10)
     }
     
     func waitForRecentItems() -> Bool {

@@ -112,7 +112,8 @@ final class OptimizedImageManager {
         if let error {
             throw error
         }
-        
+
+        // Ensure thumbnail is saved before returning to prevent race conditions
         await saveThumbnail(optimizedImage, id: id)
         return imageURL
     }
@@ -247,13 +248,17 @@ final class OptimizedImageManager {
     
     private func saveThumbnail(_ image: UIImage, id: String) async {
         let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
-        
+
         // Create thumbnails directory if needed
         try? fileManager.createDirectory(at: thumbnailURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        
+
         guard let thumbnail = await image.byPreparingThumbnail(ofSize: ImageConfig.thumbnailSize) else { return }
+
+        // Cache thumbnail immediately before writing to disk to prevent race conditions
+        cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
+
         guard let data = thumbnail.jpegData(compressionQuality: 0.7) else { return }
-        
+
         var error: NSError?
         fileCoordinator.coordinate(writingItemAt: thumbnailURL, options: .forReplacing, error: &error) { url in
             do {
@@ -262,12 +267,10 @@ final class OptimizedImageManager {
                 print("📸 OptimizedImageManager - Error saving thumbnail: \(error.localizedDescription)")
             }
         }
-        
+
         if let error {
             print("📸 OptimizedImageManager - Error saving thumbnail: \(error.localizedDescription)")
         }
-        
-        cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
     }
     
     func loadThumbnail(id: String) async throws -> UIImage {
@@ -379,10 +382,33 @@ final class OptimizedImageManager {
     func getThumbnailURL(for id: String) -> URL {
         return imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
     }
-    
+
     func imageExists(for url: URL?) -> Bool {
         guard let url = url else { return false }
         return fileManager.fileExists(atPath: url.path)
+    }
+
+    func thumbnailExists(for id: String) -> Bool {
+        let thumbnailURL = getThumbnailURL(for: id)
+        return fileManager.fileExists(atPath: thumbnailURL.path)
+    }
+
+    /// Regenerate thumbnail from existing full-size image
+    func regenerateThumbnail(for imageURL: URL) async throws {
+        let id = imageURL.deletingPathExtension().lastPathComponent
+
+        // Check if thumbnail already exists
+        guard !thumbnailExists(for: id) else {
+            print("📸 OptimizedImageManager - Thumbnail already exists for: \(id)")
+            return
+        }
+
+        // Load the full-size image
+        let fullImage = try await loadImage(url: imageURL)
+
+        // Generate and save thumbnail
+        await saveThumbnail(fullImage, id: id)
+        print("📸 OptimizedImageManager - Regenerated thumbnail for: \(id)")
     }
     
     func clearCache() {

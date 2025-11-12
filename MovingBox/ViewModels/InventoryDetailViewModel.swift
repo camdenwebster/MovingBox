@@ -5,11 +5,14 @@
 //  Created by Claude Code on 9/9/25.
 //
 
+// NOTE: THIS IS NOT IN USE YET - ALL BUSINESS LOGIC IS IN InventoryDetailView.swift
+
 import Foundation
 import SwiftUI
 import SwiftData
 import UIKit
 import PhotosUI
+import StoreKit
 
 @Observable
 final class InventoryDetailViewModel {
@@ -65,12 +68,18 @@ final class InventoryDetailViewModel {
         await MainActor.run {
             isLoadingOpenAiResults = true
         }
-        
+
         do {
             let imageDetails = try await callOpenAI(for: item)
             await MainActor.run { @MainActor in
                 updateUIWithImageDetails(imageDetails, for: item)
                 isLoadingOpenAiResults = false
+
+                // Increment successful AI analysis count and check for review request
+                settings.incrementSuccessfulAIAnalysis()
+                if settings.shouldRequestReview() {
+                    requestAppReview()
+                }
             }
         } catch {
             let capturedError = error
@@ -448,7 +457,7 @@ final class InventoryDetailViewModel {
     @MainActor
     func processSelectedPhotos(_ items: [PhotosPickerItem], for inventoryItem: InventoryItem) async {
         guard !items.isEmpty else { return }
-        
+
         await withTaskGroup(of: UIImage?.self) { group in
             for item in items {
                 group.addTask {
@@ -459,16 +468,38 @@ final class InventoryDetailViewModel {
                     return nil
                 }
             }
-            
+
             var images: [UIImage] = []
             for await image in group {
                 if let image = image {
                     images.append(image)
                 }
             }
-            
+
             if !images.isEmpty {
                 await handleNewPhotos(images, for: inventoryItem)
+            }
+        }
+    }
+
+    // MARK: - App Store Review
+
+    @MainActor
+    private func requestAppReview() {
+        // Delay review request by 2 seconds to let user glance at results
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            TelemetryManager.shared.trackAppReviewRequested()
+            if #available(iOS 18.0, *) {
+                if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                    AppStore.requestReview(in: scene)
+                    print("📱 Requested app review using AppStore API")
+                }
+            } else {
+                if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                    SKStoreReviewController.requestReview(in: scene)
+                    print("📱 Requested app review using legacy API")
+                }
             }
         }
     }

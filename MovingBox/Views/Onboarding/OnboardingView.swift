@@ -18,17 +18,14 @@ struct OnboardingView: View {
                     case .welcome:
                         OnboardingWelcomeView()
                             .transition(manager.transition)
-                    case .homeDetails:
-                        OnboardingHomeView()
-                            .transition(manager.transition)
-                    case .location:
-                        OnboardingLocationView()
-                            .transition(manager.transition)
                     case .item:
                         OnboardingItemView()
                             .transition(manager.transition)
                     case .notifications:
                         OnboardingNotificationsView()
+                            .transition(manager.transition)
+                    case .survey:
+                        OnboardingSurveyView()
                             .transition(manager.transition)
                     case .completion:
                         OnboardingCompletionView(isPresented: $isPresented)
@@ -55,7 +52,7 @@ struct OnboardingView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if shouldShowSkipButton {
                         Button("Skip") {
-                            manager.moveToNext()
+                            handleSkip()
                         }
                     }
                 }
@@ -79,9 +76,24 @@ struct OnboardingView: View {
         switch manager.currentStep {
         case .welcome, .completion:
             return false
-        case .homeDetails, .location, .item, .notifications:
+        case .item, .notifications, .survey:
             return true
         }
+    }
+
+    private func handleSkip() {
+        if manager.currentStep == .survey {
+            // Track telemetry for survey skip with error handling
+            do {
+                TelemetryManager.shared.trackUsageSurveySkipped()
+            } catch {
+                // Log error but don't block user flow for telemetry failures
+                print("⚠️ Failed to track survey skip telemetry: \(error)")
+            }
+            // Mark survey as completed even if skipped
+            UserDefaults.standard.set(true, forKey: OnboardingManager.hasCompletedUsageSurveyKey)
+        }
+        manager.moveToNext()
     }
 }
 

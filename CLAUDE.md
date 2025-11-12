@@ -54,6 +54,7 @@ All new views should try to use MVVM where possible. Larger views should split t
 - **OpenAIService**: AI-powered image analysis
 - **OptimizedImageManager**: Image storage and compression
 - **TelemetryManager**: Analytics via TelemetryDeck
+- **Sentry**: Error tracking and performance monitoring (initialized in MovingBoxApp)
 - **DefaultDataManager**: Test data population
 
 ### Navigation Pattern
@@ -91,7 +92,7 @@ OpenAI Vision API calls use structured responses with retry logic and error hand
 RevenueCat integration with pro feature gating via `AppConfig.shared.isPro` and subscription status
 
 ### Error Handling
-Comprehensive error tracking with Sentry integration and structured error types for each service
+Comprehensive error tracking with Sentry integration (v8.54.0) and structured error types for each service. Sentry is initialized in `MovingBoxApp.swift` with environment-specific configuration (debug/beta/production).
 
 ## Code Style & Best Practices
 
