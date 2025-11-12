@@ -9,7 +9,11 @@ import Foundation
 import TelemetryDeck
 
 /// Centralized manager for tracking app analytics via TelemetryDeck
-class TelemetryManager {
+/// Marked as @unchecked Sendable because:
+/// - All methods call thread-safe TelemetryDeck APIs
+/// - No mutable state is modified after initialization
+/// - Safe to access from any thread/actor
+final class TelemetryManager: @unchecked Sendable {
     static let shared = TelemetryManager()
     
     private init() {}
