@@ -16,6 +16,8 @@ import UIKit
 @MainActor
 class MockOpenAIService: OpenAIServiceProtocol {
     var shouldFail = false
+    var shouldFailMultiItem = false
+    
     var mockResponse = ImageDetails(
         title: "Test Item",
         quantity: "1",
@@ -28,6 +30,23 @@ class MockOpenAIService: OpenAIServiceProtocol {
         serialNumber: "TEST123"
     )
     
+    var mockMultiItemResponse = MultiItemAnalysisResponse(
+        items: [
+            DetectedInventoryItem(
+                title: "Mock Item 1",
+                description: "First mock item",
+                category: "Electronics",
+                make: "Mock",
+                model: "Test",
+                estimatedPrice: "$99.99",
+                confidence: 0.85
+            )
+        ],
+        detectedCount: 1,
+        analysisType: "multi_item",
+        confidence: 0.85
+    )
+    
     func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws -> ImageDetails {
         if shouldFail {
             throw OpenAIError.invalidData
@@ -37,6 +56,17 @@ class MockOpenAIService: OpenAIServiceProtocol {
         try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         return mockResponse
+    }
+    
+    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws -> MultiItemAnalysisResponse {
+        if shouldFailMultiItem {
+            throw OpenAIError.invalidData
+        }
+        
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        
+        return mockMultiItemResponse
     }
     
     func cancelCurrentRequest() {
@@ -126,7 +156,10 @@ class MockSettingsManager: SettingsManager {
     }
     
     override var effectiveAIModel: String {
-        return isPro ? "gpt-4-vision-preview" : "gpt-4o-mini"
+        if isPro && highQualityAnalysisEnabled {
+            return "gpt-5-mini"
+        }
+        return "gpt-4o"
     }
     
     override var effectiveDetailLevel: String {
