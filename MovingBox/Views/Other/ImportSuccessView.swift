@@ -113,14 +113,13 @@ struct ImportSuccessView: View {
         }
     }
     
-     private func navigateToDashboard() {
-         dismiss()
-         
-         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-             router.navigateToRoot()
-             router.navigate(to: .dashboardView)
-         }
-    }
+      private func navigateToDashboard() {
+          dismiss()
+          
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+              router.navigateToRoot()
+          }
+     }
 }
 
 struct ResultRow: View {
