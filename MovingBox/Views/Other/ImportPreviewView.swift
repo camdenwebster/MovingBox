@@ -116,6 +116,7 @@ struct ImportPreviewView: View {
 
 struct ImportPreviewContentView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @State private var previousState: ViewState = .preview
     
     let previewData: DataManager.ImportResult
     let config: DataManager.ImportConfig
@@ -124,6 +125,31 @@ struct ImportPreviewContentView: View {
     let importError: Error?
     let onStartImport: () -> Void
     let onDismiss: () -> Void
+    
+    enum ViewState: Equatable {
+        case preview
+        case importing
+        case error
+        
+        static func == (lhs: ViewState, rhs: ViewState) -> Bool {
+            switch (lhs, rhs) {
+            case (.preview, .preview), (.importing, .importing), (.error, .error):
+                return true
+            default:
+                return false
+            }
+        }
+    }
+    
+    private var currentState: ViewState {
+        if importError != nil {
+            return .error
+        } else if isImporting {
+            return .importing
+        } else {
+            return .preview
+        }
+    }
     
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
@@ -150,10 +176,13 @@ struct ImportPreviewContentView: View {
                     
                     if let error = importError {
                         errorView(error)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     } else if isImporting {
                         importingView
+                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     } else {
                         previewView
+                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     }
                     
                     Spacer()
@@ -163,6 +192,7 @@ struct ImportPreviewContentView: View {
                     }
                 }
                 .padding(.horizontal, 60)
+                .animation(.easeInOut(duration: 0.3), value: currentState)
              }
              .navigationTitle("Ready to Import")
              .navigationBarTitleDisplayMode(.inline)
@@ -248,6 +278,8 @@ struct ImportPreviewContentView: View {
     
     private func errorView(_ error: Error) -> some View {
         VStack(spacing: 16) {
+            Spacer()
+            
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 60))
                 .foregroundColor(.red)
@@ -260,11 +292,17 @@ struct ImportPreviewContentView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             
-            Button("Close") {
+            Spacer()
+            
+            Button {
                 onDismiss()
+            } label: {
+                Text("Close")
+                    .frame(maxWidth: .infinity)
+                    .padding()
             }
-            .buttonStyle(.borderedProminent)
             .tint(.red)
+            .backport.glassProminentButtonStyle()
         }
     }
     
