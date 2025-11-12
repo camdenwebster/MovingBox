@@ -1,3 +1,4 @@
+import SwiftUIBackports
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
@@ -60,12 +61,11 @@ struct ImportDataView: View {
                         Text(isValidatingZip ? "Validating..." : "Select ZIP File")
                             .font(.headline)
                     }
-                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(.green)
-                    .cornerRadius(10)
                 }
+                .tint(.green)
+                .backport.glassProminentButtonStyle()
                 .disabled(!hasImportOptionsSelected || isValidatingZip)
                 .listRowInsets(EdgeInsets())
             } footer: {
@@ -96,7 +96,7 @@ struct ImportDataView: View {
                 }
             }
         }
-        .sheet(isPresented: $showPreviewView) {
+        .fullScreenCover(isPresented: $showPreviewView) {
             if let result = importResult {
                 // Show success view in the sheet after import completes
                 ImportSuccessView(importResult: result)

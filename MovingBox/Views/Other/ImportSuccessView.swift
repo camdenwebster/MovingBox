@@ -35,14 +35,6 @@ struct ImportSuccessView: View {
             }
             
             VStack(spacing: 24) {
-                HStack {
-                    Spacer()
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .font(.headline)
-                }
-                .padding()
                 
                 Spacer()
                 
@@ -81,13 +73,13 @@ struct ImportSuccessView: View {
                             )
                         }
                     }
-                    .padding(.vertical, 16)
-                    .padding(.horizontal, 20)
+                    .padding()
                     .background {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(.ultraThinMaterial)
                     }
                 }
+                .padding()
                 
                 Spacer()
                 
@@ -105,6 +97,7 @@ struct ImportSuccessView: View {
                 .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                 .padding()
             }
+            .padding(.horizontal, 60)
         }
          .onAppear {
              DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
