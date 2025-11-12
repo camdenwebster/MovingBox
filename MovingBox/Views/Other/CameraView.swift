@@ -81,8 +81,6 @@ struct MockCameraView: View {
     
     var imageName: String {
         switch onboardingManager.currentStep {
-        case .homeDetails: return "craftsman-home"
-        case .location: return "kitchen"
         default: return "tablet"
         }
     }

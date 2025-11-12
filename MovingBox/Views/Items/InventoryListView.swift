@@ -7,6 +7,7 @@
 
 import SwiftUIBackports
 import RevenueCatUI
+import SentrySwiftUI
 import SwiftData
 import SwiftUI
 
@@ -195,6 +196,7 @@ struct InventoryListView: View {
             } message: {
                 Text(exportCoordinator.exportError?.localizedDescription ?? "An error occurred while exporting items.")
             }
+            .sentryTrace("InventoryListView")
     }
     
 

@@ -30,6 +30,7 @@
 		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
 		19750C382DA07FF40056F0FC /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19750C372DA07FF40056F0FC /* OnboardingManager.swift */; };
 		197F4BDB2EC43A6E00DC870B /* SWIFT6_CONCURRENCY_FIXES.md in Resources */ = {isa = PBXBuildFile; fileRef = 197F4BDA2EC43A5900DC870B /* SWIFT6_CONCURRENCY_FIXES.md */; };
+		197D67CD2EAA7B1500A53A02 /* SentrySwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
 		19A6B2982E74721C006A6EF6 /* AIProxy in Frameworks */ = {isa = PBXBuildFile; productRef = 19A6B2972E74721C006A6EF6 /* AIProxy */; };
@@ -166,6 +167,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1961C6E92D9DDC56004CF387 /* RevenueCat in Frameworks */,
+				197D67CD2EAA7B1500A53A02 /* SentrySwiftUI in Frameworks */,
 				1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */,
 				1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */,
 				19A6B2982E74721C006A6EF6 /* AIProxy in Frameworks */,
@@ -353,6 +355,7 @@
 				19BA299B2DC465170064C5A9 /* ZIPFoundation */,
 				196450532E4D6DC300918795 /* SwiftUIBackports */,
 				19A6B2972E74721C006A6EF6 /* AIProxy */,
+				197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */,
 			);
 			productName = MovingBox;
 			productReference = 1942DC7A2BF391CB00734AF4 /* MovingBox.app */;
@@ -1359,6 +1362,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
 			productName = SnapshotTesting;
+		};
+		197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = SentrySwiftUI;
 		};
 		19A6B2972E74721C006A6EF6 /* AIProxy */ = {
 			isa = XCSwiftPackageProductDependency;
