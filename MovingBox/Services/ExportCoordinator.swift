@@ -9,7 +9,7 @@ final class ExportCoordinator {
     var showExportProgress = false
     var archiveURL: URL?
     var showShareSheet = false
-    var exportError: Error?
+    var exportError: DataManager.SendableError?
     var showExportError = false
     var isExporting = false
     
@@ -74,15 +74,15 @@ final class ExportCoordinator {
                         archiveURL = result.archiveURL
                         showShareSheet = true
                         
-                    case .error(let error):
-                        exportError = error
-                        showExportProgress = false
-                        showExportError = true
+                    case .error(let sendableError):
+                         exportError = sendableError
+                         showExportProgress = false
+                         showExportError = true
                     }
                 }
             } catch {
                 print("❌ Export error: \(error.localizedDescription)")
-                exportError = error
+                exportError = DataManager.SendableError(error)
                 showExportProgress = false
                 showExportError = true
             }
@@ -111,7 +111,7 @@ final class ExportCoordinator {
                 
             } catch {
                 showExportProgress = false
-                exportError = error
+                exportError = DataManager.SendableError(error)
                 showExportError = true
             }
             

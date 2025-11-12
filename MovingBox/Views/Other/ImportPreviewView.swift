@@ -96,17 +96,17 @@ struct ImportPreviewView: View {
                          await MainActor.run {
                              onImportComplete(result)
                          }
-                    case .error(let error):
+                    case .error(let sendableError):
                         try? FileManager.default.removeItem(at: importURL)
                         await MainActor.run {
-                            importError = error
+                            importError = sendableError.toError()
                             isImporting = false
                         }
                     }
                 }
              } catch {
                 await MainActor.run {
-                    importError = error
+                    importError = NSError(domain: "ImportError", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription])
                     isImporting = false
                 }
             }

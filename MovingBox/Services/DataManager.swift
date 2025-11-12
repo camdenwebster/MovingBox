@@ -11,7 +11,7 @@ import SwiftData
 import SwiftUI
 
 actor DataManager {
-    enum DataError: Error {
+    enum DataError: Error, Sendable {
         case nothingToExport
         case failedCreateZip
         case invalidZipFile
@@ -20,6 +20,23 @@ actor DataManager {
         case fileAccessDenied
         case fileTooLarge
         case invalidFileType
+    }
+    
+    /// Sendable wrapper for arbitrary errors that cross actor boundaries via AsyncStream
+    struct SendableError: Sendable {
+        let description: String
+        let localizedDescription: String
+        
+        init(_ error: Error) {
+            self.description = String(describing: error)
+            self.localizedDescription = error.localizedDescription
+        }
+        
+        func toError() -> NSError {
+            NSError(domain: "DataManagerError", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: localizedDescription
+            ])
+        }
     }
 
     static let shared = DataManager()
@@ -174,7 +191,7 @@ actor DataManager {
                     continuation.finish()
                     
                 } catch {
-                    continuation.yield(.error(error))
+                    continuation.yield(.error(SendableError(error)))
                     continuation.finish()
                 }
             }
@@ -280,13 +297,13 @@ actor DataManager {
         let includeLabels: Bool
     }
 
-    enum ImportProgress {
+    enum ImportProgress: Sendable {
         case progress(Double)
         case completed(ImportResult)
-        case error(Error)
+        case error(SendableError)
     }
 
-    struct ImportResult {
+    struct ImportResult: Sendable {
         let itemCount: Int
         let locationCount: Int
         let labelCount: Int
@@ -304,17 +321,17 @@ actor DataManager {
     /// - **error**: Terminal state with error details
     ///
     /// Use `ProgressMapper.mapExportProgress()` to convert to 0-1 normalized progress.
-    enum ExportProgress {
+    enum ExportProgress: Sendable {
         case preparing
         case fetchingData(phase: String, progress: Double)
         case writingCSV(progress: Double)
         case copyingPhotos(current: Int, total: Int)
         case creatingArchive(progress: Double)
         case completed(ExportResult)
-        case error(Error)
+        case error(SendableError)
     }
     
-    struct ExportResult {
+    struct ExportResult: Sendable {
         let archiveURL: URL
         let itemCount: Int
         let locationCount: Int
@@ -462,7 +479,7 @@ actor DataManager {
                     
                     // Check if we can access the file
                     guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
-                        continuation.yield(.error(DataError.fileAccessDenied))
+                        continuation.yield(.error(SendableError(DataError.fileAccessDenied)))
                         continuation.finish()
                         return
                     }
@@ -515,7 +532,7 @@ actor DataManager {
                     }
                     
                     guard totalRows > 0 else {
-                        continuation.yield(.error(DataError.invalidCSVFormat))
+                        continuation.yield(.error(SendableError(DataError.invalidCSVFormat)))
                         continuation.finish()
                         throw DataError.invalidCSVFormat
                     }
@@ -940,7 +957,7 @@ actor DataManager {
                     continuation.finish()
                     
                 } catch {
-                    continuation.yield(.error(error))
+                    continuation.yield(.error(SendableError(error)))
                     continuation.finish()
                 }
             }
