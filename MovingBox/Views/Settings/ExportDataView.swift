@@ -1,3 +1,4 @@
+import SwiftUIBackports
 import SwiftUI
 import SwiftData
 
@@ -66,16 +67,14 @@ struct ExportDataView: View {
                             Text("Export Data")
                         }
                     }
-
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
                 }
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(.green)
-                .cornerRadius(10)
+                .tint(.green)
                 .disabled(exportCoordinator.isExporting || !hasExportOptionsSelected)
                 .listRowInsets(EdgeInsets())
+                .backport.glassProminentButtonStyle()
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Export a ZIP file containing the selected items and photos.")

@@ -4,20 +4,21 @@ import SwiftData
 import UniformTypeIdentifiers
 
 struct ImportDataView: View {
-    @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var router: Router
-    @State private var showFileImporter = false
-    @State private var showPreviewView = false
-    @State private var showSuccessView = false
-    @State private var previewData: DataManager.ImportResult?
-    @State private var selectedZipURL: URL?
-    @State private var isValidatingZip = false
-    @State private var validationError: Error?
-    @State private var showDuplicateWarning = false
-    @State private var importItems = true
-    @State private var importLocations = true
-    @State private var importLabels = true
-    @State private var importResult: DataManager.ImportResult?
+     @Environment(\.modelContext) private var modelContext
+     @EnvironmentObject private var router: Router
+     @State private var showFileImporter = false
+     @State private var showPreviewView = false
+     @State private var showSuccessView = false
+     @State private var previewData: DataManager.ImportResult?
+     @State private var selectedZipURL: URL?
+     @State private var isValidatingZip = false
+     @State private var validationError: Error?
+     @State private var showDuplicateWarning = false
+     @State private var importItems = true
+     @State private var importLocations = true
+     @State private var importLabels = true
+     @State private var importResult: DataManager.ImportResult?
+     @State private var didCompleteImport = false
     
     var body: some View {
         List {
@@ -96,27 +97,29 @@ struct ImportDataView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showPreviewView) {
-            if let result = importResult {
-                // Show success view in the sheet after import completes
-                ImportSuccessView(importResult: result)
-                    .environmentObject(router)
-            } else if let previewData = previewData, let zipURL = selectedZipURL {
-                // Show preview view initially
-                ImportPreviewView(
-                    previewData: previewData,
-                    zipURL: zipURL,
-                    config: DataManager.ImportConfig(
-                        includeItems: importItems,
-                        includeLocations: importLocations,
-                        includeLabels: importLabels
-                    ),
-                    onImportComplete: { result in
-                        importResult = result
-                    }
-                )
-            }
-        }
+         .fullScreenCover(isPresented: $showPreviewView) {
+             if let result = importResult {
+                 ImportSuccessView(importResult: result)
+                     .environmentObject(router)
+                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+             } else if let previewData = previewData, let zipURL = selectedZipURL {
+                 ImportPreviewView(
+                     previewData: previewData,
+                     zipURL: zipURL,
+                     config: DataManager.ImportConfig(
+                         includeItems: importItems,
+                         includeLocations: importLocations,
+                         includeLabels: importLabels
+                     ),
+                     onImportComplete: { result in
+                         importResult = result
+                         didCompleteImport = true
+                     }
+                 )
+                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+             }
+         }
+         .animation(.easeInOut(duration: 0.3), value: didCompleteImport)
         .alert("Validation Error", isPresented: .constant(validationError != nil)) {
             Button("OK") {
                 validationError = nil
