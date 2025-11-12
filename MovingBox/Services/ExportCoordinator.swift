@@ -23,7 +23,7 @@ final class ExportCoordinator {
     }
     
     func exportWithProgress(
-        modelContext: ModelContext,
+        modelContainer: ModelContainer,
         fileName: String,
         config: DataManager.ExportConfig
     ) async {
@@ -34,9 +34,9 @@ final class ExportCoordinator {
                 exportPhase = ""
                 showExportProgress = true
                 isExporting = true
-                
+
                 for await progress in DataManager.shared.exportInventoryWithProgress(
-                    modelContext: modelContext,
+                    modelContainer: modelContainer,
                     fileName: fileName,
                     config: config
                 ) {
@@ -93,17 +93,17 @@ final class ExportCoordinator {
     
     func exportSpecificItems(
         items: [InventoryItem],
-        modelContext: ModelContext
+        modelContainer: ModelContainer
     ) async {
         exportTask = Task {
             do {
                 showExportProgress = true
                 isExporting = true
                 exportError = nil
-                
+
                 let url = try await DataManager.shared.exportSpecificItems(
                     items: items,
-                    modelContext: modelContext
+                    modelContainer: modelContainer
                 )
                 
                 archiveURL = url

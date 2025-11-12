@@ -17,6 +17,7 @@ enum Options: Hashable {
 
 struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
+    @EnvironmentObject private var containerManager: ModelContainerManager
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
@@ -568,7 +569,7 @@ struct InventoryListView: View {
         Task { @MainActor in
             await exportCoordinator.exportSpecificItems(
                 items: selectedItems,
-                modelContext: modelContext
+                modelContainer: containerManager.container
             )
         }
     }

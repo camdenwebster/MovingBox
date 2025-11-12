@@ -13,6 +13,11 @@ on:
 jobs:
   unit_tests:
     runs-on: self-hosted
+    strategy:
+      matrix:
+        # Test on multiple simulators for consistency
+        simulator: ['iPhone 15', 'iPhone 17 Pro']
+      fail-fast: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,8 +28,26 @@ jobs:
           ruby-version: '3.0'
           bundler-cache: true
 
-      - name: Run unit tests
+      - name: Run unit tests (Fastlane)
         run: bundle exec fastlane ios unit_tests
+
+      - name: Run DataManager tests directly
+        run: |
+          xcodebuild test \
+            -project MovingBox.xcodeproj \
+            -scheme MovingBox \
+            -destination "platform=iOS Simulator,name=${{ matrix.simulator }}" \
+            -only-testing:MovingBoxTests/DataManagerTests \
+            -resultBundlePath ~/test-results-${{ matrix.simulator }}.xcresult
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-${{ matrix.simulator }}
+          path: ~/test-results-${{ matrix.simulator }}.xcresult
+        continue-on-error: true
 
   build:
     runs-on: self-hosted

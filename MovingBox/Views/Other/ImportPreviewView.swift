@@ -3,7 +3,7 @@ import SwiftUI
 import SwiftData
 
 struct ImportPreviewView: View {
-    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var containerManager: ModelContainerManager
     @Environment(\.dismiss) private var dismiss
     
     let previewData: DataManager.ImportResult
@@ -67,7 +67,7 @@ struct ImportPreviewView: View {
                 
                 for try await progress in await DataManager.shared.importInventory(
                     from: importURL,
-                    modelContext: modelContext,
+                    modelContainer: containerManager.container,
                     config: config
                 ) {
                     if Task.isCancelled {

@@ -16,16 +16,23 @@ struct DataManagerTests {
     func createContext(with container: ModelContainer) -> ModelContext {
         return ModelContext(container)
     }
-    
+
+    /// Creates a DataManager instance configured for testing with the given container.
+    /// This is necessary because DataManager.shared doesn't have a container configured,
+    /// which is correct for production but breaks tests that need to access SwiftData.
+    func createDataManager(with container: ModelContainer) -> DataManager {
+        return DataManager(modelContainer: container)
+    }
+
     let fileManager = FileManager.default
     
     @Test("Empty inventory throws error")
     func emptyInventoryThrowsError() async throws {
         let container = try createContainer()
-        let context = createContext(with: container)
-        
+        let dataManager = createDataManager(with: container)
+
         do {
-            _ = try await DataManager.shared.exportInventory(modelContext: context)
+            _ = try await dataManager.exportInventory(modelContainer: container)
             Issue.record("Expected error to be thrown")
         } catch let error as DataManager.DataError {
             #expect(error == .nothingToExport)
@@ -47,7 +54,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -87,7 +94,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -121,7 +128,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -149,7 +156,7 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .completed(let result) = progress {
                 importedItemCount = result.itemCount
@@ -202,7 +209,7 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: invalidZipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .error(let sendableError) = progress {
                 receivedError = sendableError.toError()
@@ -251,7 +258,7 @@ struct DataManagerTests {
         )
         
         let itemsOnlyURL = try await DataManager.shared.exportInventory(
-            modelContext: context,
+            modelContainer: container,
             config: itemsOnlyConfig
         )
         
@@ -289,7 +296,7 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: importURL,
-            modelContext: context,
+            modelContainer: container,
             config: itemsOnlyConfig
         ) {
             if case .completed(let result) = progress {
@@ -331,7 +338,7 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: deniedFileURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .error(let sendableError) = progress {
                 receivedError = sendableError.toError()
@@ -392,7 +399,7 @@ struct DataManagerTests {
         // This tests the validation logic exists
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .error(let error) = progress {
                 // If we get a file size error, that's expected
@@ -456,7 +463,7 @@ struct DataManagerTests {
         var hadError = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .error(let error) = progress {
                 if let dataError = error as? DataManager.DataError,
@@ -492,7 +499,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -549,7 +556,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -617,7 +624,7 @@ struct DataManagerTests {
         var completedSuccessfully = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .completed = progress {
                 completedSuccessfully = true
@@ -649,7 +656,7 @@ struct DataManagerTests {
         context.insert(item)
         try context.save()
         
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -661,18 +668,19 @@ struct DataManagerTests {
     func exportProgressReportsAllPhases() async throws {
         let container = try createContainer()
         let context = createContext(with: container)
-        
+        let dataManager = createDataManager(with: container)
+
         for i in 1...10 {
             let item = InventoryItem()
             item.title = "Item \(i)"
             context.insert(item)
         }
         try context.save()
-        
+
         var receivedPhases: Set<String> = []
-        
-        for await progress in DataManager.shared.exportInventoryWithProgress(
-            modelContext: context
+
+        for await progress in dataManager.exportInventoryWithProgress(
+            modelContainer: container
         ) {
             switch progress {
             case .preparing:
@@ -705,18 +713,19 @@ struct DataManagerTests {
     func exportCanBeCancelled() async throws {
         let container = try createContainer()
         let context = createContext(with: container)
-        
+        let dataManager = createDataManager(with: container)
+
         for i in 1...200 {
             let item = InventoryItem()
             item.title = "Item \(i)"
             context.insert(item)
         }
         try context.save()
-        
+
         let task = Task {
             var phaseCount = 0
-            for await progress in DataManager.shared.exportInventoryWithProgress(
-                modelContext: context
+            for await progress in dataManager.exportInventoryWithProgress(
+                modelContainer: container
             ) {
                 phaseCount += 1
                 if case .fetchingData = progress, phaseCount > 1 {
@@ -736,29 +745,30 @@ struct DataManagerTests {
     func exportResultContainsCorrectCounts() async throws {
         let container = try createContainer()
         let context = createContext(with: container)
-        
+        let dataManager = createDataManager(with: container)
+
         for i in 1...15 {
             let item = InventoryItem()
             item.title = "Item \(i)"
             context.insert(item)
         }
-        
+
         for i in 1...5 {
             let location = InventoryLocation(name: "Location \(i)")
             context.insert(location)
         }
-        
+
         for i in 1...3 {
             let label = InventoryLabel(name: "Label \(i)")
             context.insert(label)
         }
-        
+
         try context.save()
-        
+
         var exportResult: DataManager.ExportResult?
-        
-        for await progress in DataManager.shared.exportInventoryWithProgress(
-            modelContext: context
+
+        for await progress in dataManager.exportInventoryWithProgress(
+            modelContainer: container
         ) {
             if case .completed(let result) = progress {
                 exportResult = result

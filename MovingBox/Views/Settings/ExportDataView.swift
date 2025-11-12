@@ -3,7 +3,7 @@ import SwiftUI
 import SwiftData
 
 struct ExportDataView: View {
-    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var containerManager: ModelContainerManager
     @State private var exportCoordinator = ExportCoordinator()
     @State private var exportItems = true
     @State private var exportLocations = true
@@ -124,9 +124,9 @@ struct ExportDataView: View {
             includeLocations: exportLocations,
             includeLabels: exportLabels
         )
-        
+
         await exportCoordinator.exportWithProgress(
-            modelContext: modelContext,
+            modelContainer: containerManager.container,
             fileName: fileName,
             config: config
         )
