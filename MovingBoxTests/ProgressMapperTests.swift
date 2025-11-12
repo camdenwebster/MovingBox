@@ -123,7 +123,7 @@ struct ProgressMapperTests {
         #expect(completedProgress.progress == 1.0)
         #expect(completedProgress.phase.isEmpty)
         
-        let errorProgress = ProgressMapper.mapExportProgress(.error(NSError(domain: "test", code: 0)))
+        let errorProgress = ProgressMapper.mapExportProgress(.error(DataManager.SendableError(NSError(domain: "test", code: 0))))
         #expect(errorProgress.progress == 1.0)
         #expect(errorProgress.phase.isEmpty)
     }

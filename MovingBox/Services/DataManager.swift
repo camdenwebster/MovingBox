@@ -566,10 +566,10 @@ actor DataManager {
                     }
                     
                     // Collect image copy tasks for concurrent processing
-                    struct ImageCopyTask {
+                    struct ImageCopyTask: Sendable {
                         let sourceURL: URL
                         let destinationFilename: String
-                        let targetObject: AnyObject
+                        let targetName: String
                         let isLocation: Bool
                     }
                     var imageCopyTasks: [ImageCopyTask] = []
@@ -626,7 +626,7 @@ actor DataManager {
                                                 imageCopyTasks.append(ImageCopyTask(
                                                     sourceURL: photoURL,
                                                     destinationFilename: data.photoFilename,
-                                                    targetObject: location,
+                                                    targetName: location.name,
                                                     isLocation: true
                                                 ))
                                             }
@@ -654,13 +654,13 @@ actor DataManager {
                                         let location = self.createAndConfigureLocation(name: data.name, desc: data.desc)
                                         
                                         if let photoURL = data.photoURL {
-                                            imageCopyTasks.append(ImageCopyTask(
-                                                sourceURL: photoURL,
-                                                destinationFilename: data.photoFilename,
-                                                targetObject: location,
-                                                isLocation: true
-                                            ))
-                                        }
+                                             imageCopyTasks.append(ImageCopyTask(
+                                                 sourceURL: photoURL,
+                                                 destinationFilename: data.photoFilename,
+                                                 targetName: location.name,
+                                                 isLocation: true
+                                             ))
+                                         }
                                         
                                         locationCache[location.name] = location
                                         modelContext.insert(location)
@@ -832,7 +832,7 @@ actor DataManager {
                                                 imageCopyTasks.append(ImageCopyTask(
                                                     sourceURL: photoURL,
                                                     destinationFilename: data.photoFilename,
-                                                    targetObject: item,
+                                                    targetName: item.title,
                                                     isLocation: false
                                                 ))
                                             }
@@ -884,7 +884,7 @@ actor DataManager {
                                             imageCopyTasks.append(ImageCopyTask(
                                                 sourceURL: photoURL,
                                                 destinationFilename: data.photoFilename,
-                                                targetObject: item,
+                                                targetName: item.title,
                                                 isLocation: false
                                             ))
                                         }
@@ -932,12 +932,18 @@ actor DataManager {
                                     guard let copiedURL = copiedURL else { continue }
                                     
                                     let task = imageCopyTasks[originalIndex]
+                                    let targetName = task.targetName
+                                    
                                     if task.isLocation {
-                                        if let location = task.targetObject as? InventoryLocation {
+                                        var descriptor = FetchDescriptor<InventoryLocation>()
+                                        descriptor.predicate = #Predicate { $0.name == targetName }
+                                        if let location = try? modelContext.fetch(descriptor).first {
                                             location.imageURL = copiedURL
                                         }
                                     } else {
-                                        if let item = task.targetObject as? InventoryItem {
+                                        var descriptor = FetchDescriptor<InventoryItem>()
+                                        descriptor.predicate = #Predicate { $0.title == targetName }
+                                        if let item = try? modelContext.fetch(descriptor).first {
                                             item.imageURL = copiedURL
                                         }
                                     }

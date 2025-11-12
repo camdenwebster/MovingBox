@@ -204,8 +204,8 @@ struct DataManagerTests {
             from: invalidZipURL,
             modelContext: context
         ) {
-            if case .error(let error) = progress {
-                receivedError = error
+            if case .error(let sendableError) = progress {
+                receivedError = sendableError.toError()
                 break
             }
         }
@@ -333,8 +333,8 @@ struct DataManagerTests {
             from: deniedFileURL,
             modelContext: context
         ) {
-            if case .error(let error) = progress {
-                receivedError = error
+            if case .error(let sendableError) = progress {
+                receivedError = sendableError.toError()
                 break
             }
         }
