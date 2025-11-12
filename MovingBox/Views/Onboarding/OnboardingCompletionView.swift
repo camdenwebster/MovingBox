@@ -3,6 +3,7 @@ import SwiftUI
 
 struct OnboardingCompletionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.isSnapshotTesting) private var isSnapshotTesting
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Binding var isPresented: Bool
@@ -90,8 +91,12 @@ struct OnboardingCompletionView: View {
             }
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if isSnapshotTesting {
                 showCheckmark = true
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showCheckmark = true
+                }
             }
         }
     }

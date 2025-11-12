@@ -12,17 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced project documentation and development guidelines
 - Custom slash commands for common development tasks
 - Multi-Claude workflow strategies for different development roles
+- **Enabled Sentry error tracking integration (v8.54.0)**
+  - Automatic crash and error reporting
+  - Performance monitoring with 20% sampling rate
+  - Environment-specific tracking (debug/beta/production)
+  - Debug symbol upload for symbolicated crash reports
 
 ### Changed
 - Enhanced root-level CLAUDE.md with comprehensive development guidance
 - Added directory-specific CLAUDE.md files for Views, Models, and Services
 - Improved development workflow documentation
 
+### Fixed
+- **Removed outdated Sentry session replay API calls incompatible with SDK 8.54.0**
+- **Updated Sentry initialization to use correct API for current SDK version**
+
 ### Developer Experience
 - Added `.claude/commands/` directory with iOS-specific development commands
 - Created `.claude/settings.json` for optimized Claude Code tool configuration
 - Added `plan.md` for structured task planning and analysis
 - Enhanced testing and build process documentation
+- Added `SENTRY_INTEGRATION.md` documentation for error tracking setup
 
 ---
 
