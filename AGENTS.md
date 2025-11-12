@@ -31,7 +31,7 @@ xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -testPlan Mo
 fastlane screenshots
 ```
 
-If warnings are detected, re-run with `--print-warnings` to view warning details. For example: `xcodebuild build 2>&1 | xcsift --print-warnings`
+If warnings are detected, re-run with `--print-warnings` to view warning details. For example: `xcodebuild build 2>&1 | xcsift --warnings`
 
 ### Test Configuration
 Use launch arguments for testing:
