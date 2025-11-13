@@ -62,5 +62,15 @@ jobs:
           ruby-version: '3.0'
           bundler-cache: true
 
+      - name: Set version suffix for PR builds
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "VERSION_SUFFIX=.${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          else
+            echo "VERSION_SUFFIX=" >> $GITHUB_ENV
+          fi
+
       - name: Build app
         run: bundle exec fastlane ios build
+        env:
+          CI_VERSION_SUFFIX: ${{ env.VERSION_SUFFIX }}

@@ -70,6 +70,7 @@
 		190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatter.swift; sourceTree = "<group>"; };
 		191881AB2EC54398009FB4F4 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLAUDE.md; sourceTree = "<group>"; };
 		191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = SmokeTests.xctestplan; path = "Test Plans/SmokeTests.xctestplan"; sourceTree = "<group>"; };
+		191881AD2EC61EB9009FB4F4 /* opencode.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = opencode.json; sourceTree = "<group>"; };
 		191FEA602D6D04E5006FF067 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryManager.swift; sourceTree = "<group>"; };
 		1927DD0F2D89E26600BEFD9D /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -211,6 +212,7 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				191881AD2EC61EB9009FB4F4 /* opencode.json */,
 				191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */,
 				191881AB2EC54398009FB4F4 /* CLAUDE.md */,
 				19D3759A2E0822C0005B7816 /* AGENTS.md */,
