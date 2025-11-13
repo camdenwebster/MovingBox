@@ -52,6 +52,7 @@
         "ImportExportUITests\/testImportShowsWarningWhenFileButtonTapped()",
         "ImportExportUITests\/testNavigateToExportScreen()",
         "ImportExportUITests\/testNavigateToImportScreen()",
+        "InventoryItemUITests\/testAddItemManuallyViaListViewFromCameraRoll()",
         "InventoryListDeletionUITests\/testCancelDeletion()",
         "InventoryListDeletionUITests\/testDeleteAllItemsInView()",
         "InventoryListDeletionUITests\/testDeleteWithNoItemsSelected()",

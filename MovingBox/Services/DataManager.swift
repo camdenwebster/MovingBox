@@ -103,10 +103,12 @@ actor DataManager {
     struct SendableError: Sendable {
         let description: String
         let localizedDescription: String
+        private let underlyingErrorType: String
         
         init(_ error: Error) {
             self.description = String(describing: error)
             self.localizedDescription = error.localizedDescription
+            self.underlyingErrorType = String(describing: type(of: error))
         }
         
         func toError() -> NSError {
@@ -116,45 +118,45 @@ actor DataManager {
         }
 
         var errorDescription: String? {
-            switch self {
-            case .nothingToExport:
+            if description.contains("nothingToExport") {
                 return "No data available to export. Add some items, locations, or labels first."
-            case .failedCreateZip:
+            } else if description.contains("failedCreateZip") {
                 return "Unable to create the export file. Please try again."
-            case .invalidZipFile:
+            } else if description.contains("invalidZipFile") {
                 return "The selected file is not a valid ZIP archive. Please choose a valid MovingBox export file."
-            case .invalidCSVFormat:
+            } else if description.contains("invalidCSVFormat") {
                 return "This doesn't appear to be a MovingBox export file. Please use a ZIP file that was exported from MovingBox."
-            case .photoNotFound:
+            } else if description.contains("photoNotFound") {
                 return "Some photos could not be found during the import process."
-            case .fileAccessDenied:
+            } else if description.contains("fileAccessDenied") {
                 return "Unable to access the selected file. Please check file permissions and try again."
-            case .fileTooLarge:
+            } else if description.contains("fileTooLarge") {
                 return "One or more images exceed the 100MB size limit and cannot be imported."
-            case .invalidFileType:
+            } else if description.contains("invalidFileType") {
                 return "Invalid image file type detected. Only JPG, PNG, and HEIC formats are supported."
             }
+            return localizedDescription
         }
 
         var recoverySuggestion: String? {
-            switch self {
-            case .nothingToExport:
+            if description.contains("nothingToExport") {
                 return "Create some inventory items, locations, or labels before exporting."
-            case .failedCreateZip:
+            } else if description.contains("failedCreateZip") {
                 return "Check that you have sufficient storage space and try exporting again."
-            case .invalidZipFile:
+            } else if description.contains("invalidZipFile") {
                 return "Make sure you're selecting a ZIP file that was previously exported from MovingBox."
-            case .invalidCSVFormat:
+            } else if description.contains("invalidCSVFormat") {
                 return "MovingBox can only import files that were exported from the app. If you have data from another app, you'll need to manually add it."
-            case .photoNotFound:
+            } else if description.contains("photoNotFound") {
                 return "The import will continue, but some images may be missing from your inventory."
-            case .fileAccessDenied:
+            } else if description.contains("fileAccessDenied") {
                 return "Try moving the file to a different location or grant the app permission to access it."
-            case .fileTooLarge:
+            } else if description.contains("fileTooLarge") {
                 return "Try compressing the images before exporting, or remove some items from the export."
-            case .invalidFileType:
+            } else if description.contains("invalidFileType") {
                 return "Convert unsupported images to JPG, PNG, or HEIC format before importing."
             }
+            return nil
         }
     }
 
