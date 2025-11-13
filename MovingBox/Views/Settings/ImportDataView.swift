@@ -1,22 +1,24 @@
+import SwiftUIBackports
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
 struct ImportDataView: View {
-    @Environment(\.modelContext) private var modelContext
-    @State private var showFileImporter = false
-    @State private var showImportLoading = false
-    @State private var importedItemCount: Int = 0
-    @State private var importedLocationCount: Int = 0
-    @State private var importedLabelCount: Int = 0
-    @State private var importCompleted = false
-    @State private var importProgress: Double = 0
-    @State private var importError: Error?
-    @State private var showDuplicateWarning = false
-    @State private var importItems = true
-    @State private var importLocations = true
-    @State private var importLabels = true
-    @State private var importTask: Task<Void, Never>?
+     @Environment(\.modelContext) private var modelContext
+     @EnvironmentObject private var router: Router
+     @State private var showFileImporter = false
+     @State private var showPreviewView = false
+     @State private var showSuccessView = false
+     @State private var previewData: DataManager.ImportResult?
+     @State private var selectedZipURL: URL?
+     @State private var isValidatingZip = false
+     @State private var validationError: Error?
+     @State private var showDuplicateWarning = false
+     @State private var importItems = true
+     @State private var importLocations = true
+     @State private var importLabels = true
+     @State private var importResult: DataManager.ImportResult?
+     @State private var didCompleteImport = false
     
     var body: some View {
         List {
@@ -28,6 +30,7 @@ struct ImportDataView: View {
                         Text("Import Items")
                     }
                 }
+                .accessibilityIdentifier("import-items-toggle")
                 
                 Toggle(isOn: $importLocations) {
                     HStack {
@@ -36,6 +39,7 @@ struct ImportDataView: View {
                         Text("Import Locations")
                     }
                 }
+                .accessibilityIdentifier("import-locations-toggle")
                 
                 Toggle(isOn: $importLabels) {
                     HStack {
@@ -44,6 +48,7 @@ struct ImportDataView: View {
                         Text("Import Labels")
                     }
                 }
+                .accessibilityIdentifier("import-labels-toggle")
             }
             
             Section {
@@ -52,16 +57,22 @@ struct ImportDataView: View {
                         showDuplicateWarning = true
                     }
                 } label: {
-                    Text("Import Data from ZIP")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.green)
-                        .cornerRadius(10)
+                    HStack {
+                        if isValidatingZip {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                        Text(isValidatingZip ? "Validating..." : "Select ZIP File")
+                            .font(.headline)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
                 }
-                .disabled(!hasImportOptionsSelected || showImportLoading)
+                .tint(.green)
+                .backport.glassProminentButtonStyle()
+                .disabled(!hasImportOptionsSelected || isValidatingZip)
                 .listRowInsets(EdgeInsets())
+                .accessibilityIdentifier("import-select-file-button")
             } footer: {
                 Text("Restore data from a ZIP file that was previously exported from MovingBox. Files from other apps cannot be imported.")
                     .font(.footnote)
@@ -84,25 +95,43 @@ struct ImportDataView: View {
         ) { result in
             Task { @MainActor in
                 if let url = try? result.get().first {
-                    await handleImport(url: url)
+                    await validateAndPreview(url: url)
                 } else {
-                    print("❌ Import error: No file selected")
-                    importError = NSError(domain: "ImportError", code: 0, userInfo: [NSLocalizedDescriptionKey: "No file selected"])
-                    importCompleted = false
+                    validationError = NSError(domain: "ImportError", code: 0, userInfo: [NSLocalizedDescriptionKey: "No file selected"])
                 }
             }
         }
-        .fullScreenCover(isPresented: $showImportLoading) {
-            ImportLoadingView(
-                importedItemCount: importedItemCount,
-                importedLocationCount: importedLocationCount,
-                importedLabelCount: importedLabelCount,
-                isComplete: $showImportLoading,
-                importCompleted: importCompleted,
-                progress: importProgress,
-                error: importError,
-                onCancel: cancelImport
-            )
+         .fullScreenCover(isPresented: $showPreviewView) {
+             if let result = importResult {
+                 ImportSuccessView(importResult: result)
+                     .environmentObject(router)
+                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+             } else if let previewData = previewData, let zipURL = selectedZipURL {
+                 ImportPreviewView(
+                     previewData: previewData,
+                     zipURL: zipURL,
+                     config: DataManager.ImportConfig(
+                         includeItems: importItems,
+                         includeLocations: importLocations,
+                         includeLabels: importLabels
+                     ),
+                     onImportComplete: { result in
+                         importResult = result
+                         didCompleteImport = true
+                     }
+                 )
+                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+             }
+         }
+         .animation(.easeInOut(duration: 0.3), value: didCompleteImport)
+        .alert("Validation Error", isPresented: .constant(validationError != nil)) {
+            Button("OK") {
+                validationError = nil
+            }
+        } message: {
+            if let error = validationError {
+                Text(error.localizedDescription)
+            }
         }
     }
     
@@ -110,103 +139,40 @@ struct ImportDataView: View {
         importItems || importLocations || importLabels
     }
     
-    private func handleImport(url: URL) async {
-        importTask = Task {
-            do {
-                importError = nil
-                importProgress = 0
-                importCompleted = false
-                showImportLoading = true
-                
-                // Start accessing security-scoped resource
-                guard url.startAccessingSecurityScopedResource() else {
-                    throw NSError(
-                        domain: "ImportError",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"]
-                    )
-                }
-                
-                defer {
-                    url.stopAccessingSecurityScopedResource()
-                }
-                
-                let documentsDirectory = FileManager.default.urls(
-                    for: .documentDirectory,
-                    in: .userDomainMask
-                ).first!
-                let importDirectory = documentsDirectory.appendingPathComponent("Imports", isDirectory: true)
-                
-                if !FileManager.default.fileExists(atPath: importDirectory.path) {
-                    try FileManager.default.createDirectory(
-                        at: importDirectory,
-                        withIntermediateDirectories: true
-                    )
-                }
-                
-                let importURL = importDirectory.appendingPathComponent(UUID().uuidString + ".zip")
-                
-                if FileManager.default.fileExists(atPath: importURL.path) {
-                    try FileManager.default.removeItem(at: importURL)
-                }
-                
-                print("📦 Copying file to: \(importURL.path)")
-                
-                try FileManager.default.copyItem(at: url, to: importURL)
-                
-                let config = DataManager.ImportConfig(
-                    includeItems: importItems,
-                    includeLocations: importLocations,
-                    includeLabels: importLabels
+    private func validateAndPreview(url: URL) async {
+        isValidatingZip = true
+        validationError = nil
+        
+        do {
+            guard url.startAccessingSecurityScopedResource() else {
+                throw NSError(
+                    domain: "ImportError",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Unable to access the selected file"]
                 )
-                
-                for try await progress in await DataManager.shared.importInventory(
-                    from: importURL,
-                    modelContext: modelContext,
-                    config: config
-                ) {
-                    if Task.isCancelled {
-                        try? FileManager.default.removeItem(at: importURL)
-                        throw NSError(
-                            domain: "ImportError",
-                            code: -999,
-                            userInfo: [NSLocalizedDescriptionKey: "Import cancelled by user"]
-                        )
-                    }
-                    
-                    switch progress {
-                    case .progress(let value):
-                        importProgress = value
-                    case .completed(let result):
-                        importedItemCount = result.itemCount
-                        importedLocationCount = result.locationCount
-                        importedLabelCount = result.labelCount
-                        importCompleted = true
-                        try? FileManager.default.removeItem(at: importURL)
-                        if let contents = try? FileManager.default.contentsOfDirectory(
-                            at: importDirectory,
-                            includingPropertiesForKeys: nil
-                        ), contents.isEmpty {
-                            try? FileManager.default.removeItem(at: importDirectory)
-                        }
-                    case .error(let error):
-                        importError = error
-                        importCompleted = false
-                        try? FileManager.default.removeItem(at: importURL)
-                    }
-                }
-            } catch {
-                print("❌ Import error: \(error.localizedDescription)")
-                importError = error
-                importCompleted = false
             }
+            
+            defer {
+                url.stopAccessingSecurityScopedResource()
+            }
+            
+            let config = DataManager.ImportConfig(
+                includeItems: importItems,
+                includeLocations: importLocations,
+                includeLabels: importLabels
+            )
+            
+            let preview = try await DataManager.shared.previewImport(from: url, config: config)
+            
+            selectedZipURL = url
+            previewData = preview
+            isValidatingZip = false
+            showPreviewView = true
+            
+        } catch {
+            validationError = error
+            isValidatingZip = false
         }
-    }
-    
-    private func cancelImport() {
-        importTask?.cancel()
-        importTask = nil
-        showImportLoading = false
     }
 }
 

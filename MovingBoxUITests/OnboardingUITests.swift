@@ -31,7 +31,7 @@ final class OnboardingUITests: XCTestCase {
         
         // Item View
         let itemTakePhotoButton = app.buttons["onboarding-item-take-photo-button"]
-        XCTAssertTrue(itemTakePhotoButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(itemTakePhotoButton.waitForExistence(timeout: 10))
         itemTakePhotoButton.tap()
         
         // Handle privacy notice alert

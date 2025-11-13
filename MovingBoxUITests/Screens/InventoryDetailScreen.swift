@@ -159,10 +159,7 @@ class InventoryDetailScreen {
         XCTAssertTrue(analysisCompleted, "AI analysis should complete within \(timeout) seconds")
     }
     
-    func verifyPopulatedFields() {
-        // Wait for AI analysis to complete first
-        waitForAIAnalysisToComplete()
-        
+    func verifyPopulatedFields() {        
         // Then: Fields should contain non-empty values
         XCTAssertFalse(
             (titleField.value as? String)?.isEmpty ?? true,

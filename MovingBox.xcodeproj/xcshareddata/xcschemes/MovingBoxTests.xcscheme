@@ -14,11 +14,11 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Test Plans/MovingBoxTests.xctestplan"
-            default = "YES">
+            reference = "container:Test Plans/MovingBoxSnapshotTests.xctestplan">
          </TestPlanReference>
          <TestPlanReference
-            reference = "container:Test Plans/MovingBoxSnapshotTests.xctestplan">
+            reference = "container:Test Plans/MovingBoxTests.xctestplan"
+            default = "YES">
          </TestPlanReference>
       </TestPlans>
       <Testables>

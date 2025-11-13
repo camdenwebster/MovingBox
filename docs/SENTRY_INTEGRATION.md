@@ -130,6 +130,24 @@ Basic integration tests are available in `MovingBoxTests/SentryIntegrationTests.
 - Verifies Sentry DSN is configured
 - Validates DSN format
 
+## Test Environment Configuration
+
+### App Hang Tracking
+
+App hang tracking is automatically disabled when running unit tests to prevent false positives. Tests often perform synchronous operations (SwiftData container initialization, file I/O) that exceed the 2-second app hang threshold but don't represent real user-facing issues.
+
+The app detects test execution via the `XCTestConfigurationFilePath` environment variable, which is automatically set by Xcode when running tests.
+
+```swift
+let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+options.enableAppHangTracking = !isRunningTests
+```
+
+This ensures:
+- No false positive app hang reports from test execution
+- Production app hang detection remains fully enabled
+- Manual testing in debug builds still tracks app hangs
+
 ## Troubleshooting
 
 ### Build Warnings

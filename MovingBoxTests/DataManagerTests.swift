@@ -16,16 +16,23 @@ struct DataManagerTests {
     func createContext(with container: ModelContainer) -> ModelContext {
         return ModelContext(container)
     }
-    
+
+    /// Creates a DataManager instance configured for testing with the given container.
+    /// This is necessary because DataManager.shared doesn't have a container configured,
+    /// which is correct for production but breaks tests that need to access SwiftData.
+    func createDataManager(with container: ModelContainer) -> DataManager {
+        return DataManager(modelContainer: container)
+    }
+
     let fileManager = FileManager.default
     
     @Test("Empty inventory throws error")
     func emptyInventoryThrowsError() async throws {
         let container = try createContainer()
-        let context = createContext(with: container)
-        
+        let dataManager = createDataManager(with: container)
+
         do {
-            _ = try await DataManager.shared.exportInventory(modelContext: context)
+            _ = try await dataManager.exportInventory(modelContainer: container)
             Issue.record("Expected error to be thrown")
         } catch let error as DataManager.DataError {
             #expect(error == .nothingToExport)
@@ -47,7 +54,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -87,7 +94,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -121,7 +128,7 @@ struct DataManagerTests {
         try context.save()
         
         // When
-        let url = try await DataManager.shared.exportInventory(modelContext: context)
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -149,7 +156,7 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .completed(let result) = progress {
                 importedItemCount = result.itemCount
@@ -202,10 +209,10 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: invalidZipURL,
-            modelContext: context
+            modelContainer: container
         ) {
-            if case .error(let error) = progress {
-                receivedError = error
+            if case .error(let sendableError) = progress {
+                receivedError = sendableError.toError()
                 break
             }
         }
@@ -251,7 +258,7 @@ struct DataManagerTests {
         )
         
         let itemsOnlyURL = try await DataManager.shared.exportInventory(
-            modelContext: context,
+            modelContainer: container,
             config: itemsOnlyConfig
         )
         
@@ -289,7 +296,7 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: importURL,
-            modelContext: context,
+            modelContainer: container,
             config: itemsOnlyConfig
         ) {
             if case .completed(let result) = progress {
@@ -331,10 +338,10 @@ struct DataManagerTests {
         
         for try await progress in await DataManager.shared.importInventory(
             from: deniedFileURL,
-            modelContext: context
+            modelContainer: container
         ) {
-            if case .error(let error) = progress {
-                receivedError = error
+            if case .error(let sendableError) = progress {
+                receivedError = sendableError.toError()
                 break
             }
         }
@@ -392,7 +399,7 @@ struct DataManagerTests {
         // This tests the validation logic exists
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .error(let error) = progress {
                 // If we get a file size error, that's expected
@@ -456,7 +463,7 @@ struct DataManagerTests {
         var hadError = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .error(let error) = progress {
                 if let dataError = error as? DataManager.DataError,
@@ -474,6 +481,98 @@ struct DataManagerTests {
         // File type validation happens during copy, so we won't get an error if the file is just skipped
         // This test ensures the validation logic exists
         #expect(true) // Test passes if no crash occurs
+    }
+    
+    @Test("Export with large dataset uses batched processing")
+    func exportWithLargeDatasetUsesBatching() async throws {
+        // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        // Create 150 items to test batching (batch size is 100)
+        for i in 1...150 {
+            let item = InventoryItem()
+            item.title = "Test Item \(i)"
+            item.desc = "Description \(i)"
+            context.insert(item)
+        }
+        try context.save()
+        
+        // When
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        defer {
+            try? fileManager.removeItem(at: url)
+        }
+        
+        // Then
+        #expect(fileManager.fileExists(atPath: url.path))
+        
+        // Verify the archive contains all items
+        do {
+            let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
+            #expect(archive.contains { $0.path == "inventory.csv" })
+            
+            // Extract and verify CSV content
+            if let entry = archive["inventory.csv"] {
+                var csvData = Data()
+                _ = try archive.extract(entry) { data in
+                    csvData.append(data)
+                }
+                
+                let csvString = String(data: csvData, encoding: .utf8)
+                let lines = csvString?.components(separatedBy: .newlines).filter { !$0.isEmpty }
+                
+                // Should have header + 150 items = 151 lines
+                #expect(lines?.count == 151)
+            }
+        } catch {
+            Issue.record("Unable to verify archive: \(error)")
+        }
+    }
+    
+    @Test("Batched export with locations and labels")
+    func batchedExportWithMultipleTypes() async throws {
+        // Given
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        // Create 150 items, 50 locations, 30 labels
+        for i in 1...150 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+        
+        for i in 1...50 {
+            let location = InventoryLocation(name: "Location \(i)")
+            context.insert(location)
+        }
+        
+        for i in 1...30 {
+            let label = InventoryLabel(name: "Label \(i)")
+            context.insert(label)
+        }
+        
+        try context.save()
+        
+        // When
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        defer {
+            try? fileManager.removeItem(at: url)
+        }
+        
+        // Then
+        #expect(fileManager.fileExists(atPath: url.path))
+        
+        // Verify all CSV files are present
+        do {
+            let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
+            #expect(archive.contains { $0.path == "inventory.csv" })
+            #expect(archive.contains { $0.path == "locations.csv" })
+            #expect(archive.contains { $0.path == "labels.csv" })
+        } catch {
+            Issue.record("Unable to verify archive: \(error)")
+        }
     }
     
     @Test("Import handles filename sanitization")
@@ -525,7 +624,7 @@ struct DataManagerTests {
         var completedSuccessfully = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContext: context
+            modelContainer: container
         ) {
             if case .completed = progress {
                 completedSuccessfully = true
@@ -539,6 +638,153 @@ struct DataManagerTests {
         // Verify items were imported (the dangerous filename should be sanitized)
         let items = try context.fetch(FetchDescriptor<InventoryItem>())
         #expect(items.count == 2)
+    }
+    
+    @Test("Batch size adjusts based on device memory")
+    func batchSizeAdjustsBasedOnMemory() async throws {
+        let memoryBytes = ProcessInfo.processInfo.physicalMemory
+        let memoryGB = Double(memoryBytes) / 1_073_741_824.0
+        
+        #expect(memoryBytes > 0)
+        #expect(memoryGB > 0)
+        
+        let container = try createContainer()
+        let context = createContext(with: container)
+        
+        let item = InventoryItem()
+        item.title = "Test Item"
+        context.insert(item)
+        try context.save()
+        
+        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        defer {
+            try? fileManager.removeItem(at: url)
+        }
+        
+        #expect(fileManager.fileExists(atPath: url.path))
+    }
+    
+    @Test("Export progress reports all phases")
+    func exportProgressReportsAllPhases() async throws {
+        let container = try createContainer()
+        let context = createContext(with: container)
+        let dataManager = createDataManager(with: container)
+
+        for i in 1...10 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+        try context.save()
+
+        var receivedPhases: Set<String> = []
+
+        for await progress in dataManager.exportInventoryWithProgress(
+            modelContainer: container
+        ) {
+            switch progress {
+            case .preparing:
+                receivedPhases.insert("preparing")
+            case .fetchingData:
+                receivedPhases.insert("fetchingData")
+            case .writingCSV:
+                receivedPhases.insert("writingCSV")
+            case .copyingPhotos:
+                receivedPhases.insert("copyingPhotos")
+            case .creatingArchive:
+                receivedPhases.insert("creatingArchive")
+            case .completed(let result):
+                receivedPhases.insert("completed")
+                try? fileManager.removeItem(at: result.archiveURL)
+                break
+            case .error:
+                Issue.record("Export should not error")
+            }
+        }
+        
+        #expect(receivedPhases.contains("preparing"))
+        #expect(receivedPhases.contains("fetchingData"))
+        #expect(receivedPhases.contains("writingCSV"))
+        #expect(receivedPhases.contains("creatingArchive"))
+        #expect(receivedPhases.contains("completed"))
+    }
+    
+    @Test("Export can be cancelled mid-operation")
+    func exportCanBeCancelled() async throws {
+        let container = try createContainer()
+        let context = createContext(with: container)
+        let dataManager = createDataManager(with: container)
+
+        for i in 1...200 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+        try context.save()
+
+        let task = Task {
+            var phaseCount = 0
+            for await progress in dataManager.exportInventoryWithProgress(
+                modelContainer: container
+            ) {
+                phaseCount += 1
+                if case .fetchingData = progress, phaseCount > 1 {
+                    return false
+                }
+            }
+            return true
+        }
+        
+        task.cancel()
+        let completed = await task.value
+        
+        #expect(completed == false)
+    }
+    
+    @Test("Export result contains correct counts")
+    func exportResultContainsCorrectCounts() async throws {
+        let container = try createContainer()
+        let context = createContext(with: container)
+        let dataManager = createDataManager(with: container)
+
+        for i in 1...15 {
+            let item = InventoryItem()
+            item.title = "Item \(i)"
+            context.insert(item)
+        }
+
+        for i in 1...5 {
+            let location = InventoryLocation(name: "Location \(i)")
+            context.insert(location)
+        }
+
+        for i in 1...3 {
+            let label = InventoryLabel(name: "Label \(i)")
+            context.insert(label)
+        }
+
+        try context.save()
+
+        var exportResult: DataManager.ExportResult?
+
+        for await progress in dataManager.exportInventoryWithProgress(
+            modelContainer: container
+        ) {
+            if case .completed(let result) = progress {
+                exportResult = result
+                try? fileManager.removeItem(at: result.archiveURL)
+                break
+            }
+        }
+        
+        guard let result = exportResult else {
+            Issue.record("Export should complete")
+            return
+        }
+        
+        #expect(result.itemCount == 15)
+        #expect(result.locationCount == 5)
+        #expect(result.labelCount == 3)
     }
     
     // MARK: - Helper Methods

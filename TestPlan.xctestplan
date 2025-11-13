@@ -1,0 +1,80 @@
+{
+  "configurations" : [
+    {
+      "name" : "Debug",
+      "isDefault" : true,
+      "options" : {
+        "useTestTimeoutsForPerformanceTests" : true,
+        "codeCoverageEnabled" : false,
+        "addressSanitizer" : {
+          "enabled" : false
+        },
+        "threadSanitizer" : {
+          "enabled" : false
+        },
+        "undefinedBehaviorSanitizer" : {
+          "enabled" : false
+        }
+      }
+    },
+    {
+      "name" : "Release",
+      "isDefault" : false,
+      "options" : {
+        "useTestTimeoutsForPerformanceTests" : true,
+        "codeCoverageEnabled" : true,
+        "addressSanitizer" : {
+          "enabled" : false
+        },
+        "threadSanitizer" : {
+          "enabled" : false
+        },
+        "undefinedBehaviorSanitizer" : {
+          "enabled" : false
+        }
+      }
+    },
+    {
+      "name" : "ThreadSanitizer",
+      "isDefault" : false,
+      "options" : {
+        "useTestTimeoutsForPerformanceTests" : true,
+        "codeCoverageEnabled" : false,
+        "addressSanitizer" : {
+          "enabled" : false
+        },
+        "threadSanitizer" : {
+          "enabled" : true
+        },
+        "undefinedBehaviorSanitizer" : {
+          "enabled" : false
+        }
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "useTestTimeoutsForPerformanceTests" : true,
+    "codeCoverageEnabled" : false,
+    "addressSanitizer" : {
+      "enabled" : false
+    },
+    "threadSanitizer" : {
+      "enabled" : false
+    },
+    "undefinedBehaviorSanitizer" : {
+      "enabled" : false
+    }
+  },
+  "testTargets" : [
+    {
+      "name" : "MovingBoxTests",
+      "skippedTests" : [
+      ],
+      "selectedTests" : [
+        "DataManagerTests",
+        "ProgressMapperTests"
+      ]
+    }
+  ],
+  "version" : 1
+}
