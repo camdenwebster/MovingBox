@@ -83,7 +83,7 @@ import SwiftUI
 /// - SWIFT6_CONCURRENCY_FIXES.md in Services directory
 ///
 actor DataManager {
-    enum DataError: Error, Sendable {
+    enum DataError: LocalizedError, Sendable {
         case nothingToExport
         case failedCreateZip
         case invalidZipFile
@@ -113,6 +113,48 @@ actor DataManager {
             NSError(domain: "DataManagerError", code: -1, userInfo: [
                 NSLocalizedDescriptionKey: localizedDescription
             ])
+        }
+
+        var errorDescription: String? {
+            switch self {
+            case .nothingToExport:
+                return "No data available to export. Add some items, locations, or labels first."
+            case .failedCreateZip:
+                return "Unable to create the export file. Please try again."
+            case .invalidZipFile:
+                return "The selected file is not a valid ZIP archive. Please choose a valid MovingBox export file."
+            case .invalidCSVFormat:
+                return "This doesn't appear to be a MovingBox export file. Please use a ZIP file that was exported from MovingBox."
+            case .photoNotFound:
+                return "Some photos could not be found during the import process."
+            case .fileAccessDenied:
+                return "Unable to access the selected file. Please check file permissions and try again."
+            case .fileTooLarge:
+                return "One or more images exceed the 100MB size limit and cannot be imported."
+            case .invalidFileType:
+                return "Invalid image file type detected. Only JPG, PNG, and HEIC formats are supported."
+            }
+        }
+
+        var recoverySuggestion: String? {
+            switch self {
+            case .nothingToExport:
+                return "Create some inventory items, locations, or labels before exporting."
+            case .failedCreateZip:
+                return "Check that you have sufficient storage space and try exporting again."
+            case .invalidZipFile:
+                return "Make sure you're selecting a ZIP file that was previously exported from MovingBox."
+            case .invalidCSVFormat:
+                return "MovingBox can only import files that were exported from the app. If you have data from another app, you'll need to manually add it."
+            case .photoNotFound:
+                return "The import will continue, but some images may be missing from your inventory."
+            case .fileAccessDenied:
+                return "Try moving the file to a different location or grant the app permission to access it."
+            case .fileTooLarge:
+                return "Try compressing the images before exporting, or remove some items from the export."
+            case .invalidFileType:
+                return "Convert unsupported images to JPG, PNG, or HEIC format before importing."
+            }
         }
     }
 
