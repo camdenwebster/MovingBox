@@ -30,6 +30,7 @@ struct ImportDataView: View {
                         Text("Import Items")
                     }
                 }
+                .accessibilityIdentifier("import-items-toggle")
                 
                 Toggle(isOn: $importLocations) {
                     HStack {
@@ -38,6 +39,7 @@ struct ImportDataView: View {
                         Text("Import Locations")
                     }
                 }
+                .accessibilityIdentifier("import-locations-toggle")
                 
                 Toggle(isOn: $importLabels) {
                     HStack {
@@ -46,6 +48,7 @@ struct ImportDataView: View {
                         Text("Import Labels")
                     }
                 }
+                .accessibilityIdentifier("import-labels-toggle")
             }
             
             Section {
@@ -69,6 +72,7 @@ struct ImportDataView: View {
                 .backport.glassProminentButtonStyle()
                 .disabled(!hasImportOptionsSelected || isValidatingZip)
                 .listRowInsets(EdgeInsets())
+                .accessibilityIdentifier("import-select-file-button")
             } footer: {
                 Text("Restore items from a previously exported ZIP file.")
                     .font(.footnote)

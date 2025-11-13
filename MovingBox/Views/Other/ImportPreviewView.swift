@@ -196,15 +196,16 @@ struct ImportPreviewContentView: View {
              }
              .navigationTitle("Ready to Import")
              .navigationBarTitleDisplayMode(.inline)
-             .toolbar {
-                 if !isImporting {
-                     ToolbarItem(placement: .cancellationAction) {
-                         Button("Cancel") {
-                             onDismiss()
-                         }
-                     }
-                 }
-             }
+            .toolbar {
+                  if !isImporting {
+                      ToolbarItem(placement: .cancellationAction) {
+                          Button("Cancel") {
+                              onDismiss()
+                          }
+                          .accessibilityIdentifier("import-preview-dismiss-button")
+                      }
+                  }
+              }
         }
     }
     
@@ -323,6 +324,7 @@ struct ImportPreviewContentView: View {
             .tint(.green)
             .backport.glassProminentButtonStyle()
             .disabled(isImporting)
+            .accessibilityIdentifier("import-preview-start-button")
         }
         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
     }

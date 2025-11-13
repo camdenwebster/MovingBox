@@ -1,0 +1,72 @@
+{
+  "configurations" : [
+    {
+      "id" : "56BF59C9-D0C1-4C1E-A69F-D94598EF9814",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : [
+        "DashboardNavigationUITests\/testBackNavigationFromListViewToDashboard()",
+        "DashboardNavigationUITests\/testBackNavigationFromSettingsToDashboard()",
+        "DashboardNavigationUITests\/testDashboardAccessibilityIdentifiers()",
+        "DashboardNavigationUITests\/testDashboardLoadsQuickly()",
+        "DashboardNavigationUITests\/testDashboardRecentItemsSection()",
+        "DashboardNavigationUITests\/testDashboardSearchToolbar()",
+        "DashboardNavigationUITests\/testDashboardStatsDisplayCorrectly()",
+        "DashboardNavigationUITests\/testDashboardStatsLoadQuickly()",
+        "DashboardNavigationUITests\/testDashboardToolbarButtons()",
+        "DashboardNavigationUITests\/testViewAllItemsButtonNavigation()",
+        "DataDeletionUITests\/testCompleteDeletionFlow()",
+        "DataDeletionUITests\/testConfirmationSection()",
+        "DataDeletionUITests\/testConfirmationValidation()",
+        "DataDeletionUITests\/testFinalConfirmationAlert()",
+        "DataDeletionUITests\/testScopeSelection()",
+        "DataDeletionUITests\/testScopeSelectionSection()",
+        "DataDeletionUITests\/testWarningSection()",
+        "FastlaneSnapshots",
+        "ImportExportUITests\/testCanNavigateToExportScreen()",
+        "ImportExportUITests\/testCanNavigateToImportScreen()",
+        "ImportExportUITests\/testCanNavigateToSettings()",
+        "ImportExportUITests\/testCanNavigateToSyncData()",
+        "ImportExportUITests\/testDashboardLoads()",
+        "ImportExportUITests\/testExportButtonDisabledWhenNoOptionsSelected()",
+        "ImportExportUITests\/testExportDataLinkExists()",
+        "ImportExportUITests\/testExportScreenDisplaysAllOptions()",
+        "ImportExportUITests\/testExportScreenHasButton()",
+        "ImportExportUITests\/testExportSelectOnlyLabels()",
+        "ImportExportUITests\/testExportSelectOnlyLocations()",
+        "ImportExportUITests\/testImportButtonDisabledWhenNoOptionsSelected()",
+        "ImportExportUITests\/testImportDataLinkExists()",
+        "ImportExportUITests\/testImportScreenDisplaysAllOptions()",
+        "ImportExportUITests\/testImportScreenHasButton()",
+        "ImportExportUITests\/testImportSelectOnlyLabels()",
+        "ImportExportUITests\/testImportSelectOnlyLocations()",
+        "ImportExportUITests\/testImportShowsWarningWhenFileButtonTapped()",
+        "ImportExportUITests\/testNavigateToExportScreen()",
+        "ImportExportUITests\/testNavigateToImportScreen()",
+        "InventoryListDeletionUITests\/testCancelDeletion()",
+        "InventoryListDeletionUITests\/testDeleteAllItemsInView()",
+        "InventoryListDeletionUITests\/testDeleteWithNoItemsSelected()",
+        "InventoryListDeletionUITests\/testEnterAndExitSelectionMode()",
+        "InventoryListDeletionUITests\/testSelectAndDeleteSingleItem()",
+        "MovingBoxPerformanceTests",
+        "MovingBoxUITestsLaunchTests",
+        "NavigationSystemUITests"
+      ],
+      "target" : {
+        "containerPath" : "container:MovingBox.xcodeproj",
+        "identifier" : "19B7D96E2D9B112200690F64",
+        "name" : "MovingBoxUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

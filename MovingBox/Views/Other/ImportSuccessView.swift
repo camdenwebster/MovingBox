@@ -97,6 +97,7 @@ struct ImportSuccessView: View {
                 .backport.glassProminentButtonStyle()
                 .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                 .padding()
+                .accessibilityIdentifier("import-success-dashboard-button")
             }
             .padding(.horizontal, 60)
         }

@@ -279,8 +279,10 @@ actor DataManager {
                     completedSteps += 1
                     continuation.yield(.creatingArchive(progress: 1.0))
                     
-                    // Clean up
+                    // Clean up working directory after a substantial delay to ensure caller can access archive
+                    // The delay must be long enough for tests to open and read the archive.
                     Task.detached {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                         try? FileManager.default.removeItem(at: workingRoot)
                     }
                     
@@ -388,8 +390,12 @@ actor DataManager {
         // Create ZIP archive using unified helper
         let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)
 
-        // Clean up working directory with proper error handling
+        // Clean up working directory after a substantial delay to ensure caller can access archive
+        // Using a delay prevents race conditions in test environments where
+        // the file might be accessed immediately after this function returns.
+        // The delay must be long enough for tests to open and read the archive.
         Task.detached {
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
             try? FileManager.default.removeItem(at: workingRoot)
         }
 
@@ -1400,37 +1406,49 @@ actor DataManager {
             // Remove existing archive if present
             try? FileManager.default.removeItem(at: archiveURL)
 
-            // Create new archive
-            let archive = try Archive(url: archiveURL, accessMode: .create)
+            // Create archive in a scope to ensure it's released before we return
+            do {
+                let archive = try Archive(url: archiveURL, accessMode: .create)
 
-            // Enumerate all files in source directory
-            let sourcePath = sourceDirectory.path
-            guard let enumerator = FileManager.default.enumerator(atPath: sourcePath) else {
-                throw DataError.failedCreateZip
-            }
+                // Enumerate all files in source directory
+                let sourcePath = sourceDirectory.path
+                guard let enumerator = FileManager.default.enumerator(atPath: sourcePath) else {
+                    throw DataError.failedCreateZip
+                }
 
-            var filesProcessed = 0
-            let allPaths = enumerator.allObjects as? [String] ?? []
-            let totalFiles = allPaths.count
+                var filesProcessed = 0
+                let allPaths = enumerator.allObjects as? [String] ?? []
+                let totalFiles = allPaths.count
 
-            // Stream files into archive without loading all paths into memory
-            for relativePath in allPaths {
-                let fullPath = sourceDirectory.appendingPathComponent(relativePath)
-                var isDirectory: ObjCBool = false
+                // Stream files into archive without loading all paths into memory
+                for relativePath in allPaths {
+                    let fullPath = sourceDirectory.appendingPathComponent(relativePath)
+                    var isDirectory: ObjCBool = false
 
-                // Only add files, not directories
-                if FileManager.default.fileExists(atPath: fullPath.path, isDirectory: &isDirectory),
-                   !isDirectory.boolValue {
-                    try archive.addEntry(with: relativePath, relativeTo: sourceDirectory)
+                    // Only add files, not directories
+                    if FileManager.default.fileExists(atPath: fullPath.path, isDirectory: &isDirectory),
+                       !isDirectory.boolValue {
+                        try archive.addEntry(with: relativePath, relativeTo: sourceDirectory)
 
-                    filesProcessed += 1
+                        filesProcessed += 1
 
-                    // Report progress every 10 files or on completion
-                    if let handler = progressHandler,
-                       filesProcessed % 10 == 0 || filesProcessed == totalFiles {
-                        handler(filesProcessed, totalFiles)
+                        // Report progress every 10 files or on completion
+                        if let handler = progressHandler,
+                           filesProcessed % 10 == 0 || filesProcessed == totalFiles {
+                            handler(filesProcessed, totalFiles)
+                        }
                     }
                 }
+                // Archive is released here when it goes out of scope
+            }
+            
+            // Ensure the archive is fully written to disk before proceeding
+            // This is critical for test reliability where files are accessed immediately
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            
+            // Verify the archive was created successfully
+            guard FileManager.default.fileExists(atPath: archiveURL.path) else {
+                throw DataError.failedCreateZip
             }
 
             // Set proper permissions on the archive

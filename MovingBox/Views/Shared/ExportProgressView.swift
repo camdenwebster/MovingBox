@@ -14,6 +14,7 @@ struct ExportProgressView: View {
                 VStack(spacing: 8) {
                     Text(phase.isEmpty ? "Preparing export..." : phase)
                         .font(.headline)
+                        .accessibilityIdentifier("export-progress-phase-text")
                     Text("Please wait while we prepare your export...")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -25,6 +26,7 @@ struct ExportProgressView: View {
                             .tint(.green)
                             .padding(.horizontal, 40)
                             .padding(.top, 16)
+                            .accessibilityIdentifier("export-progress-value")
                         
                         Text("\(Int(progress * 100))%")
                             .font(.caption)
@@ -38,6 +40,7 @@ struct ExportProgressView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .accessibilityIdentifier("export-cancel-button")
                 }
             }
         }

@@ -30,6 +30,7 @@ struct ExportDataView: View {
                         Text("Export Items")
                     }
                 }
+                .accessibilityIdentifier("export-items-toggle")
                 
                 Toggle(isOn: $exportLocations) {
                     HStack {
@@ -38,6 +39,7 @@ struct ExportDataView: View {
                         Text("Export Locations")
                     }
                 }
+                .accessibilityIdentifier("export-locations-toggle")
                 
                 Toggle(isOn: $exportLabels) {
                     HStack {
@@ -46,6 +48,7 @@ struct ExportDataView: View {
                         Text("Export Labels")
                     }
                 }
+                .accessibilityIdentifier("export-labels-toggle")
             }
             
             Section {
@@ -75,6 +78,7 @@ struct ExportDataView: View {
                 .disabled(exportCoordinator.isExporting || !hasExportOptionsSelected)
                 .listRowInsets(EdgeInsets())
                 .backport.glassProminentButtonStyle()
+                .accessibilityIdentifier("export-data-button")
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Export a ZIP file containing the selected items and photos.")
