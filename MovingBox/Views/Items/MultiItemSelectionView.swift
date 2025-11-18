@@ -72,6 +72,30 @@ struct MultiItemSelectionView: View {
     }
     
     // MARK: - View Components
+    private var mainContentView: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                // Background image with gradient
+                imageView
+                    .frame(height: geometry.size.height * 0.5)
+
+                // Card content overlay
+                VStack(spacing: 0) {
+                    // Spacer to push content down
+                    Spacer()
+                        .frame(height: geometry.size.height * 0.35)
+
+                    // Card and controls section
+                    VStack {
+                        cardCarouselView
+                        instructionText
+                        selectionSummaryView
+                            .padding(.horizontal, 16)
+                    }
+                }
+            }
+        }
+    }
     
     private var noItemsView: some View {
         VStack(spacing: 24) {
@@ -97,49 +121,15 @@ struct MultiItemSelectionView: View {
         .padding(.horizontal, 32)
     }
     
-    private var mainContentView: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .top) {
-                // Background image with gradient
-                imageView
-                    .frame(height: geometry.size.height * 0.5)
 
-                // Card content overlay
-                VStack(spacing: 0) {
-                    // Spacer to push content down
-                    Spacer()
-                        .frame(height: geometry.size.height * 0.35)
-
-                    // Card and controls section
-                    VStack(spacing: 16) {
-                        // Header with count and controls
-                        headerView
-                            .padding(.horizontal, 16)
-
-                        // Card carousel
-                        cardCarouselView
-
-//                        // Navigation controls
-//                        navigationControlsView
-
-//                        Spacer()
-
-                        // Selection summary and actions
-                        selectionSummaryView
-                            .padding(.horizontal, 16)
-                    }
-                }
-            }
-        }
-    }
     
-    private var headerView: some View {
-
+    private var instructionText: some View {
         Text("Swipe through and select the items you want to add to your inventory")
             .font(.caption)
-            .foregroundColor(.secondary)
             .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
     }
+
     
     private var imageView: some View {
         ZStack(alignment: .bottom) {
@@ -408,12 +398,10 @@ struct DetectedItemCard: View {
                     Text(isSelected ? "Selected for adding" : "Tap to select")
                         .font(.caption)
                         .foregroundColor(isSelected ? .blue : .secondary)
-
-                    Spacer()
                 }
             }
-            .padding(12)
-            .frame(maxHeight: .infinity, alignment: .top)
+            .padding()
+//            .frame(maxHeight: .infinity, alignment: .bottom)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
