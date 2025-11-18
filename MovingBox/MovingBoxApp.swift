@@ -59,27 +59,59 @@ struct MovingBoxApp: App {
         
         SentrySDK.start { options in
             options.dsn = dsn
-            options.debug = AppConfig.shared.configuration == .debug
-            options.tracesSampleRate = 0.2
-            
-            options.configureProfiling = {
-                $0.lifecycle = .trace
-                $0.sessionSampleRate = 1
+
+            // Debug mode configuration
+            let isDebug = AppConfig.shared.configuration == .debug
+            options.debug = isDebug
+
+            // PERFORMANCE OPTIMIZATION: Reduce overhead in debug builds
+            if isDebug {
+                // Minimal tracing in debug mode to reduce overhead
+                options.tracesSampleRate = 0.0  // Disable performance tracing in debug
+                options.profilesSampleRate = 0.0  // Disable profiling in debug
+
+                // Disable session replay in debug mode (high overhead)
+                options.sessionReplay.onErrorSampleRate = 0.0
+                options.sessionReplay.sessionSampleRate = 0.0
+
+                // Disable experimental logs in debug (verbose)
+                options.experimental.enableLogs = false
+
+                // Disable automatic instrumentation in debug mode
+                options.enableAutoPerformanceTracing = false
+                options.enableCoreDataTracing = false  // Fix for CoreData tracking errors
+                options.enableFileIOTracing = false
+                options.enableNetworkTracking = false
+                options.enableSwizzling = false  // Reduce swizzling overhead
+
+                print("🐛 Sentry Debug Mode: Minimal tracking enabled to reduce overhead")
+            } else {
+                // Production/Beta configuration - full feature set
+                options.tracesSampleRate = 0.2  // 20% of transactions for performance
+
+                // Profiling configuration
+                options.configureProfiling = {
+                    $0.lifecycle = .trace
+                    $0.sessionSampleRate = 0.2  // Match traces sample rate (reduced from 1.0)
+                }
+
+                // Session replays for errors and sampled sessions
+                options.sessionReplay.onErrorSampleRate = 1.0
+                options.sessionReplay.sessionSampleRate = 0.1
+
+                // Enable logs in production
+                options.experimental.enableLogs = true
+
+                // Automatic iOS Instrumentation
+                options.enableAutoPerformanceTracing = true
+                options.enableCoreDataTracing = true
+                options.enableFileIOTracing = false  // Disable - high overhead, low value
+                options.enableNetworkTracking = true
+                options.enablePreWarmedAppStartTracing = true
+                options.enableTimeToFullDisplayTracing = true
             }
-            
-            // Record session replays for 100% of errors and 10% of sessions
-            options.sessionReplay.onErrorSampleRate = 1.0
-            options.sessionReplay.sessionSampleRate = 0.1
 
-            // Enable logs to be sent to Sentry
-            options.experimental.enableLogs = true
-
-            // Automatic iOS Instrumentation (most features enabled by default in v8+)
-            // Only configure non-default settings:
-            options.enablePreWarmedAppStartTracing = true  // Disabled by default, enable for iOS 15+
-            options.enableTimeToFullDisplayTracing = true  // Disabled by default
-
-            // Network Tracking - limit to OpenAI API only for privacy
+            // Network Tracking - limit to OpenAI API only for privacy (all configs)
             options.tracePropagationTargets = ["api.aiproxy.com"]
 
             #if DEBUG
