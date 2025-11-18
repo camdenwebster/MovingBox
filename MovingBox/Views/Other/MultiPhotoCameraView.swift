@@ -338,9 +338,11 @@ struct MultiPhotoCameraView: View {
                             }
                         }
                         .onDisappear {
-                            Task {
-                                await model.stopSession()
-                            }
+                            // DON'T stop the session here - it causes issues when:
+                            // 1. Switching to photo preview in multi-item mode
+                            // 2. Switching between capture modes
+                            // The session will be stopped when the entire camera view is dismissed
+
                             // Stop orientation monitoring on iPad
                             if UIDevice.current.userInterfaceIdiom == .pad {
                                 UIDevice.current.endGeneratingDeviceOrientationNotifications()
@@ -351,7 +353,6 @@ struct MultiPhotoCameraView: View {
                 }
                 .aspectRatio(3/4, contentMode: .fit)
                 .clipped()
-                .id("camera-view-\(model.capturedImages.isEmpty)-\(selectedCaptureMode)")  // Force recreation when switching between preview and camera
                 
                 // Square crop overlay in center (visual guide for what will be captured)
                 let availableHeight = geometry.size.height - 100 - 200 // Account for top and bottom UI areas
@@ -615,6 +616,12 @@ struct MultiPhotoCameraView: View {
                 selectedCaptureMode = .multiItem
             } else {
                 selectedCaptureMode = .singleItem
+            }
+        }
+        .onDisappear {
+            // Stop the camera session when the entire camera view is dismissed
+            Task {
+                await model.stopSession()
             }
         }
     }
