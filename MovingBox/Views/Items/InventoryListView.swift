@@ -138,6 +138,7 @@ struct InventoryListView: View {
             .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive, action: deleteSelectedItems)
+                    .accessibilityIdentifier("alertDelete")
             } message: {
                 Text("Are you sure you want to permanently delete \(selectedCount) item\(selectedCount == 1 ? "" : "s")? This action cannot be undone.")
             }
@@ -306,6 +307,7 @@ struct InventoryListView: View {
                     Label("Delete Selected (\(selectedCount))", systemImage: "trash")
                 }
                 .disabled(selectedCount == 0)
+                .accessibilityIdentifier("deleteSelected")
             }
         } else {
             

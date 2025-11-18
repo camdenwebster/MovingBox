@@ -13,6 +13,7 @@ final class ImportExportUITests: XCTestCase {
         app.launchArguments = [
             "Is-Pro",
             "Skip-Onboarding",
+            "Disable-Persistence",
             "Use-Test-Data",
             "UI-Testing-Mock-Camera",
             "Disable-Animations"

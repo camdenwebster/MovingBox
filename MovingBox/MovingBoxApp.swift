@@ -200,7 +200,9 @@ struct MovingBoxApp: App {
                 
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                    print("📱 MovingBoxApp - Loading test data...")
                     await TestData.loadTestData(modelContext: containerManager.container.mainContext)
+                    print("📱 MovingBoxApp - Test data loaded, setting app state to main")
                     settings.hasLaunched = true
                     appState = .main
                 } else {

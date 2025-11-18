@@ -319,7 +319,13 @@ struct TestData {
             modelContext.insert(item)
         }
         
-        try? modelContext.save()
+        // Force save to persist changes
+        do {
+            try modelContext.save()
+            print("✅ TestData - Successfully saved test items to context")
+        } catch {
+            print("❌ TestData - Error saving context: \(error)")
+        }
     }
 }
 
