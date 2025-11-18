@@ -215,6 +215,7 @@ struct MultiPhotoCameraView: View {
                 Group {
                     if selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty {
                         // Show captured photo instead of camera feed in multi-item mode
+                        // Maintain same structure as camera preview for consistent layout
                         Color.black
                             .overlay {
                                 if let capturedImage = model.capturedImages.first {
@@ -223,6 +224,8 @@ struct MultiPhotoCameraView: View {
                                         .aspectRatio(contentMode: .fit)
                                 }
                             }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
                     } else if isUITesting {
                         // Use static tablet image for UI testing
                         Image("tablet", bundle: .main)
@@ -348,6 +351,7 @@ struct MultiPhotoCameraView: View {
                 }
                 .aspectRatio(3/4, contentMode: .fit)
                 .clipped()
+                .id("camera-view-\(model.capturedImages.isEmpty)-\(selectedCaptureMode)")  // Force recreation when switching between preview and camera
                 
                 // Square crop overlay in center (visual guide for what will be captured)
                 let availableHeight = geometry.size.height - 100 - 200 // Account for top and bottom UI areas
