@@ -154,12 +154,12 @@ import AVFoundation
         )
         #expect(singleItemCounter == "2 of 5")
         
-        // Multi-item mode shows different format
+        // Multi-item mode shows empty string (no counter)
         let multiItemCounter = CaptureMode.multiItem.photoCounterText(
             currentCount: currentPhotoCount,
             isPro: true
         )
-        #expect(multiItemCounter == "Capture items")
+        #expect(multiItemCounter == "")
     }
     
     // MARK: - Integration with Navigation Flow
@@ -241,9 +241,9 @@ import AVFoundation
         #expect(CaptureMode.singleItem.showsPhotoPickerButton == true)
         #expect(CaptureMode.singleItem.showsThumbnailScrollView == true)
         #expect(CaptureMode.singleItem.allowsMultipleCaptures == true)
-        
-        // Multi-item mode should hide photo picker and restrict to single capture
-        #expect(CaptureMode.multiItem.showsPhotoPickerButton == false)
+
+        // Multi-item mode should show photo picker (updated) but hide thumbnails
+        #expect(CaptureMode.multiItem.showsPhotoPickerButton == true)
         #expect(CaptureMode.multiItem.showsThumbnailScrollView == false)
         #expect(CaptureMode.multiItem.allowsMultipleCaptures == false)
     }

@@ -48,7 +48,7 @@ enum CaptureMode: CaseIterable {
             let maxPhotos = maxPhotosAllowed(isPro: isPro)
             return "\(currentCount) of \(maxPhotos)"
         case .multiItem:
-            return "Capture items"
+            return ""  // No counter text for multi-item mode
         }
     }
     
@@ -81,7 +81,7 @@ enum CaptureMode: CaseIterable {
     var showsPhotoPickerButton: Bool {
         switch self {
         case .singleItem: return true
-        case .multiItem: return false
+        case .multiItem: return true  // Enable photo picker for multi-item mode
         }
     }
     
@@ -211,9 +211,19 @@ struct MultiPhotoCameraView: View {
                 // Black background
                 Color.black.ignoresSafeArea(.all)
                 
-                // Camera preview with 3:4 aspect ratio or static image for UI testing
+                // Camera preview, captured photo, or static image for UI testing
                 Group {
-                    if isUITesting {
+                    if selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty {
+                        // Show captured photo instead of camera feed in multi-item mode
+                        Color.black
+                            .overlay {
+                                if let capturedImage = model.capturedImages.first {
+                                    Image(uiImage: capturedImage)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                }
+                            }
+                    } else if isUITesting {
                         // Use static tablet image for UI testing
                         Image("tablet", bundle: .main)
                             .resizable()
@@ -224,7 +234,7 @@ struct MultiPhotoCameraView: View {
                                 // Simulate focus tap for UI testing
                                 focusPoint = location
                                 showingFocusIndicator = true
-                                
+
                                 // Hide focus indicator after animation
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                                     showingFocusIndicator = false
@@ -467,29 +477,46 @@ struct MultiPhotoCameraView: View {
                             .frame(width: 60)
                             .accessibilityIdentifier("cameraPhotoCount")
                         
-                        // Shutter button
-                        Button {
-                            let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
-                            if model.capturedImages.count >= maxPhotos {
-                                model.showPhotoLimitAlert = true
-                            } else {
-                                if isUITesting {
-                                    model.captureTestPhoto()
+                        // Shutter button or Retake button (multi-item mode with photo)
+                        if selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty {
+                            // Retake button in multi-item mode after capture
+                            Button {
+                                model.capturedImages.removeAll()
+                                // Camera automatically returns to live preview
+                            } label: {
+                                Text("Retake")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 100, height: 50)
+                                    .background(.red.opacity(0.8))
+                                    .cornerRadius(25)
+                            }
+                            .accessibilityIdentifier("cameraRetakeButton")
+                        } else {
+                            // Normal shutter button
+                            Button {
+                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
+                                if model.capturedImages.count >= maxPhotos {
+                                    model.showPhotoLimitAlert = true
                                 } else {
-                                    model.capturePhoto()
+                                    if isUITesting {
+                                        model.captureTestPhoto()
+                                    } else {
+                                        model.capturePhoto()
+                                    }
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(.green)
+                                        .frame(width: 70, height: 70)
+                                    Circle()
+                                        .strokeBorder(.white, lineWidth: 5)
+                                        .frame(width: 76, height: 76)
                                 }
                             }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(.green)
-                                    .frame(width: 70, height: 70)
-                                Circle()
-                                    .strokeBorder(.white, lineWidth: 5)
-                                    .frame(width: 76, height: 76)
-                            }
+                            .accessibilityIdentifier("cameraShutterButton")
                         }
-                        .accessibilityIdentifier("cameraShutterButton")
 
                         // Photo picker button (only shown in single-item mode)
                         if selectedCaptureMode.showsPhotoPickerButton {
@@ -563,10 +590,12 @@ struct MultiPhotoCameraView: View {
         }
         .onChange(of: model.capturedImages) { oldImages, newImages in
             capturedImages = newImages
-            
-            // Trigger animation when a new image is added
-            if newImages.count > oldImages.count, let newImage = newImages.last {
-                triggerCaptureAnimation(with: newImage)
+
+            // Trigger animation only for single-item mode
+            if selectedCaptureMode == .singleItem {
+                if newImages.count > oldImages.count, let newImage = newImages.last {
+                    triggerCaptureAnimation(with: newImage)
+                }
             }
         }
         .sheet(isPresented: $showingPaywall) {
