@@ -115,7 +115,13 @@ struct MovingBoxApp: App {
                 case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
                     InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
                 case .addInventoryItemView(let location):
-                    AddInventoryItemView(location: location)
+                    // Direct to camera flow with default single-item mode
+                    // Mode can be changed via segmented control in camera
+                    EnhancedItemCreationFlowView(
+                        captureMode: .singleItem,
+                        location: location,
+                        onComplete: nil
+                    )
                 case .locationsSettingsView:
                     LocationSettingsView()
                 case .subscriptionSettingsView:

@@ -141,12 +141,12 @@ struct MultiPhotoCameraView: View {
     let onPermissionCheck: (Bool) -> Void
     let onComplete: ([UIImage]) -> Void
     let onCancel: (() -> Void)?
-    
+
     // Check if we're in UI testing mode
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
     }
-    
+
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var showingPhotoPicker = false
     @State private var animatingImage: UIImage?
@@ -155,6 +155,11 @@ struct MultiPhotoCameraView: View {
     @State private var showingFocusIndicator = false
     @State private var orientation = UIDeviceOrientation.portrait
     @State private var showingPaywall = false
+
+    // Mode switching state
+    @State private var selectedCaptureMode: CaptureMode
+    @State private var pendingCaptureMode: CaptureMode?
+    @State private var showingModeSwitchConfirmation = false
     
     // New initializer with capture mode parameter
     init(
@@ -166,11 +171,12 @@ struct MultiPhotoCameraView: View {
     ) {
         self._capturedImages = capturedImages
         self.captureMode = captureMode
+        self._selectedCaptureMode = State(initialValue: captureMode)
         self.onPermissionCheck = onPermissionCheck
         self.onComplete = onComplete
         self.onCancel = onCancel
     }
-    
+
     // Backward compatibility initializer
     init(
         capturedImages: Binding<[UIImage]>,
@@ -180,6 +186,7 @@ struct MultiPhotoCameraView: View {
     ) {
         self._capturedImages = capturedImages
         self.captureMode = .singleItem
+        self._selectedCaptureMode = State(initialValue: .singleItem)
         self.onPermissionCheck = onPermissionCheck
         self.onComplete = onComplete
         self.onCancel = onCancel
@@ -392,7 +399,7 @@ struct MultiPhotoCameraView: View {
                     Spacer()
                     
                     // Done button
-                    Button(captureMode.completionButtonText(photoCount: model.capturedImages.count)) {
+                    Button(selectedCaptureMode.completionButtonText(photoCount: model.capturedImages.count)) {
                         onComplete(model.capturedImages)
                     }
                     .font(.system(size: 16, weight: .medium))
@@ -406,7 +413,7 @@ struct MultiPhotoCameraView: View {
                 .padding(.bottom, 10)
                 
                 // Thumbnails (only shown in single-item mode)
-                if captureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
+                if selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(Array(model.capturedImages.enumerated()), id: \.offset) { index, image in
@@ -447,10 +454,14 @@ struct MultiPhotoCameraView: View {
                 
                 // Bottom controls area
                 VStack(spacing: 20) {
+                    // Capture mode segmented control
+                    captureModePicker
+                        .padding(.bottom, 30)
+
                     // Shutter controls row
                     HStack(spacing: 50) {
                         // Photo count
-                        Text(captureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro))
+                        Text(selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro))
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white)
                             .frame(width: 60)
@@ -458,7 +469,7 @@ struct MultiPhotoCameraView: View {
                         
                         // Shutter button
                         Button {
-                            let maxPhotos = captureMode.maxPhotosAllowed(isPro: settings.isPro)
+                            let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
                             if model.capturedImages.count >= maxPhotos {
                                 model.showPhotoLimitAlert = true
                             } else {
@@ -479,11 +490,11 @@ struct MultiPhotoCameraView: View {
                             }
                         }
                         .accessibilityIdentifier("cameraShutterButton")
-                        
+
                         // Photo picker button (only shown in single-item mode)
-                        if captureMode.showsPhotoPickerButton {
+                        if selectedCaptureMode.showsPhotoPickerButton {
                             Button {
-                                let maxPhotos = captureMode.maxPhotosAllowed(isPro: settings.isPro)
+                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
                                 if model.capturedImages.count >= maxPhotos {
                                     model.showPhotoLimitAlert = true
                                 } else {
@@ -508,19 +519,19 @@ struct MultiPhotoCameraView: View {
             }
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {
-            if settings.isPro || captureMode == .multiItem {
+            if settings.isPro || selectedCaptureMode == .multiItem {
                 Button("OK") { }
             } else {
                 Button("Close") { }
-                Button("Go Pro") { 
+                Button("Go Pro") {
                     showingPaywall = true
                 }
             }
         } message: {
-            if captureMode == .multiItem {
-                Text(captureMode.errorMessage(for: .tooManyPhotos))
+            if selectedCaptureMode == .multiItem {
+                Text(selectedCaptureMode.errorMessage(for: .tooManyPhotos))
             } else if settings.isPro {
-                Text(captureMode.errorMessage(for: .tooManyPhotos))
+                Text(selectedCaptureMode.errorMessage(for: .tooManyPhotos))
             } else {
                 Text("You can only add one photo per item. Upgrade to MovingBox Pro to add more photos.")
             }
@@ -528,9 +539,23 @@ struct MultiPhotoCameraView: View {
         .photosPicker(
             isPresented: $showingPhotoPicker,
             selection: $selectedItems,
-            maxSelectionCount: max(0, captureMode.maxPhotosAllowed(isPro: settings.isPro) - model.capturedImages.count),
+            maxSelectionCount: max(0, selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro) - model.capturedImages.count),
             matching: .images
         )
+        .alert("Switch Camera Mode?", isPresented: $showingModeSwitchConfirmation) {
+            Button("Cancel", role: .cancel) {
+                // Revert to current mode
+                selectedCaptureMode = model.capturedImages.isEmpty ? selectedCaptureMode : (selectedCaptureMode == .singleItem ? .multiItem : .singleItem)
+                pendingCaptureMode = nil
+            }
+            Button("Switch Mode", role: .destructive) {
+                if let newMode = pendingCaptureMode {
+                    performModeSwitch(to: newMode)
+                }
+            }
+        } message: {
+            Text("Switching modes will clear your current photos. Are you sure?")
+        }
         .onChange(of: selectedItems) { _, newItems in
             Task {
                 await processSelectedPhotos(newItems)
@@ -551,8 +576,98 @@ struct MultiPhotoCameraView: View {
                 onDismiss: nil
             )
         }
+        .onAppear {
+            // Load preferred capture mode from settings on first appear
+            if settings.preferredCaptureMode == 1 && settings.isPro {
+                selectedCaptureMode = .multiItem
+            } else {
+                selectedCaptureMode = .singleItem
+            }
+        }
     }
     
+    // MARK: - Capture Mode Picker
+
+    private var captureModePicker: some View {
+        Picker("Capture Mode", selection: $selectedCaptureMode) {
+            ForEach(CaptureMode.allCases, id: \.self) { mode in
+                HStack(spacing: 4) {
+                    Text(mode.displayName)
+                    if mode == .multiItem && !settings.isPro {
+                        Image(systemName: "crown.fill")
+                            .font(.caption2)
+                            .foregroundColor(.yellow)
+                    }
+                }
+                .tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 200)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(.ultraThinMaterial)
+                .opacity(0.3)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+        .accessibilityLabel("Camera mode selector")
+        .accessibilityHint("Switch between single item and multi item capture modes")
+        .onChange(of: selectedCaptureMode) { oldMode, newMode in
+            handleCaptureModeChange(from: oldMode, to: newMode)
+        }
+    }
+
+    // MARK: - Mode Switching Logic
+
+    private func handleCaptureModeChange(from oldMode: CaptureMode, to newMode: CaptureMode) {
+        // Check if switching to Multi mode requires Pro
+        if newMode == .multiItem && !settings.isPro {
+            // Revert selection and show paywall
+            selectedCaptureMode = oldMode
+            showingPaywall = true
+            return
+        }
+
+        // If photos are captured, require confirmation
+        if !model.capturedImages.isEmpty {
+            pendingCaptureMode = newMode
+            selectedCaptureMode = oldMode // Revert temporarily
+            showingModeSwitchConfirmation = true
+            return
+        }
+
+        // No photos, switch modes directly
+        performModeSwitch(to: newMode)
+    }
+
+    private func performModeSwitch(to newMode: CaptureMode) {
+        // Clear photos if any
+        model.capturedImages.removeAll()
+
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+
+        // Animate mode switch
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            selectedCaptureMode = newMode
+        }
+
+        // Save preference
+        settings.preferredCaptureMode = newMode == .singleItem ? 0 : 1
+
+        // VoiceOver announcement
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "Switched to \(newMode.displayName) mode. \(newMode.description)"
+        )
+
+        // Clear pending mode
+        pendingCaptureMode = nil
+    }
+
+    // MARK: - Helper Methods
+
     private func calculateThumbnailDestination(geometry: GeometryProxy) -> CGRect {
         // Calculate where the new thumbnail will appear
         // From the screenshot: thumbnails are positioned much lower, around 60% down
@@ -601,7 +716,7 @@ struct MultiPhotoCameraView: View {
     }
     
     private func processSelectedPhotos(_ items: [PhotosPickerItem]) async {
-        let maxPhotos = captureMode.maxPhotosAllowed(isPro: settings.isPro)
+        let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
         for item in items {
             guard model.capturedImages.count < maxPhotos else { break }
             
