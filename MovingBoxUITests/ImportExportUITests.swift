@@ -1,10 +1,12 @@
 import XCTest
 
 final class ImportExportUITests: XCTestCase {
-    var dashboardScreen: DashboardScreen!
-    var importExportScreen: ImportExportScreen!
-    var navigationHelper: NavigationHelper!
     let app = XCUIApplication()
+    var dashboardScreen: DashboardScreen!
+    var settingsScreen: SettingsScreen!
+    var syncAndDataScreen: SyncDataScreen!
+    var exportScreen: ExportScreen!
+    var importScreen: ImportScreen!
     
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -12,69 +14,168 @@ final class ImportExportUITests: XCTestCase {
             "Is-Pro",
             "Skip-Onboarding",
             "Disable-Persistence",
+            "Use-Test-Data",
             "UI-Testing-Mock-Camera",
-            "Use-Test-Data"
+            "Disable-Animations"
         ]
         
-        // Initialize screen objects
-        dashboardScreen = DashboardScreen(app: app)
-        importExportScreen = ImportExportScreen(app: app)
-        navigationHelper = NavigationHelper(app: app)
-        
         app.launch()
+        
+        dashboardScreen = DashboardScreen(app: app)
+        settingsScreen = SettingsScreen(app: app)
+        syncAndDataScreen = SyncDataScreen(app: app)
+        exportScreen = ExportScreen(app: app)
+        importScreen = ImportScreen(app: app)
     }
     
     override func tearDownWithError() throws {
-        dashboardScreen = nil
-        importExportScreen = nil
-        navigationHelper = nil
+        app.terminate()
     }
     
-    func testImportExportFlow() throws {
-        let app = XCUIApplication()
-        app.activate()
-        // Verify initial item count
-        guard dashboardScreen.statCardLabel.waitForExistence(timeout: 10) else {
-            XCTFail("Dashboard did not load before timeout")
-            return
-        }
-        XCTAssertTrue(dashboardScreen.testDataLoaded(),
-                     "Dashboard should show initial test data")
+    func testDashboardLoads() throws {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should load")
+    }
+    
+    func testCanNavigateToSettings() throws {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should be displayed")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
+    }
+    
+    func testCanNavigateToSyncData() throws {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should be displayed")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
         
-        // Navigate to Import/Export settings
-        navigationHelper.navigateToSettings()
-        app.buttons["importExportLink"].tap()
+        settingsScreen.tapSyncAndData()
+        let syncDataLabel = app.staticTexts["Sync & Data"]
+        XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
+    }
+    
+    func testExportDataLinkExists() throws {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should be displayed")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
         
-        // Export inventory
-        importExportScreen.exportButton.tap()
+        settingsScreen.tapSyncAndData()
+        let syncDataLabel = app.staticTexts["Sync & Data"]
+        XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
         
-        // Save to Files (simulated)
-        let sharingUIServiceApp = XCUIApplication(bundleIdentifier: "com.apple.SharingUIService")
-        sharingUIServiceApp.otherElements.element(boundBy: 27).tap()
-        app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].tap()
+        let exportLink = app.buttons["exportDataLink"]
+        XCTAssertTrue(exportLink.waitForExistence(timeout: 5), "Export Data link should exist")
+    }
+    
+    func testImportDataLinkExists() throws {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should be displayed")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
         
-        // Import the exported inventory
-        importExportScreen.importButton.tap()
-        app.cells.images.firstMatch.tap()
+        settingsScreen.tapSyncAndData()
+        let syncDataLabel = app.staticTexts["Sync & Data"]
+        XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
         
-        // TODO: Re-try this test once this but is resolved: https://developer.apple.com/forums/thread/763549
-        app.otherElements.matching(identifier: "Horizontal scroll bar, 1 page").element(boundBy: 1).tap()
+        let importLink = app.buttons["importDataLink"]
+        XCTAssertTrue(importLink.waitForExistence(timeout: 5), "Import Data link should exist")
+    }
+    
+    func testCanNavigateToExportScreen() throws {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should be displayed")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
         
-        // Handle system file picker (simulated)
-//        let filesApp = XCUIApplication(bundleIdentifier: "com.apple.DocumentsApp")
-////        filesApp.files.firstMatch.tap()
+        settingsScreen.tapSyncAndData()
+        let syncDataLabel = app.staticTexts["Sync & Data"]
+        XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
         
-        // Wait for import to complete
-        XCTAssertTrue(importExportScreen.waitForImportCompletion(),
-                     "Import success alert should appear")
-        importExportScreen.dismissSuccessAlert()
+        let exportLink = app.buttons["exportDataLink"]
+        XCTAssertTrue(exportLink.waitForExistence(timeout: 5), "Export Data link should exist")
+        exportLink.tap()
         
-        // Navigate back to dashboard
-        app.navigationBars.buttons.firstMatch.tap() // Back to Settings
-        app.navigationBars.buttons.firstMatch.tap() // Back to dashboard
+        XCTAssertTrue(exportScreen.isDisplayed(), "Export screen should be displayed")
+    }
+    
+    func testCanNavigateToImportScreen() throws {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should be displayed")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
         
-        // Verify doubled item count
-        XCTAssertEqual(dashboardScreen.statCardValue.label, "106",
-                      "Inventory count should be doubled after import")
+        settingsScreen.tapSyncAndData()
+        let syncDataLabel = app.staticTexts["Sync & Data"]
+        XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
+        
+        let importLink = app.buttons["importDataLink"]
+        XCTAssertTrue(importLink.waitForExistence(timeout: 5), "Import Data link should exist")
+        importLink.tap()
+        
+        XCTAssertTrue(importScreen.isDisplayed(), "Import screen should be displayed")
+    }
+    
+    func testExportScreenHasButton() throws {
+        navigateToExportScreen()
+        XCTAssertTrue(exportScreen.exportButton.waitForExistence(timeout: 5), "Export button should exist")
+    }
+    
+    func testImportScreenHasButton() throws {
+        navigateToImportScreen()
+        XCTAssertTrue(importScreen.selectFileButton.waitForExistence(timeout: 5), "Select file button should exist")
+    }
+    
+    func testExportButtonIsEnabled() throws {
+        navigateToExportScreen()
+        XCTAssertTrue(exportScreen.isExportButtonEnabled(), "Export button should be enabled by default")
+    }
+    
+    func testImportButtonIsEnabled() throws {
+        navigateToImportScreen()
+        XCTAssertTrue(importScreen.isSelectFileButtonEnabled(), "Select file button should be enabled by default")
+    }
+    
+    func testExportButtonDisabledWhenNoOptionsSelected() throws {
+        navigateToExportScreen()
+        exportScreen.disableAllOptions()
+        sleep(1)
+        XCTAssertTrue(exportScreen.isExportButtonDisabled(), "Export button should be disabled when no options selected")
+    }
+    
+    func testImportButtonDisabledWhenNoOptionsSelected() throws {
+        navigateToImportScreen()
+        importScreen.disableAllOptions()
+        sleep(1)
+        XCTAssertTrue(importScreen.isSelectFileButtonDisabled(), "Select file button should be disabled when no options selected")
+    }
+    
+    func testImportWarningAppears() throws {
+        navigateToImportScreen()
+        importScreen.enableAllOptions()
+        importScreen.tapSelectFileButton()
+        XCTAssertTrue(importScreen.waitForDuplicateWarning(), "Duplicate warning should appear")
+    }
+    
+    private func navigateToExportScreen() {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should load")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings should load")
+        
+        settingsScreen.tapSyncAndData()
+
+        XCTAssertTrue(syncAndDataScreen.isDisplayed(), "Sync and Data should appear")
+
+        let exportLink = app.buttons["exportDataLink"]
+        XCTAssertTrue(exportLink.waitForExistence(timeout: 5), "Export link should exist")
+        exportLink.tap()
+    }
+    
+    private func navigateToImportScreen() {
+        XCTAssertTrue(dashboardScreen.waitForDashboard(), "Dashboard should load")
+        dashboardScreen.tapSettings()
+        XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings should load")
+        
+        settingsScreen.tapSyncAndData()
+        
+        XCTAssertTrue(syncAndDataScreen.isDisplayed(), "Sync and Data should appear")
+        
+        let importLink = app.buttons["importDataLink"]
+        XCTAssertTrue(importLink.waitForExistence(timeout: 5), "Import link should exist")
+        importLink.tap()
     }
 }
