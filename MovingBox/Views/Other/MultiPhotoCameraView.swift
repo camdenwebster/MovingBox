@@ -475,9 +475,11 @@ struct MultiPhotoCameraView: View {
                 
                 // Bottom controls area
                 VStack(spacing: 20) {
-                    // Capture mode segmented control
-                    captureModePicker
-                        .padding(.bottom, 30)
+                    // Capture mode segmented control (hidden when photo preview is showing)
+                    if !(selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty) {
+                        captureModePicker
+                            .padding(.bottom, 30)
+                    }
 
                     // Shutter controls row
                     HStack(spacing: 50) {
