@@ -86,7 +86,10 @@ struct OnboardingItemView: View {
             }
         }
         .sheet(isPresented: $showItemCreationFlow) {
-            ItemCreationFlowView(location: locations.first) {
+            EnhancedItemCreationFlowView(
+                captureMode: .singleItem,
+                location: locations.first
+            ) {
                 manager.moveToNext()
             }
             .environment(\.isOnboarding, true)

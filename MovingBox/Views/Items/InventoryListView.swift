@@ -135,7 +135,10 @@ struct InventoryListView: View {
             .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
             .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
             .sheet(isPresented: $showItemCreationFlow) {
-                ItemCreationFlowView(location: location) {
+                EnhancedItemCreationFlowView(
+                    captureMode: .singleItem,
+                    location: location
+                ) {
                     // Optional callback when item creation is complete
                 }
             }

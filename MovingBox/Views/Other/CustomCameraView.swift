@@ -12,7 +12,7 @@ struct CustomCameraView: View {
     @Binding var capturedImages: [UIImage]
     let mode: CameraMode
     let onPermissionCheck: (Bool) -> Void
-    let onComplete: (([UIImage]) -> Void)?
+    let onComplete: (([UIImage], CaptureMode) -> Void)?
     let onCancel: (() -> Void)?
     
     // Single photo mode initializer (backward compatible)
@@ -34,7 +34,7 @@ struct CustomCameraView: View {
         capturedImages: Binding<[UIImage]>,
         mode: CameraMode = .multiPhoto(),
         onPermissionCheck: @escaping (Bool) -> Void,
-        onComplete: @escaping ([UIImage]) -> Void,
+        onComplete: @escaping ([UIImage], CaptureMode) -> Void,
         onCancel: (() -> Void)? = nil
     ) {
         self._capturedImage = .constant(nil)
@@ -56,7 +56,7 @@ struct CustomCameraView: View {
             MultiPhotoCameraView(
                 capturedImages: $capturedImages,
                 onPermissionCheck: onPermissionCheck,
-                onComplete: onComplete ?? { _ in },
+                onComplete: onComplete ?? { _, _ in },
                 onCancel: onCancel
             )
         }

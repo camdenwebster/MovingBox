@@ -132,8 +132,10 @@ struct EnhancedItemCreationFlowView: View {
                     showingPermissionDenied = true
                 }
             },
-            onComplete: { images in
+            onComplete: { images, selectedMode in
                 Task {
+                    // Update the viewModel's capture mode based on user selection
+                    viewModel.updateCaptureMode(selectedMode)
                     await viewModel.handleCapturedImages(images)
                     await MainActor.run {
                         viewModel.goToNextStep()
@@ -160,8 +162,8 @@ struct EnhancedItemCreationFlowView: View {
             }
         }
         .task {
-            // Perform analysis based on capture mode
-            if captureMode == .multiItem {
+            // Perform analysis based on capture mode (use viewModel's mode, not initial mode)
+            if viewModel.captureMode == .multiItem {
                 await viewModel.performMultiItemAnalysis()
             } else {
                 await viewModel.performAnalysis()
@@ -346,7 +348,7 @@ struct EnhancedItemCreationFlowView: View {
                 ProgressView()
                     .scaleEffect(1.2)
                 
-                Text(captureMode == .multiItem ? "Analyzing multiple items..." : "Analyzing image...")
+                Text(viewModel.captureMode == .multiItem ? "Analyzing multiple items..." : "Analyzing image...")
                     .font(.headline)
             }
             .padding(24)
@@ -368,10 +370,10 @@ struct EnhancedItemCreationFlowView: View {
 
     private func handleErrorContinue() {
         viewModel.errorMessage = nil
-        
+
         // Move to next step based on current step and mode
         if viewModel.currentStep == .analyzing {
-            if captureMode == .multiItem {
+            if viewModel.captureMode == .multiItem {
                 // Create empty multi-item response to allow progression
                 viewModel.multiItemAnalysisResponse = MultiItemAnalysisResponse(
                     items: [],

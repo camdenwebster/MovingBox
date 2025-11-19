@@ -13,9 +13,10 @@ import Foundation
 class ItemCreationFlowViewModel: ObservableObject {
     
     // MARK: - Properties
-    
+
     /// The capture mode (single item or multi-item)
-    let captureMode: CaptureMode
+    /// Can be updated if user switches modes during camera capture
+    @Published var captureMode: CaptureMode
     
     /// Location to assign to created items
     let location: InventoryLocation?
@@ -130,7 +131,15 @@ class ItemCreationFlowViewModel: ObservableObject {
     func updateSettingsManager(_ settings: SettingsManager) {
         self.settingsManager = settings
     }
-    
+
+    /// Update the capture mode (called when user switches modes in camera)
+    func updateCaptureMode(_ mode: CaptureMode) {
+        print("🔄 ItemCreationFlowViewModel - Updating capture mode from \(captureMode) to \(mode)")
+        self.captureMode = mode
+        print("✅ ItemCreationFlowViewModel - Capture mode updated. Current mode: \(captureMode)")
+        print("📋 ItemCreationFlowViewModel - Navigation flow: \(navigationFlow.map { $0.displayName })")
+    }
+
     // MARK: - Navigation Methods
     
     /// Move to the next step in the flow
@@ -176,9 +185,12 @@ class ItemCreationFlowViewModel: ObservableObject {
         await MainActor.run {
             capturedImages = images
         }
-        
+
+        print("📸 ItemCreationFlowViewModel - handleCapturedImages called. Capture mode: \(captureMode)")
+
         // For single item mode, create the inventory item immediately
         if captureMode == .singleItem {
+            print("➡️ ItemCreationFlowViewModel - Running single item creation flow")
             do {
                 let newItem = try await createSingleInventoryItem()
                 await MainActor.run {

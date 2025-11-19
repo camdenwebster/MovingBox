@@ -139,7 +139,7 @@ struct MultiPhotoCameraView: View {
     @Binding var capturedImages: [UIImage]
     let captureMode: CaptureMode
     let onPermissionCheck: (Bool) -> Void
-    let onComplete: ([UIImage]) -> Void
+    let onComplete: ([UIImage], CaptureMode) -> Void
     let onCancel: (() -> Void)?
 
     // Check if we're in UI testing mode
@@ -160,13 +160,14 @@ struct MultiPhotoCameraView: View {
     @State private var selectedCaptureMode: CaptureMode
     @State private var pendingCaptureMode: CaptureMode?
     @State private var showingModeSwitchConfirmation = false
+    @State private var isHandlingModeChange = false  // Prevent onChange recursion
     
     // New initializer with capture mode parameter
     init(
         capturedImages: Binding<[UIImage]>,
         captureMode: CaptureMode = .singleItem,
         onPermissionCheck: @escaping (Bool) -> Void,
-        onComplete: @escaping ([UIImage]) -> Void,
+        onComplete: @escaping ([UIImage], CaptureMode) -> Void,
         onCancel: (() -> Void)? = nil
     ) {
         self._capturedImages = capturedImages
@@ -181,7 +182,7 @@ struct MultiPhotoCameraView: View {
     init(
         capturedImages: Binding<[UIImage]>,
         onPermissionCheck: @escaping (Bool) -> Void,
-        onComplete: @escaping ([UIImage]) -> Void,
+        onComplete: @escaping ([UIImage], CaptureMode) -> Void,
         onCancel: (() -> Void)? = nil
     ) {
         self._capturedImages = capturedImages
@@ -421,7 +422,7 @@ struct MultiPhotoCameraView: View {
                     
                     // Done button
                     Button(selectedCaptureMode.completionButtonText(photoCount: model.capturedImages.count)) {
-                        onComplete(model.capturedImages)
+                        onComplete(model.capturedImages, selectedCaptureMode)
                     }
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.green)
@@ -584,8 +585,7 @@ struct MultiPhotoCameraView: View {
         )
         .alert("Switch Camera Mode?", isPresented: $showingModeSwitchConfirmation) {
             Button("Cancel", role: .cancel) {
-                // Revert to current mode
-                selectedCaptureMode = model.capturedImages.isEmpty ? selectedCaptureMode : (selectedCaptureMode == .singleItem ? .multiItem : .singleItem)
+                // Just clear the pending mode, selectedCaptureMode already reverted
                 pendingCaptureMode = nil
             }
             Button("Switch Mode", role: .destructive) {
@@ -610,6 +610,9 @@ struct MultiPhotoCameraView: View {
                     triggerCaptureAnimation(with: newImage)
                 }
             }
+        }
+        .onChange(of: selectedCaptureMode) { oldMode, newMode in
+            handleCaptureModeChange(from: oldMode, to: newMode)
         }
         .sheet(isPresented: $showingPaywall) {
             revenueCatManager.presentPaywall(
@@ -652,26 +655,22 @@ struct MultiPhotoCameraView: View {
         }
         .pickerStyle(.segmented)
         .frame(width: 200)
-        .background(
-            RoundedRectangle(cornerRadius: 9)
-                .fill(.ultraThinMaterial)
-                .opacity(0.3)
-        )
-        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
         .accessibilityLabel("Camera mode selector")
         .accessibilityHint("Switch between single item and multi item capture modes")
-        .onChange(of: selectedCaptureMode) { oldMode, newMode in
-            handleCaptureModeChange(from: oldMode, to: newMode)
-        }
     }
 
     // MARK: - Mode Switching Logic
 
     private func handleCaptureModeChange(from oldMode: CaptureMode, to newMode: CaptureMode) {
+        // Prevent recursion from onChange firing again
+        guard !isHandlingModeChange else { return }
+        isHandlingModeChange = true
+
         // Check if switching to Multi mode requires Pro
         if newMode == .multiItem && !settings.isPro {
             // Revert selection and show paywall
             selectedCaptureMode = oldMode
+            isHandlingModeChange = false
             showingPaywall = true
             return
         }
@@ -680,38 +679,31 @@ struct MultiPhotoCameraView: View {
         if !model.capturedImages.isEmpty {
             pendingCaptureMode = newMode
             selectedCaptureMode = oldMode // Revert temporarily
+            isHandlingModeChange = false
             showingModeSwitchConfirmation = true
             return
         }
 
         // No photos, switch modes directly
         performModeSwitch(to: newMode)
+        isHandlingModeChange = false
     }
 
     private func performModeSwitch(to newMode: CaptureMode) {
         // Clear photos if any
         model.capturedImages.removeAll()
 
-        // Haptic feedback
-        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-        impactFeedback.impactOccurred()
-
-        // Animate mode switch
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-            selectedCaptureMode = newMode
-        }
+        // Simple, direct mode switch
+        selectedCaptureMode = newMode
 
         // Save preference
         settings.preferredCaptureMode = newMode == .singleItem ? 0 : 1
 
-        // VoiceOver announcement
-        UIAccessibility.post(
-            notification: .announcement,
-            argument: "Switched to \(newMode.displayName) mode. \(newMode.description)"
-        )
-
         // Clear pending mode
         pendingCaptureMode = nil
+
+        // Haptic feedback (optional, non-critical)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     // MARK: - Helper Methods
@@ -1239,7 +1231,7 @@ struct PhotoThumbnailView: View {
         capturedImages: .constant([]),
         captureMode: .singleItem,
         onPermissionCheck: { _ in },
-        onComplete: { _ in }
+        onComplete: { _, _ in }
     )
 }
 
@@ -1248,7 +1240,7 @@ struct PhotoThumbnailView: View {
         capturedImages: .constant([]),
         captureMode: .multiItem,
         onPermissionCheck: { _ in },
-        onComplete: { _ in }
+        onComplete: { _, _ in }
     )
 }
 
