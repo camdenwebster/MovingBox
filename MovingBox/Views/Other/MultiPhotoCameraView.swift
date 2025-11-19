@@ -211,22 +211,9 @@ struct MultiPhotoCameraView: View {
                 // Black background
                 Color.black.ignoresSafeArea(.all)
                 
-                // Camera preview, captured photo, or static image for UI testing
+                // Camera preview or static image for UI testing
                 Group {
-                    if selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty {
-                        // Show captured photo instead of camera feed in multi-item mode
-                        // Maintain same structure as camera preview for consistent layout
-                        Color.black
-                            .overlay {
-                                if let capturedImage = model.capturedImages.first {
-                                    Image(uiImage: capturedImage)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    } else if isUITesting {
+                    if isUITesting {
                         // Use static tablet image for UI testing
                         Image("tablet", bundle: .main)
                             .resizable()
@@ -364,7 +351,26 @@ struct MultiPhotoCameraView: View {
                     .stroke(Color.white.opacity(0.5), lineWidth: 2)
                     .frame(width: squareSize, height: squareSize)
                     .position(x: geometry.size.width / 2, y: centerY)
-                
+
+                // Photo preview overlay (multi-item mode with captured photo)
+                if selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty {
+                    ZStack {
+                        // Dim the camera feed
+                        Color.black.opacity(0.7)
+                            .ignoresSafeArea(.all)
+
+                        // Show captured photo
+                        if let capturedImage = model.capturedImages.first {
+                            Image(uiImage: capturedImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: squareSize, height: squareSize)
+                                .cornerRadius(12)
+                                .shadow(color: .black.opacity(0.3), radius: 10)
+                        }
+                    }
+                }
+
                 // UI Controls
                 VStack(spacing: 0) {
                 // Top bar
