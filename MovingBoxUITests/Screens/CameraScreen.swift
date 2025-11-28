@@ -13,6 +13,14 @@ class CameraScreen {
     let flashButton: XCUIElement
     let photoPickerButton: XCUIElement
     let photoCountLabel: XCUIElement
+
+    // Zoom controls
+    var zoomButtons: [XCUIElement] {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] 'x'")).allElementsBoundByIndex.filter { button in
+            let label = button.label
+            return label.contains("x") && (label.contains("0.5") || label.contains("1") || label.contains("2") || label.contains("5"))
+        }
+    }
     
     init(app: XCUIApplication, testCase: XCTestCase) {
         self.app = app
@@ -122,5 +130,52 @@ class CameraScreen {
         if dismissButton.waitForExistence(timeout: 2) {
             dismissButton.tap()
         }
+    }
+
+    func tapZoomButton(at index: Int) -> Bool {
+        let buttons = zoomButtons
+        guard index >= 0 && index < buttons.count else {
+            print("❌ Zoom button index \(index) out of range (0-\(buttons.count - 1))")
+            return false
+        }
+
+        if buttons[index].waitForExistence(timeout: 2) {
+            print("🔍 Tapping zoom button at index \(index): \(buttons[index].label)")
+            buttons[index].tap()
+            return true
+        }
+
+        print("❌ Zoom button at index \(index) not found")
+        return false
+    }
+
+    func tapZoomByFactor(_ factor: String) -> Bool {
+        let zoomButtonsArray = zoomButtons
+        for (index, button) in zoomButtonsArray.enumerated() {
+            if button.label.contains(factor) {
+                print("🔍 Tapping \(factor) zoom button")
+                button.tap()
+                return true
+            }
+        }
+
+        print("❌ Zoom button with factor \(factor) not found")
+        return false
+    }
+
+    func getCurrentZoomFactor() -> String? {
+        let zoomButtonsArray = zoomButtons
+        for button in zoomButtonsArray {
+            // Check if button is highlighted (selected state)
+            if button.label.contains("x") {
+                // Could check if it has yellow color or selected state
+                return button.label
+            }
+        }
+        return nil
+    }
+
+    func getAvailableZoomFactors() -> [String] {
+        return zoomButtons.map { $0.label }
     }
 }

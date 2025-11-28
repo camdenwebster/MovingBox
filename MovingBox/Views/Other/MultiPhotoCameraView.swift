@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import PhotosUI
 import UIKit
+import Combine
 
 /// Represents the capture mode for the MultiPhotoCameraView
 enum CaptureMode: CaseIterable {
@@ -161,7 +162,13 @@ struct MultiPhotoCameraView: View {
     @State private var pendingCaptureMode: CaptureMode?
     @State private var showingModeSwitchConfirmation = false
     @State private var isHandlingModeChange = false  // Prevent onChange recursion
-    
+
+    // Zoom control state (isolated from model updates)
+    @State private var localZoomIndex: Int = 0
+
+    // Macro recommendation state
+    @State private var dismissedMacroRecommendation: MacroRecommendation? = nil
+
     // New initializer with capture mode parameter
     init(
         capturedImages: Binding<[UIImage]>,
@@ -301,14 +308,9 @@ struct MultiPhotoCameraView: View {
                                 }
                                 print("📱 Camera initial orientation: device=\(currentOrientation), interface=\(interfaceOrientationString), using=\(orientation)")
                                 
-                                // Force an update of the camera preview orientation after a brief delay
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    // Trigger a state change to force the camera preview to update
-                                    let currentOrientationValue = orientation
-                                    orientation = .portrait
-                                    orientation = currentOrientationValue
-                                    print("📱 Forced camera orientation update to: \(orientation)")
-                                }
+                                // NOTE: Removed forced orientation update that was resetting camera zoom
+                                // The orientation should update naturally through the notification observer below
+                                // print("📱 Forced camera orientation update to: \(orientation)")
                                 
                                 // Then start monitoring for changes
                                 NotificationCenter.default.addObserver(
@@ -374,65 +376,100 @@ struct MultiPhotoCameraView: View {
 
                 // UI Controls
                 VStack(spacing: 0) {
-                // Top bar
-                HStack {
-                    // Close button
-                    Button {
-                        if let onCancel = onCancel {
-                            onCancel()
-                        }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
-                    }
-                    .accessibilityIdentifier("cameraCloseButton")
-                    
-                    Spacer()
-                    
-                    // Center controls: Flash and Camera switcher
-                    HStack(spacing: 20) {
-                        // Flash button
-                        Button {
-                            model.cycleFlash()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: model.flashIcon)
-                                    .font(.system(size: 16))
-                                Text(flashModeText)
-                                    .font(.system(size: 16, weight: .medium))
+                // Macro recommendation banner
+                if let recommendation = model.macroRecommendation,
+                   dismissedMacroRecommendation?.focusDistanceImprovement != recommendation.focusDistanceImprovement {
+                    MacroRecommendationBanner(
+                        recommendation: recommendation,
+                        onSwitch: {
+                            // Switch to the recommended camera's zoom level
+                            if let zoomIndex = model.zoomFactors.firstIndex(of: recommendation.recommendedCamera.displayZoomFactor) {
+                                model.setZoom(to: zoomIndex)
                             }
-                            .foregroundColor(.white)
+                        },
+                        onDismiss: {
+                            dismissedMacroRecommendation = recommendation
                         }
-                        
-                        // Camera switcher
-                        Button {
-                            Task {
-                                await model.switchCamera()
-                            }
-                        } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath.camera")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Done button
-                    Button(selectedCaptureMode.completionButtonText(photoCount: model.capturedImages.count)) {
-                        onComplete(model.capturedImages, selectedCaptureMode)
-                    }
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.green)
-                    .disabled(model.capturedImages.isEmpty)
-                    .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
-                    .accessibilityIdentifier("cameraDoneButton")
+                    )
+                    .padding(.top, 8)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 50)
-                .padding(.bottom, 10)
+
+                // Top bar
+                VStack(spacing: 12) {
+                    HStack {
+                        // Close button
+                        Button {
+                            if let onCancel = onCancel {
+                                onCancel()
+                            }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(width: 32, height: 32)
+                        }
+                        .accessibilityIdentifier("cameraCloseButton")
+
+                        Spacer()
+
+                        // Center controls: Flash and Camera switcher
+                        HStack(spacing: 20) {
+                            // Flash button
+                            Button {
+                                model.cycleFlash()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: model.flashIcon)
+                                        .font(.system(size: 16))
+                                    Text(flashModeText)
+                                        .font(.system(size: 16, weight: .medium))
+                                }
+                                .foregroundColor(.white)
+                            }
+
+                            // Camera switcher
+                            Button {
+                                Task {
+                                    await model.switchCamera()
+                                }
+                            } label: {
+                                Image(systemName: "arrow.triangle.2.circlepath.camera")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white)
+                            }
+                        }
+
+                        Spacer()
+
+                        // Done button
+                        Button(selectedCaptureMode.completionButtonText(photoCount: model.capturedImages.count)) {
+                            onComplete(model.capturedImages, selectedCaptureMode)
+                        }
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.green)
+                        .disabled(model.capturedImages.isEmpty)
+                        .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
+                        .accessibilityIdentifier("cameraDoneButton")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 50)
+                    .padding(.bottom, 10)
+
+                    // Zoom control
+                    ZoomControlView(
+                        zoomFactors: model.zoomFactors,
+                        currentZoomIndex: localZoomIndex,
+                        onZoomTap: { index in
+                            localZoomIndex = index
+                            model.setZoom(to: index)
+                        }
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+                    .onChange(of: model.currentZoomIndex) { _, newIndex in
+                        localZoomIndex = newIndex
+                    }
+                }
                 
                 // Thumbnails (only shown in single-item mode)
                 if selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
@@ -801,718 +838,5 @@ struct MultiPhotoCameraView: View {
                 continuation.resume(returning: croppedImage)
             }
         }
-    }
-}
-
-@MainActor
-final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
-    @Published var flashMode: AVCaptureDevice.FlashMode = .auto
-    @Published var currentZoomFactor: CGFloat = 1.0
-    @Published var currentZoomText: String = "1x"
-    @Published var capturedImages: [UIImage] = []
-    @Published var showPhotoLimitAlert = false
-    
-    var flashIcon: String {
-        switch flashMode {
-        case .auto: return "bolt.badge.a.fill"
-        case .on: return "bolt.fill"
-        case .off: return "bolt.slash.fill"
-        @unknown default: return "bolt.slash.fill"
-        }
-    }
-    
-    let session = AVCaptureSession()
-    private var device: AVCaptureDevice?
-    private var input: AVCaptureDeviceInput?
-    private let output = AVCapturePhotoOutput()
-    private var isBackCamera = true
-    private var isConfigured = false
-    
-    // Include 0.5x for wide angle if available
-    private lazy var zoomFactors: [CGFloat] = {
-        guard let device = device else { return [1.0, 2.0, 5.0].map { CGFloat($0) } }
-        var factors: [CGFloat] = [1.0, 2.0, 5.0].map { CGFloat($0) }
-        if device.virtualDeviceSwitchOverVideoZoomFactors.contains(where: { CGFloat($0.doubleValue) < 1.0 }) {
-            factors.insert(0.5, at: 0)
-        }
-        return factors
-    }()
-    
-    private var currentZoomIndex = 0
-    
-    override init() {
-        super.init()
-        Task.detached(priority: .userInitiated) { [weak self] in
-            await self?.setupSession()
-        }
-    }
-    
-    func cycleFlash() {
-        switch flashMode {
-        case .auto:
-            flashMode = .on
-        case .on:
-            flashMode = .off
-        case .off:
-            flashMode = .auto
-        @unknown default:
-            flashMode = .auto
-        }
-    }
-    
-    func cycleZoom() {
-        currentZoomIndex = (currentZoomIndex + 1) % zoomFactors.count
-        let newZoom = zoomFactors[currentZoomIndex]
-        
-        guard let device = device else { return }
-        
-        do {
-            try device.lockForConfiguration()
-            device.videoZoomFactor = newZoom
-            device.unlockForConfiguration()
-            
-            currentZoomFactor = newZoom
-            currentZoomText = String(format: "%.1fx", newZoom)
-        } catch {
-            print("Could not lock device for configuration: \(error)")
-        }
-    }
-    
-    func checkPermissions(completion: @escaping (Bool) -> Void) async {
-        let status = AVCaptureDevice.authorizationStatus(for: .video)
-        switch status {
-        case .authorized:
-            completion(true)
-            await startSession()
-        case .notDetermined:
-            let granted = await AVCaptureDevice.requestAccess(for: .video)
-            await MainActor.run {
-                completion(granted)
-            }
-            if granted {
-                await startSession()
-            }
-        default:
-            await MainActor.run {
-                completion(false)
-            }
-        }
-    }
-    
-    private func setupSession() async {
-        guard !isConfigured else { return }
-        
-        await MainActor.run {
-            session.sessionPreset = .photo
-        }
-        
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-              let input = try? AVCaptureDeviceInput(device: device) else {
-            return
-        }
-        
-        await MainActor.run { [self] in
-            self.device = device
-            self.input = input
-            
-            session.beginConfiguration()
-            if session.canAddInput(input) {
-                session.addInput(input)
-            }
-            if session.canAddOutput(output) {
-                session.addOutput(output)
-            }
-            session.commitConfiguration()
-            
-            // Configure initial focus settings
-            do {
-                try device.lockForConfiguration()
-                
-                // Set up continuous autofocus if supported
-                if device.isFocusModeSupported(.continuousAutoFocus) {
-                    device.focusMode = .continuousAutoFocus
-                    print("✅ Initial focus mode set to continuous autofocus")
-                }
-                
-                // Set up continuous auto exposure if supported
-                if device.isExposureModeSupported(.continuousAutoExposure) {
-                    device.exposureMode = .continuousAutoExposure
-                    print("✅ Initial exposure mode set to continuous auto exposure")
-                }
-                
-                device.unlockForConfiguration()
-                print("📹 Camera focus capabilities: focus POI supported: \(device.isFocusPointOfInterestSupported)")
-            } catch {
-                print("❌ Error configuring initial focus settings: \(error)")
-            }
-            
-            isConfigured = true
-        }
-    }
-    
-    func stopSession() async {
-        guard session.isRunning else { return }
-        session.stopRunning()
-    }
-    
-    private func startSession() async {
-        guard !session.isRunning else { return }
-        
-        await MainActor.run {
-            session.startRunning()
-        }
-    }
-    
-    func switchCamera() async {
-        await MainActor.run {
-            session.beginConfiguration()
-            
-            if let currentInput = input {
-                session.removeInput(currentInput)
-            }
-            
-            isBackCamera.toggle()
-            let position: AVCaptureDevice.Position = isBackCamera ? .back : .front
-            
-            guard let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
-                  let newInput = try? AVCaptureDeviceInput(device: newDevice) else {
-                session.commitConfiguration()
-                return
-            }
-            
-            if session.canAddInput(newInput) {
-                session.addInput(newInput)
-                device = newDevice
-                input = newInput
-            }
-            
-            session.commitConfiguration()
-        }
-    }
-    
-    func capturePhoto() {
-        let settings = AVCapturePhotoSettings()
-        settings.flashMode = flashMode
-        output.capturePhoto(with: settings, delegate: self)
-    }
-    
-    func captureTestPhoto() {
-        // For UI testing, use the tablet image from TestAssets
-        guard let testImage = UIImage(named: "tablet") else {
-            print("❌ Could not load tablet test image")
-            return
-        }
-        
-        Task { @MainActor in
-            // Crop to square aspect ratio
-            let croppedImage = await cropToSquare(image: testImage)
-            
-            // Optimize image immediately for memory management
-            let optimizedImage = await OptimizedImageManager.shared.optimizeImage(croppedImage)
-            
-            self.capturedImages.append(optimizedImage)
-            print("📸 MultiPhotoCameraView - Captured test photo \(self.capturedImages.count)/5")
-        }
-    }
-    
-    func removeImage(at index: Int) {
-        guard index >= 0 && index < capturedImages.count else { return }
-        capturedImages.remove(at: index)
-    }
-    
-    func setFocusPoint(_ point: CGPoint) {
-        guard let device = device else {
-            print("❌ No camera device available")
-            return
-        }
-        
-        do {
-            try device.lockForConfiguration()
-            
-            print("🎯 Attempting to set focus to point: \(point)")
-            print("📹 Focus supported: \(device.isFocusPointOfInterestSupported)")
-            print("📹 Current focus mode: \(device.focusMode.rawValue)")
-            
-            // Set focus point and mode
-            if device.isFocusPointOfInterestSupported {
-                device.focusPointOfInterest = point
-                
-                // Use continuous autofocus for video preview
-                if device.isFocusModeSupported(.continuousAutoFocus) {
-                    device.focusMode = .continuousAutoFocus
-                    print("✅ Set to continuous autofocus")
-                } else if device.isFocusModeSupported(.autoFocus) {
-                    device.focusMode = .autoFocus
-                    print("✅ Set to autofocus")
-                }
-            } else {
-                print("❌ Focus point of interest not supported")
-            }
-            
-            // Set exposure point and mode
-            if device.isExposurePointOfInterestSupported {
-                device.exposurePointOfInterest = point
-                
-                if device.isExposureModeSupported(.continuousAutoExposure) {
-                    device.exposureMode = .continuousAutoExposure
-                    print("✅ Set to continuous auto exposure")
-                } else if device.isExposureModeSupported(.autoExpose) {
-                    device.exposureMode = .autoExpose
-                    print("✅ Set to auto exposure")
-                }
-            }
-            
-            device.unlockForConfiguration()
-            print("✅ Focus configuration complete")
-        } catch {
-            print("❌ Error setting focus point: \(error)")
-        }
-    }
-    
-    nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        guard let data = photo.fileDataRepresentation(),
-              let image = UIImage(data: data) else {
-            print("Failed to capture photo: \(error?.localizedDescription ?? "Unknown error")")
-            return
-        }
-        
-        Task { @MainActor in
-            // Crop to square aspect ratio
-            let croppedImage = await cropToSquare(image: image)
-            
-            // Optimize image immediately for memory management
-            let optimizedImage = await OptimizedImageManager.shared.optimizeImage(croppedImage)
-            
-            if isBackCamera {
-                self.capturedImages.append(optimizedImage)
-            } else {
-                // Flip front camera images
-                if let cgImage = optimizedImage.cgImage {
-                    let flippedImage = UIImage(cgImage: cgImage, scale: optimizedImage.scale, orientation: .leftMirrored)
-                    self.capturedImages.append(flippedImage)
-                } else {
-                    self.capturedImages.append(optimizedImage)
-                }
-            }
-            
-            print("📸 MultiPhotoCameraView - Captured photo \(self.capturedImages.count)/5")
-        }
-    }
-    
-    private func cropToSquare(image: UIImage) async -> UIImage {
-        return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                guard let cgImage = image.cgImage else {
-                    continuation.resume(returning: image)
-                    return
-                }
-                
-                let originalSize = CGSize(width: cgImage.width, height: cgImage.height)
-                print("📐 CGImage size: \(originalSize) (UIImage size: \(image.size), orientation: \(image.imageOrientation.rawValue))")
-                
-                // Use the CGImage dimensions directly to avoid orientation confusion
-                let sideLength = min(originalSize.width, originalSize.height)
-                
-                // Calculate crop rectangle to get the center square from the CGImage
-                let x = (originalSize.width - sideLength) / 2
-                let y = (originalSize.height - sideLength) / 2
-                let cropRect = CGRect(x: x, y: y, width: sideLength, height: sideLength)
-                
-                print("📐 Crop rect: \(cropRect) from CGImage size: \(originalSize)")
-                
-                guard let croppedCGImage = cgImage.cropping(to: cropRect) else {
-                    print("❌ Failed to crop CGImage")
-                    continuation.resume(returning: image)
-                    return
-                }
-                
-                print("📐 Cropped CGImage size: \(croppedCGImage.width)x\(croppedCGImage.height)")
-                
-                let croppedImage = UIImage(
-                    cgImage: croppedCGImage,
-                    scale: image.scale,
-                    orientation: image.imageOrientation
-                )
-                
-                print("📐 Final UIImage size: \(croppedImage.size)")
-                continuation.resume(returning: croppedImage)
-            }
-        }
-    }
-}
-
-// MARK: - Photo Thumbnail Scroll View Component
-
-struct PhotoThumbnailScrollView: View {
-    let images: [UIImage]
-    let onDelete: (Int) -> Void
-    
-    var body: some View {
-        if !images.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(Array(images.enumerated()), id: \.offset) { index, image in
-                        PhotoThumbnailView(
-                            image: image,
-                            index: index,
-                            onDelete: onDelete
-                        )
-                        .animation(.easeInOut(duration: 0.2), value: images.count)
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-            .frame(height: 80)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-    }
-}
-
-// MARK: - Individual Photo Thumbnail Component
-
-struct PhotoThumbnailView: View {
-    let image: UIImage
-    let index: Int
-    let onDelete: (Int) -> Void
-    
-    @State private var isPressed = false
-    
-    var body: some View {
-        ZStack {
-            // Thumbnail image
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 60, height: 60)
-                .clipped()
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                )
-                .scaleEffect(isPressed ? 0.95 : 1.0)
-                .animation(.easeInOut(duration: 0.1), value: isPressed)
-            
-            // Delete button
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    onDelete(index)
-                }
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .background(
-                        Circle()
-                            .fill(Color.black.opacity(0.7))
-                            .frame(width: 20, height: 20)
-                    )
-            }
-            .frame(width: 20, height: 20)
-            .offset(x: 25, y: -25)
-            .accessibilityLabel("Delete photo \(index + 1)")
-        }
-        .onTapGesture {
-            // Visual feedback for tap
-            withAnimation(.easeInOut(duration: 0.1)) {
-                isPressed = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.easeInOut(duration: 0.1)) {
-                    isPressed = false
-                }
-            }
-        }
-    }
-}
-
-#Preview("Single Item Mode") {
-    MultiPhotoCameraView(
-        capturedImages: .constant([]),
-        captureMode: .singleItem,
-        onPermissionCheck: { _ in },
-        onComplete: { _, _ in }
-    )
-}
-
-#Preview("Multi Item Mode") {
-    MultiPhotoCameraView(
-        capturedImages: .constant([]),
-        captureMode: .multiItem,
-        onPermissionCheck: { _ in },
-        onComplete: { _, _ in }
-    )
-}
-
-// MARK: - Capture Animation View
-
-struct CaptureAnimationView: View {
-    let image: UIImage
-    let startRect: CGRect
-    let endRect: CGRect
-    @Binding var isVisible: Bool
-    
-    @State private var animationProgress: CGFloat = 0
-    @State private var opacity: Double = 1
-    
-    var body: some View {
-        if isVisible {
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(
-                    width: interpolate(from: startRect.width, to: endRect.width, progress: animationProgress),
-                    height: interpolate(from: startRect.height, to: endRect.height, progress: animationProgress)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: interpolate(from: 0, to: 8, progress: animationProgress)))
-                .position(
-                    x: interpolate(from: startRect.midX, to: endRect.midX, progress: animationProgress),
-                    y: interpolate(from: startRect.midY, to: endRect.midY, progress: animationProgress)
-                )
-                .opacity(opacity)
-                .onAppear {
-                    withAnimation(.easeOut(duration: 0.6)) {
-                        animationProgress = 1.0
-                    }
-                    
-                    withAnimation(.easeOut(duration: 0.2).delay(0.6)) {
-                        opacity = 0
-                    }
-                }
-        }
-    }
-    
-    private func interpolate(from start: CGFloat, to end: CGFloat, progress: CGFloat) -> CGFloat {
-        return start + (end - start) * progress
-    }
-}
-
-// MARK: - Focus Indicator View
-
-struct FocusIndicatorView: View {
-    @State private var scale: CGFloat = 1.5
-    @State private var opacity: Double = 1.0
-    
-    var body: some View {
-        RoundedRectangle(cornerRadius: 4)
-            .stroke(Color.yellow, lineWidth: 2)
-            .frame(width: 80, height: 80)
-            .scaleEffect(scale)
-            .opacity(opacity)
-            .onAppear {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    scale = 1.0
-                }
-                withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
-                    opacity = 0
-                }
-            }
-    }
-}
-
-// MARK: - Square Camera Preview View
-
-struct SquareCameraPreviewView: UIViewRepresentable {
-    let session: AVCaptureSession
-    let onTapToFocus: ((CGPoint) -> Void)?
-    
-    class SquarePreviewView: UIView {
-        override class var layerClass: AnyClass {
-            AVCaptureVideoPreviewLayer.self
-        }
-        
-        var previewLayer: AVCaptureVideoPreviewLayer {
-            layer as! AVCaptureVideoPreviewLayer
-        }
-        
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            
-            // Ensure the preview layer fills the view and maintains square aspect
-            previewLayer.frame = bounds
-            
-            // Set video gravity to show what will actually be captured
-            previewLayer.videoGravity = .resizeAspectFill
-        }
-    }
-    
-    func makeUIView(context: Context) -> SquarePreviewView {
-        let view = SquarePreviewView()
-        view.previewLayer.session = session
-        view.previewLayer.videoGravity = .resizeAspectFill
-        if let connection = view.previewLayer.connection {
-            connection.videoRotationAngle = 90
-        }
-        
-        // Add tap gesture for focus
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-        view.addGestureRecognizer(tapGesture)
-        view.isUserInteractionEnabled = true
-        
-        return view
-    }
-    
-    func updateUIView(_ uiView: SquarePreviewView, context: Context) {
-        uiView.previewLayer.session = session
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject {
-        let parent: SquareCameraPreviewView
-        
-        init(_ parent: SquareCameraPreviewView) {
-            self.parent = parent
-        }
-        
-        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-            let point = gesture.location(in: gesture.view)
-            parent.onTapToFocus?(point)
-        }
-    }
-}
-
-// MARK: - Full Screen Camera Preview View
-
-struct FullScreenCameraPreviewView: UIViewRepresentable {
-    let session: AVCaptureSession
-    let orientation: UIDeviceOrientation
-    let onTapToFocus: ((CGPoint) -> Void)?
-    
-    class FullScreenPreviewView: UIView {
-        override class var layerClass: AnyClass {
-            AVCaptureVideoPreviewLayer.self
-        }
-        
-        var previewLayer: AVCaptureVideoPreviewLayer {
-            layer as! AVCaptureVideoPreviewLayer
-        }
-        
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            
-            // Ensure the preview layer fills the entire view
-            previewLayer.frame = bounds
-            
-            // Set video gravity to fill the entire screen
-            previewLayer.videoGravity = .resizeAspectFill
-        }
-    }
-    
-    func makeUIView(context: Context) -> FullScreenPreviewView {
-        let view = FullScreenPreviewView()
-        view.previewLayer.session = session
-        view.previewLayer.videoGravity = .resizeAspectFill
-        
-        // Set initial orientation
-        updateVideoOrientation(for: view.previewLayer)
-        
-        // Add tap gesture for focus
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-        view.addGestureRecognizer(tapGesture)
-        view.isUserInteractionEnabled = true
-        
-        return view
-    }
-    
-    func updateUIView(_ uiView: FullScreenPreviewView, context: Context) {
-        uiView.previewLayer.session = session
-        
-        // Update orientation if on iPad
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            updateVideoOrientation(for: uiView.previewLayer)
-        }
-    }
-    
-    private func updateVideoOrientation(for previewLayer: AVCaptureVideoPreviewLayer) {
-        guard UIDevice.current.userInterfaceIdiom == .pad else {
-            // Keep portrait for iPhone
-            if #available(iOS 17.0, *) {
-                previewLayer.connection?.videoRotationAngle = 0
-            } else {
-                previewLayer.connection?.videoOrientation = .portrait
-            }
-            return
-        }
-        
-        // Map device orientation to rotation angle for iPad
-        let rotationAngle: Double
-        switch orientation {
-        case .portrait:
-            rotationAngle = 0
-        case .portraitUpsideDown:
-            rotationAngle = 180
-        case .landscapeLeft:
-            rotationAngle = 270
-        case .landscapeRight:
-            rotationAngle = 90
-        default:
-            rotationAngle = 0
-        }
-        
-        if #available(iOS 17.0, *) {
-            // Check if the rotation angle is supported before setting it
-            if let connection = previewLayer.connection {
-                if connection.isVideoRotationAngleSupported(rotationAngle) {
-                    connection.videoRotationAngle = rotationAngle
-                    print("📹 Set video rotation angle: \(rotationAngle)° for orientation: \(orientation)")
-                } else {
-                    print("📹 Video rotation angle \(rotationAngle)° not supported, using fallback")
-                    // Fall back to fixed rotation for older devices
-                    connection.videoRotationAngle = 90
-                    print("📹 Fallback: Set video rotation angle: 90° for device orientation: \(orientation)")
-                }
-            }
-        } else {
-            // Fallback for older iOS versions
-            let videoOrientation: AVCaptureVideoOrientation
-            switch orientation {
-            case .portrait:
-                videoOrientation = .portrait
-            case .portraitUpsideDown:
-                videoOrientation = .portraitUpsideDown
-            case .landscapeLeft:
-                videoOrientation = .landscapeRight
-            case .landscapeRight:
-                videoOrientation = .landscapeLeft
-            default:
-                videoOrientation = .portrait
-            }
-            previewLayer.connection?.videoOrientation = videoOrientation
-            print("📹 Set video orientation: \(videoOrientation) for device orientation: \(orientation)")
-        }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject {
-        let parent: FullScreenCameraPreviewView
-        
-        init(_ parent: FullScreenCameraPreviewView) {
-            self.parent = parent
-        }
-        
-        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-            let point = gesture.location(in: gesture.view)
-            parent.onTapToFocus?(point)
-        }
-    }
-}
-
-#Preview("Photo Thumbnails") {
-    VStack {
-        PhotoThumbnailScrollView(
-            images: [
-                UIImage(systemName: "photo")!,
-                UIImage(systemName: "camera")!,
-                UIImage(systemName: "square.and.arrow.up")!
-            ],
-            onDelete: { _ in }
-        )
-        .background(Color.black)
     }
 }
