@@ -89,8 +89,14 @@ struct MultiItemSelectionView: View {
                     VStack {
                         cardCarouselView
                         instructionText
+                    }
+                    
+                    VStack {
                         selectionSummaryView
                             .padding(.horizontal, 16)
+                        continueButton
+                            .buttonStyle(.borderedProminent)
+                            .disabled(viewModel.selectedItemsCount == 0)
                     }
                 }
             }
@@ -261,22 +267,22 @@ struct MultiItemSelectionView: View {
                     .buttonStyle(.bordered)
                 }
             }
-            
-            // Continue button (full width)
-            Button(action: handleContinue) {
-                HStack {
-                    Spacer()
-                    Text("Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")")
-                        .font(.headline)
-                    Spacer()
-                }
-                .padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(viewModel.selectedItemsCount == 0)
         }
         .padding(.vertical, 16)
         .background(Color(.systemBackground))
+    }
+    
+    private var continueButton: some View {
+        // Continue button (full width)
+        Button(action: handleContinue) {
+            HStack {
+                Spacer()
+                Text("Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.vertical, 12)
+        }
     }
     
     private var processingOverlay: some View {
@@ -401,7 +407,6 @@ struct DetectedItemCard: View {
                 }
             }
             .padding()
-//            .frame(maxHeight: .infinity, alignment: .bottom)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)

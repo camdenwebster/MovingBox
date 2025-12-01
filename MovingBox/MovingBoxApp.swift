@@ -238,6 +238,7 @@ struct MovingBoxApp: App {
                 TelemetryDeck.signal("appLaunched")
             }
             .modelContainer(containerManager.container)
+            .environment(\.featureFlags, FeatureFlags(distribution: .current))
             .environmentObject(router)
             .environmentObject(settings)
             .environmentObject(containerManager)

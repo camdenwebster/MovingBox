@@ -395,80 +395,21 @@ struct MultiPhotoCameraView: View {
                 }
 
                 // Top bar
-                VStack(spacing: 12) {
-                    HStack {
-                        // Close button
-                        Button {
-                            if let onCancel = onCancel {
-                                onCancel()
-                            }
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(width: 32, height: 32)
+                CameraTopControls(
+                    model: model,
+                    onClose: {
+                        if let onCancel = onCancel {
+                            onCancel()
                         }
-                        .accessibilityIdentifier("cameraCloseButton")
-
-                        Spacer()
-
-                        // Center controls: Flash and Camera switcher
-                        HStack(spacing: 20) {
-                            // Flash button
-                            Button {
-                                model.cycleFlash()
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: model.flashIcon)
-                                        .font(.system(size: 16))
-                                    Text(flashModeText)
-                                        .font(.system(size: 16, weight: .medium))
-                                }
-                                .foregroundColor(.white)
-                            }
-
-                            // Camera switcher
-                            Button {
-                                Task {
-                                    await model.switchCamera()
-                                }
-                            } label: {
-                                Image(systemName: "arrow.triangle.2.circlepath.camera")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.white)
-                            }
-                        }
-
-                        Spacer()
-
-                        // Done button
-                        Button(selectedCaptureMode.completionButtonText(photoCount: model.capturedImages.count)) {
-                            onComplete(model.capturedImages, selectedCaptureMode)
-                        }
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.green)
-                        .disabled(model.capturedImages.isEmpty)
-                        .opacity(model.capturedImages.isEmpty ? 0.5 : 1.0)
-                        .accessibilityIdentifier("cameraDoneButton")
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 50)
-                    .padding(.bottom, 10)
-
-                    // Zoom control
-                    ZoomControlView(
-                        zoomFactors: model.zoomFactors,
-                        currentZoomIndex: localZoomIndex,
-                        onZoomTap: { index in
-                            localZoomIndex = index
-                            model.setZoom(to: index)
-                        }
-                    )
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
-                    .onChange(of: model.currentZoomIndex) { _, newIndex in
-                        localZoomIndex = newIndex
-                    }
+                    },
+                    onDone: {
+                        onComplete(model.capturedImages, selectedCaptureMode)
+                    },
+                    flashModeText: flashModeText,
+                    photoCount: model.capturedImages.count
+                )
+                .onChange(of: model.currentZoomIndex) { _, newIndex in
+                    localZoomIndex = newIndex
                 }
                 
                 // Thumbnails (only shown in single-item mode)
@@ -515,82 +456,39 @@ struct MultiPhotoCameraView: View {
                 VStack(spacing: 20) {
                     // Capture mode segmented control (hidden when photo preview is showing)
                     if !(selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty) {
-                        captureModePicker
+                        CaptureModePicker(selectedMode: $selectedCaptureMode)
                             .padding(.bottom, 30)
                     }
 
-                    // Shutter controls row
-                    HStack(spacing: 50) {
-                        // Photo count
-                        Text(selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro))
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 60)
-                            .accessibilityIdentifier("cameraPhotoCount")
-                        
-                        // Shutter button or Retake button (multi-item mode with photo)
-                        if selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty {
-                            // Retake button in multi-item mode after capture
-                            Button {
-                                model.capturedImages.removeAll()
-                                // Camera automatically returns to live preview
-                            } label: {
-                                Text("Retake")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 100, height: 50)
-                                    .background(.red.opacity(0.8))
-                                    .cornerRadius(25)
-                            }
-                            .accessibilityIdentifier("cameraRetakeButton")
-                        } else {
-                            // Normal shutter button
-                            Button {
-                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
-                                if model.capturedImages.count >= maxPhotos {
-                                    model.showPhotoLimitAlert = true
+                    CameraBottomControls(
+                        captureMode: selectedCaptureMode,
+                        photoCount: model.capturedImages.count,
+                        photoCounterText: selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
+                        hasPhotoCaptured: !model.capturedImages.isEmpty,
+                        onShutterTap: {
+                            let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
+                            if model.capturedImages.count >= maxPhotos {
+                                model.showPhotoLimitAlert = true
+                            } else {
+                                if isUITesting {
+                                    model.captureTestPhoto()
                                 } else {
-                                    if isUITesting {
-                                        model.captureTestPhoto()
-                                    } else {
-                                        model.capturePhoto()
-                                    }
-                                }
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill(.green)
-                                        .frame(width: 70, height: 70)
-                                    Circle()
-                                        .strokeBorder(.white, lineWidth: 5)
-                                        .frame(width: 76, height: 76)
+                                    model.capturePhoto()
                                 }
                             }
-                            .accessibilityIdentifier("cameraShutterButton")
-                        }
-
-                        // Photo picker button (only shown in single-item mode)
-                        if selectedCaptureMode.showsPhotoPickerButton {
-                            Button {
-                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
-                                if model.capturedImages.count >= maxPhotos {
-                                    model.showPhotoLimitAlert = true
-                                } else {
-                                    showingPhotoPicker = true
-                                }
-                            } label: {
-                                Image(systemName: "photo.on.rectangle")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.white)
-                                    .frame(width: 60)
+                        },
+                        onRetakeTap: {
+                            model.capturedImages.removeAll()
+                        },
+                        onPhotoPickerTap: {
+                            let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
+                            if model.capturedImages.count >= maxPhotos {
+                                model.showPhotoLimitAlert = true
+                            } else {
+                                showingPhotoPicker = true
                             }
-                        } else {
-                            // Spacer to maintain layout in multi-item mode
-                            Spacer()
-                                .frame(width: 60)
                         }
-                    }
-                    .padding(.bottom, 30)
+                    )
                     }
                 }
                 
@@ -672,28 +570,6 @@ struct MultiPhotoCameraView: View {
                 await model.stopSession()
             }
         }
-    }
-    
-    // MARK: - Capture Mode Picker
-
-    private var captureModePicker: some View {
-        Picker("Capture Mode", selection: $selectedCaptureMode) {
-            ForEach(CaptureMode.allCases, id: \.self) { mode in
-                HStack(spacing: 4) {
-                    Text(mode.displayName)
-                    if mode == .multiItem && !settings.isPro {
-                        Image(systemName: "crown.fill")
-                            .font(.caption2)
-                            .foregroundColor(.yellow)
-                    }
-                }
-                .tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .frame(width: 200)
-        .accessibilityLabel("Camera mode selector")
-        .accessibilityHint("Switch between single item and multi item capture modes")
     }
 
     // MARK: - Mode Switching Logic

@@ -472,6 +472,194 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
     }
 }
 
+// MARK: - Capture Mode Picker
+
+struct CaptureModePicker: View {
+    @Binding var selectedMode: CaptureMode
+    @EnvironmentObject var settings: SettingsManager
+
+    var body: some View {
+        Picker("Capture Mode", selection: $selectedMode) {
+            ForEach(CaptureMode.allCases, id: \.self) { mode in
+                HStack(spacing: 4) {
+                    Text(mode.displayName)
+                    if mode == .multiItem && !settings.isPro {
+                        Image(systemName: "crown.fill")
+                            .font(.caption2)
+                            .foregroundColor(.yellow)
+                    }
+                }
+                .tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 200)
+        .accessibilityLabel("Camera mode selector")
+        .accessibilityHint("Switch between single item and multi item capture modes")
+    }
+}
+
+// MARK: - Top Camera Controls
+
+struct CameraTopControls: View {
+    @ObservedObject var model: MultiPhotoCameraViewModel
+    let onClose: () -> Void
+    let onDone: () -> Void
+    let flashModeText: String
+    let photoCount: Int
+
+    @Environment(\.featureFlags) private var featureFlags
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                // Close button
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                }
+                .accessibilityIdentifier("cameraCloseButton")
+
+                Spacer()
+
+                // Center controls: Flash and Camera switcher
+                HStack(spacing: 20) {
+                    // Flash button
+                    Button {
+                        model.cycleFlash()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: model.flashIcon)
+                                .font(.system(size: 16))
+                            Text(flashModeText)
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                    }
+
+                    // Camera switcher
+                    Button {
+                        Task {
+                            await model.switchCamera()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white)
+                    }
+                }
+
+                Spacer()
+
+                // Done button
+                Button("Done") {
+                    onDone()
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.green)
+                .disabled(photoCount == 0)
+                .opacity(photoCount == 0 ? 0.5 : 1.0)
+                .accessibilityIdentifier("cameraDoneButton")
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 50)
+            .padding(.bottom, 10)
+
+            // Zoom control (feature flagged)
+            if featureFlags.showZoomControl {
+                ZoomControlView(
+                    zoomFactors: model.zoomFactors,
+                    currentZoomIndex: model.currentZoomIndex,
+                    onZoomTap: { index in
+                        model.setZoom(to: index)
+                    }
+                )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
+            }
+        }
+    }
+}
+
+// MARK: - Bottom Camera Controls
+
+struct CameraBottomControls: View {
+    let captureMode: CaptureMode
+    let photoCount: Int
+    let photoCounterText: String
+    let hasPhotoCaptured: Bool
+    let onShutterTap: () -> Void
+    let onRetakeTap: () -> Void
+    let onPhotoPickerTap: () -> Void
+    @EnvironmentObject var settings: SettingsManager
+
+    var body: some View {
+        VStack(spacing: 20) {
+            // Shutter controls row
+            HStack(spacing: 50) {
+                // Photo count
+                Text(photoCounterText)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(width: 60)
+                    .accessibilityIdentifier("cameraPhotoCount")
+
+                // Shutter button or Retake button (multi-item mode with photo)
+                if captureMode == .multiItem && hasPhotoCaptured {
+                    // Retake button in multi-item mode after capture
+                    Button {
+                        onRetakeTap()
+                    } label: {
+                        Text("Retake")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 100, height: 50)
+                            .background(.red.opacity(0.8))
+                            .cornerRadius(25)
+                    }
+                    .accessibilityIdentifier("cameraRetakeButton")
+                } else {
+                    // Normal shutter button
+                    Button {
+                        onShutterTap()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(.green)
+                                .frame(width: 70, height: 70)
+                            Circle()
+                                .strokeBorder(.white, lineWidth: 5)
+                                .frame(width: 76, height: 76)
+                        }
+                    }
+                    .accessibilityIdentifier("cameraShutterButton")
+                }
+
+                // Photo picker button (only shown in single-item mode)
+                if captureMode.showsPhotoPickerButton {
+                    Button {
+                        onPhotoPickerTap()
+                    } label: {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 22))
+                            .foregroundColor(.white)
+                            .frame(width: 60)
+                    }
+                } else {
+                    // Spacer to maintain layout in multi-item mode
+                    Spacer()
+                        .frame(width: 60)
+                }
+            }
+            .padding(.bottom, 30)
+        }
+    }
+}
+
 // MARK: - Preview Support
 
 #Preview("Single Item Mode") {
