@@ -1,0 +1,88 @@
+//
+//  SidebarView.swift
+//  MovingBox
+//
+//  Created by Claude Code
+//
+
+import SwiftUI
+import SwiftData
+
+struct SidebarView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \InventoryLabel.name) private var labels: [InventoryLabel]
+    @Query(sort: \InventoryLocation.name) private var locations: [InventoryLocation]
+    @Binding var selection: Router.SidebarDestination?
+
+    var body: some View {
+        List(selection: $selection) {
+            // Dashboard
+            NavigationLink(value: Router.SidebarDestination.dashboard) {
+                Label("Dashboard", systemImage: "house.fill")
+            }
+
+            // All Inventory
+            NavigationLink(value: Router.SidebarDestination.allInventory) {
+                Label("All Inventory", systemImage: "shippingbox.fill")
+            }
+
+            // Labels Section
+            Section("Labels") {
+                if labels.isEmpty {
+                    Text("No labels")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                } else {
+                    ForEach(labels, id: \.persistentModelID) { label in
+                        NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
+                            Label {
+                                Text(label.name)
+                            } icon: {
+                                Text(label.emoji)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Locations Section
+            Section("Locations") {
+                if locations.isEmpty {
+                    Text("No locations")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                } else {
+                    ForEach(locations, id: \.persistentModelID) { location in
+                        NavigationLink(value: Router.SidebarDestination.location(location.persistentModelID)) {
+                            Label {
+                                Text(location.name)
+                            } icon: {
+                                if let sfSymbol = location.sfSymbolName {
+                                    Image(systemName: sfSymbol)
+                                } else {
+                                    Image(systemName: "mappin.circle.fill")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("MovingBox")
+        .listStyle(.sidebar)
+    }
+}
+
+#Preview {
+    do {
+        let previewer = try Previewer()
+        return NavigationSplitView {
+            SidebarView(selection: .constant(.dashboard))
+                .modelContainer(previewer.container)
+        } detail: {
+            Text("Select an item")
+        }
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}
