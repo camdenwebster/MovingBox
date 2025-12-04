@@ -39,7 +39,7 @@ public struct FeatureFlags: Sendable {
         switch distribution {
         case .debug:
             // In debug builds, zoom is disabled by default but available for testing
-            self.showZoomControl = false
+            self.showZoomControl = true
         case .beta:
             // In beta/TestFlight builds, zoom is disabled by default but available for testing
             self.showZoomControl = false
