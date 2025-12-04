@@ -369,9 +369,19 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
                targetCamera.device != device {
                 print("📱 Zoom level \(String(format: "%.1fx", newZoom)) requires camera switch from \(device.deviceType) to \(targetCamera.deviceType)")
                 device.unlockForConfiguration()
+
+                // Update zoom index BEFORE switching cameras to ensure UI consistency
+                currentZoomIndex = index
+                currentZoomFactor = newZoom
+                currentZoomText = String(format: "%.1fx", newZoom)
+
                 // Switch camera and apply zoom
                 Task {
                     await switchToCamera(targetCamera.device, withZoom: newZoom)
+                    // Ensure macro recommendation is updated after camera switch
+                    await MainActor.run {
+                        self.updateMacroRecommendation()
+                    }
                 }
                 return
             }
@@ -560,8 +570,15 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
                 input = newInput
                 cameraDeviceManager = newManager
                 // Reset zoom to 1x when switching cameras
-                currentZoomIndex = 0
-                setZoom(to: 0)
+                // Find the index of 1.0x in the new zoom factors array
+                if let index = self.zoomFactors.firstIndex(of: 1.0) {
+                    currentZoomIndex = index
+                    setZoom(to: index)
+                } else {
+                    print("⚠️ Could not find 1.0x zoom level after camera switch: \(self.zoomFactors)")
+                    currentZoomIndex = 0
+                    setZoom(to: 0)
+                }
             } else {
                 isBackCamera.toggle()  // Revert toggle
             }

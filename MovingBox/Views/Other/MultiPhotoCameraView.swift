@@ -371,6 +371,41 @@ struct MultiPhotoCameraView: View {
                                 .cornerRadius(12)
                                 .shadow(color: .black.opacity(0.3), radius: 10)
                         }
+
+                        // Retake and Analyze buttons overlay
+                        VStack {
+                            Spacer()
+
+                            HStack(spacing: 20) {
+                                // Retake button
+                                Button {
+                                    model.capturedImages.removeAll()
+                                } label: {
+                                    Text("Retake")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 50)
+                                        .background(.red.opacity(0.8))
+                                        .cornerRadius(25)
+                                }
+
+                                // Analyze button (green, next to Retake)
+                                Button {
+                                    onComplete(model.capturedImages, selectedCaptureMode)
+                                } label: {
+                                    Text("Analyze")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 50)
+                                        .background(.green)
+                                        .cornerRadius(25)
+                                }
+                            }
+                            .padding(.horizontal, 40)
+                            .padding(.bottom, 80)
+                        }
                     }
                 }
 
@@ -406,7 +441,8 @@ struct MultiPhotoCameraView: View {
                         onComplete(model.capturedImages, selectedCaptureMode)
                     },
                     flashModeText: flashModeText,
-                    photoCount: model.capturedImages.count
+                    photoCount: model.capturedImages.count,
+                    isMultiItemPreviewShowing: selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty
                 )
                 .onChange(of: model.currentZoomIndex) { _, newIndex in
                     localZoomIndex = newIndex
@@ -453,42 +489,42 @@ struct MultiPhotoCameraView: View {
                 }
                 
                 // Bottom controls area
-                VStack(spacing: 20) {
-                    // Capture mode segmented control (hidden when photo preview is showing)
-                    if !(selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty) {
+                // Only show bottom controls when not in multi-item preview
+                if !(selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty) {
+                    VStack(spacing: 20) {
+                        // Capture mode segmented control
                         CaptureModePicker(selectedMode: $selectedCaptureMode)
                             .padding(.bottom, 30)
-                    }
 
-                    CameraBottomControls(
-                        captureMode: selectedCaptureMode,
-                        photoCount: model.capturedImages.count,
-                        photoCounterText: selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
-                        hasPhotoCaptured: !model.capturedImages.isEmpty,
-                        onShutterTap: {
-                            let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
-                            if model.capturedImages.count >= maxPhotos {
-                                model.showPhotoLimitAlert = true
-                            } else {
-                                if isUITesting {
-                                    model.captureTestPhoto()
+                        CameraBottomControls(
+                            captureMode: selectedCaptureMode,
+                            photoCount: model.capturedImages.count,
+                            photoCounterText: selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
+                            hasPhotoCaptured: !model.capturedImages.isEmpty,
+                            onShutterTap: {
+                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
+                                if model.capturedImages.count >= maxPhotos {
+                                    model.showPhotoLimitAlert = true
                                 } else {
-                                    model.capturePhoto()
+                                    if isUITesting {
+                                        model.captureTestPhoto()
+                                    } else {
+                                        model.capturePhoto()
+                                    }
+                                }
+                            },
+                            onRetakeTap: {
+                                model.capturedImages.removeAll()
+                            },
+                            onPhotoPickerTap: {
+                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
+                                if model.capturedImages.count >= maxPhotos {
+                                    model.showPhotoLimitAlert = true
+                                } else {
+                                    showingPhotoPicker = true
                                 }
                             }
-                        },
-                        onRetakeTap: {
-                            model.capturedImages.removeAll()
-                        },
-                        onPhotoPickerTap: {
-                            let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
-                            if model.capturedImages.count >= maxPhotos {
-                                model.showPhotoLimitAlert = true
-                            } else {
-                                showingPhotoPicker = true
-                            }
-                        }
-                    )
+                        )
                     }
                 }
                 
@@ -569,6 +605,7 @@ struct MultiPhotoCameraView: View {
             Task {
                 await model.stopSession()
             }
+        }
         }
     }
 

@@ -32,42 +32,43 @@ enum InventoryItemCreationError: Error {
     }
 }
 
+@Observable
 @MainActor
-class MultiItemSelectionViewModel: ObservableObject {
-    
+final class MultiItemSelectionViewModel {
+
     // MARK: - Properties
-    
+
     /// The analysis response containing detected items
     let analysisResponse: MultiItemAnalysisResponse
-    
+
     /// Images used for analysis
     var images: [UIImage]
-    
+
     /// Location to assign to created items
-    let location: InventoryLocation?
-    
+    var location: InventoryLocation?
+
     /// SwiftData context for saving items
     let modelContext: ModelContext
-    
+
     /// Currently detected items from analysis
     var detectedItems: [DetectedInventoryItem] {
         analysisResponse.safeItems
     }
-    
+
     /// Currently selected items for creation
-    @Published var selectedItems: Set<String> = []
-    
+    var selectedItems: Set<String> = []
+
     /// Current card index in the carousel
-    @Published var currentCardIndex: Int = 0
-    
+    var currentCardIndex: Int = 0
+
     /// Whether the view is currently processing item creation
-    @Published var isProcessingSelection: Bool = false
-    
+    var isProcessingSelection: Bool = false
+
     /// Progress of item creation (0.0 to 1.0)
-    @Published var creationProgress: Double = 0.0
-    
+    var creationProgress: Double = 0.0
+
     /// Error message if item creation fails
-    @Published var errorMessage: String?
+    var errorMessage: String?
     
     // MARK: - Computed Properties
     
@@ -111,8 +112,15 @@ class MultiItemSelectionViewModel: ObservableObject {
         self.modelContext = modelContext
     }
     
+    // MARK: - Location Management
+
+    /// Update the selected location for items
+    func updateSelectedLocation(_ newLocation: InventoryLocation?) {
+        self.location = newLocation
+    }
+
     // MARK: - Card Navigation
-    
+
     /// Navigate to the next card
     func goToNextCard() {
         guard canGoToNextCard else { return }

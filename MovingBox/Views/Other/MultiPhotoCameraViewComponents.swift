@@ -507,6 +507,7 @@ struct CameraTopControls: View {
     let onDone: () -> Void
     let flashModeText: String
     let photoCount: Int
+    let isMultiItemPreviewShowing: Bool
 
     @Environment(\.featureFlags) private var featureFlags
 
@@ -526,30 +527,32 @@ struct CameraTopControls: View {
 
                 Spacer()
 
-                // Center controls: Flash and Camera switcher
-                HStack(spacing: 20) {
-                    // Flash button
-                    Button {
-                        model.cycleFlash()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: model.flashIcon)
-                                .font(.system(size: 16))
-                            Text(flashModeText)
-                                .font(.system(size: 16, weight: .medium))
-                        }
-                        .foregroundColor(.white)
-                    }
-
-                    // Camera switcher
-                    Button {
-                        Task {
-                            await model.switchCamera()
-                        }
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath.camera")
-                            .font(.system(size: 20))
+                // Center controls: Flash and Camera switcher (hidden during multi-item preview)
+                if !isMultiItemPreviewShowing {
+                    HStack(spacing: 20) {
+                        // Flash button
+                        Button {
+                            model.cycleFlash()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: model.flashIcon)
+                                    .font(.system(size: 16))
+                                Text(flashModeText)
+                                    .font(.system(size: 16, weight: .medium))
+                            }
                             .foregroundColor(.white)
+                        }
+
+                        // Camera switcher
+                        Button {
+                            Task {
+                                await model.switchCamera()
+                            }
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath.camera")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                        }
                     }
                 }
 

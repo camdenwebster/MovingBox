@@ -33,9 +33,23 @@ class ItemCreationFlowViewModel: ObservableObject {
     /// Current step in the creation flow
     @Published var currentStep: ItemCreationStep = .camera
     
-    /// Navigation flow based on capture mode
+    /// Navigation flow based on capture mode and detected items
     var navigationFlow: [ItemCreationStep] {
-        ItemCreationStep.getNavigationFlow(for: captureMode)
+        var flow = ItemCreationStep.getNavigationFlow(for: captureMode)
+
+        // If in single-item mode but AI detected only one item, route through multi-item selection
+        // for consistency and to allow user review
+        if captureMode == .singleItem,
+           let response = multiItemAnalysisResponse,
+           response.safeItems.count == 1,
+           !flow.contains(.multiItemSelection) {
+            // Insert multiItemSelection before details
+            if let detailsIndex = flow.firstIndex(of: .details) {
+                flow.insert(.multiItemSelection, at: detailsIndex)
+            }
+        }
+
+        return flow
     }
     
     /// Current step index in the navigation flow
@@ -301,10 +315,30 @@ class ItemCreationFlowViewModel: ObservableObject {
                 // Get all labels and locations for the unified update
                 let labels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? context.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-                
+
                 item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
                 try? context.save()
-                
+
+                // For single-item mode, also create a MultiItemAnalysisResponse
+                // This allows routing through multi-item selection view for consistency
+                let detectedItem = DetectedInventoryItem(
+                    id: UUID().uuidString,
+                    title: imageDetails.title,
+                    description: imageDetails.description,
+                    category: imageDetails.category,
+                    make: imageDetails.make,
+                    model: imageDetails.model,
+                    estimatedPrice: imageDetails.price,
+                    confidence: 0.95 // Single item AI analysis is highly confident
+                )
+
+                multiItemAnalysisResponse = MultiItemAnalysisResponse(
+                    items: [detectedItem],
+                    detectedCount: 1,
+                    analysisType: "single_item_as_multi",
+                    confidence: 0.95
+                )
+
                 analysisComplete = true
                 processingImage = false
             }
@@ -548,7 +582,8 @@ class ItemCreationFlowViewModel: ObservableObject {
         case .multiItemSelection:
             return true
         case .details:
-            return true
+            // Don't allow back navigation from details in multi-item mode (success state)
+            return captureMode == .singleItem
         }
     }
 }

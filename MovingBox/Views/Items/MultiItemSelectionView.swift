@@ -9,22 +9,27 @@ import SwiftUI
 import SwiftData
 
 struct MultiItemSelectionView: View {
-    
+
     // MARK: - Properties
-    
-    @StateObject private var viewModel: MultiItemSelectionViewModel
+
+    @State private var viewModel: MultiItemSelectionViewModel
     @Environment(\.dismiss) private var dismiss
-    
+
     let onItemsSelected: ([InventoryItem]) -> Void
     let onCancel: () -> Void
-    
+
+    // MARK: - State Properties
+
+    @State private var selectedLocation: InventoryLocation?
+    @State private var showingLocationPicker = false
+
     // MARK: - Animation Properties
-    
+
     private let cardTransition = Animation.easeInOut(duration: 0.3)
     private let selectionHaptic = UIImpactFeedbackGenerator(style: .medium)
-    
+
     // MARK: - Initialization
-    
+
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
@@ -33,14 +38,17 @@ struct MultiItemSelectionView: View {
         onItemsSelected: @escaping ([InventoryItem]) -> Void,
         onCancel: @escaping () -> Void
     ) {
-        self._viewModel = StateObject(wrappedValue: MultiItemSelectionViewModel(
+        let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
             location: location,
             modelContext: modelContext
-        ))
+        )
+        self._viewModel = State(initialValue: viewModel)
         self.onItemsSelected = onItemsSelected
         self.onCancel = onCancel
+        // Use passed location as default
+        self._selectedLocation = State(initialValue: location)
     }
     
     // MARK: - Body
@@ -240,16 +248,16 @@ struct MultiItemSelectionView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(viewModel.selectedItemsCount) of \(viewModel.detectedItems.count) selected")
                         .font(.headline)
-                    
+
                     if viewModel.selectedItemsCount > 0 {
                         Text("Ready to add to inventory")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
-                
+
                 Spacer()
-                
+
                 // Select all/deselect all button
                 if viewModel.selectedItemsCount == viewModel.detectedItems.count {
                     Button("Deselect All") {
@@ -267,9 +275,36 @@ struct MultiItemSelectionView: View {
                     .buttonStyle(.bordered)
                 }
             }
+
+            // Location picker
+            Divider()
+
+            HStack {
+                Label("Location", systemImage: "mappin.circle.fill")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Button(action: { showingLocationPicker = true }) {
+                    HStack(spacing: 6) {
+                        Text(selectedLocation?.name ?? "Not specified")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .lineLimit(1)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.primary)
+                }
+            }
         }
         .padding(.vertical, 16)
         .background(Color(.systemBackground))
+        .sheet(isPresented: $showingLocationPicker) {
+            LocationSelectionView(selectedLocation: $selectedLocation)
+        }
     }
     
     private var continueButton: some View {
@@ -316,9 +351,11 @@ struct MultiItemSelectionView: View {
     
     private func handleContinue() {
         guard viewModel.selectedItemsCount > 0 else { return }
-        
+
         Task {
             do {
+                // Update the location in view model before creating items
+                viewModel.updateSelectedLocation(selectedLocation)
                 let createdItems = try await viewModel.createSelectedInventoryItems()
                 onItemsSelected(createdItems)
             } catch {
