@@ -291,7 +291,12 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     @Published var showPhotoLimitAlert = false
     @Published var currentZoomIndex: Int = 0
     @Published var macroRecommendation: MacroRecommendation? = nil
+    @Published var selectedCaptureMode: CaptureMode = .singleItem
+    @Published var showingModeSwitchConfirmation = false
+    @Published var showingPaywall = false
     private var cameraDeviceManager: CameraDeviceManager?
+    private var pendingCaptureMode: CaptureMode?
+    private var isHandlingModeChange = false
 
     var flashIcon: String {
         switch flashMode {
@@ -299,6 +304,15 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         case .on: return "bolt.fill"
         case .off: return "bolt.slash.fill"
         @unknown default: return "bolt.slash.fill"
+        }
+    }
+    
+    var flashModeText: String {
+        switch flashMode {
+        case .auto: return "Auto"
+        case .on: return "On"
+        case .off: return "Off"
+        @unknown default: return "Off"
         }
     }
 
@@ -765,10 +779,8 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
                 let originalSize = CGSize(width: cgImage.width, height: cgImage.height)
                 print("📐 CGImage size: \(originalSize) (UIImage size: \(image.size), orientation: \(image.imageOrientation.rawValue))")
 
-                // Use the CGImage dimensions directly to avoid orientation confusion
                 let sideLength = min(originalSize.width, originalSize.height)
 
-                // Calculate crop rectangle to get the center square from the CGImage
                 let x = (originalSize.width - sideLength) / 2
                 let y = (originalSize.height - sideLength) / 2
                 let cropRect = CGRect(x: x, y: y, width: sideLength, height: sideLength)
@@ -793,5 +805,65 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
                 continuation.resume(returning: croppedImage)
             }
         }
+    }
+
+    func handleCaptureModeChange(from oldMode: CaptureMode, to newMode: CaptureMode, isPro: Bool) -> Bool {
+        guard !isHandlingModeChange else { return false }
+        isHandlingModeChange = true
+        defer { isHandlingModeChange = false }
+
+        if newMode == .multiItem && !isPro {
+            selectedCaptureMode = oldMode
+            showingPaywall = true
+            return false
+        }
+
+        if !capturedImages.isEmpty {
+            pendingCaptureMode = newMode
+            selectedCaptureMode = oldMode
+            showingModeSwitchConfirmation = true
+            return false
+        }
+
+        performModeSwitch(to: newMode)
+        return true
+    }
+
+    func performModeSwitch(to newMode: CaptureMode) {
+        capturedImages.removeAll()
+        selectedCaptureMode = newMode
+        pendingCaptureMode = nil
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    func confirmModeSwitch() {
+        if let newMode = pendingCaptureMode {
+            performModeSwitch(to: newMode)
+        }
+    }
+
+    func cancelModeSwitch() {
+        pendingCaptureMode = nil
+    }
+
+    func loadInitialCaptureMode(preferredCaptureMode: Int, isPro: Bool) {
+        if preferredCaptureMode == 1 && isPro {
+            selectedCaptureMode = .multiItem
+        } else {
+            selectedCaptureMode = .singleItem
+        }
+    }
+
+    func saveCaptureMode(to settings: SettingsManager) {
+        settings.preferredCaptureMode = selectedCaptureMode == .singleItem ? 0 : 1
+    }
+
+    func canCaptureMorePhotos(captureMode: CaptureMode, isPro: Bool) -> Bool {
+        let maxPhotos = captureMode.maxPhotosAllowed(isPro: isPro)
+        return capturedImages.count < maxPhotos
+    }
+
+    func shouldShowMultiItemPreview(captureMode: CaptureMode) -> Bool {
+        return captureMode == .multiItem && !capturedImages.isEmpty
     }
 }

@@ -4,6 +4,19 @@ import PhotosUI
 import UIKit
 import Combine
 
+// MARK: - Environment Key for Preview Mode
+
+private struct IsPreviewKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var isPreview: Bool {
+        get { self[IsPreviewKey.self] }
+        set { self[IsPreviewKey.self] = newValue }
+    }
+}
+
 /// Represents the capture mode for the MultiPhotoCameraView
 enum CaptureMode: CaseIterable {
     case singleItem  /// Multiple photos of one item (existing functionality)
@@ -143,9 +156,10 @@ struct MultiPhotoCameraView: View {
     let onComplete: ([UIImage], CaptureMode) -> Void
     let onCancel: (() -> Void)?
 
-    // Check if we're in UI testing mode
+    @Environment(\.isPreview) private var isPreview
+
     private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
+        isPreview || ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
     }
 
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -155,21 +169,8 @@ struct MultiPhotoCameraView: View {
     @State private var focusPoint: CGPoint?
     @State private var showingFocusIndicator = false
     @State private var orientation = UIDeviceOrientation.portrait
-    @State private var showingPaywall = false
-
-    // Mode switching state
-    @State private var selectedCaptureMode: CaptureMode
-    @State private var pendingCaptureMode: CaptureMode?
-    @State private var showingModeSwitchConfirmation = false
-    @State private var isHandlingModeChange = false  // Prevent onChange recursion
-
-    // Zoom control state (isolated from model updates)
     @State private var localZoomIndex: Int = 0
 
-    // Macro recommendation state
-    @State private var dismissedMacroRecommendation: MacroRecommendation? = nil
-
-    // New initializer with capture mode parameter
     init(
         capturedImages: Binding<[UIImage]>,
         captureMode: CaptureMode = .singleItem,
@@ -179,13 +180,11 @@ struct MultiPhotoCameraView: View {
     ) {
         self._capturedImages = capturedImages
         self.captureMode = captureMode
-        self._selectedCaptureMode = State(initialValue: captureMode)
         self.onPermissionCheck = onPermissionCheck
         self.onComplete = onComplete
         self.onCancel = onCancel
     }
 
-    // Backward compatibility initializer
     init(
         capturedImages: Binding<[UIImage]>,
         onPermissionCheck: @escaping (Bool) -> Void,
@@ -194,365 +193,48 @@ struct MultiPhotoCameraView: View {
     ) {
         self._capturedImages = capturedImages
         self.captureMode = .singleItem
-        self._selectedCaptureMode = State(initialValue: .singleItem)
         self.onPermissionCheck = onPermissionCheck
         self.onComplete = onComplete
         self.onCancel = onCancel
     }
     
-    // Layout constants
-    private let topBarHeight: CGFloat = 60
-    private let bottomControlsHeight: CGFloat = 200
-    
-    private var flashModeText: String {
-        switch model.flashMode {
-        case .auto: return "Auto"
-        case .on: return "On"
-        case .off: return "Off"
-        @unknown default: return "Off"
-        }
-    }
-    
     var body: some View {
         GeometryReader { geometry in
-            ZStack {
-                // Black background
+            let squareSize = calculateSquareSize(geometry: geometry)
+            let cameraRect = calculateCameraRect(geometry: geometry, squareSize: squareSize)
+
+            ZStack(alignment: .center) {
                 Color.black.ignoresSafeArea(.all)
-                
-                // Camera preview or static image for UI testing
-                Group {
-                    if isUITesting {
-                        // Use static tablet image for UI testing
-                        Image("tablet", bundle: .main)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                            .onTapGesture { location in
-                                // Simulate focus tap for UI testing
-                                focusPoint = location
-                                showingFocusIndicator = true
 
-                                // Hide focus indicator after animation
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                    showingFocusIndicator = false
-                                }
-                            }
-                            .onAppear {
-                                // Simulate successful permissions for UI testing
-                                onPermissionCheck(true)
-                            }
-                    } else {
-                        // Real camera preview
-                        FullScreenCameraPreviewView(
-                            session: model.session,
-                            orientation: orientation,
-                            onTapToFocus: { point in
-                                // For aspect-fit tap-to-focus, convert point directly
-                                let relativeX = point.x / geometry.size.width
-                                let relativeY = point.y / geometry.size.height
-                                let clampedX = max(0, min(1, relativeX))
-                                let clampedY = max(0, min(1, relativeY))
-                                model.setFocusPoint(CGPoint(x: clampedX, y: clampedY))
-                                focusPoint = point
-                                showingFocusIndicator = true
-                                
-                                // Hide focus indicator after animation
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                    showingFocusIndicator = false
-                                }
-                            }
-                        )
-                        .onAppear {
-                            Task {
-                                await model.checkPermissions(completion: onPermissionCheck)
-                            }
-                            // Start orientation monitoring on iPad
-                            if UIDevice.current.userInterfaceIdiom == .pad {
-                                // Get current orientation first
-                                UIDevice.current.beginGeneratingDeviceOrientationNotifications()
-                                let currentOrientation = UIDevice.current.orientation
-                                
-                                // Always prefer interface orientation on iPad for better reliability
-                                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                                    let interfaceOrientation = windowScene.interfaceOrientation
-                                    print("📱 Interface orientation: \(interfaceOrientation)")
-                                    
-                                    switch interfaceOrientation {
-                                    case .portrait:
-                                        orientation = .portrait
-                                    case .portraitUpsideDown:
-                                        orientation = .portraitUpsideDown
-                                    case .landscapeLeft:
-                                        orientation = .landscapeRight  // Interface landscape left = device landscape right
-                                    case .landscapeRight:
-                                        orientation = .landscapeLeft   // Interface landscape right = device landscape left
-                                    default:
-                                        orientation = .portrait
-                                    }
-                                } else {
-                                    // Fallback to device orientation if interface orientation is unavailable
-                                    if currentOrientation != .unknown && currentOrientation != .faceUp && currentOrientation != .faceDown {
-                                        orientation = currentOrientation
-                                    } else {
-                                        orientation = .portrait
-                                    }
-                                }
-                                
-                                // Log the orientation info
-                                let interfaceOrientationString: String
-                                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                                    interfaceOrientationString = "\(windowScene.interfaceOrientation)"
-                                } else {
-                                    interfaceOrientationString = "unknown"
-                                }
-                                print("📱 Camera initial orientation: device=\(currentOrientation), interface=\(interfaceOrientationString), using=\(orientation)")
-                                
-                                // NOTE: Removed forced orientation update that was resetting camera zoom
-                                // The orientation should update naturally through the notification observer below
-                                // print("📱 Forced camera orientation update to: \(orientation)")
-                                
-                                // Then start monitoring for changes
-                                NotificationCenter.default.addObserver(
-                                    forName: UIDevice.orientationDidChangeNotification,
-                                    object: nil,
-                                    queue: .main
-                                ) { _ in
-                                    let newOrientation = UIDevice.current.orientation
-                                    // Only update if it's a valid orientation
-                                    if newOrientation != .unknown && newOrientation != .faceUp && newOrientation != .faceDown {
-                                        orientation = newOrientation
-                                        print("📱 Camera orientation changed to: \(newOrientation)")
-                                    }
-                                }
-                            }
-                        }
-                        .onDisappear {
-                            // DON'T stop the session here - it causes issues when:
-                            // 1. Switching to photo preview in multi-item mode
-                            // 2. Switching between capture modes
-                            // The session will be stopped when the entire camera view is dismissed
+                cameraPreview(geometry: geometry)
 
-                            // Stop orientation monitoring on iPad
-                            if UIDevice.current.userInterfaceIdiom == .pad {
-                                UIDevice.current.endGeneratingDeviceOrientationNotifications()
-                                NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
-                            }
-                        }
-                    }
-                }
-                .aspectRatio(3/4, contentMode: .fit)
-                .clipped()
-                
-                // Square crop overlay in center (visual guide for what will be captured)
-                let availableHeight = geometry.size.height - 100 - 200 // Account for top and bottom UI areas
-                let squareSize = min(geometry.size.width - 40, availableHeight) // Add some padding
-                let centerY = geometry.size.height / 2
-                let cameraRect = CGRect(x: (geometry.size.width - squareSize) / 2, y: centerY - squareSize / 2, width: squareSize, height: squareSize)
-                
-                Rectangle()
-                    .stroke(Color.white.opacity(0.5), lineWidth: 2)
-                    .frame(width: squareSize, height: squareSize)
-                    .position(x: geometry.size.width / 2, y: centerY)
-
-                // Photo preview overlay (multi-item mode with captured photo)
-                if selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty {
-                    ZStack {
-                        // Dim the camera feed
-                        Color.black.opacity(0.7)
-                            .ignoresSafeArea(.all)
-
-                        // Show captured photo
-                        if let capturedImage = model.capturedImages.first {
-                            Image(uiImage: capturedImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: squareSize, height: squareSize)
-                                .cornerRadius(12)
-                                .shadow(color: .black.opacity(0.3), radius: 10)
-                        }
-
-                        // Retake and Analyze buttons overlay
-                        VStack {
-                            Spacer()
-
-                            HStack(spacing: 20) {
-                                // Retake button
-                                Button {
-                                    model.capturedImages.removeAll()
-                                } label: {
-                                    Text("Retake")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 50)
-                                        .background(.red.opacity(0.8))
-                                        .cornerRadius(25)
-                                }
-
-                                // Analyze button (green, next to Retake)
-                                Button {
-                                    onComplete(model.capturedImages, selectedCaptureMode)
-                                } label: {
-                                    Text("Analyze")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 50)
-                                        .background(.green)
-                                        .cornerRadius(25)
-                                }
-                            }
-                            .padding(.horizontal, 40)
-                            .padding(.bottom, 80)
-                        }
-                    }
-                }
-
-                // UI Controls
-                VStack(spacing: 0) {
-                // Macro recommendation banner
-                if let recommendation = model.macroRecommendation,
-                   dismissedMacroRecommendation?.focusDistanceImprovement != recommendation.focusDistanceImprovement {
-                    MacroRecommendationBanner(
-                        recommendation: recommendation,
-                        onSwitch: {
-                            // Switch to the recommended camera's zoom level
-                            if let zoomIndex = model.zoomFactors.firstIndex(of: recommendation.recommendedCamera.displayZoomFactor) {
-                                model.setZoom(to: zoomIndex)
-                            }
-                        },
-                        onDismiss: {
-                            dismissedMacroRecommendation = recommendation
-                        }
-                    )
-                    .padding(.top, 8)
-                }
-
-                // Top bar
-                CameraTopControls(
-                    model: model,
-                    onClose: {
-                        if let onCancel = onCancel {
-                            onCancel()
-                        }
-                    },
-                    onDone: {
-                        onComplete(model.capturedImages, selectedCaptureMode)
-                    },
-                    flashModeText: flashModeText,
-                    photoCount: model.capturedImages.count,
-                    isMultiItemPreviewShowing: selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty
-                )
-                .onChange(of: model.currentZoomIndex) { _, newIndex in
-                    localZoomIndex = newIndex
-                }
-                
-                // Thumbnails (only shown in single-item mode)
-                if selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(Array(model.capturedImages.enumerated()), id: \.offset) { index, image in
-                                PhotoThumbnailView(
-                                    image: image,
-                                    index: index,
-                                    onDelete: { index in
-                                        model.removeImage(at: index)
-                                    }
-                                )
-                                .frame(width: 60, height: 60)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                    }
-                    .frame(height: 100)
-                    .padding(.vertical, 10)
-                }
-                
-                Spacer()
-
-                // Focus indicator overlay
-                if showingFocusIndicator, let focusPoint = focusPoint {
-                    FocusIndicatorView()
-                        .position(focusPoint)
-                }
-
-                // Capture animation overlay
-                if showingCaptureAnimation, let animatingImage = animatingImage {
-                    CaptureAnimationView(
-                        image: animatingImage,
-                        startRect: cameraRect,
-                        endRect: calculateThumbnailDestination(geometry: geometry),
-                        isVisible: $showingCaptureAnimation
+                if model.shouldShowMultiItemPreview(captureMode: model.selectedCaptureMode),
+                   let capturedImage = model.capturedImages.first {
+                    MultiItemPreviewOverlay(
+                        capturedImage: capturedImage,
+                        squareSize: squareSize,
+                        onRetake: { model.capturedImages.removeAll() },
+                        onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) }
                     )
                 }
 
-                // Bottom controls area
-                // Only show bottom controls when not in multi-item preview
-                if !(selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty) {
-                    VStack(spacing: 20) {
-                        // Zoom controls (horizontal, floating above bottom bar)
-                        ZoomControlView(
-                            zoomFactors: model.zoomFactors,
-                            currentZoomIndex: localZoomIndex,
-                            onZoomTap: { index in
-                                model.setZoom(to: index)
-                            }
-                        )
-
-                        // Capture mode segmented control
-                        CaptureModePicker(selectedMode: $selectedCaptureMode)
-                            .padding(.bottom, 30)
-
-                        CameraBottomControls(
-                            captureMode: selectedCaptureMode,
-                            photoCount: model.capturedImages.count,
-                            photoCounterText: selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
-                            hasPhotoCaptured: !model.capturedImages.isEmpty,
-                            onShutterTap: {
-                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
-                                if model.capturedImages.count >= maxPhotos {
-                                    model.showPhotoLimitAlert = true
-                                } else {
-                                    if isUITesting {
-                                        model.captureTestPhoto()
-                                    } else {
-                                        model.capturePhoto()
-                                    }
-                                }
-                            },
-                            onRetakeTap: {
-                                model.capturedImages.removeAll()
-                            },
-                            onPhotoPickerTap: {
-                                let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
-                                if model.capturedImages.count >= maxPhotos {
-                                    model.showPhotoLimitAlert = true
-                                } else {
-                                    showingPhotoPicker = true
-                                }
-                            }
-                        )
-                    }
-                }
-                
+                cameraControls(geometry: geometry, cameraRect: cameraRect)
             }
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {
-            if settings.isPro || selectedCaptureMode == .multiItem {
+            if settings.isPro || model.selectedCaptureMode == .multiItem {
                 Button("OK") { }
             } else {
                 Button("Close") { }
                 Button("Go Pro") {
-                    showingPaywall = true
+                    model.showingPaywall = true
                 }
             }
         } message: {
-            if selectedCaptureMode == .multiItem {
-                Text(selectedCaptureMode.errorMessage(for: .tooManyPhotos))
+            if model.selectedCaptureMode == .multiItem {
+                Text(model.selectedCaptureMode.errorMessage(for: .tooManyPhotos))
             } else if settings.isPro {
-                Text(selectedCaptureMode.errorMessage(for: .tooManyPhotos))
+                Text(model.selectedCaptureMode.errorMessage(for: .tooManyPhotos))
             } else {
                 Text("You can only add one photo per item. Upgrade to MovingBox Pro to add more photos.")
             }
@@ -560,18 +242,15 @@ struct MultiPhotoCameraView: View {
         .photosPicker(
             isPresented: $showingPhotoPicker,
             selection: $selectedItems,
-            maxSelectionCount: max(0, selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro) - model.capturedImages.count),
+            maxSelectionCount: max(0, model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro) - model.capturedImages.count),
             matching: .images
         )
-        .alert("Switch Camera Mode?", isPresented: $showingModeSwitchConfirmation) {
+        .alert("Switch Camera Mode?", isPresented: $model.showingModeSwitchConfirmation) {
             Button("Cancel", role: .cancel) {
-                // Just clear the pending mode, selectedCaptureMode already reverted
-                pendingCaptureMode = nil
+                model.cancelModeSwitch()
             }
             Button("Switch Mode", role: .destructive) {
-                if let newMode = pendingCaptureMode {
-                    performModeSwitch(to: newMode)
-                }
+                model.confirmModeSwitch()
             }
         } message: {
             Text("Switching modes will clear your current photos. Are you sure?")
@@ -583,171 +262,263 @@ struct MultiPhotoCameraView: View {
         }
         .onChange(of: model.capturedImages) { oldImages, newImages in
             capturedImages = newImages
-
-            // Trigger animation only for single-item mode
-            if selectedCaptureMode == .singleItem {
+            if model.selectedCaptureMode == .singleItem {
                 if newImages.count > oldImages.count, let newImage = newImages.last {
                     triggerCaptureAnimation(with: newImage)
                 }
             }
         }
-        .onChange(of: selectedCaptureMode) { oldMode, newMode in
-            handleCaptureModeChange(from: oldMode, to: newMode)
+        .onChange(of: model.selectedCaptureMode) { oldMode, newMode in
+            if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
+                model.saveCaptureMode(to: settings)
+            }
         }
-        .sheet(isPresented: $showingPaywall) {
+        .onChange(of: model.currentZoomIndex) { _, newIndex in
+            localZoomIndex = newIndex
+        }
+        .sheet(isPresented: $model.showingPaywall) {
             revenueCatManager.presentPaywall(
-                isPresented: $showingPaywall,
+                isPresented: $model.showingPaywall,
                 onCompletion: { settings.isPro = true },
                 onDismiss: nil
             )
         }
         .onAppear {
-            // Load preferred capture mode from settings on first appear
-            if settings.preferredCaptureMode == 1 && settings.isPro {
-                selectedCaptureMode = .multiItem
-            } else {
-                selectedCaptureMode = .singleItem
-            }
+            model.loadInitialCaptureMode(preferredCaptureMode: settings.preferredCaptureMode, isPro: settings.isPro)
         }
         .onDisappear {
-            // Stop the camera session when the entire camera view is dismissed
             Task {
                 await model.stopSession()
             }
         }
-        }
     }
 
-    // MARK: - Mode Switching Logic
+    // MARK: - View Builders
 
-    private func handleCaptureModeChange(from oldMode: CaptureMode, to newMode: CaptureMode) {
-        // Prevent recursion from onChange firing again
-        guard !isHandlingModeChange else { return }
-        isHandlingModeChange = true
-
-        // Check if switching to Multi mode requires Pro
-        if newMode == .multiItem && !settings.isPro {
-            // Revert selection and show paywall
-            selectedCaptureMode = oldMode
-            isHandlingModeChange = false
-            showingPaywall = true
-            return
+    @ViewBuilder
+    private func cameraPreview(geometry: GeometryProxy) -> some View {
+        Group {
+            if isUITesting {
+                Image("tablet", bundle: .main)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .onTapGesture { location in
+                        handleFocusTap(at: location)
+                    }
+                    .onAppear {
+                        onPermissionCheck(true)
+                    }
+            } else {
+                FullScreenCameraPreviewView(
+                    session: model.session,
+                    orientation: orientation,
+//                    onTapToFocus: { point in
+//                        handleFocusTap(at: point, in: geometry)
+//                    }
+                )
+                .onAppear {
+                    Task {
+                        await model.checkPermissions(completion: onPermissionCheck)
+                    }
+                }
+            }
         }
-
-        // If photos are captured, require confirmation
-        if !model.capturedImages.isEmpty {
-            pendingCaptureMode = newMode
-            selectedCaptureMode = oldMode // Revert temporarily
-            isHandlingModeChange = false
-            showingModeSwitchConfirmation = true
-            return
-        }
-
-        // No photos, switch modes directly
-        performModeSwitch(to: newMode)
-        isHandlingModeChange = false
+        .aspectRatio(3/4, contentMode: .fit)
+        .frame(maxHeight: geometry.size.height - 180)
+        .clipped()
     }
 
-    private func performModeSwitch(to newMode: CaptureMode) {
-        // Clear photos if any
-        model.capturedImages.removeAll()
+    @ViewBuilder
+    private func cameraControls(geometry: GeometryProxy, cameraRect: CGRect) -> some View {
+        let isMultiItemPreview = model.shouldShowMultiItemPreview(captureMode: model.selectedCaptureMode)
 
-        // Simple, direct mode switch
-        selectedCaptureMode = newMode
+        VStack(spacing: 0) {
+            CameraTopControls(
+                model: model,
+                onClose: {
+                    if let onCancel = onCancel {
+                        onCancel()
+                    }
+                },
+                onDone: {
+                    onComplete(model.capturedImages, model.selectedCaptureMode)
+                },
+                isMultiItemPreviewShowing: isMultiItemPreview
+            )
 
-        // Save preference
-        settings.preferredCaptureMode = newMode == .singleItem ? 0 : 1
+            if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(model.capturedImages.enumerated()), id: \.offset) { index, image in
+                            PhotoThumbnailView(
+                                image: image,
+                                index: index,
+                                onDelete: { index in
+                                    model.removeImage(at: index)
+                                }
+                            )
+                            .frame(width: 60, height: 60)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                }
+                .frame(height: 100)
+                .padding(.vertical, 10)
+            }
 
-        // Clear pending mode
-        pendingCaptureMode = nil
+            Spacer()
 
-        // Haptic feedback (optional, non-critical)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            if showingFocusIndicator, let focusPoint = focusPoint {
+                FocusIndicatorView()
+                    .position(focusPoint)
+            }
+
+            if showingCaptureAnimation, let animatingImage = animatingImage {
+                CaptureAnimationView(
+                    image: animatingImage,
+                    startRect: cameraRect,
+                    endRect: calculateThumbnailDestination(geometry: geometry),
+                    isVisible: $showingCaptureAnimation
+                )
+            }
+
+            if !isMultiItemPreview {
+                VStack {
+                    Spacer()
+
+                    VStack(spacing: 0) {
+                        ZoomControlView(
+                            zoomFactors: model.zoomFactors,
+                            currentZoomIndex: localZoomIndex,
+                            onZoomTap: { index in
+                                model.setZoom(to: index)
+                            }
+                        )
+                        .padding(.bottom)
+                        
+                        CameraBottomControls(
+                            captureMode: model.selectedCaptureMode,
+                            photoCount: model.capturedImages.count,
+                            photoCounterText: model.selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
+                            hasPhotoCaptured: !model.capturedImages.isEmpty,
+                            onShutterTap: { handleShutterTap() },
+                            onRetakeTap: { model.capturedImages.removeAll() },
+                            onPhotoPickerTap: { handlePhotoPickerTap() },
+                            selectedCaptureMode: $model.selectedCaptureMode
+                        )
+                        .padding(.top, 10)
+                        .background(Color.black)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
+        }
     }
 
     // MARK: - Helper Methods
 
-    private func calculateThumbnailDestination(geometry: GeometryProxy) -> CGRect {
-        // Calculate where the new thumbnail will appear
-        // From the screenshot: thumbnails are positioned much lower, around 60% down
-        let thumbnailAreaY: CGFloat = geometry.size.height * -0.11 // Based on the top of the camera feed
-        
-        let thumbnailX = 20 + CGFloat(model.capturedImages.count - 1) * 68 // 60 width + 8 spacing
-        
-        let destination = CGRect(x: thumbnailX, y: thumbnailAreaY, width: 60, height: 60)
-        print("🎥 Animation destination: \(destination) (screen height: \(geometry.size.height))")
-        return destination
+    private func calculateSquareSize(geometry: GeometryProxy) -> CGFloat {
+        let availableHeight = geometry.size.height - 180 - 100
+        return min(geometry.size.width - 40, availableHeight)
     }
-    
+
+    private func calculateCameraRect(geometry: GeometryProxy, squareSize: CGFloat) -> CGRect {
+        let previewHeight = geometry.size.height - 180
+        let centerY = previewHeight / 2 + 50
+        return CGRect(
+            x: (geometry.size.width - squareSize) / 2,
+            y: centerY - squareSize / 2,
+            width: squareSize,
+            height: squareSize
+        )
+    }
+
+    private func handleFocusTap(at point: CGPoint, in geometry: GeometryProxy? = nil) {
+        if let geometry = geometry {
+            let relativeX = point.x / geometry.size.width
+            let relativeY = point.y / geometry.size.height
+            let clampedX = max(0, min(1, relativeX))
+            let clampedY = max(0, min(1, relativeY))
+            model.setFocusPoint(CGPoint(x: clampedX, y: clampedY))
+        }
+
+        focusPoint = point
+        showingFocusIndicator = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            showingFocusIndicator = false
+        }
+    }
+
+    private func handleShutterTap() {
+        if !model.canCaptureMorePhotos(captureMode: model.selectedCaptureMode, isPro: settings.isPro) {
+            model.showPhotoLimitAlert = true
+        } else {
+            if isUITesting {
+                model.captureTestPhoto()
+            } else {
+                model.capturePhoto()
+            }
+        }
+    }
+
+    private func handlePhotoPickerTap() {
+        if !model.canCaptureMorePhotos(captureMode: model.selectedCaptureMode, isPro: settings.isPro) {
+            model.showPhotoLimitAlert = true
+        } else {
+            showingPhotoPicker = true
+        }
+    }
+
+    private func calculateThumbnailDestination(geometry: GeometryProxy) -> CGRect {
+        let thumbnailAreaY: CGFloat = geometry.size.height * -0.11
+        let thumbnailX = 20 + CGFloat(model.capturedImages.count - 1) * 68
+        return CGRect(x: thumbnailX, y: thumbnailAreaY, width: 60, height: 60)
+    }
+
     private func triggerCaptureAnimation(with image: UIImage) {
         animatingImage = image
         showingCaptureAnimation = true
-        
-        print("🎥 Starting capture animation")
-        
-        // Hide animation after completion
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             showingCaptureAnimation = false
             animatingImage = nil
         }
     }
-    
-    private func handleTapToFocus(point: CGPoint, in cameraRect: CGRect) {
-        // Convert tap point to camera coordinate system
-        let relativeX = (point.x - cameraRect.minX) / cameraRect.width
-        let relativeY = (point.y - cameraRect.minY) / cameraRect.height
-        
-        // Clamp values to 0-1 range
-        let clampedX = max(0, min(1, relativeX))
-        let clampedY = max(0, min(1, relativeY))
-        
-        // Set focus point for camera
-        model.setFocusPoint(CGPoint(x: clampedX, y: clampedY))
-        
-        // Show focus indicator at tap location
-        focusPoint = point
-        showingFocusIndicator = true
-        
-        // Hide focus indicator after animation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            showingFocusIndicator = false
-        }
-    }
-    
+
     private func processSelectedPhotos(_ items: [PhotosPickerItem]) async {
-        let maxPhotos = selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
+        let maxPhotos = model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
         for item in items {
             guard model.capturedImages.count < maxPhotos else { break }
-            
+
             if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
-                
-                // Crop to square aspect ratio
+
                 let croppedImage = await cropToSquare(image: image)
-                
-                // Optimize image immediately for memory management
                 let optimizedImage = await OptimizedImageManager.shared.optimizeImage(croppedImage)
-                
+
                 await MainActor.run {
                     model.capturedImages.append(optimizedImage)
                 }
             }
         }
-        
-        // Clear selected items after processing
+
         await MainActor.run {
             selectedItems = []
         }
     }
-    
+
     private func cropToSquare(image: UIImage) async -> UIImage {
         let size = image.size
         let sideLength = min(size.width, size.height)
-        
+
         let x = (size.width - sideLength) / 2
         let y = (size.height - sideLength) / 2
         let cropRect = CGRect(x: x, y: y, width: sideLength, height: sideLength)
-        
+
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 guard let cgImage = image.cgImage,
@@ -755,10 +526,65 @@ struct MultiPhotoCameraView: View {
                     continuation.resume(returning: image)
                     return
                 }
-                
+
                 let croppedImage = UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
                 continuation.resume(returning: croppedImage)
             }
         }
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Single Item Mode") {
+    PreviewContainer {
+        MultiPhotoCameraView(
+            capturedImages: .constant([]),
+            captureMode: .singleItem,
+            onPermissionCheck: { _ in },
+            onComplete: { _, _ in }
+        )
+    }
+}
+
+#Preview("Multi Item Mode") {
+    PreviewContainer {
+        MultiPhotoCameraView(
+            capturedImages: .constant([]),
+            captureMode: .multiItem,
+            onPermissionCheck: { _ in },
+            onComplete: { _, _ in }
+        )
+    }
+}
+
+#Preview("Single Item with Images") {
+    PreviewContainer {
+        MultiPhotoCameraView(
+            capturedImages: .constant([
+                UIImage(systemName: "photo")!,
+                UIImage(systemName: "camera")!
+            ]),
+            captureMode: .singleItem,
+            onPermissionCheck: { _ in },
+            onComplete: { _, _ in }
+        )
+    }
+}
+
+// MARK: - Preview Helper
+
+private struct PreviewContainer<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .environment(\.isPreview, true)
+            .environmentObject(SettingsManager())
+            .environmentObject(RevenueCatManager.shared)
     }
 }

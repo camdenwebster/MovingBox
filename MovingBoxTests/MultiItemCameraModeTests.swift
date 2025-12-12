@@ -77,15 +77,14 @@ import AVFoundation
             capturedImages: .constant(capturedImages),
             captureMode: .singleItem,
             onPermissionCheck: { _ in },
-            onComplete: { _ in }
+            onComplete: { _, _ in }
         )
         
-        // Test multi-item mode initialization
         let multiModeView = MultiPhotoCameraView(
             capturedImages: .constant(capturedImages),
             captureMode: .multiItem,
             onPermissionCheck: { _ in },
-            onComplete: { _ in }
+            onComplete: { _, _ in }
         )
         
         // Verify both views can be created
@@ -97,11 +96,10 @@ import AVFoundation
     func testBackwardCompatibility() {
         let capturedImages: [UIImage] = []
         
-        // Test that the existing initializer still works
         let legacyView = MultiPhotoCameraView(
             capturedImages: .constant(capturedImages),
             onPermissionCheck: { _ in },
-            onComplete: { _ in }
+            onComplete: { _, _ in }
         )
         
         // Verify backward compatibility

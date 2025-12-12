@@ -186,52 +186,6 @@ struct ZoomButtonView: View {
     }
 }
 
-// MARK: - Macro Recommendation Banner
-
-struct MacroRecommendationBanner: View {
-    let recommendation: MacroRecommendation
-    let onSwitch: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("💡 Get Closer")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                Text(recommendation.message)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.white.opacity(0.9))
-                    .lineLimit(2)
-            }
-            Spacer()
-            HStack(spacing: 8) {
-                Button(action: onSwitch) {
-                    Text("Switch")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.black)
-                        .frame(height: 32)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.yellow)
-                        .cornerRadius(6)
-                }
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 32, height: 32)
-                }
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.blue.opacity(0.6))
-        )
-        .padding(.horizontal, 20)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
-}
 
 // MARK: - Focus Indicator View
 
@@ -325,7 +279,7 @@ struct SquareCameraPreviewView: UIViewRepresentable {
 struct FullScreenCameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
     let orientation: UIDeviceOrientation
-    let onTapToFocus: ((CGPoint) -> Void)?
+//    let onTapToFocus: ((CGPoint) -> Void)?
 
     class FullScreenPreviewView: UIView {
         override class var layerClass: AnyClass {
@@ -356,9 +310,9 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
         updateVideoOrientation(for: view.previewLayer)
 
         // Add tap gesture for focus
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-        view.addGestureRecognizer(tapGesture)
-        view.isUserInteractionEnabled = true
+//        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+//        view.addGestureRecognizer(tapGesture)
+//        view.isUserInteractionEnabled = true
 
         return view
     }
@@ -442,10 +396,10 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
             self.parent = parent
         }
 
-        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-            let point = gesture.location(in: gesture.view)
-            parent.onTapToFocus?(point)
-        }
+//        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+//            let point = gesture.location(in: gesture.view)
+//            parent.onTapToFocus?(point)
+//        }
     }
 }
 
@@ -471,8 +425,78 @@ struct CaptureModePicker: View {
         }
         .pickerStyle(.segmented)
         .frame(width: 200)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.black.opacity(0.3))
+                .padding(-4)
+        )
+        .onAppear {
+            // Customize segmented control appearance
+            UISegmentedControl.appearance().backgroundColor = UIColor.black.withAlphaComponent(0.5)
+            UISegmentedControl.appearance().selectedSegmentTintColor = UIColor.yellow
+            UISegmentedControl.appearance().setTitleTextAttributes([
+                .foregroundColor: UIColor.white
+            ], for: .normal)
+            UISegmentedControl.appearance().setTitleTextAttributes([
+                .foregroundColor: UIColor.black
+            ], for: .selected)
+        }
         .accessibilityLabel("Camera mode selector")
         .accessibilityHint("Switch between single item and multi item capture modes")
+    }
+}
+
+// MARK: - Multi-Item Preview Overlay
+
+struct MultiItemPreviewOverlay: View {
+    let capturedImage: UIImage
+    let squareSize: CGFloat
+    let onRetake: () -> Void
+    let onAnalyze: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Image(uiImage: capturedImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: squareSize, height: squareSize)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.3), radius: 10)
+            }
+            .frame(maxHeight: .infinity)
+
+            HStack(spacing: 20) {
+                Button {
+                    onRetake()
+                } label: {
+                    Text("Retake")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(.red.opacity(0.8))
+                        .cornerRadius(25)
+                }
+
+                Button {
+                    onAnalyze()
+                } label: {
+                    Text("Analyze")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(.green)
+                        .cornerRadius(25)
+                }
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 20)
+            .padding(.bottom, 100)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.7))
     }
 }
 
@@ -482,14 +506,11 @@ struct CameraTopControls: View {
     @ObservedObject var model: MultiPhotoCameraViewModel
     let onClose: () -> Void
     let onDone: () -> Void
-    let flashModeText: String
-    let photoCount: Int
     let isMultiItemPreviewShowing: Bool
 
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
-                // Close button with circular background
                 Button {
                     onClose()
                 } label: {
@@ -497,16 +518,14 @@ struct CameraTopControls: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(width: 40, height: 40)
-                        .background(Circle().fill(.black.opacity(0.5)))
+                        .background(Circle().fill(.white.opacity(0.3)))
                 }
                 .accessibilityIdentifier("cameraCloseButton")
 
                 Spacer()
 
-                // Right controls: Flash and Camera switcher (hidden during multi-item preview)
                 if !isMultiItemPreviewShowing {
                     HStack(spacing: 16) {
-                        // Flash button with circular background (icon only)
                         Button {
                             model.cycleFlash()
                         } label: {
@@ -514,11 +533,10 @@ struct CameraTopControls: View {
                                 .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
-                                .background(Circle().fill(.black.opacity(0.5)))
+                                .background(Circle().fill(.white.opacity(0.3)))
                         }
-                        .accessibilityLabel("Flash \(flashModeText)")
+                        .accessibilityLabel("Flash \(model.flashModeText)")
 
-                        // Camera switcher with circular background
                         Button {
                             Task {
                                 await model.switchCamera()
@@ -528,15 +546,17 @@ struct CameraTopControls: View {
                                 .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
-                                .background(Circle().fill(.black.opacity(0.5)))
+                                .background(Circle().fill(.white.opacity(0.3)))
                         }
                         .accessibilityLabel("Flip camera")
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 50)
-            .padding(.bottom, 10)
+            .padding(.horizontal)
+//            .padding(.trailing, 40)
+            
+//            .padding(.top)
+//            .padding(.bottom, 10)
         }
     }
 }
@@ -551,51 +571,60 @@ struct CameraBottomControls: View {
     let onShutterTap: () -> Void
     let onRetakeTap: () -> Void
     let onPhotoPickerTap: () -> Void
+    @Binding var selectedCaptureMode: CaptureMode
     @EnvironmentObject var settings: SettingsManager
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Shutter controls row
-            HStack(spacing: 50) {
-                // Photo count
+        VStack(spacing: 16) {
+            // Shutter button on top (centered)
+            if captureMode == .multiItem && hasPhotoCaptured {
+                // Retake button in multi-item mode after capture
+                Button {
+                    onRetakeTap()
+                } label: {
+                    Text("Retake")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 100, height: 50)
+                        .background(.red.opacity(0.8))
+                        .cornerRadius(25)
+                }
+                .accessibilityIdentifier("cameraRetakeButton")
+            } else {
+                // Normal shutter button
+                Button {
+                    onShutterTap()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 70, height: 70)
+                        Circle()
+                            .strokeBorder(.white.opacity(0.5), lineWidth: 3)
+                            .frame(width: 80, height: 80)
+                    }
+                }
+                .accessibilityIdentifier("cameraShutterButton")
+            }
+
+            // Bottom row: Photo count, Mode picker, Gallery button
+            HStack(spacing: 12) {
+                // Photo count (left side)
                 Text(photoCounterText)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
-                    .frame(width: 60)
+                    .frame(minWidth: 60)
                     .accessibilityIdentifier("cameraPhotoCount")
 
-                // Shutter button or Retake button (multi-item mode with photo)
-                if captureMode == .multiItem && hasPhotoCaptured {
-                    // Retake button in multi-item mode after capture
-                    Button {
-                        onRetakeTap()
-                    } label: {
-                        Text("Retake")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 100, height: 50)
-                            .background(.red.opacity(0.8))
-                            .cornerRadius(25)
-                    }
-                    .accessibilityIdentifier("cameraRetakeButton")
-                } else {
-                    // Normal shutter button
-                    Button {
-                        onShutterTap()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 70, height: 70)
-                            Circle()
-                                .strokeBorder(.white, lineWidth: 5)
-                                .frame(width: 76, height: 76)
-                        }
-                    }
-                    .accessibilityIdentifier("cameraShutterButton")
-                }
+                Spacer()
 
-                // Photo picker button (only shown in single-item mode)
+                // Capture mode segmented control (center)
+                CaptureModePicker(selectedMode: $selectedCaptureMode)
+                    .frame(maxWidth: 200)
+
+                Spacer()
+
+                // Photo picker button (right side)
                 if captureMode.showsPhotoPickerButton {
                     Button {
                         onPhotoPickerTap()
@@ -603,38 +632,121 @@ struct CameraBottomControls: View {
                         Image(systemName: "photo.on.rectangle")
                             .font(.system(size: 22))
                             .foregroundColor(.white)
-                            .frame(width: 60)
+                            .frame(minWidth: 60)
                     }
                 } else {
-                    // Spacer to maintain layout in multi-item mode
-                    Spacer()
-                        .frame(width: 60)
+                    // Spacer to maintain layout symmetry
+                    Color.clear
+                        .frame(minWidth: 60)
                 }
             }
-            .padding(.bottom, 30)
+//            .padding(.horizontal)
+            .padding(.bottom, 10)
         }
     }
 }
 
+// MARK: - Camera Preview Container
+
+struct CameraPreviewContainer: View {
+    let isUITesting: Bool
+    let session: AVCaptureSession
+    let orientation: UIDeviceOrientation
+    let onFocusTap: (CGPoint) -> Void
+    let onPermissionCheck: (Bool) -> Void
+    let onOrientationChange: (UIDeviceOrientation) -> Void
+    @Binding var focusPoint: CGPoint?
+    @Binding var showingFocusIndicator: Bool
+
+    var body: some View {
+        Group {
+            if isUITesting {
+                Image("tablet", bundle: .main)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .onTapGesture { location in
+                        focusPoint = location
+                        showingFocusIndicator = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            showingFocusIndicator = false
+                        }
+                    }
+                    .onAppear {
+                        onPermissionCheck(true)
+                    }
+            } else {
+                FullScreenCameraPreviewView(
+                    session: session,
+                    orientation: orientation,
+//                    onTapToFocus: { point in
+//                        onFocusTap(point)
+//                        focusPoint = point
+//                        showingFocusIndicator = true
+//                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+//                            showingFocusIndicator = false
+//                        }
+//                    }
+                )
+                .onAppear {
+                    Task {
+                        await MainActor.run {
+                            onPermissionCheck(true)
+                        }
+                    }
+                    setupOrientationMonitoring(onOrientationChange: onOrientationChange)
+                }
+                .onDisappear {
+                    cleanupOrientationMonitoring()
+                }
+            }
+        }
+    }
+
+    private func setupOrientationMonitoring(onOrientationChange: @escaping (UIDeviceOrientation) -> Void) {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return }
+
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        let currentOrientation = UIDevice.current.orientation
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            let interfaceOrientation = windowScene.interfaceOrientation
+            let mappedOrientation: UIDeviceOrientation
+            switch interfaceOrientation {
+            case .portrait: mappedOrientation = .portrait
+            case .portraitUpsideDown: mappedOrientation = .portraitUpsideDown
+            case .landscapeLeft: mappedOrientation = .landscapeRight
+            case .landscapeRight: mappedOrientation = .landscapeLeft
+            default: mappedOrientation = .portrait
+            }
+            onOrientationChange(mappedOrientation)
+        } else if currentOrientation != .unknown && currentOrientation != .faceUp && currentOrientation != .faceDown {
+            onOrientationChange(currentOrientation)
+        } else {
+            onOrientationChange(.portrait)
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            let newOrientation = UIDevice.current.orientation
+            if newOrientation != .unknown && newOrientation != .faceUp && newOrientation != .faceDown {
+                onOrientationChange(newOrientation)
+            }
+        }
+    }
+
+    private func cleanupOrientationMonitoring() {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return }
+        UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+    }
+}
+
 // MARK: - Preview Support
-
-#Preview("Single Item Mode") {
-    MultiPhotoCameraView(
-        capturedImages: .constant([]),
-        captureMode: .singleItem,
-        onPermissionCheck: { _ in },
-        onComplete: { _, _ in }
-    )
-}
-
-#Preview("Multi Item Mode") {
-    MultiPhotoCameraView(
-        capturedImages: .constant([]),
-        captureMode: .multiItem,
-        onPermissionCheck: { _ in },
-        onComplete: { _, _ in }
-    )
-}
 
 #Preview("Photo Thumbnails") {
     VStack {

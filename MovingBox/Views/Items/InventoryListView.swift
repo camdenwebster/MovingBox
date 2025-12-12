@@ -134,7 +134,7 @@ struct InventoryListView: View {
             .sheet(isPresented: $showingPaywall, content: paywallSheet)
             .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
             .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
-            .sheet(isPresented: $showItemCreationFlow) {
+            .fullScreenCover(isPresented: $showItemCreationFlow) {
                 EnhancedItemCreationFlowView(
                     captureMode: .singleItem,
                     location: location

@@ -104,7 +104,7 @@ struct MovingBoxApp: App {
 
                 // Automatic iOS Instrumentation
                 options.enableAutoPerformanceTracing = true
-                options.enableCoreDataTracing = true
+                options.enableCoreDataTracing = false  // Disabled - causes background task assertion issues with CloudKit
                 options.enableFileIOTracing = false  // Disable - high overhead, low value
                 options.enableNetworkTracking = true
                 options.enablePreWarmedAppStartTracing = true
