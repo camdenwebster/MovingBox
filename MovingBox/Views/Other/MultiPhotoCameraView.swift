@@ -471,13 +471,13 @@ struct MultiPhotoCameraView: View {
                 }
                 
                 Spacer()
-                
+
                 // Focus indicator overlay
                 if showingFocusIndicator, let focusPoint = focusPoint {
                     FocusIndicatorView()
                         .position(focusPoint)
                 }
-                
+
                 // Capture animation overlay
                 if showingCaptureAnimation, let animatingImage = animatingImage {
                     CaptureAnimationView(
@@ -487,11 +487,20 @@ struct MultiPhotoCameraView: View {
                         isVisible: $showingCaptureAnimation
                     )
                 }
-                
+
                 // Bottom controls area
                 // Only show bottom controls when not in multi-item preview
                 if !(selectedCaptureMode == .multiItem && !model.capturedImages.isEmpty) {
                     VStack(spacing: 20) {
+                        // Zoom controls (horizontal, floating above bottom bar)
+                        ZoomControlView(
+                            zoomFactors: model.zoomFactors,
+                            currentZoomIndex: localZoomIndex,
+                            onZoomTap: { index in
+                                model.setZoom(to: index)
+                            }
+                        )
+
                         // Capture mode segmented control
                         CaptureModePicker(selectedMode: $selectedCaptureMode)
                             .padding(.bottom, 30)

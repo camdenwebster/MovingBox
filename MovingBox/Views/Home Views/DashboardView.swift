@@ -33,8 +33,40 @@ struct DashboardView: View {
     @State private var loadingStartDate: Date? = nil
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
-    
-    
+    @State private var selectedPrototype: CameraPrototype? = nil
+
+    enum CameraPrototype: String, Identifiable {
+        case minimalist
+        case iOSNative
+        case cardBased
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .minimalist: return "Minimalist Pro"
+            case .iOSNative: return "iOS Native"
+            case .cardBased: return "Card-Based"
+            }
+        }
+
+        var iconName: String {
+            switch self {
+            case .minimalist: return "camera.macro"
+            case .iOSNative: return "camera"
+            case .cardBased: return "camera.filters"
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .minimalist: return "Clean & minimal"
+            case .iOSNative: return "Familiar iOS design"
+            case .cardBased: return "Modern cards"
+            }
+        }
+    }
+
     private var home: Home? {
         return homes.last
     }
@@ -186,7 +218,90 @@ struct DashboardView: View {
                     }
                     .padding(.top, 24)
                     .scrollDisabled(true)
-                    
+
+                    // MARK: - Camera Prototypes (iOS 26 Design System)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Camera Prototypes")
+                            .sectionHeaderStyle()
+                            .padding(.horizontal)
+
+                        HStack(spacing: 12) {
+                            Button(action: { selectedPrototype = .minimalist }) {
+                                VStack(spacing: 8) {
+                                    Image(systemName: CameraPrototype.minimalist.iconName)
+                                        .font(.system(size: 24))
+                                    Text(CameraPrototype.minimalist.displayName)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(CameraPrototype.minimalist.description)
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 90)
+                                .foregroundColor(.white)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.blue, Color.blue.opacity(0.7)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .cornerRadius(12)
+                                .shadow(color: .blue.opacity(0.3), radius: 4, y: 2)
+                            }
+
+                            Button(action: { selectedPrototype = .iOSNative }) {
+                                VStack(spacing: 8) {
+                                    Image(systemName: CameraPrototype.iOSNative.iconName)
+                                        .font(.system(size: 24))
+                                    Text(CameraPrototype.iOSNative.displayName)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(CameraPrototype.iOSNative.description)
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 90)
+                                .foregroundColor(.white)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.purple, Color.purple.opacity(0.7)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .cornerRadius(12)
+                                .shadow(color: .purple.opacity(0.3), radius: 4, y: 2)
+                            }
+
+                            Button(action: { selectedPrototype = .cardBased }) {
+                                VStack(spacing: 8) {
+                                    Image(systemName: CameraPrototype.cardBased.iconName)
+                                        .font(.system(size: 24))
+                                    Text(CameraPrototype.cardBased.displayName)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(CameraPrototype.cardBased.description)
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 90)
+                                .foregroundColor(.white)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.orange, Color.orange.opacity(0.7)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .cornerRadius(12)
+                                .shadow(color: .orange.opacity(0.3), radius: 4, y: 2)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.top, 24)
+
                     // MARK: - Location Statistics
                     LocationStatisticsView()
                         .padding(.top, 24)
@@ -252,6 +367,9 @@ struct DashboardView: View {
                 // Optional callback when item creation is complete
                 dismiss()
             }
+        }
+        .sheet(item: $selectedPrototype) { prototype in
+            prototypeView(for: prototype)
         }
         .task(id: home?.imageURL) {
             guard let home = home,
@@ -376,6 +494,18 @@ struct DashboardView: View {
             },
             onDismiss: nil
         )
+    }
+
+    @ViewBuilder
+    private func prototypeView(for prototype: CameraPrototype) -> some View {
+        switch prototype {
+        case .minimalist:
+            CameraPrototype1_Minimalist()
+        case .iOSNative:
+            CameraPrototype2_iOSNative()
+        case .cardBased:
+            CameraPrototype3_CardBased()
+        }
     }
 }
 

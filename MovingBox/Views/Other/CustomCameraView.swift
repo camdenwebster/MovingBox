@@ -100,72 +100,115 @@ struct CustomCameraView: View {
                 
                 // Camera controls
                 VStack {
-                    // Top controls - Flash
-                    HStack {
+                    // Top controls
+                    HStack(spacing: 16) {
+                        // Close button (left)
+                        if let onCancel = onCancel {
+                            Button {
+                                onCancel()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 40, height: 40)
+                                    .background(Circle().fill(.black.opacity(0.5)))
+                            }
+                        }
+
                         Spacer()
-                        
+
+                        // Flash button
                         Button {
                             model.cycleFlash()
                         } label: {
                             Image(systemName: model.flashIcon)
-                                .font(.system(size: 20))
+                                .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(.black.opacity(0.5)))
                         }
-                        .padding([.trailing, .top], 44)
-                    }
-                    
-                    Spacer()
-                    
-                    // Zoom control
-                    Button {
-                        model.cycleZoom()
-                    } label: {
-                        Text(model.currentZoomText)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 50, height: 28)
-                            .background(.black.opacity(0.25))
-                            .cornerRadius(14)
-                    }
-                    .offset(y: -geometry.size.height * 0.1)
-                    
-                    // Bottom controls
-                    HStack(spacing: 60) {
-                        Spacer()
-                            .frame(width: 40)
-                        
-                        // Shutter button
-                        Button {
-                            model.capturePhoto { image in
-                                self.capturedImage = image
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(.white, lineWidth: 3)
-                                    .frame(width: 62, height: 62)
-                                Circle()
-                                    .fill(.white)
-                                    .frame(width: 50, height: 50)
-                            }
-                        }
-                        
-                        // Camera switcher
+
+                        // Camera flip button (moved to top)
                         Button {
                             Task {
                                 await model.switchCamera()
                             }
                         } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath.camera")
-                                .font(.system(size: 20))
+                            Image(systemName: "camera.rotate")
+                                .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
-                                .background(.black.opacity(0.25))
-                                .clipShape(Circle())
+                                .background(Circle().fill(.black.opacity(0.5)))
                         }
                     }
-                    .padding(.bottom, 40)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 50)
+
+                    Spacer()
+
+                    // Zoom controls (horizontal, above bottom bar)
+                    HStack(spacing: 12) {
+                        ForEach(model.zoomFactors.indices, id: \.self) { index in
+                            Button {
+                                model.setZoom(to: index)
+                            } label: {
+                                ZStack {
+                                    if model.currentZoomIndex == index {
+                                        Circle()
+                                            .fill(.white.opacity(0.3))
+                                            .frame(width: 50, height: 50)
+                                    }
+
+                                    Text(model.zoomTextForIndex(index))
+                                        .font(.system(size: 16, weight: model.currentZoomIndex == index ? .bold : .semibold))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.bottom, 20)
+
+                    // Bottom controls
+                    VStack(spacing: 0) {
+                        HStack(spacing: 0) {
+                            // Thumbnail placeholder (left)
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white, lineWidth: 2)
+                                .frame(width: 50, height: 50)
+
+                            Spacer()
+
+                            // Shutter button (center)
+                            Button {
+                                model.capturePhoto { image in
+                                    self.capturedImage = image
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .strokeBorder(.white, lineWidth: 4)
+                                        .frame(width: 76, height: 76)
+                                    Circle()
+                                        .fill(.white)
+                                        .frame(width: 64, height: 64)
+                                }
+                            }
+
+                            Spacer()
+
+                            // Camera flip placeholder for symmetry
+                            Color.clear
+                                .frame(width: 50, height: 50)
+                        }
+                        .padding(.horizontal, 40)
+                        .padding(.top, 20)
+                        .padding(.bottom, 50)
+                    }
+                    .background(
+                        Rectangle()
+                            .fill(.black)
+                            .ignoresSafeArea(edges: .bottom)
+                    )
                 }
             }
         }
@@ -196,7 +239,7 @@ final class CameraViewModel: NSObject, ObservableObject, AVCapturePhotoCaptureDe
     private var isConfigured = false
     
     // Include 0.5x for wide angle if available
-    private lazy var zoomFactors: [CGFloat] = {
+    lazy var zoomFactors: [CGFloat] = {
         guard let device = device else { return [1.0, 2.0, 5.0].map { CGFloat($0) } }
         var factors: [CGFloat] = [1.0, 2.0, 5.0].map { CGFloat($0) }
         if device.virtualDeviceSwitchOverVideoZoomFactors.contains(where: { CGFloat($0.doubleValue) < 1.0 }) {
@@ -204,8 +247,8 @@ final class CameraViewModel: NSObject, ObservableObject, AVCapturePhotoCaptureDe
         }
         return factors
     }()
-    
-    private var currentZoomIndex = 0
+
+    @Published var currentZoomIndex = 0
     
     override init() {
         super.init()
@@ -230,18 +273,47 @@ final class CameraViewModel: NSObject, ObservableObject, AVCapturePhotoCaptureDe
     func cycleZoom() {
         currentZoomIndex = (currentZoomIndex + 1) % zoomFactors.count
         let newZoom = zoomFactors[currentZoomIndex]
-        
+
         guard let device = device else { return }
-        
+
         do {
             try device.lockForConfiguration()
             device.videoZoomFactor = newZoom
             device.unlockForConfiguration()
-            
+
             currentZoomFactor = newZoom
             currentZoomText = String(format: "%.1fx", newZoom)
         } catch {
             print("Could not lock device for configuration: \(error)")
+        }
+    }
+
+    func setZoom(to index: Int) {
+        guard index >= 0 && index < zoomFactors.count else { return }
+        currentZoomIndex = index
+        let newZoom = zoomFactors[index]
+
+        guard let device = device else { return }
+
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = newZoom
+            device.unlockForConfiguration()
+
+            currentZoomFactor = newZoom
+            currentZoomText = String(format: "%.1fx", newZoom)
+        } catch {
+            print("Could not lock device for configuration: \(error)")
+        }
+    }
+
+    func zoomTextForIndex(_ index: Int) -> String {
+        guard index >= 0 && index < zoomFactors.count else { return "1×" }
+        let factor = zoomFactors[index]
+        if factor == floor(factor) {
+            return "\(Int(factor))×"
+        } else {
+            return String(format: "%.1f×", factor)
         }
     }
     

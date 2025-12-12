@@ -137,42 +137,17 @@ struct ZoomControlView: View {
     let onZoomTap: (Int) -> Void
 
     var body: some View {
-        // Use ScrollView if we have more than 4 zoom factors, otherwise use fixed HStack
-        if zoomFactors.count > 4 {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(zoomFactors.enumerated()), id: \.offset) { index, factor in
-                        ZoomButtonView(
-                            zoomFactor: factor,
-                            isSelected: index == currentZoomIndex,
-                            onTap: {
-                                onZoomTap(index)
-                            }
-                        )
-                        .frame(minWidth: 50)
+        // iOS native style - simple horizontal stack, no background
+        HStack(spacing: 12) {
+            ForEach(Array(zoomFactors.enumerated()), id: \.offset) { index, factor in
+                ZoomButtonView(
+                    zoomFactor: factor,
+                    isSelected: index == currentZoomIndex,
+                    onTap: {
+                        onZoomTap(index)
                     }
-                }
-                .padding(.horizontal, 12)
+                )
             }
-            .padding(.vertical, 8)
-            .background(Color.black.opacity(0.5))
-            .cornerRadius(8)
-        } else {
-            HStack(spacing: 8) {
-                ForEach(Array(zoomFactors.enumerated()), id: \.offset) { index, factor in
-                    ZoomButtonView(
-                        zoomFactor: factor,
-                        isSelected: index == currentZoomIndex,
-                        onTap: {
-                            onZoomTap(index)
-                        }
-                    )
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.black.opacity(0.5))
-            .cornerRadius(8)
         }
     }
 }
@@ -184,27 +159,29 @@ struct ZoomButtonView: View {
 
     var body: some View {
         Button(action: onTap) {
-            Text(formatZoomText(zoomFactor))
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(isSelected ? .yellow : .white)
-                .frame(height: 32)
-                .frame(maxWidth: .infinity)
-                .background(isSelected ? Color.white.opacity(0.2) : Color.clear)
-                .cornerRadius(6)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isSelected ? Color.yellow : Color.clear, lineWidth: 1)
-                )
+            ZStack {
+                // Circular background for selected state (iOS native style)
+                if isSelected {
+                    Circle()
+                        .fill(.white.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                }
+
+                Text(formatZoomText(zoomFactor))
+                    .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
+                    .foregroundColor(.white)
+            }
         }
+        .accessibilityLabel("\(formatZoomText(zoomFactor)) zoom")
     }
 
     private func formatZoomText(_ factor: CGFloat) -> String {
         if factor == 0.5 {
-            return "0.5x"
+            return "0.5×"
         } else if factor.truncatingRemainder(dividingBy: 1) == 0 {
-            return "\(Int(factor))x"
+            return "\(Int(factor))×"
         } else {
-            return String(format: "%.1fx", factor)
+            return String(format: "%.1f×", factor)
         }
     }
 }
@@ -509,81 +486,57 @@ struct CameraTopControls: View {
     let photoCount: Int
     let isMultiItemPreviewShowing: Bool
 
-    @Environment(\.featureFlags) private var featureFlags
-
     var body: some View {
         VStack(spacing: 12) {
-            HStack {
-                // Close button
+            HStack(spacing: 16) {
+                // Close button with circular background
                 Button {
                     onClose()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(.black.opacity(0.5)))
                 }
                 .accessibilityIdentifier("cameraCloseButton")
 
                 Spacer()
 
-                // Center controls: Flash and Camera switcher (hidden during multi-item preview)
+                // Right controls: Flash and Camera switcher (hidden during multi-item preview)
                 if !isMultiItemPreviewShowing {
-                    HStack(spacing: 20) {
-                        // Flash button
+                    HStack(spacing: 16) {
+                        // Flash button with circular background (icon only)
                         Button {
                             model.cycleFlash()
                         } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: model.flashIcon)
-                                    .font(.system(size: 16))
-                                Text(flashModeText)
-                                    .font(.system(size: 16, weight: .medium))
-                            }
-                            .foregroundColor(.white)
+                            Image(systemName: model.flashIcon)
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(.black.opacity(0.5)))
                         }
+                        .accessibilityLabel("Flash \(flashModeText)")
 
-                        // Camera switcher
+                        // Camera switcher with circular background
                         Button {
                             Task {
                                 await model.switchCamera()
                             }
                         } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath.camera")
-                                .font(.system(size: 20))
+                            Image(systemName: "camera.rotate")
+                                .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(.black.opacity(0.5)))
                         }
+                        .accessibilityLabel("Flip camera")
                     }
                 }
-
-                Spacer()
-
-                // Done button
-                Button("Done") {
-                    onDone()
-                }
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.green)
-                .disabled(photoCount == 0)
-                .opacity(photoCount == 0 ? 0.5 : 1.0)
-                .accessibilityIdentifier("cameraDoneButton")
             }
             .padding(.horizontal, 20)
             .padding(.top, 50)
             .padding(.bottom, 10)
-
-            // Zoom control (feature flagged)
-            if featureFlags.showZoomControl {
-                ZoomControlView(
-                    zoomFactors: model.zoomFactors,
-                    currentZoomIndex: model.currentZoomIndex,
-                    onZoomTap: { index in
-                        model.setZoom(to: index)
-                    }
-                )
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
-            }
         }
     }
 }
