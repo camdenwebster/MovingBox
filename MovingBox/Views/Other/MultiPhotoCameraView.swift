@@ -363,7 +363,6 @@ struct MultiPhotoCameraView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 20)
                 }
                 .frame(height: 100)
                 .padding(.vertical, 10)
@@ -386,32 +385,30 @@ struct MultiPhotoCameraView: View {
             }
 
             if !isMultiItemPreview {
-                VStack {
+                VStack(spacing: 0) {
                     Spacer()
-
-                    VStack(spacing: 0) {
-                        ZoomControlView(
-                            zoomFactors: model.zoomFactors,
-                            currentZoomIndex: localZoomIndex,
-                            onZoomTap: { index in
-                                model.setZoom(to: index)
-                            }
-                        )
-                        .padding(.bottom)
-                        
-                        CameraBottomControls(
-                            captureMode: model.selectedCaptureMode,
-                            photoCount: model.capturedImages.count,
-                            photoCounterText: model.selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
-                            hasPhotoCaptured: !model.capturedImages.isEmpty,
-                            onShutterTap: { handleShutterTap() },
-                            onRetakeTap: { model.capturedImages.removeAll() },
-                            onPhotoPickerTap: { handlePhotoPickerTap() },
-                            selectedCaptureMode: $model.selectedCaptureMode
-                        )
-                        .padding(.top, 10)
-                        .background(Color.black)
-                    }
+                    
+                    ZoomControlView(
+                        zoomFactors: model.zoomFactors,
+                        currentZoomIndex: localZoomIndex,
+                        onZoomTap: { index in
+                            model.setZoom(to: index)
+                        }
+                    )
+                    .padding(.bottom, 16)
+                    
+                    CameraBottomControls(
+                        captureMode: model.selectedCaptureMode,
+                        photoCount: model.capturedImages.count,
+                        photoCounterText: model.selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
+                        hasPhotoCaptured: !model.capturedImages.isEmpty,
+                        onShutterTap: { handleShutterTap() },
+                        onRetakeTap: { model.capturedImages.removeAll() },
+                        onPhotoPickerTap: { handlePhotoPickerTap() },
+                        selectedCaptureMode: $model.selectedCaptureMode
+                    )
+                    .padding(.top, 10)
+                    .background(Color.black)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }

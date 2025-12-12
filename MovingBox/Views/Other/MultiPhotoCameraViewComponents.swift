@@ -137,7 +137,6 @@ struct ZoomControlView: View {
     let onZoomTap: (Int) -> Void
 
     var body: some View {
-        // iOS native style - simple horizontal stack, no background
         HStack(spacing: 12) {
             ForEach(Array(zoomFactors.enumerated()), id: \.offset) { index, factor in
                 ZoomButtonView(
@@ -149,6 +148,7 @@ struct ZoomControlView: View {
                 )
             }
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -509,55 +509,51 @@ struct CameraTopControls: View {
     let isMultiItemPreviewShowing: Bool
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 16) {
-                Button {
-                    onClose()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(Circle().fill(.white.opacity(0.3)))
-                }
-                .accessibilityIdentifier("cameraCloseButton")
+        HStack(spacing: 16) {
+            Button {
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(.white.opacity(0.3)))
+            }
+            .accessibilityIdentifier("cameraCloseButton")
 
-                Spacer()
+            Spacer()
 
-                if !isMultiItemPreviewShowing {
-                    HStack(spacing: 16) {
-                        Button {
-                            model.cycleFlash()
-                        } label: {
-                            Image(systemName: model.flashIcon)
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(Circle().fill(.white.opacity(0.3)))
-                        }
-                        .accessibilityLabel("Flash \(model.flashModeText)")
-
-                        Button {
-                            Task {
-                                await model.switchCamera()
-                            }
-                        } label: {
-                            Image(systemName: "camera.rotate")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(Circle().fill(.white.opacity(0.3)))
-                        }
-                        .accessibilityLabel("Flip camera")
+            if !isMultiItemPreviewShowing {
+                HStack(spacing: 16) {
+                    Button {
+                        model.cycleFlash()
+                    } label: {
+                        Image(systemName: model.flashIcon)
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(.white.opacity(0.3)))
                     }
+                    .accessibilityLabel("Flash \(model.flashModeText)")
+
+                    Button {
+                        Task {
+                            await model.switchCamera()
+                        }
+                    } label: {
+                        Image(systemName: "camera.rotate")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(.white.opacity(0.3)))
+                    }
+                    .accessibilityLabel("Flip camera")
                 }
             }
-            .padding(.horizontal)
-//            .padding(.trailing, 40)
-            
-//            .padding(.top)
-//            .padding(.bottom, 10)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 10)
     }
 }
 
@@ -576,9 +572,7 @@ struct CameraBottomControls: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // Shutter button on top (centered)
             if captureMode == .multiItem && hasPhotoCaptured {
-                // Retake button in multi-item mode after capture
                 Button {
                     onRetakeTap()
                 } label: {
@@ -591,7 +585,6 @@ struct CameraBottomControls: View {
                 }
                 .accessibilityIdentifier("cameraRetakeButton")
             } else {
-                // Normal shutter button
                 Button {
                     onShutterTap()
                 } label: {
@@ -607,42 +600,40 @@ struct CameraBottomControls: View {
                 .accessibilityIdentifier("cameraShutterButton")
             }
 
-            // Bottom row: Photo count, Mode picker, Gallery button
             HStack(spacing: 12) {
-                // Photo count (left side)
                 Text(photoCounterText)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
-                    .frame(minWidth: 60)
+                    .frame(minWidth: 60, alignment: .leading)
                     .accessibilityIdentifier("cameraPhotoCount")
 
                 Spacer()
 
-                // Capture mode segmented control (center)
                 CaptureModePicker(selectedMode: $selectedCaptureMode)
-                    .frame(maxWidth: 200)
+                    .frame(width: 150)
 
                 Spacer()
 
-                // Photo picker button (right side)
                 if captureMode.showsPhotoPickerButton {
                     Button {
                         onPhotoPickerTap()
                     } label: {
                         Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 22))
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundColor(.white)
-                            .frame(minWidth: 60)
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(.white.opacity(0.3)))
                     }
                 } else {
-                    // Spacer to maintain layout symmetry
                     Color.clear
                         .frame(minWidth: 60)
                 }
             }
-//            .padding(.horizontal)
-            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 20)
+            .padding(.bottom)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
