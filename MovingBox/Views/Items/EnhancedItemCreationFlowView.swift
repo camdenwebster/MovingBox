@@ -159,7 +159,14 @@ struct EnhancedItemCreationFlowView: View {
         .onChange(of: viewModel.analysisComplete) { _, isComplete in
             // When analysis completes, check if we should transition
             if isComplete {
-                checkAndTransitionIfReady()
+                // For single-item mode, skip multi-item selection and go straight to details
+                if viewModel.captureMode == .singleItem {
+                    withAnimation(transitionAnimation) {
+                        viewModel.goToStep(.details)
+                    }
+                } else {
+                    checkAndTransitionIfReady()
+                }
             }
         }
         .onChange(of: viewModel.errorMessage) { _, error in
