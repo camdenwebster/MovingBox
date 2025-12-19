@@ -135,6 +135,13 @@ struct ImageAnalysisView: View {
                             )
                         )
                         .symbolEffect(.pulse)
+                    
+                    // Photo count
+                    if images.count > 1 {
+                        Text("Analyzing \(images.count) \(images.count == 1 ? "photo" : "photos")")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
 
                     // Rotating quote with fixed height to prevent layout shifts
                     VStack {
@@ -151,14 +158,6 @@ struct ImageAnalysisView: View {
                     }
                     .frame(minHeight: 60)
                     .padding(.horizontal)
-
-                    // Photo count
-                    
-                    if images.count > 1 {
-                        Text("Analyzing \(images.count) \(images.count == 1 ? "photo" : "photos")")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
 
                     // Disclaimer
                     Text("AI can make mistakes. Check important info.")
@@ -214,7 +213,12 @@ struct ImageAnalysisView: View {
     private func startQuoteCycling() {
         quoteTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [self] timer in
             withAnimation(.easeInOut(duration: 0.5)) {
-                currentQuoteIndex = (currentQuoteIndex + 1) % quotes.count
+                // Pick a random quote that's different from the current one
+                var newIndex: Int
+                repeat {
+                    newIndex = Int.random(in: 0..<quotes.count)
+                } while newIndex == currentQuoteIndex && quotes.count > 1
+                currentQuoteIndex = newIndex
             }
         }
     }

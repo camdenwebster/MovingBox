@@ -101,7 +101,8 @@ struct InventoryDetailView: View {
     @State private var fileViewerName: String?
     @State private var showingDeleteAttachmentAlert = false
     @State private var attachmentToDelete: String?
-    
+    @State private var showingDeleteItemAlert = false
+
     var showSparklesButton = false
 
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
@@ -463,6 +464,10 @@ struct InventoryDetailView: View {
                 if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                     notesSection
                 }
+
+                if isEditing {
+                    deleteButton
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -750,7 +755,7 @@ struct InventoryDetailView: View {
             Text("Notes")
                 .sectionHeaderStyle()
                 .padding(.horizontal, 16)
-            
+
             VStack(spacing: 0) {
                 TextEditor(text: $inventoryItemToDisplay.notes)
                     .foregroundColor(isEditing ? .primary : .secondary)
@@ -767,7 +772,25 @@ struct InventoryDetailView: View {
             .cornerRadius(UIConstants.cornerRadius)
         }
     }
-    
+
+    @ViewBuilder
+    private var deleteButton: some View {
+        Button(action: {
+            showingDeleteItemAlert = true
+        }) {
+            HStack {
+                Image(systemName: "trash")
+                Text("Delete Item")
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .foregroundColor(.white)
+            .background(Color.red)
+            .cornerRadius(UIConstants.cornerRadius)
+        }
+        .accessibilityIdentifier("deleteItemButton")
+    }
+
     // MARK: - New Attribute Sections
     
     @ViewBuilder
@@ -1197,7 +1220,7 @@ struct InventoryDetailView: View {
                         displayPriceString = originalDisplayPriceString
                     }
                     hasUserMadeChanges = false
-                    
+
                     if onCancel != nil {
                         // We're in a sheet context - discard changes and close sheet
                         deleteItemAndCloseSheet()
@@ -1209,6 +1232,16 @@ struct InventoryDetailView: View {
                 Button("Keep Editing", role: .cancel) { }
             } message: {
                 Text("You have unsaved changes. Are you sure you want to discard them?")
+            }
+            .alert("Delete Item", isPresented: $showingDeleteItemAlert) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await deleteItem()
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Are you sure you want to delete this item? This action cannot be undone.")
             }
             .task(id: inventoryItemToDisplay.imageURL) {
                 await loadAllImages()
@@ -1545,6 +1578,35 @@ struct InventoryDetailView: View {
                 // Call the onCancel callback to close the sheet
                 onCancel?()
             }
+        }
+    }
+
+    private func deleteItem() async {
+        do {
+            // Delete all associated images
+            if let imageURL = inventoryItemToDisplay.imageURL {
+                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: imageURL.absoluteString)
+            }
+
+            for photoURL in inventoryItemToDisplay.secondaryPhotoURLs {
+                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: photoURL)
+            }
+
+            // Delete all attachments
+            for attachment in inventoryItemToDisplay.attachments {
+                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: attachment.url)
+            }
+        } catch {
+            print("Error deleting images during item deletion: \(error)")
+        }
+
+        await MainActor.run {
+            // Remove the item from the model context
+            modelContext.delete(inventoryItemToDisplay)
+            try? modelContext.save()
+
+            // Navigate back
+            dismiss()
         }
     }
 
