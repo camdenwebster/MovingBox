@@ -102,6 +102,15 @@ struct InventoryListView: View {
     private var selectedCount: Int {
         selectedItemIDs.count
     }
+
+    // Version-appropriate menu icon
+    private var menuIcon: String {
+        if #available(iOS 26.0, *) {
+            return "ellipsis"
+        } else {
+            return "ellipsis.circle"
+        }
+    }
     
     private var inventoryListContent: some View {
         // Create a unique view based on sort order to force recreation when sort changes
@@ -240,7 +249,7 @@ struct InventoryListView: View {
             }
         } else {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Menu("Options", systemImage: "ellipsis.circle") {
+                Menu("Options", systemImage: menuIcon) {
                     Button(action: createManualItem) {
                         Label("Add Manually", systemImage: "square.and.pencil")
                     }
