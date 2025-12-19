@@ -103,45 +103,6 @@ struct MovingBoxApp: App {
         ProcessInfo.processInfo.arguments.contains("Disable-Animations")
     }
     
-    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> AnyView {
-        AnyView(
-            Group {
-                switch destination {
-                case .dashboardView:
-                    DashboardView()
-                case .locationsListView:
-                    LocationsListView()
-                case .settingsView:
-                    SettingsView()
-                case .aISettingsView:
-                    AISettingsView()
-                case .inventoryListView(let location):
-                    InventoryListView(location: location)
-                case .editLocationView(let location, let isEditing):
-                    EditLocationView(location: location, isEditing: isEditing)
-                case .editLabelView(let label, let isEditing):
-                    EditLabelView(label: label, isEditing: isEditing)
-                case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-                    InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
-                case .addInventoryItemView(let location):
-                    AddInventoryItemView(location: location)
-                case .locationsSettingsView:
-                    LocationSettingsView()
-                case .subscriptionSettingsView:
-                    SubscriptionSettingsView()
-                case .syncDataSettingsView:
-                    SyncDataSettingsView()
-                case .importDataView:
-                    ImportDataView()
-                case .exportDataView:
-                    ExportDataView()
-                case .deleteDataView:
-                    DataDeletionView()
-                }
-            }
-        )
-    }
-    
     var body: some Scene {
         WindowGroup {
             Group {
@@ -155,38 +116,13 @@ struct MovingBoxApp: App {
                     ))
                     .environment(\.disableAnimations, disableAnimations)
                 case .main:
-                    NavigationStack(path: $router.navigationPath) {
-                        DashboardView()
-                            .navigationDestination(for: Router.Destination.self) { destination in
-                                destinationView(for: destination, navigationPath: $router.navigationPath)
-                            }
-                            .navigationDestination(for: String.self) { destination in
-                                Group {
-                                    switch destination {
-                                    case "appearance":
-                                        AppearanceSettingsView()
-                                    case "notifications":
-                                        NotificationSettingsView()
-                                    case "ai":
-                                        AISettingsView()
-                                    case "locations":
-                                        LocationSettingsView()
-                                    case "labels":
-                                        LabelSettingsView()
-                                    case "home":
-                                        EditHomeView()
-                                    case "no-location":
-                                        InventoryListView(location: nil, showOnlyUnassigned: true)
-                                    default:
-                                        EmptyView()
-                                    }
-                                }
-                            }
-                    }
-                    .environment(\.disableAnimations, disableAnimations)
-                    .tint(.green)
+                    MainSplitView(navigationPath: $router.navigationPath)
+                        .environment(\.disableAnimations, disableAnimations)
                 }
             }
+            #if os(macOS)
+            .toolbar(removing: .title)
+            #endif
             .task {
                 // Initialize container
                 await containerManager.initialize()
