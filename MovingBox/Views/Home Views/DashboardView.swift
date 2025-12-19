@@ -301,8 +301,18 @@ struct DashboardView: View {
                         loadedImage: $loadedImage,
                         isLoading: $isLoading
                     )
+                    .padding(.trailing)
                 }
             }
+            .padding(.bottom)
+        }
+        .background(alignment: .bottom) {
+            LinearGradient(
+                gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
+                startPoint: .bottom,
+                endPoint: .center
+            )
+            .frame(height: 150)
         }
     }
     
