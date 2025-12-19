@@ -40,7 +40,7 @@ struct MultiItemGridPrototype: View {
                 }
                 
                 if showConfetti {
-                    ConfettiView()
+                    PrototypeConfettiView()
                         .allowsHitTesting(false)
                 }
             }
@@ -439,8 +439,8 @@ struct MultiItemGridPrototype: View {
     }
 }
 
-struct ConfettiView: View {
-    @State private var confettiPieces: [ConfettiPiece] = []
+struct PrototypeConfettiView: View {
+    @State private var confettiPieces: [PrototypeConfettiPiece] = []
     
     var body: some View {
         ZStack {
@@ -462,7 +462,7 @@ struct ConfettiView: View {
         let screenHeight = UIScreen.main.bounds.height
         
         for _ in 0..<50 {
-            let piece = ConfettiPiece(
+            let piece = PrototypeConfettiPiece(
                 id: UUID(),
                 x: Double.random(in: 0...screenWidth),
                 y: Double.random(in: -100...screenHeight/3),
@@ -484,7 +484,7 @@ struct ConfettiView: View {
     }
 }
 
-struct ConfettiPiece: Identifiable {
+struct PrototypeConfettiPiece: Identifiable {
     let id: UUID
     var x: Double
     var y: Double
