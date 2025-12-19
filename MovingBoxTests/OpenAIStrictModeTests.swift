@@ -12,7 +12,9 @@ import Foundation
 @testable import MovingBox
 
 /// Tests for OpenAI service with strict mode disabled
+/// NOTE: These tests are disabled because they make real API calls which can hang
 @MainActor
+@Suite(.disabled("Tests make real OpenAI API calls which can hang"))
 struct OpenAIStrictModeTests {
     
     func createTestContainer() throws -> ModelContainer {

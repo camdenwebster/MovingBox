@@ -658,7 +658,7 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
 
     func captureTestPhoto() {
         // For UI testing, use the tablet image from TestAssets
-        guard let testImage = UIImage(named: "tablet") else {
+        guard let testImage = UIImage(named: "desk-chair") else {
             print("❌ Could not load tablet test image")
             return
         }

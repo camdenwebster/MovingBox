@@ -509,6 +509,7 @@ struct CaptureModePicker: View {
         }
         .accessibilityLabel("Camera mode selector")
         .accessibilityHint("Switch between single item and multi item capture modes")
+        .accessibilityIdentifier("cameraModePicker")
     }
 }
 
@@ -547,9 +548,11 @@ struct MultiItemPreviewOverlay: View {
             .backport.glassEffect(in: Circle())
             .backport.glassEffectID("retake", in: glassEffectNamespace)
             .tint(.red)
+            .accessibilityIdentifier("multiItemRetakeButton")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.7))
+        .accessibilityIdentifier("multiItemPreviewOverlay")
     }
 }
 

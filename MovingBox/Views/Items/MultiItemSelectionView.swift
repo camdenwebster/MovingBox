@@ -79,6 +79,7 @@ struct MultiItemSelectionView: View {
                         Button(action: onReanalyze) {
                             Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
                         }
+                        .accessibilityIdentifier("multiItemReanalyzeButton")
                     }
                 }
 
@@ -86,8 +87,10 @@ struct MultiItemSelectionView: View {
                     Button("Cancel", systemImage: "xmark") {
                         onCancel()
                     }
+                    .accessibilityIdentifier("multiItemCancelButton")
                 }
             }
+            .accessibilityIdentifier("multiItemSelectionView")
             .alert("Error Creating Items", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
                     viewModel.errorMessage = nil
@@ -215,6 +218,7 @@ struct MultiItemSelectionView: View {
                             }
                         )
                         .frame(width: geometry.size.width * 0.85, height: 200)
+                        .accessibilityIdentifier("multiItemSelectionCard-\(index)")
                         .scrollTransition { content, phase in
                             content
                                 .opacity(phase.isIdentity ? 1.0 : 0.8)
@@ -269,6 +273,7 @@ struct MultiItemSelectionView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(viewModel.selectedItemsCount) of \(viewModel.detectedItems.count) selected")
                         .font(.headline)
+                        .accessibilityIdentifier("multiItemSelectionCounter")
 
                     if viewModel.selectedItemsCount > 0 {
                         Text("Ready to add to inventory")
@@ -287,6 +292,7 @@ struct MultiItemSelectionView: View {
                         }
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityIdentifier("multiItemDeselectAllButton")
                 } else {
                     Button("Select All") {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -294,6 +300,7 @@ struct MultiItemSelectionView: View {
                         }
                     }
                     .backport.glassProminentButtonStyle()
+                    .accessibilityIdentifier("multiItemSelectAllButton")
                 }
             }
 
@@ -319,6 +326,7 @@ struct MultiItemSelectionView: View {
                     }
                     .foregroundColor(.primary)
                 }
+                .accessibilityIdentifier("multiItemLocationButton")
             }
         }
         .padding(.vertical, 16)
@@ -339,6 +347,7 @@ struct MultiItemSelectionView: View {
             }
             .padding(.vertical, 12)
         }
+        .accessibilityIdentifier("multiItemContinueButton")
     }
     
     private var processingOverlay: some View {

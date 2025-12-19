@@ -62,6 +62,7 @@ struct EnhancedItemCreationFlowView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(viewModel.currentStep == .camera)
             .interactiveDismissDisabled(viewModel.processingImage)
+            .accessibilityIdentifier("enhancedItemCreationFlow")
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -123,6 +124,14 @@ struct EnhancedItemCreationFlowView: View {
                 Task {
                     // Update the viewModel's capture mode based on user selection
                     viewModel.updateCaptureMode(selectedMode)
+                    
+                    // Track capture mode selection
+                    TelemetryManager.shared.trackCaptureModeSelected(
+                        mode: selectedMode == .singleItem ? "single_item" : "multi_item",
+                        imageCount: images.count,
+                        isProUser: settings.isPro
+                    )
+                    
                     await viewModel.handleCapturedImages(images)
                     await MainActor.run {
                         viewModel.goToNextStep()
@@ -147,6 +156,7 @@ struct EnhancedItemCreationFlowView: View {
                 // Will check if analysis is ready and transition if so
                 checkAndTransitionIfReady()
             }
+            .accessibilityIdentifier("imageAnalysisView")
         }
         .task {
             // Perform analysis based on capture mode (use viewModel's mode, not initial mode)
@@ -247,6 +257,7 @@ struct EnhancedItemCreationFlowView: View {
                     // router.navigate(to: .inventoryDetail(item))
                 }
             )
+            .accessibilityIdentifier("multiItemSummaryView")
             .transition(.asymmetric(
                 insertion: .move(edge: .trailing),
                 removal: .opacity

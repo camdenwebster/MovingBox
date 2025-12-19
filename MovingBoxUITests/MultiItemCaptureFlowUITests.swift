@@ -3,13 +3,15 @@ import XCTest
 @MainActor
 final class MultiItemCaptureFlowUITests: XCTestCase {
     var dashboardScreen: DashboardScreen!
-    var addItemScreen: AddInventoryItemScreen!
+    var cameraScreen: CameraScreen!
+    var multiItemSelectionScreen: MultiItemSelectionScreen!
     var navigationHelper: NavigationHelper!
     let app = XCUIApplication()
 
     override func setUpWithError() throws {
         continueAfterFailure = false
         app.launchArguments = [
+            "Is-Pro",
             "Skip-Onboarding",
             "Disable-Persistence", 
             "UI-Testing-Mock-Camera",
@@ -18,7 +20,8 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         
         // Initialize screen objects
         dashboardScreen = DashboardScreen(app: app)
-        addItemScreen = AddInventoryItemScreen(app: app)
+        cameraScreen = CameraScreen(app: app, testCase: self)
+        multiItemSelectionScreen = MultiItemSelectionScreen(app: app)
         navigationHelper = NavigationHelper(app: app)
         
         setupSnapshot(app)
@@ -30,13 +33,14 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         dashboardScreen = nil
-        addItemScreen = nil
+        cameraScreen = nil
+        multiItemSelectionScreen = nil
         navigationHelper = nil
     }
 
-    // MARK: - Capture Mode Selection Tests
+    // MARK: - Camera Navigation Tests
     
-    func testNavigationToCaptureModeSelection() throws {
+    func testNavigationToCamera() throws {
         // Given: User is on dashboard
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
         
@@ -45,10 +49,9 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
                      "Add Item button should be visible")
         dashboardScreen.addItemFromCameraButton.tap()
         
-        // Then: Should navigate to capture mode selection screen
-        XCTAssertTrue(addItemScreen.isDisplayed(), "Add Item screen should be displayed")
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                     "Capture mode selection should be visible")
+        // Then: Camera should open
+        XCTAssertTrue(cameraScreen.waitForCamera(timeout: 5),
+                     "Camera should be displayed")
     }
     
     func testEmptyStateAddItemButtonNavigation() throws {
@@ -59,287 +62,336 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         if dashboardScreen.emptyStateAddItemButton.exists {
             dashboardScreen.emptyStateAddItemButton.tap()
             
-            // Then: Should navigate to capture mode selection screen
-            XCTAssertTrue(addItemScreen.isDisplayed(), "Add Item screen should be displayed")
-            XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                         "Capture mode selection should be visible")
+            // Then: Camera should open
+            XCTAssertTrue(cameraScreen.waitForCamera(timeout: 5),
+                         "Camera should be displayed")
         } else {
             throw XCTSkip("Empty state not available - test data might be loaded")
         }
     }
     
-    func testCaptureModeSelectionOptions() throws {
-        // Given: User navigates to capture mode selection
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                     "Capture mode selection should be visible")
+    // MARK: - Camera Mode Toggle Tests
+    
+    func testCameraModePicker() throws {
+        // Given: User opens camera
+        openCamera()
         
-        // Then: Both capture mode options should be available
-        XCTAssertTrue(addItemScreen.singleItemModeButton.exists, 
-                     "Single Item mode button should be visible")
-        XCTAssertTrue(addItemScreen.multiItemModeButton.exists, 
-                     "Multi Item mode button should be visible")
-        
-        // And: Mode descriptions should be displayed
-        XCTAssertTrue(addItemScreen.singleItemDescription.exists,
-                     "Single item description should be visible")
-        XCTAssertTrue(addItemScreen.multiItemDescription.exists,
-                     "Multi item description should be visible")
+        // Then: Camera mode picker should be visible
+        let modePicker = app.otherElements["cameraModePicker"]
+        XCTAssertTrue(modePicker.waitForExistence(timeout: 5),
+                     "Camera mode picker should be visible")
     }
     
-    func testSingleItemModeSelection() throws {
-        // Given: User is on capture mode selection screen
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                     "Capture mode selection should be visible")
+    func testSwitchToMultiItemMode() throws {
+        // Given: User opens camera (defaults to Single mode)
+        openCamera()
         
-        // When: User selects Single Item mode
-        addItemScreen.selectSingleItemMode()
+        // When: User taps the Multi toggle in the segmented control
+        let modePicker = app.segmentedControls.firstMatch
+        XCTAssertTrue(modePicker.waitForExistence(timeout: 5),
+                     "Mode picker should be visible")
         
-        // Then: Should navigate to enhanced item creation flow
-        XCTAssertTrue(addItemScreen.enhancedItemCreationFlowVisible(),
-                     "Enhanced item creation flow should be displayed")
-    }
-    
-    func testMultiItemModeSelection() throws {
-        // Given: User is on capture mode selection screen
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                     "Capture mode selection should be visible")
+        let multiButton = modePicker.buttons["Multi"]
+        XCTAssertTrue(multiButton.exists, "Multi button should exist")
+        multiButton.tap()
         
-        // When: User selects Multi Item mode
-        addItemScreen.selectMultiItemMode()
-        
-        // Then: Should navigate to enhanced item creation flow with multi-item mode
-        XCTAssertTrue(addItemScreen.enhancedItemCreationFlowVisible(),
-                     "Enhanced item creation flow should be displayed")
+        // Then: Mode should switch to Multi
+        XCTAssertTrue(multiButton.isSelected, "Multi mode should be selected")
     }
     
     func testMultiItemModeProFeatureGating() throws {
-        // Given: User is not a Pro subscriber (default test state)
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                     "Capture mode selection should be visible")
+        // Note: This test runs with "Is-Pro" launch argument
+        // To test non-Pro behavior, would need a separate test without that argument
         
-        // When: User selects Multi Item mode
-        addItemScreen.selectMultiItemMode()
+        // Given: User is a Pro subscriber (via launch argument)
+        openCamera()
         
-        // Then: Should show paywall for non-Pro users
-        XCTAssertTrue(addItemScreen.paywallDisplayed(),
-                     "Paywall should be displayed for multi-item mode")
-        
-        // And: Multi Item option should show Pro badge
-        XCTAssertTrue(addItemScreen.multiItemProBadge.exists,
-                     "Multi Item mode should display Pro badge")
-    }
-    
-    // MARK: - Navigation and Back Button Tests
-    
-    func testBackNavigationFromCaptureModeSelection() throws {
-        // Given: User navigates to capture mode selection
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.isDisplayed(), "Add Item screen should be displayed")
-        
-        // When: User taps back button
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        
-        // Then: Should return to dashboard
-        XCTAssertTrue(dashboardScreen.isDisplayed(), "Should return to dashboard")
-    }
-    
-    func testNavigationTitleDisplay() throws {
-        // Given: User navigates to capture mode selection
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.isDisplayed(), "Add Item screen should be displayed")
-        
-        // Then: Navigation title should be displayed correctly
-        XCTAssertTrue(app.navigationBars["Add New Item"].exists,
-                     "Navigation title should be 'Add New Item'")
-    }
-    
-    // MARK: - Integration with Settings Tests
-    
-    func testPreferredCaptureModeDefault() throws {
-        // Given: User navigates to capture mode selection
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                     "Capture mode selection should be visible")
-        
-        // Then: Default capture mode should be single item (for non-Pro users)
-        XCTAssertTrue(addItemScreen.singleItemModeSelected(),
-                     "Single item mode should be selected by default")
-    }
-    
-    // MARK: - Error Handling Tests
-    
-    func testCameraPermissionDeniedHandling() throws {
-        // Given: User selects a capture mode
-        navigationHelper.navigateToAddItem()
-        addItemScreen.selectSingleItemMode()
-        
-        // When: Camera permission is denied (simulated)
-        // This would typically be handled by the mock camera system
-        
-        // Then: Should show permission alert
-        if app.alerts.element.waitForExistence(timeout: 5) {
-            XCTAssertTrue(app.alerts["Camera Access Required"].exists,
-                         "Camera permission alert should be displayed")
+        // When: User switches to Multi mode
+        let modePicker = app.segmentedControls.firstMatch
+        if modePicker.waitForExistence(timeout: 5) {
+            let multiButton = modePicker.buttons["Multi"]
+            multiButton.tap()
             
-            // And: Should provide settings navigation option
-            XCTAssertTrue(app.alerts.buttons["Go to Settings"].exists,
-                         "Settings button should be available")
-            
-            // Dismiss alert for cleanup
-            app.alerts.buttons["Cancel"].tap()
+            // Then: No paywall should appear (Pro user)
+            let paywall = app.otherElements.containing(
+                NSPredicate(format: "identifier CONTAINS 'paywall'")
+            ).firstMatch
+            XCTAssertFalse(paywall.waitForExistence(timeout: 2),
+                          "Paywall should not appear for Pro users")
         }
     }
     
-    // MARK: - Performance Tests
+    // MARK: - Multi-Item Photo Capture Tests
     
-    func testCaptureModeSelectionLoadTime() throws {
-        // Given: User is on dashboard
-        let startTime = Date()
+    func testMultiItemPhotoCaptureFlow() throws {
+        // Given: User is in Multi mode
+        openCamera()
+        switchToMultiMode()
         
-        // When: User navigates to capture mode selection
-        dashboardScreen.addItemFromCameraButton.tap()
+        // When: User taps shutter button
+        cameraScreen.captureButton.tap()
         
-        // Then: Screen should load quickly
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(),
-                     "Capture mode selection should be visible")
+        // Then: Preview overlay should appear
+        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
+        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
+                     "Multi-item preview overlay should appear after capture")
+    }
+    
+    func testMultiItemRetakeButton() throws {
+        // Given: User has captured a photo in Multi mode
+        openCamera()
+        switchToMultiMode()
+        cameraScreen.captureButton.tap()
         
-        let loadTime = Date().timeIntervalSince(startTime)
-        XCTAssertLessThan(loadTime, 2.0, 
-                         "Capture mode selection should load within 2 seconds")
+        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
+        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
+                     "Preview overlay should be visible")
+        
+        // When: User taps retake button
+        let retakeButton = app.buttons["multiItemRetakeButton"]
+        XCTAssertTrue(retakeButton.exists, "Retake button should exist")
+        retakeButton.tap()
+        
+        // Then: Should return to camera view
+        XCTAssertFalse(previewOverlay.exists,
+                      "Preview overlay should be dismissed")
+        XCTAssertTrue(cameraScreen.captureButton.exists,
+                     "Camera shutter should be visible again")
+    }
+    
+    func testMultiItemContinueToAnalysis() throws {
+        // Given: User has captured a photo in Multi mode
+        openCamera()
+        switchToMultiMode()
+        cameraScreen.captureButton.tap()
+        
+        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
+        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
+                     "Preview overlay should be visible")
+        
+        // When: User taps the chevron button to continue
+        cameraScreen.doneButton.tap()
+        
+        // Then: Analysis view should appear
+        let analysisView = app.otherElements["imageAnalysisView"]
+        XCTAssertTrue(analysisView.waitForExistence(timeout: 5),
+                     "Analysis view should appear")
+    }
+    
+    // MARK: - Multi-Item Selection View Tests
+    
+    func testMultiItemSelectionViewAppears() throws {
+        // Given: User goes through capture flow in Multi mode
+        navigateToMultiItemSelection()
+        
+        // Then: Multi-item selection view should appear after analysis
+        XCTAssertTrue(multiItemSelectionScreen.isDisplayed(),
+                     "Multi-item selection view should be visible")
+    }
+    
+    func testMultiItemCardSelection() throws {
+        // Given: User is on multi-item selection view with detected items
+        navigateToMultiItemSelection()
+        
+        // When: User taps the first item card
+        let itemCount = multiItemSelectionScreen.getItemCardCount()
+        guard itemCount > 0 else {
+            throw XCTSkip("No items detected in mock analysis")
+        }
+        
+        multiItemSelectionScreen.tapItemCard(at: 0)
+        
+        // Then: Selection counter should update
+        if let counterText = multiItemSelectionScreen.getSelectionCounterText() {
+            XCTAssertTrue(counterText.contains("selected"),
+                         "Selection counter should show selected count")
+        }
+    }
+    
+    func testMultiItemSelectAllButton() throws {
+        // Given: User is on multi-item selection view
+        navigateToMultiItemSelection()
+        
+        // When: User taps "Select All" button
+        if multiItemSelectionScreen.isSelectAllButtonVisible() {
+            multiItemSelectionScreen.tapSelectAll()
+            
+            // Then: All items should be selected
+            if let counterText = multiItemSelectionScreen.getSelectionCounterText() {
+                let itemCount = multiItemSelectionScreen.getItemCardCount()
+                XCTAssertTrue(counterText.contains("\(itemCount) of \(itemCount)"),
+                             "All items should be selected")
+            }
+            
+            // And: "Deselect All" button should appear
+            XCTAssertTrue(multiItemSelectionScreen.isDeselectAllButtonVisible(),
+                         "Deselect All button should be visible after selecting all")
+        }
+    }
+    
+    func testMultiItemDeselectAllButton() throws {
+        // Given: User has selected all items
+        navigateToMultiItemSelection()
+        
+        if multiItemSelectionScreen.isSelectAllButtonVisible() {
+            multiItemSelectionScreen.tapSelectAll()
+        }
+        
+        // When: User taps "Deselect All" button
+        if multiItemSelectionScreen.isDeselectAllButtonVisible() {
+            multiItemSelectionScreen.tapDeselectAll()
+            
+            // Then: Selection counter should show 0 selected
+            if let counterText = multiItemSelectionScreen.getSelectionCounterText() {
+                XCTAssertTrue(counterText.contains("0 of"),
+                             "No items should be selected")
+            }
+            
+            // And: Continue button should be disabled
+            XCTAssertFalse(multiItemSelectionScreen.isContinueButtonEnabled(),
+                          "Continue button should be disabled with no selection")
+        }
+    }
+    
+    func testMultiItemSelectionCounter() throws {
+        // Given: User is on multi-item selection view
+        navigateToMultiItemSelection()
+        
+        let itemCount = multiItemSelectionScreen.getItemCardCount()
+        guard itemCount > 1 else {
+            throw XCTSkip("Need at least 2 items for this test")
+        }
+        
+        // When: User selects items one by one
+        multiItemSelectionScreen.tapItemCard(at: 0)
+        
+        // Then: Counter should show correct selection
+        if let counterText = multiItemSelectionScreen.getSelectionCounterText() {
+            XCTAssertTrue(counterText.contains("1 of"),
+                         "Counter should show 1 item selected")
+        }
+        
+        // When: User selects another item
+        multiItemSelectionScreen.tapItemCard(at: 1)
+        
+        // Then: Counter should update
+        if let counterText = multiItemSelectionScreen.getSelectionCounterText() {
+            XCTAssertTrue(counterText.contains("2 of"),
+                         "Counter should show 2 items selected")
+        }
+    }
+    
+    func testMultiItemLocationPicker() throws {
+        // Given: User is on multi-item selection view
+        navigateToMultiItemSelection()
+        
+        // When: User taps location button
+        multiItemSelectionScreen.tapLocationButton()
+        
+        // Then: Location picker sheet should appear
+        let locationSheet = app.sheets.firstMatch
+        XCTAssertTrue(locationSheet.waitForExistence(timeout: 3),
+                     "Location picker sheet should appear")
+    }
+    
+    func testMultiItemContinueButton() throws {
+        // Given: User has selected items
+        navigateToMultiItemSelection()
+        
+        if multiItemSelectionScreen.isSelectAllButtonVisible() {
+            multiItemSelectionScreen.tapSelectAll()
+        }
+        
+        // When: User taps continue button
+        XCTAssertTrue(multiItemSelectionScreen.isContinueButtonEnabled(),
+                     "Continue button should be enabled with selection")
+        
+        multiItemSelectionScreen.tapContinue()
+        
+        // Then: Should navigate to summary view
+        let summaryView = app.otherElements["multiItemSummaryView"]
+        XCTAssertTrue(summaryView.waitForExistence(timeout: 10),
+                     "Multi-item summary view should appear")
+    }
+    
+    func testMultiItemCancelButton() throws {
+        // Given: User is on multi-item selection view
+        navigateToMultiItemSelection()
+        
+        // When: User taps cancel button
+        multiItemSelectionScreen.tapCancel()
+        
+        // Then: Should return to dashboard
+        XCTAssertTrue(dashboardScreen.isDisplayed(),
+                     "Should return to dashboard after cancel")
+    }
+    
+    func testMultiItemReanalyzeButton() throws {
+        // Given: User is on multi-item selection view
+        navigateToMultiItemSelection()
+        
+        // When: User taps reanalyze button
+        multiItemSelectionScreen.tapReanalyze()
+        
+        // Then: Should go back to analysis view
+        let analysisView = app.otherElements["imageAnalysisView"]
+        XCTAssertTrue(analysisView.waitForExistence(timeout: 5),
+                     "Analysis view should appear after reanalyze")
     }
     
     // MARK: - Accessibility Tests
     
-    func testCaptureModeSelectionAccessibility() throws {
-        // Given: User navigates to capture mode selection
-        navigationHelper.navigateToAddItem()
-        XCTAssertTrue(addItemScreen.captureModeSelectionVisible(), 
-                     "Capture mode selection should be visible")
+    func testMultiItemSelectionAccessibility() throws {
+        // Given: User navigates to multi-item selection view
+        navigateToMultiItemSelection()
         
-        // Then: All elements should have proper accessibility identifiers
-        XCTAssertTrue(addItemScreen.singleItemModeButton.exists,
-                     "Single item button should have accessibility identifier")
-        XCTAssertTrue(addItemScreen.multiItemModeButton.exists,
-                     "Multi item button should have accessibility identifier")
-        
-        // And: Elements should have meaningful labels
-        let singleItemLabel = addItemScreen.singleItemModeButton.label
-        let multiItemLabel = addItemScreen.multiItemModeButton.label
-        
-        XCTAssertFalse(singleItemLabel.isEmpty, 
-                      "Single item button should have accessibility label")
-        XCTAssertFalse(multiItemLabel.isEmpty, 
-                      "Multi item button should have accessibility label")
-    }
-}
-
-// MARK: - AddInventoryItemScreen Page Object
-
-class AddInventoryItemScreen {
-    let app: XCUIApplication
-    
-    // Capture mode selection elements
-    let singleItemModeButton: XCUIElement
-    let multiItemModeButton: XCUIElement
-    let singleItemDescription: XCUIElement
-    let multiItemDescription: XCUIElement
-    let multiItemProBadge: XCUIElement
-    
-    // Navigation elements
-    let navigationTitle: XCUIElement
-    let backButton: XCUIElement
-    
-    // Flow state elements
-    let enhancedItemCreationFlow: XCUIElement
-    let paywall: XCUIElement
-    
-    init(app: XCUIApplication) {
-        self.app = app
-        
-        // Initialize elements based on accessibility identifiers from AddInventoryItemView
-        self.singleItemModeButton = app.buttons.containing(
-            NSPredicate(format: "label CONTAINS 'Single Item'")
-        ).firstMatch
-        
-        self.multiItemModeButton = app.buttons.containing(
-            NSPredicate(format: "label CONTAINS 'Multi Item'")
-        ).firstMatch
-        
-        self.singleItemDescription = app.staticTexts["Take multiple photos of one item"]
-        self.multiItemDescription = app.staticTexts["Take one photo with multiple items"]
-        self.multiItemProBadge = app.staticTexts["PRO"]
-        
-        self.navigationTitle = app.navigationBars["Add New Item"]
-        self.backButton = app.navigationBars.buttons.element(boundBy: 0)
-        
-        self.enhancedItemCreationFlow = app.otherElements.containing(
-            NSPredicate(format: "identifier CONTAINS 'enhanced-item-creation'")
-        ).firstMatch
-        
-        self.paywall = app.otherElements.containing(
-            NSPredicate(format: "identifier CONTAINS 'paywall'")
-        ).firstMatch
+        // Then: All key elements should have accessibility identifiers
+        XCTAssertTrue(multiItemSelectionScreen.view.exists,
+                     "Selection view should have accessibility identifier")
+        XCTAssertTrue(multiItemSelectionScreen.continueButton.exists,
+                     "Continue button should have accessibility identifier")
+        XCTAssertTrue(multiItemSelectionScreen.cancelButton.exists,
+                     "Cancel button should have accessibility identifier")
     }
     
-    // MARK: - Validation Methods
+    // MARK: - Helper Methods
     
-    func isDisplayed() -> Bool {
-        return navigationTitle.waitForExistence(timeout: 5) || 
-               singleItemModeButton.waitForExistence(timeout: 5)
+    private func openCamera() {
+        dashboardScreen.addItemFromCameraButton.tap()
+        XCTAssertTrue(cameraScreen.waitForCamera(timeout: 5),
+                     "Camera should open")
     }
     
-    func captureModeSelectionVisible() -> Bool {
-        return singleItemModeButton.exists && multiItemModeButton.exists
-    }
-    
-    func singleItemModeSelected() -> Bool {
-        // Check if single item button appears selected or highlighted
-        return singleItemModeButton.isSelected || 
-               singleItemModeButton.value as? String == "selected"
-    }
-    
-    func enhancedItemCreationFlowVisible() -> Bool {
-        return enhancedItemCreationFlow.waitForExistence(timeout: 5) ||
-               app.buttons["PhotoCapture"].waitForExistence(timeout: 5)
-    }
-    
-    func paywallDisplayed() -> Bool {
-        return paywall.waitForExistence(timeout: 5) ||
-               app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Upgrade'")).firstMatch.exists
-    }
-    
-    // MARK: - Action Methods
-    
-    func selectSingleItemMode() {
-        singleItemModeButton.tap()
-    }
-    
-    func selectMultiItemMode() {
-        multiItemModeButton.tap()
-    }
-}
-
-// MARK: - NavigationHelper Extension
-
-extension NavigationHelper {
-    func navigateToAddItem() {
-        let dashboardScreen = DashboardScreen(app: app)
-        
-        // Ensure we're on dashboard first
-        if !dashboardScreen.isDisplayed() {
-            // Navigate back to dashboard if needed
-            while app.navigationBars.buttons.count > 0 {
-                app.navigationBars.buttons.element(boundBy: 0).tap()
-                if dashboardScreen.isDisplayed() { break }
+    private func switchToMultiMode() {
+        let modePicker = app.segmentedControls.firstMatch
+        if modePicker.waitForExistence(timeout: 5) {
+            let multiButton = modePicker.buttons["Multi"]
+            if multiButton.exists && !multiButton.isSelected {
+                multiButton.tap()
             }
         }
+    }
+    
+    private func navigateToMultiItemSelection() {
+        // Open camera
+        openCamera()
         
-        // Tap add item button
-        XCTAssertTrue(dashboardScreen.addItemFromCameraButton.waitForExistence(timeout: 5))
-        dashboardScreen.addItemFromCameraButton.tap()
+        // Switch to Multi mode
+        switchToMultiMode()
+        
+        // Capture photo
+        cameraScreen.captureButton.tap()
+        
+        // Wait for preview overlay
+        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
+        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
+                     "Preview overlay should appear")
+        
+        // Continue to analysis
+        cameraScreen.doneButton.tap()
+        
+        // Wait for analysis to complete and selection view to appear
+        XCTAssertTrue(multiItemSelectionScreen.waitForAnalysisToComplete(timeout: 15),
+                     "Should navigate to multi-item selection view")
     }
 }

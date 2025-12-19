@@ -201,35 +201,6 @@ extension SnapshotTests {
         await cleanup()
     }
     
-    @Test("Add Inventory Item View Layout")
-    func addInventoryItemViewSnapshot() async throws {
-        let container = try await createTestContainer()
-        
-        let descriptor = FetchDescriptor<InventoryLocation>(
-            predicate: #Predicate<InventoryLocation> { location in
-                location.name == "Kitchen"
-            }
-        )
-        let locations = try container.mainContext.fetch(descriptor)
-        let location = locations.first
-        
-        let view = configureViewForSnapshot(
-            AddInventoryItemView(location: location)
-                .modelContainer(container)
-        )
-        
-        try await Task.sleep(for: .seconds(1))
-        
-        assertSnapshot(
-            of: view,
-            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "add_inventory_item_view\(snapshotSuffix)",
-            file: filePath
-        )
-        
-        await cleanup()
-    }
-    
     @Test("Edit Location View Layout - Edit Mode")
     func editLocationViewEditModeSnapshot() async throws {
         let container = try await createTestContainer()

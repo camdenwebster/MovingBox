@@ -94,7 +94,7 @@ import AVFoundation
     func testCaptureModeBehavior() {
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
-        
+
         #expect(singleMode.showsPhotoPickerButton == true)
         #expect(multiMode.showsPhotoPickerButton == true)
         #expect(singleMode.showsThumbnailScrollView == true)
@@ -102,18 +102,7 @@ import AVFoundation
         #expect(singleMode.allowsMultipleCaptures == true)
         #expect(multiMode.allowsMultipleCaptures == false)
     }
-    
-    @Test("CaptureMode button text")
-    func testCaptureModeButtonText() {
-        let singleMode = CaptureMode.singleItem
-        let multiMode = CaptureMode.multiItem
-        
-        #expect(singleMode.completionButtonText(photoCount: 0) == "Next")
-        #expect(singleMode.completionButtonText(photoCount: 3) == "Next")
-        #expect(multiMode.completionButtonText(photoCount: 0) == "Analyze")
-        #expect(multiMode.completionButtonText(photoCount: 1) == "Analyze")
-    }
-    
+
     // MARK: - Helper Methods
     
     private func createTestImage() -> UIImage {

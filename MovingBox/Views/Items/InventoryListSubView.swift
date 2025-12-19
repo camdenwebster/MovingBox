@@ -21,8 +21,18 @@ struct InventoryListSubView: View {
     // Use @Query for lazy loading with dynamic predicate and sort
     @Query private var items: [InventoryItem]
     
+    @State private var showItemCreationFlow = false
+    
     var body: some View {
         listContent
+            .fullScreenCover(isPresented: $showItemCreationFlow) {
+                EnhancedItemCreationFlowView(
+                    captureMode: .singleItem,
+                    location: location
+                ) {
+                    // Optional callback when item creation is complete
+                }
+            }
     }
     
     @ViewBuilder
@@ -63,10 +73,11 @@ struct InventoryListSubView: View {
             } description: {
                 Text("Start by adding items to your inventory")
             } actions: {
-                Button("Take a photo") {
-                    router.navigate(to: .addInventoryItemView(location: nil))
+                Button("Add Item") {
+                    showItemCreationFlow = true
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("inventory-list-empty-state-add-item-button")
             }
     }
     

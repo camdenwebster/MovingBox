@@ -11,6 +11,7 @@ import SwiftData
 import SwiftUI
 import TelemetryDeck
 import UIKit
+import WishKit
 
 @main
 struct MovingBoxApp: App {
@@ -48,6 +49,9 @@ struct MovingBoxApp: App {
         #if DEBUG
         Purchases.logLevel = .debug
         #endif
+        
+        // Configure WishKit
+        WishKit.configure(with: AppConfig.wishKitAPIKey)
         
         let dsn = "https://\(AppConfig.sentryDsn)"
         guard dsn != "https://missing-sentry-dsn" else {
@@ -146,8 +150,6 @@ struct MovingBoxApp: App {
                     EditLabelView(label: label, isEditing: isEditing)
                 case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
                     InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
-                case .addInventoryItemView(let location):
-                    AddInventoryItemView(location: location)
                 case .locationsSettingsView:
                     LocationSettingsView()
                 case .subscriptionSettingsView:
@@ -160,6 +162,10 @@ struct MovingBoxApp: App {
                     ExportDataView()
                 case .deleteDataView:
                     DataDeletionView()
+                case .aboutView:
+                    AboutView()
+                case .featureRequestView:
+                    FeatureRequestView()
                 }
             }
         )

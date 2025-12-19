@@ -245,16 +245,7 @@ import AVFoundation
         #expect(CaptureMode.multiItem.showsThumbnailScrollView == false)
         #expect(CaptureMode.multiItem.allowsMultipleCaptures == false)
     }
-    
-    @Test("Camera mode provides correct completion button text")
-    func testCaptureModeCompletionButton() {
-        let singleModeButton = CaptureMode.singleItem.completionButtonText(photoCount: 3)
-        #expect(singleModeButton == "Next")
-        
-        let multiModeButton = CaptureMode.multiItem.completionButtonText(photoCount: 1)
-        #expect(multiModeButton == "Analyze")
-    }
-    
+
     // MARK: - Helper Methods
     
     private func createTestImage() -> UIImage {

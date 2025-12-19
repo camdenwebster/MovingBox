@@ -4,43 +4,60 @@ class CameraScreen {
     let app: XCUIApplication
     let testCase: XCTestCase
     
-    // Camera controls
-    let captureButton: XCUIElement
-    let takePhotoButton: XCUIElement
-    let switchCameraButton: XCUIElement
-    let dismissButton: XCUIElement
-    let doneButton: XCUIElement
-    let flashButton: XCUIElement
-    let photoPickerButton: XCUIElement
-    let photoCountLabel: XCUIElement
+    // Camera controls (based on MultiPhotoCameraViewComponents identifiers)
+    let captureButton: XCUIElement        // Shutter button (cameraShutterButton)
+    let dismissButton: XCUIElement        // Close button (cameraCloseButton)
+    let doneButton: XCUIElement          // Chevron/Continue button
+    let retakeButton: XCUIElement        // Retake button in multi-item mode
+    let photoCountLabel: XCUIElement     // Photo counter (cameraPhotoCount)
+    let modePicker: XCUIElement          // Segmented control for Single/Multi mode
+    
+    // Multi-item preview overlay
+    let previewOverlay: XCUIElement
+    let previewRetakeButton: XCUIElement
+    
+    // Camera control buttons (no explicit identifiers, use accessibility labels)
+    var flashButton: XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS 'Flash'")).firstMatch
+    }
+    
+    var switchCameraButton: XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS 'Flip camera'")).firstMatch
+    }
+    
+    var photoPickerButton: XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS 'Choose from library'")).firstMatch
+    }
 
-    // Zoom controls
+    // Zoom controls (use accessibility labels)
     var zoomButtons: [XCUIElement] {
-        app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] 'x'")).allElementsBoundByIndex.filter { button in
-            let label = button.label
-            return label.contains("x") && (label.contains("0.5") || label.contains("1") || label.contains("2") || label.contains("5"))
-        }
+        app.buttons.matching(NSPredicate(format: "label CONTAINS 'zoom'")).allElementsBoundByIndex
     }
     
     init(app: XCUIApplication, testCase: XCTestCase) {
         self.app = app
         self.testCase = testCase
         
-        // Initialize camera controls based on MultiPhotoCameraView structure
+        // Initialize camera controls based on actual accessibility identifiers
         self.captureButton = app.buttons["cameraShutterButton"]
-        self.takePhotoButton = app.buttons["takePhotoButton"].firstMatch
-        self.switchCameraButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'arrow.triangle.2.circlepath.camera'")).element
         self.dismissButton = app.buttons["cameraCloseButton"]
-        self.doneButton = app.buttons["cameraDoneButton"]
-        self.flashButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'bolt'")).element
-        self.photoPickerButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'photo.on.rectangle'")).element
+        self.retakeButton = app.buttons["cameraRetakeButton"]
         self.photoCountLabel = app.staticTexts["cameraPhotoCount"]
+        self.modePicker = app.otherElements["cameraModePicker"]
+        
+        // Done button - uses accessibility label, not identifier
+        self.doneButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Continue to analysis'")).firstMatch
+        
+        // Multi-item preview overlay
+        self.previewOverlay = app.otherElements["multiItemPreviewOverlay"]
+        self.previewRetakeButton = app.buttons["multiItemRetakeButton"]
         
         // Set up interruption monitor for camera permissions
         addCameraPermissionsHandler()
     }
     
-    // Camera permissions handler
+    // MARK: - Camera Permissions
+    
     private func addCameraPermissionsHandler() {
         testCase.addUIInterruptionMonitor(withDescription: "Camera Authorization Alert") { alert in
             print("📱 Camera permission alert appeared")
@@ -55,25 +72,31 @@ class CameraScreen {
         }
     }
     
+    // MARK: - Wait Methods
+    
     func waitForCamera(timeout: TimeInterval = 5) -> Bool {
         app.tap()
-        // In UI testing mode, we should see the mock tablet image
         
         let startTime = Date()
         let checkInterval: TimeInterval = 1.0
         
         while Date().timeIntervalSince(startTime) < timeout {
-            // Check all elements without waiting
-            if doneButton.exists || captureButton.exists || takePhotoButton.exists {
+            // Check for any camera UI element to verify camera is ready
+            if captureButton.exists || dismissButton.exists || modePicker.exists {
                 return true
             }
             
-            // Wait for the check interval before trying again
             Thread.sleep(forTimeInterval: checkInterval)
         }
         
         return false
     }
+    
+    func waitForPreviewOverlay(timeout: TimeInterval = 5) -> Bool {
+        return previewOverlay.waitForExistence(timeout: timeout)
+    }
+    
+    // MARK: - Photo Capture Methods
     
     func takePhoto(timeout: TimeInterval = 5) {
         guard waitForCamera(timeout: timeout) else {
@@ -84,34 +107,80 @@ class CameraScreen {
         
         if captureButton.waitForExistence(timeout: 2) {
             captureButton.tap()
-            doneButton.tap()
-        } else {
-            takePhotoButton.tap()
         }
     }
     
-    func switchCamera(timeout: TimeInterval = 5) {
-        guard waitForCamera(timeout: timeout) else {
-            XCTFail("❌ Camera not ready")
-            return
-        }
-        print("🔄 Switching camera")
-        if switchCameraButton.waitForExistence(timeout: 2) {
-            switchCameraButton.tap()
+    func finishCapture() {
+        if doneButton.waitForExistence(timeout: 2) {
+            print("✅ Tapping done/continue button")
+            doneButton.tap()
         }
     }
+    
+    func retake() {
+        if retakeButton.waitForExistence(timeout: 2) {
+            print("🔄 Tapping retake button")
+            retakeButton.tap()
+        }
+    }
+    
+    // MARK: - Mode Switching
+    
+    func switchToMode(_ mode: String) {
+        guard modePicker.waitForExistence(timeout: 3) else {
+            XCTFail("❌ Mode picker not found")
+            return
+        }
+        
+        let segmentedControl = app.segmentedControls.firstMatch
+        if segmentedControl.waitForExistence(timeout: 2) {
+            let modeButton = segmentedControl.buttons[mode]
+            if modeButton.exists {
+                print("🔄 Switching to \(mode) mode")
+                modeButton.tap()
+            }
+        }
+    }
+    
+    func switchToSingleMode() {
+        switchToMode("Single")
+    }
+    
+    func switchToMultiMode() {
+        switchToMode("Multi")
+    }
+    
+    // MARK: - Camera Controls
     
     func toggleFlash() {
         if flashButton.waitForExistence(timeout: 2) {
+            print("⚡ Toggling flash")
             flashButton.tap()
+        }
+    }
+    
+    func switchCamera() {
+        if switchCameraButton.waitForExistence(timeout: 2) {
+            print("🔄 Switching camera")
+            switchCameraButton.tap()
         }
     }
     
     func openPhotoLibrary() {
         if photoPickerButton.waitForExistence(timeout: 2) {
+            print("📷 Opening photo library")
             photoPickerButton.tap()
         }
     }
+    
+    func dismiss() {
+        if dismissButton.waitForExistence(timeout: 2) {
+            print("❌ Dismissing camera")
+            dismissButton.tap()
+        }
+    }
+    
+    // MARK: - Photo Counter
     
     func getPhotoCount() -> String? {
         if photoCountLabel.waitForExistence(timeout: 2) {
@@ -120,18 +189,8 @@ class CameraScreen {
         return nil
     }
     
-    func finishCapture() {
-        if doneButton.waitForExistence(timeout: 2) {
-            doneButton.tap()
-        }
-    }
+    // MARK: - Zoom Controls
     
-    func dismiss() {
-        if dismissButton.waitForExistence(timeout: 2) {
-            dismissButton.tap()
-        }
-    }
-
     func tapZoomButton(at index: Int) -> Bool {
         let buttons = zoomButtons
         guard index >= 0 && index < buttons.count else {
@@ -151,7 +210,7 @@ class CameraScreen {
 
     func tapZoomByFactor(_ factor: String) -> Bool {
         let zoomButtonsArray = zoomButtons
-        for (index, button) in zoomButtonsArray.enumerated() {
+        for button in zoomButtonsArray {
             if button.label.contains(factor) {
                 print("🔍 Tapping \(factor) zoom button")
                 button.tap()
@@ -163,19 +222,44 @@ class CameraScreen {
         return false
     }
 
-    func getCurrentZoomFactor() -> String? {
-        let zoomButtonsArray = zoomButtons
-        for button in zoomButtonsArray {
-            // Check if button is highlighted (selected state)
-            if button.label.contains("x") {
-                // Could check if it has yellow color or selected state
-                return button.label
-            }
-        }
-        return nil
-    }
-
     func getAvailableZoomFactors() -> [String] {
         return zoomButtons.map { $0.label }
+    }
+    
+    // MARK: - Multi-Item Preview
+    
+    func isPreviewOverlayVisible() -> Bool {
+        return previewOverlay.exists
+    }
+    
+    func tapPreviewRetake() {
+        if previewRetakeButton.waitForExistence(timeout: 2) {
+            print("🔄 Tapping preview retake button")
+            previewRetakeButton.tap()
+        }
+    }
+    
+    // MARK: - Validation Helpers
+    
+    func isCameraReady() -> Bool {
+        return captureButton.exists || modePicker.exists
+    }
+    
+    func isMultiModeSelected() -> Bool {
+        let segmentedControl = app.segmentedControls.firstMatch
+        if segmentedControl.waitForExistence(timeout: 2) {
+            let multiButton = segmentedControl.buttons["Multi"]
+            return multiButton.exists && multiButton.isSelected
+        }
+        return false
+    }
+    
+    func isSingleModeSelected() -> Bool {
+        let segmentedControl = app.segmentedControls.firstMatch
+        if segmentedControl.waitForExistence(timeout: 2) {
+            let singleButton = segmentedControl.buttons["Single"]
+            return singleButton.exists && singleButton.isSelected
+        }
+        return false
     }
 }
