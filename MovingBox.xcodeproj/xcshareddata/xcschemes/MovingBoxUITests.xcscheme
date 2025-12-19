@@ -17,6 +17,9 @@
             reference = "container:Test Plans/MovingBoxUITests.xctestplan"
             default = "YES">
          </TestPlanReference>
+         <TestPlanReference
+            reference = "container:Test Plans/SmokeTests.xctestplan">
+         </TestPlanReference>
       </TestPlans>
       <Testables>
          <TestableReference
@@ -69,15 +72,6 @@
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES">
-      <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "1942DC792BF391CB00734AF4"
-            BuildableName = "MovingBox.app"
-            BlueprintName = "MovingBox"
-            ReferencedContainer = "container:MovingBox.xcodeproj">
-         </BuildableReference>
-      </MacroExpansion>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

@@ -1,11 +1,10 @@
+import SwiftUIBackports
 import SwiftUI
 import SwiftData
 
 struct ExportDataView: View {
-    @Environment(\.modelContext) private var modelContext
-    @State private var isProcessingExport = false
-    @State private var archiveURL: URL?
-    @State private var showShareSheet = false
+    @EnvironmentObject private var containerManager: ModelContainerManager
+    @State private var exportCoordinator = ExportCoordinator()
     @State private var exportItems = true
     @State private var exportLocations = true
     @State private var exportLabels = true
@@ -31,6 +30,7 @@ struct ExportDataView: View {
                         Text("Export Items")
                     }
                 }
+                .accessibilityIdentifier("export-items-toggle")
                 
                 Toggle(isOn: $exportLocations) {
                     HStack {
@@ -39,6 +39,7 @@ struct ExportDataView: View {
                         Text("Export Locations")
                     }
                 }
+                .accessibilityIdentifier("export-locations-toggle")
                 
                 Toggle(isOn: $exportLabels) {
                     HStack {
@@ -47,6 +48,7 @@ struct ExportDataView: View {
                         Text("Export Labels")
                     }
                 }
+                .accessibilityIdentifier("export-labels-toggle")
             }
             
             Section {
@@ -60,7 +62,7 @@ struct ExportDataView: View {
                     }
                 } label: {
                     HStack {
-                        if isProcessingExport {
+                        if exportCoordinator.isExporting {
                             ProgressView()
                                 .scaleEffect(0.8)
                             Text("Exporting…")
@@ -68,16 +70,15 @@ struct ExportDataView: View {
                             Text("Export Data")
                         }
                     }
-
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
                 }
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(.green)
-                .cornerRadius(10)
-                .disabled(isProcessingExport || !hasExportOptionsSelected)
+                .tint(.green)
+                .disabled(exportCoordinator.isExporting || !hasExportOptionsSelected)
                 .listRowInsets(EdgeInsets())
+                .backport.glassProminentButtonStyle()
+                .accessibilityIdentifier("export-data-button")
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Export a ZIP file containing the selected items and photos.")
@@ -92,40 +93,47 @@ struct ExportDataView: View {
         } message: {
             Text("Please select at least one option to export.")
         }
-        .sheet(isPresented: $showShareSheet) {
-            if let archiveURL {
-                ShareSheet(activityItems: [archiveURL])
-                    .onDisappear {
-                        try? FileManager.default.removeItem(at: archiveURL)
-                        self.archiveURL = nil
-                    }
+        .sheet(isPresented: $exportCoordinator.showShareSheet, onDismiss: {
+            exportCoordinator.showExportProgress = false
+            exportCoordinator.archiveURL = nil
+        }) {
+            if let url = exportCoordinator.archiveURL {
+                ShareSheet(activityItems: [url])
             }
+        }
+        .sheet(isPresented: $exportCoordinator.showExportProgress) {
+            ExportProgressView(
+                phase: exportCoordinator.exportPhase,
+                progress: exportCoordinator.exportProgress,
+                onCancel: { exportCoordinator.cancelExport() }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("Export Error", isPresented: $exportCoordinator.showExportError) {
+            Button("OK") {
+                exportCoordinator.exportError = nil
+            }
+        } message: {
+            Text(exportCoordinator.exportError?.localizedDescription ?? "An error occurred while exporting data.")
         }
     }
     
     @MainActor
     private func startExport() async {
-        isProcessingExport = true
-        defer { isProcessingExport = false }
-        
-        do {
-            let timestamp = dateFormatter.string(from: Date())
-            let fileName = "MovingBox-export-\(timestamp).zip"
-            let config = DataManager.ExportConfig(
-                includeItems: exportItems,
-                includeLocations: exportLocations,
-                includeLabels: exportLabels
-            )
-            let url = try await DataManager.shared.exportInventory(
-                modelContext: modelContext,
-                fileName: fileName,
-                config: config
-            )
-            archiveURL = url
-            showShareSheet = true
-        } catch {
-            print("❌ Export error: \(error.localizedDescription)")
-        }
+        let timestamp = dateFormatter.string(from: Date())
+        let fileName = "MovingBox-export-\(timestamp).zip"
+        let config = DataManager.ExportConfig(
+            includeItems: exportItems,
+            includeLocations: exportLocations,
+            includeLabels: exportLabels
+        )
+
+        await exportCoordinator.exportWithProgress(
+            modelContainer: containerManager.container,
+            fileName: fileName,
+            config: config
+        )
     }
 }
 

@@ -307,9 +307,14 @@ struct DashboardView: View {
     }
     
     private func createFromPhoto() {
-        if settings.shouldShowPaywallForAiScan(currentCount: items.filter({ $0.hasUsedAI}).count) {
+        let aiItemsCount = items.filter({ $0.hasUsedAI }).count
+        print("📱 DashboardView.createFromPhoto - Total items: \(items.count), AI items: \(aiItemsCount), isPro: \(settings.isPro)")
+        
+        if settings.shouldShowPaywallForAiScan(currentCount: aiItemsCount) {
+            print("📱 DashboardView.createFromPhoto - Should show paywall, setting showingPaywall = true")
             showingPaywall = true
         } else {
+            print("📱 DashboardView.createFromPhoto - Should show creation flow, setting showItemCreationFlow = true")
             showItemCreationFlow = true
         }
     }

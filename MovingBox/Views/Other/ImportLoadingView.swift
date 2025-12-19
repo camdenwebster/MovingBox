@@ -1,3 +1,4 @@
+import SwiftUIBackports
 import SwiftUI
 
 struct ImportLoadingView: View {
@@ -51,18 +52,26 @@ struct ImportLoadingView: View {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 60))
                                     .foregroundColor(.red)
-                                
+
                                 Text("Import Failed")
                                     .font(.title2.bold())
-                                
+
                                 Text(error.localizedDescription)
                                     .font(.body)
                                     .multilineTextAlignment(.center)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.primary)
                                     .padding(.horizontal)
-                                
+
+                                if let recoverySuggestion = (error as? LocalizedError)?.recoverySuggestion {
+                                    Text(recoverySuggestion)
+                                        .font(.callout)
+                                        .multilineTextAlignment(.center)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal)
+                                }
+
                                 Spacer()
-                                
+
                                 Button("Close") {
                                     print(" Error view close button tapped")
                                     isComplete = false
@@ -72,7 +81,8 @@ struct ImportLoadingView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.red)
-                                .cornerRadius(10)
+                                .backport.glassProminentButtonStyle()
+
                             }
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
@@ -128,16 +138,19 @@ struct ImportLoadingView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Button("Done") {
-                                    print(" Success view done button tapped")
+                                Button {
+                                    print("Success view done button tapped")
                                     isComplete = false
+                                } label: {
+                                    Text("Done")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
                                 }
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(.green)
-                                .cornerRadius(10)
+                                .tint(.green)
+                                .backport.glassProminentButtonStyle()
+
                             }
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))

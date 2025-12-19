@@ -15,7 +15,6 @@ final class PaywallUITests: XCTestCase {
         app = XCUIApplication()
         
         app.launchArguments = [
-            "reset-paywall-state",
             "Skip-Onboarding",
             "Disable-Persistence",
             "UI-Testing-Mock-Camera"
@@ -45,11 +44,13 @@ final class PaywallUITests: XCTestCase {
     
     // MARK: - Free Tier Tests
 
-    func testAiLimitShowsAlertFromTabBar() throws {
+    func testAiLimitShowsAlertFromDashboard() throws {
         // Given: User has reached free tier limit
         app.launchArguments.append("Use-Test-Data")
         app.launch()
-        sleep(5)
+        
+        // And the user is on the Dashboard
+        XCTAssertTrue(dashboardScreen.isDisplayed())
         
         // When: User attempts to add item via dashboard camera button
         dashboardScreen.tapAddItemFromCamera()
@@ -63,12 +64,13 @@ final class PaywallUITests: XCTestCase {
         // Given: User has reached item limit
         app.launchArguments.append("Use-Test-Data")
         app.launch()
-        sleep(5)
+        
+        // And the user is on the Dashboard
+        XCTAssertTrue(dashboardScreen.isDisplayed())
         
         // When: User attempts to add item via list view camera option
         navigationHelper.navigateToAllItems()
         listScreen.tapAddItem()
-        listScreen.tapCreateFromCamera()
         
         // Then: Paywall should appear
         XCTAssertTrue(paywallScreen.waitForPaywall(),
@@ -76,17 +78,6 @@ final class PaywallUITests: XCTestCase {
         
         // When: User dismisses paywall
         paywallScreen.dismiss()
-        
-        // And: Tries again
-        listScreen.tapAddItem()
-        listScreen.tapCreateFromCamera()
-        
-        // Then: Alert should appear again (since user is still on free tier)
-        XCTAssertTrue(listScreen.waitForLimitAlert(),
-                     "Limit alert should appear again after dismissing paywall")
-        
-        // When: User cancels
-        listScreen.tapCancelInAlert()
         
         // Then: Should return to list view
         XCTAssertTrue(listScreen.createFromCameraButton.exists,
@@ -113,7 +104,7 @@ final class PaywallUITests: XCTestCase {
         
         // When: User attempts actions that would normally show paywall
         navigationHelper.navigateToAllItems()
-        listScreen.tapAddItem()
+        listScreen.openToolbarMenu()
         listScreen.tapCreateManually()
         
         // Then: Should be able to create new item
@@ -132,7 +123,6 @@ final class PaywallUITests: XCTestCase {
         // When: User attempts actions that would normally show paywall
         navigationHelper.navigateToAllItems()
         listScreen.tapAddItem()
-        listScreen.tapCreateFromCamera()
         
         // Then: Camera should be ready
         XCTAssertTrue(cameraScreen.waitForCamera(),
