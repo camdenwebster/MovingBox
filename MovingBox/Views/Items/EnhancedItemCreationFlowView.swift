@@ -61,13 +61,6 @@ struct EnhancedItemCreationFlowView: View {
             .navigationTitle(viewModel.currentStepTitle)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(viewModel.currentStep == .camera)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if viewModel.allowsBackNavigation {
-                        backButton
-                    }
-                }
-            }
             .interactiveDismissDisabled(viewModel.processingImage)
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)
@@ -197,6 +190,11 @@ struct EnhancedItemCreationFlowView: View {
                 },
                 onCancel: {
                     dismiss()
+                },
+                onReanalyze: {
+                    // Go back to analyzing step to re-analyze the images
+                    viewModel.resetAnalysisState()
+                    viewModel.goToStep(.analyzing)
                 }
             )
             .transition(.asymmetric(
@@ -276,17 +274,6 @@ struct EnhancedItemCreationFlowView: View {
                     }
                 }
         }
-    }
-    
-    private var backButton: some View {
-        Button("Back") {
-            if viewModel.canGoToPreviousStep {
-                viewModel.goToPreviousStep()
-            } else {
-                dismiss()
-            }
-        }
-        .disabled(viewModel.processingImage)
     }
     
     private var progressIndicator: some View {

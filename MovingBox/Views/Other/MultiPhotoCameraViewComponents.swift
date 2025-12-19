@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import SwiftUIBackports
 
 // MARK: - Photo Thumbnail Scroll View
 
@@ -136,8 +137,9 @@ struct ZoomControlView: View {
     let currentZoomIndex: Int
     let onZoomTap: (Int) -> Void
 
+
     var body: some View {
-        HStack(spacing: 12) {
+        let zoomButtons = HStack(spacing: 12) {
             ForEach(Array(zoomFactors.enumerated()), id: \.offset) { index, factor in
                 ZoomButtonView(
                     zoomFactor: factor,
@@ -148,7 +150,16 @@ struct ZoomControlView: View {
                 )
             }
         }
-        .frame(maxWidth: .infinity)
+
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 12) {
+                zoomButtons
+            }
+            .frame(maxWidth: .infinity)
+        } else {
+            zoomButtons
+                .frame(maxWidth: .infinity)
+        }
     }
 }
 
@@ -156,23 +167,31 @@ struct ZoomButtonView: View {
     let zoomFactor: CGFloat
     let isSelected: Bool
     let onTap: () -> Void
+    
+    @Namespace private var glassEffectNamespace
 
     var body: some View {
         Button(action: onTap) {
             ZStack {
                 // Circular background for selected state (iOS native style)
                 if isSelected {
-                    Circle()
-                        .fill(.white.opacity(0.3))
-                        .frame(width: 50, height: 50)
-                }
+                    zoomText
+                        .backport.glassEffect(in: Circle())
+                        .backport.glassEffectID("\(formatZoomText(zoomFactor)) zoom", in: glassEffectNamespace)
 
-                Text(formatZoomText(zoomFactor))
-                    .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
-                    .foregroundColor(.white)
+                } else {
+                    zoomText
+                }
             }
         }
         .accessibilityLabel("\(formatZoomText(zoomFactor)) zoom")
+    }
+
+    var zoomText: some View {
+        Text(formatZoomText(zoomFactor))
+            .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
+            .foregroundColor(.white)
+            .frame(width: 50, height: 50)
     }
 
     private func formatZoomText(_ factor: CGFloat) -> String {
@@ -195,33 +214,39 @@ struct CameraControlButton: View {
     let action: () -> Void
     var accessibilityLabel: String?
     var accessibilityIdentifier: String?
-    
+    var isInteractive: Bool
+
+    @Namespace private var glassEffectNamespace
+
     init(
         icon: String,
         size: CGFloat = 40,
         action: @escaping () -> Void,
         accessibilityLabel: String? = nil,
-        accessibilityIdentifier: String? = nil
+        accessibilityIdentifier: String? = nil,
+        isInteractive: Bool = true
     ) {
         self.icon = icon
         self.size = size
         self.action = action
         self.accessibilityLabel = accessibilityLabel
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.isInteractive = isInteractive
     }
-    
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: iconSize, weight: .medium))
                 .foregroundColor(.white)
                 .frame(width: size, height: size)
-                .background(Circle().fill(.white.opacity(0.3)))
         }
+        .backport.glassEffect(in: Circle())
+        .backport.glassEffectID(icon, in: glassEffectNamespace)
         .accessibilityLabel(accessibilityLabel ?? "")
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
-    
+
     private var iconSize: CGFloat {
         size * 0.5
     }
@@ -495,6 +520,8 @@ struct MultiItemPreviewOverlay: View {
     let onRetake: () -> Void
     let onAnalyze: () -> Void
 
+    @Namespace private var glassEffectNamespace
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
@@ -507,34 +534,19 @@ struct MultiItemPreviewOverlay: View {
             }
             .frame(maxHeight: .infinity)
 
-            HStack(spacing: 20) {
-                Button {
-                    onRetake()
-                } label: {
-                    Text("Retake")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(.red.opacity(0.8))
-                        .cornerRadius(25)
-                }
+            Spacer()
 
-                Button {
-                    onAnalyze()
-                } label: {
-                    Text("Analyze")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(.green)
-                        .cornerRadius(25)
-                }
+            Button {
+                onRetake()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.title)
+                    .foregroundColor(.red)
+                    .padding()
             }
-            .padding(.horizontal, 40)
-            .padding(.top, 20)
-            .padding(.bottom, 100)
+            .backport.glassEffect(in: Circle())
+            .backport.glassEffectID("retake", in: glassEffectNamespace)
+            .tint(.red)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.7))
@@ -548,8 +560,29 @@ struct CameraTopControls: View {
     let onClose: () -> Void
     let onDone: () -> Void
     let isMultiItemPreviewShowing: Bool
+    let hasPhotoCaptured: Bool
+
+    @Namespace private var glassEffectNamespace
 
     var body: some View {
+        let cameraControlButtons = HStack(spacing: 16) {
+            CameraControlButton(
+                icon: model.flashIcon,
+                action: { model.cycleFlash() },
+                accessibilityLabel: "Flash \(model.flashModeText)"
+            )
+
+            CameraControlButton(
+                icon: "camera.rotate",
+                action: {
+                    Task {
+                        await model.switchCamera()
+                    }
+                },
+                accessibilityLabel: "Flip camera"
+            )
+        }
+        
         HStack(spacing: 16) {
             CameraControlButton(
                 icon: "xmark",
@@ -560,24 +593,27 @@ struct CameraTopControls: View {
             Spacer()
 
             if !isMultiItemPreviewShowing {
-                HStack(spacing: 16) {
-                    CameraControlButton(
-                        icon: model.flashIcon,
-                        action: { model.cycleFlash() },
-                        accessibilityLabel: "Flash \(model.flashModeText)"
-                    )
-
-                    CameraControlButton(
-                        icon: "camera.rotate",
-                        action: {
-                            Task {
-                                await model.switchCamera()
-                            }
-                        },
-                        accessibilityLabel: "Flip camera"
-                    )
+                if #available(iOS 26.0, *) {
+                    GlassEffectContainer(spacing: 16) {
+                        cameraControlButtons
+                    }
+                } else {
+                    cameraControlButtons
                 }
             }
+
+            Spacer()
+
+            Button(action: onDone) {
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.white)
+                    .font(.title)
+                    .frame(width: 30, height: 40)
+            }
+            .disabled(!hasPhotoCaptured)
+            .backport.glassProminentButtonStyle()
+            .accessibilityLabel("Continue to analysis")
+
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
@@ -598,6 +634,8 @@ struct CameraBottomControls: View {
     @Binding var selectedCaptureMode: CaptureMode
     @EnvironmentObject var settings: SettingsManager
 
+    @Namespace private var glassEffectNamespace
+
     var body: some View {
         VStack(spacing: 16) {
             if captureMode == .multiItem && hasPhotoCaptured {
@@ -608,9 +646,10 @@ struct CameraBottomControls: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(width: 100, height: 50)
-                        .background(.red.opacity(0.8))
-                        .cornerRadius(25)
                 }
+                .backport.glassEffect(in: Capsule())
+                .backport.glassEffectID("retake-button", in: glassEffectNamespace)
+                .tint(.red)
                 .accessibilityIdentifier("cameraRetakeButton")
             } else {
                 Button {
@@ -645,12 +684,13 @@ struct CameraBottomControls: View {
                 if captureMode.showsPhotoPickerButton {
                     CameraControlButton(
                         icon: "photo.on.rectangle",
+                        size: 50,
                         action: onPhotoPickerTap,
                         accessibilityLabel: "Choose from library"
                     )
                 } else {
                     Color.clear
-                        .frame(width: 40, height: 40)
+                        .frame(width: 50, height: 50)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -780,7 +820,7 @@ struct CameraPreviewContainer: View {
 #Preview("Camera Control Buttons") {
     ZStack {
         Color.black.ignoresSafeArea()
-        
+
         VStack(spacing: 20) {
             HStack(spacing: 16) {
                 CameraControlButton(
@@ -788,30 +828,30 @@ struct CameraPreviewContainer: View {
                     action: {},
                     accessibilityLabel: "Close"
                 )
-                
+
                 CameraControlButton(
                     icon: "bolt.fill",
                     action: {},
                     accessibilityLabel: "Flash"
                 )
-                
+
                 CameraControlButton(
                     icon: "camera.rotate",
                     action: {},
                     accessibilityLabel: "Flip camera"
                 )
-                
+
                 CameraControlButton(
                     icon: "photo.on.rectangle",
                     action: {},
                     accessibilityLabel: "Photo library"
                 )
             }
-            
+
             Text("Standard Size (40pt)")
                 .foregroundColor(.white)
                 .font(.caption)
-            
+
             HStack(spacing: 16) {
                 CameraControlButton(
                     icon: "xmark",
@@ -819,7 +859,7 @@ struct CameraPreviewContainer: View {
                     action: {},
                     accessibilityLabel: "Close"
                 )
-                
+
                 CameraControlButton(
                     icon: "bolt.fill",
                     size: 50,
@@ -827,11 +867,56 @@ struct CameraPreviewContainer: View {
                     accessibilityLabel: "Flash"
                 )
             }
-            
+
             Text("Large Size (50pt)")
                 .foregroundColor(.white)
                 .font(.caption)
         }
         .padding()
+    }
+}
+
+#Preview("Multi-Item Preview Overlay") {
+    GeometryReader { geometry in
+        let squareSize = min(geometry.size.width - 40, geometry.size.height - 280)
+
+        MultiItemPreviewOverlay(
+            capturedImage: createPreviewOverlayImage(),
+            squareSize: squareSize,
+            onRetake: { print("Retake tapped") },
+            onAnalyze: { print("Analyze tapped") }
+        )
+    }
+    .ignoresSafeArea()
+}
+
+private func createPreviewOverlayImage() -> UIImage {
+    let size = CGSize(width: 800, height: 800)
+    let renderer = UIGraphicsImageRenderer(size: size)
+    return renderer.image { context in
+        // Create gradient background
+        let colors = [UIColor.systemBlue.cgColor, UIColor.systemPurple.cgColor]
+        let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 1])!
+        context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
+
+        // Add text
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 60, weight: .bold),
+            .foregroundColor: UIColor.white,
+            .paragraphStyle: paragraphStyle
+        ]
+
+        let text = "Preview" as NSString
+        let textSize = text.size(withAttributes: attributes)
+        let textRect = CGRect(
+            x: (size.width - textSize.width) / 2,
+            y: (size.height - textSize.height) / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+        text.draw(in: textRect, withAttributes: attributes)
     }
 }

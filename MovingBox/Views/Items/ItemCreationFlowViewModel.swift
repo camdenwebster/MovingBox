@@ -502,7 +502,7 @@ class ItemCreationFlowViewModel: ObservableObject {
     }
     
     // MARK: - State Management
-    
+
     /// Reset the view model state
     func resetState() {
         currentStep = .camera
@@ -513,6 +513,15 @@ class ItemCreationFlowViewModel: ObservableObject {
         multiItemAnalysisResponse = nil
         selectedMultiItems = []
         createdItems = []
+        transitionId = UUID()
+    }
+
+    /// Reset only the analysis state (for re-analyzing)
+    func resetAnalysisState() {
+        analysisComplete = false
+        errorMessage = nil
+        multiItemAnalysisResponse = nil
+        processingImage = false
         transitionId = UUID()
     }
     

@@ -113,15 +113,6 @@ enum CaptureMode: CaseIterable {
         }
     }
     
-    func completionButtonText(photoCount: Int) -> String {
-        switch self {
-        case .singleItem:
-            return "Next"
-        case .multiItem:
-            return "Analyze"
-        }
-    }
-    
     // MARK: - Navigation
     
     func postCaptureDestination(images: [UIImage], location: InventoryLocation?) -> PostCaptureDestination {
@@ -170,6 +161,7 @@ struct MultiPhotoCameraView: View {
     @State private var showingFocusIndicator = false
     @State private var orientation = UIDeviceOrientation.portrait
     @State private var localZoomIndex: Int = 0
+    @State private var showMultiItemPreview = false
 
     init(
         capturedImages: Binding<[UIImage]>,
@@ -208,14 +200,20 @@ struct MultiPhotoCameraView: View {
 
                 cameraPreview(geometry: geometry)
 
-                if model.shouldShowMultiItemPreview(captureMode: model.selectedCaptureMode),
+                if showMultiItemPreview,
                    let capturedImage = model.capturedImages.first {
                     MultiItemPreviewOverlay(
                         capturedImage: capturedImage,
                         squareSize: squareSize,
-                        onRetake: { model.capturedImages.removeAll() },
+                        onRetake: {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                showMultiItemPreview = false
+                            }
+                            model.capturedImages.removeAll()
+                        },
                         onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) }
                     )
+                    .transition(.scale.combined(with: .opacity))
                 }
 
                 cameraControls(geometry: geometry, cameraRect: cameraRect)
@@ -262,9 +260,26 @@ struct MultiPhotoCameraView: View {
         }
         .onChange(of: model.capturedImages) { oldImages, newImages in
             capturedImages = newImages
-            if model.selectedCaptureMode == .singleItem {
-                if newImages.count > oldImages.count, let newImage = newImages.last {
-                    triggerCaptureAnimation(with: newImage)
+
+            if model.selectedCaptureMode == .multiItem {
+                if !newImages.isEmpty && oldImages.isEmpty {
+                    // Animate in when first image is captured
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        showMultiItemPreview = true
+                    }
+                } else if newImages.isEmpty && !oldImages.isEmpty {
+                    // Animate out when images are cleared (if not already animated by onRetake)
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        showMultiItemPreview = false
+                    }
+                }
+            } else {
+                // Ensure preview is hidden in single item mode
+                showMultiItemPreview = false
+                if model.selectedCaptureMode == .singleItem {
+                    if newImages.count > oldImages.count, let newImage = newImages.last {
+                        triggerCaptureAnimation(with: newImage)
+                    }
                 }
             }
         }
@@ -345,7 +360,8 @@ struct MultiPhotoCameraView: View {
                 onDone: {
                     onComplete(model.capturedImages, model.selectedCaptureMode)
                 },
-                isMultiItemPreviewShowing: isMultiItemPreview
+                isMultiItemPreviewShowing: isMultiItemPreview,
+                hasPhotoCaptured: !model.capturedImages.isEmpty
             )
 
             if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {

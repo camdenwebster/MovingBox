@@ -17,6 +17,7 @@ struct MultiItemSelectionView: View {
 
     let onItemsSelected: ([InventoryItem]) -> Void
     let onCancel: () -> Void
+    let onReanalyze: (() -> Void)?
 
     // MARK: - State Properties
 
@@ -36,7 +37,8 @@ struct MultiItemSelectionView: View {
         location: InventoryLocation?,
         modelContext: ModelContext,
         onItemsSelected: @escaping ([InventoryItem]) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        onReanalyze: (() -> Void)? = nil
     ) {
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
@@ -47,6 +49,7 @@ struct MultiItemSelectionView: View {
         self._viewModel = State(initialValue: viewModel)
         self.onItemsSelected = onItemsSelected
         self.onCancel = onCancel
+        self.onReanalyze = onReanalyze
         // Use passed location as default
         self._selectedLocation = State(initialValue: location)
     }
@@ -69,6 +72,22 @@ struct MultiItemSelectionView: View {
             }
             .navigationTitle("We found \(viewModel.detectedItems.count) item\(viewModel.detectedItems.count == 1 ? "" : "s")")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if let onReanalyze = onReanalyze {
+                        Button(action: onReanalyze) {
+                            Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+                        }
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel", systemImage: "xmark") {
+                        onCancel()
+                    }
+                }
+            }
             .alert("Error Creating Items", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
                     viewModel.errorMessage = nil
@@ -103,8 +122,9 @@ struct MultiItemSelectionView: View {
                         selectionSummaryView
                             .padding(.horizontal, 16)
                         continueButton
-                            .buttonStyle(.borderedProminent)
+                            .backport.glassProminentButtonStyle()
                             .disabled(viewModel.selectedItemsCount == 0)
+                            .padding(.horizontal)
                     }
                 }
             }
@@ -272,7 +292,7 @@ struct MultiItemSelectionView: View {
                             viewModel.selectAllItems()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .backport.glassProminentButtonStyle()
                 }
             }
 
@@ -538,6 +558,9 @@ struct DetectedItemCard: View {
         },
         onCancel: {
             print("Cancelled")
+        },
+        onReanalyze: {
+            print("Re-analyze requested")
         }
     )
     .modelContainer(container)

@@ -5,41 +5,59 @@ struct ImageAnalysisView: View {
     let image: UIImage?
     let images: [UIImage]
     let onComplete: () -> Void
-    
-    @State private var scannerOffset: CGFloat = -100
+
     @State private var optimizedImages: [UIImage] = []
     @State private var currentImageIndex = 0
     @State private var analysisTimeElapsed = false
     @State private var appearedTime = Date()
-    @State private var scannerOpacity: Double = 0
+    @State private var currentQuoteIndex = 0
+    @State private var quoteTimer: Timer?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
-    
+
     // Convenience initializer for single image (backward compatibility)
     init(image: UIImage, onComplete: @escaping () -> Void) {
         self.image = image
         self.images = [image]
         self.onComplete = onComplete
     }
-    
+
     // New initializer for multiple images
     init(images: [UIImage], onComplete: @escaping () -> Void) {
         self.image = images.first
         self.images = images
         self.onComplete = onComplete
     }
-    
+
     // Minimum time to show analysis screen (for UX purposes)
     private let minimumAnalysisTime: Double = 2.0
+
+    // Humorous quotes from JSX prototype
+    private let quotes = [
+        "Analyzing your precious cargo...",
+        "Determining if that's actually valuable or just sentimental...",
+        "Counting boxes. So many boxes...",
+        "Identifying items you forgot you owned...",
+        "Cataloging things you'll definitely use someday...",
+        "Processing your life's accumulation...",
+        "Teaching AI the difference between 'vintage' and 'old'...",
+        "Recognizing items that spark joy (or don't)...",
+        "Documenting proof that yes, you own that many cables...",
+        "Scanning for things that should've been donated years ago..."
+    ]
     
     var body: some View {
         ZStack {
-            Color(.systemBackground).edgesIgnoringSafeArea(.all)
+            // Mesh gradient background
+            AnimatedMeshGradient()
+                .opacity(0.7)
+                .ignoresSafeArea()
 
-            GeometryReader { geometry in
-                VStack(spacing: 0) {
-                    Spacer()
-                    
+            VStack(spacing: 32) {
+                Spacer()
+
+                // Photo preview section
+                VStack(spacing: 16) {
                     Group {
                         if images.count > 1 {
                             VStack(spacing: 12) {
@@ -48,33 +66,35 @@ struct ImageAnalysisView: View {
                                     Image(uiImage: optimizedImages[currentImageIndex])
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
-                                        .frame(maxWidth: min(geometry.size.width, geometry.size.height) * 0.8)
-                                        .frame(maxWidth: .infinity)
-                                        .transition(.slide)
+                                        .frame(maxHeight: 250)
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .shadow(color: .black.opacity(0.2), radius: 10)
+                                        .transition(.asymmetric(
+                                            insertion: .scale.combined(with: .opacity),
+                                            removal: .scale.combined(with: .opacity)
+                                        ))
                                 } else if let fallbackImage = images[safe: currentImageIndex] {
                                     Image(uiImage: fallbackImage)
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
-                                        .frame(maxWidth: min(geometry.size.width, geometry.size.height) * 0.8)
-                                        .frame(maxWidth: .infinity)
-                                        .transition(.slide)
+                                        .frame(maxHeight: 250)
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .shadow(color: .black.opacity(0.2), radius: 10)
+                                        .transition(.asymmetric(
+                                            insertion: .scale.combined(with: .opacity),
+                                            removal: .scale.combined(with: .opacity)
+                                        ))
                                 }
-                                
+
                                 // Photo indicator dots
                                 HStack(spacing: 8) {
                                     ForEach(0..<images.count, id: \.self) { index in
                                         Circle()
-                                            .fill(index == currentImageIndex ? .blue : .gray.opacity(0.4))
+                                            .fill(index == currentImageIndex ? Color.blue : Color.gray.opacity(0.4))
                                             .frame(width: 8, height: 8)
                                             .animation(.easeInOut(duration: 0.2), value: currentImageIndex)
                                     }
                                 }
-                                .transition(.slide)
-                                
-                                Text("\(currentImageIndex + 1) of \(images.count) photos")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .transition(.slide)
                             }
                         } else {
                             // Single image display (backward compatibility)
@@ -82,78 +102,84 @@ struct ImageAnalysisView: View {
                                 Image(uiImage: optimizedImage)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: min(geometry.size.width, geometry.size.height))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical)
-                                    .transition(.slide)
+                                    .frame(maxHeight: 250)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .shadow(color: .black.opacity(0.2), radius: 10)
+                                    .transition(.scale.combined(with: .opacity))
                             } else if let fallbackImage = image {
                                 Image(uiImage: fallbackImage)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: min(geometry.size.width, geometry.size.height))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical)
-                                    .transition(.slide)
+                                    .frame(maxHeight: 250)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .shadow(color: .black.opacity(0.2), radius: 10)
+                                    .transition(.scale.combined(with: .opacity))
                             }
                         }
                     }
-                    
-                    Spacer()
-                    
-                    VStack {
-                        Image(systemName: "brain")
-                            .foregroundStyle(.green)
-                            .font(.title)
-                            .symbolEffect(.pulse)
-                        Text("AI Image Analysis in Progress...")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Text(images.count > 1 ? "Please wait while we analyze your \(images.count) photos" : "Please wait while we analyze your photo")
-                            .foregroundStyle(.secondary)
-                        Text("AI can make mistakes. Check important info.")
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    }
-                    .frame(height: 120)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                    .padding(.horizontal)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    
-                    Spacer()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                Rectangle()
-                    .fill(.blue.opacity(0.8))
-                    .frame(height: 2)
-                    .blur(radius: 2)
-                    .opacity(scannerOpacity)
-                    .offset(y: scannerOffset)
+                .padding(.horizontal, 32)
+
+                Spacer()
+
+                // AI Analysis section
+                VStack(spacing: 24) {
+                    // Apple Intelligence icon with pulse animation
+                    Image(systemName: "apple.intelligence")
+                        .font(.system(size: 64))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .symbolEffect(.pulse)
+
+                    // Rotating quote with fixed height to prevent layout shifts
+                    VStack {
+                        Text(quotes[currentQuoteIndex])
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .italic()
+                            .id(currentQuoteIndex) // Force re-render on quote change
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            ))
+                    }
+                    .frame(minHeight: 60)
+                    .padding(.horizontal)
+
+                    // Photo count
+                    
+                    if images.count > 1 {
+                        Text("Analyzing \(images.count) \(images.count == 1 ? "photo" : "photos")")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Disclaimer
+                    Text("AI can make mistakes. Check important info.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 32)
+
+                Spacer()
             }
+            .frame(maxWidth: 600)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .interactiveDismissDisabled(true)
         .onAppear {
             print("ImageAnalysisView appeared with \(images.count) images")
-            
-            // Fade in the scanner
-            withAnimation(.easeIn(duration: 0.5)) {
-                scannerOpacity = 1.0
-            }
-            
-            // Start scanner animation
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                scannerOffset = UIScreen.main.bounds.height
-            }
-            
+
             // Store the time we appeared
             appearedTime = Date()
-            
+
             // Optimize all images for display
             Task {
                 optimizedImages = []
@@ -162,21 +188,37 @@ struct ImageAnalysisView: View {
                     optimizedImages.append(optimized)
                 }
             }
-            
+
+            // Start quote cycling
+            startQuoteCycling()
+
             // If multiple images, cycle through them during analysis
             if images.count > 1 {
                 startImageCycling()
             }
-            
+
             // Ensure we show the analysis screen for at least the minimum time
             DispatchQueue.main.asyncAfter(deadline: .now() + minimumAnalysisTime) {
                 analysisTimeElapsed = true
                 checkAndComplete()
             }
         }
+        .onDisappear {
+            quoteTimer?.invalidate()
+            quoteTimer = nil
+        }
         .sentryTrace("ImageAnalysisView")
     }
     
+    // Function to start cycling through quotes
+    private func startQuoteCycling() {
+        quoteTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [self] timer in
+            withAnimation(.easeInOut(duration: 0.5)) {
+                currentQuoteIndex = (currentQuoteIndex + 1) % quotes.count
+            }
+        }
+    }
+
     // Function to start cycling through images during analysis
     private func startImageCycling() {
         Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { timer in
@@ -189,7 +231,7 @@ struct ImageAnalysisView: View {
             }
         }
     }
-    
+
     // Function to check if we can complete and move on
     private func checkAndComplete() {
         if analysisTimeElapsed {
