@@ -317,9 +317,6 @@ struct MultiPhotoCameraView: View {
                 FullScreenCameraPreviewView(
                     session: model.session,
                     orientation: orientation,
-//                    onTapToFocus: { point in
-//                        handleFocusTap(at: point, in: geometry)
-//                    }
                 )
                 .onAppear {
                     Task {
@@ -363,11 +360,13 @@ struct MultiPhotoCameraView: View {
                                 }
                             )
                             .frame(width: 60, height: 70)
+                            .transition(.opacity)
                         }
                     }
                     .padding(.horizontal, 20)
                 }
                 .frame(height: 70)
+                .animation(.easeIn(duration: 0.3), value: model.capturedImages.count)
             }
 
             Spacer()
