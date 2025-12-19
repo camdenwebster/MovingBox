@@ -283,11 +283,6 @@ struct MultiPhotoCameraView: View {
                 }
             }
         }
-        .onChange(of: model.selectedCaptureMode) { oldMode, newMode in
-            if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
-                model.saveCaptureMode(to: settings)
-            }
-        }
         .onChange(of: model.currentZoomIndex) { _, newIndex in
             localZoomIndex = newIndex
         }
@@ -422,7 +417,15 @@ struct MultiPhotoCameraView: View {
                         onShutterTap: { handleShutterTap() },
                         onRetakeTap: { model.capturedImages.removeAll() },
                         onPhotoPickerTap: { handlePhotoPickerTap() },
-                        selectedCaptureMode: $model.selectedCaptureMode
+                        selectedCaptureMode: Binding(
+                            get: { model.selectedCaptureMode },
+                            set: { newMode in
+                                let oldMode = model.selectedCaptureMode
+                                if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
+                                    model.saveCaptureMode(to: settings)
+                                }
+                            }
+                        )
                     )
                     .padding(.top, 10)
                     .background(Color.black)

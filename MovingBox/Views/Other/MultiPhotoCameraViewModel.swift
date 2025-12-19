@@ -808,24 +808,36 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     }
 
     func handleCaptureModeChange(from oldMode: CaptureMode, to newMode: CaptureMode, isPro: Bool) -> Bool {
-        guard !isHandlingModeChange else { return false }
-        isHandlingModeChange = true
-        defer { isHandlingModeChange = false }
+        guard !isHandlingModeChange else {
+            print("⚠️ Already handling mode change, skipping")
+            return false
+        }
 
+        print("🔄 handleCaptureModeChange: \(oldMode) → \(newMode)")
+        isHandlingModeChange = true
+
+        // Check if switching to multi-item requires pro
         if newMode == .multiItem && !isPro {
+            print("🔒 Multi-item mode requires pro, showing paywall")
             selectedCaptureMode = oldMode
+            isHandlingModeChange = false
             showingPaywall = true
             return false
         }
 
+        // Check if we have captured images that would be lost
         if !capturedImages.isEmpty {
+            print("📸 Photos exist (\(capturedImages.count)), requesting confirmation")
             pendingCaptureMode = newMode
             selectedCaptureMode = oldMode
+            isHandlingModeChange = false
             showingModeSwitchConfirmation = true
             return false
         }
 
+        // Perform the switch
         performModeSwitch(to: newMode)
+        isHandlingModeChange = false
         return true
     }
 

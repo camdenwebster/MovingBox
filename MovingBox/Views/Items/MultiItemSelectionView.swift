@@ -74,7 +74,7 @@ struct MultiItemSelectionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     if let onReanalyze = onReanalyze {
                         Button(action: onReanalyze) {
                             Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
@@ -82,7 +82,7 @@ struct MultiItemSelectionView: View {
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel", systemImage: "xmark") {
                         onCancel()
                     }
@@ -125,6 +125,7 @@ struct MultiItemSelectionView: View {
                             .backport.glassProminentButtonStyle()
                             .disabled(viewModel.selectedItemsCount == 0)
                             .padding(.horizontal)
+                            .padding(.bottom, 10)
                     }
                 }
             }

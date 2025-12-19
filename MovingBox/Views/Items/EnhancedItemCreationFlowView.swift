@@ -405,6 +405,7 @@ struct MultiItemSummaryView: View {
                     Button("Done") {
                         onComplete()
                     }
+                    .backport.glassProminentButtonStyle()
                 }
             }
             .onAppear {
