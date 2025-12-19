@@ -27,8 +27,6 @@ struct DashboardView: View {
     @State private var isLoading = false
     @State private var homeInstance = Home()
     @State private var cachedImageURL: URL?
-    @State private var offset: CGFloat = 0
-    @State private var headerContentHeight: CGFloat = 0
     @State private var loadingStartDate: Date? = nil
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
@@ -49,45 +47,29 @@ struct DashboardView: View {
         GridItem(.flexible(), spacing: 16),
         GridItem(.flexible())
     ]
-    
-    let headerHeight = UIScreen.main.bounds.height / 3
 
     var body: some View {
-        
-        ZStack(alignment: .top) {
-            
-            Group {
-                if isLoading {
-                    ProgressView("Loading photo...")
-                        .progressViewStyle(CircularProgressViewStyle())
-                } else {
-                    Image(uiImage: loadedImage ?? .craftsmanHome)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                }
-            }
-            .frame(width: UIScreen.main.bounds.width, height: headerHeight + max(0, -offset))
-            .clipped()
-            .transformEffect(.init(translationX: 0, y: -(max(0, offset))))
-            .ignoresSafeArea(.all, edges: .top)
-            
-            ScrollView {
-                VStack(spacing: 0) {
-                    ZStack(alignment: .bottom) {
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(height: headerHeight)
-                        headerContentView
-                            .background(
-                                GeometryReader { geo in
-                                    Color.clear
-                                        .onAppear {
-                                            headerContentHeight = geo.size.height
-                                        }
-                                }
-                            )
-                            .offset(y: headerHeight - headerContentHeight)
+        ScrollView {
+            VStack(spacing: 0) {
+                ZStack(alignment: .bottom) {
+                    Group {
+                        if isLoading {
+                            ProgressView("Loading photo...")
+                                .progressViewStyle(CircularProgressViewStyle())
+                        } else {
+                            Image(uiImage: loadedImage ?? .craftsmanHome)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        }
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                    .clipped()
+                    .modifier(BackgroundExtensionModifier())
+                    .overlay(alignment: .bottom) {
+                        headerContentView
+                    }
+                }
+                .flexibleHeaderContent()
 
                     // MARK: - Inventory Statistics
                     VStack(alignment: .leading, spacing: 16) {
@@ -196,14 +178,8 @@ struct DashboardView: View {
                 }
 
                 
-            }
-            .onScrollGeometryChange(for: CGFloat.self, of: { geo in
-                return geo.contentOffset.y + geo.contentInsets.top
-            }, action: { new, old in
-                offset = new
-            })
-            .frame(maxWidth: .infinity)
         }
+        .flexibleHeaderScrollView()
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
         .toolbar {
@@ -296,50 +272,35 @@ struct DashboardView: View {
     private var headerContentView: some View {
         VStack {
             Spacer()
-            ZStack(alignment: .bottom) {
-                LinearGradient(
-                    gradient: Gradient(colors: [.black.opacity(0.6), .clear]),
-                    startPoint: .bottom,
-                    endPoint: .center
-                )
-                .frame(height: 100)
-
-                VStack {
-                    Spacer()
-                    
-                    // Home Text
-                    HStack {
-                        Text((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard")                .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .padding(.horizontal)
-                        
-                        Spacer()
-                        
-                        // Photo picker
-                        if !isLoading {
-                            PhotoPickerView(
-                                model: Binding(
-                                    get: { home ?? homeInstance },
-                                    set: { newValue in
-                                        if let existingHome = home {
-                                            existingHome.imageURL = newValue.imageURL
-                                            try? modelContext.save()
-                                        } else {
-                                            homeInstance = newValue
-                                            modelContext.insert(homeInstance)
-                                            try? modelContext.save()
-                                        }
-                                    }
-                                ),
-                                loadedImage: $loadedImage,
-                                isLoading: $isLoading
-                            )
-                        }
-
-                    }
+            HStack {
+                Text((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal)
+                
+                Spacer()
+                
+                if !isLoading {
+                    PhotoPickerView(
+                        model: Binding(
+                            get: { home ?? homeInstance },
+                            set: { newValue in
+                                if let existingHome = home {
+                                    existingHome.imageURL = newValue.imageURL
+                                    try? modelContext.save()
+                                } else {
+                                    homeInstance = newValue
+                                    modelContext.insert(homeInstance)
+                                    try? modelContext.save()
+                                }
+                            }
+                        ),
+                        loadedImage: $loadedImage,
+                        isLoading: $isLoading
+                    )
                 }
             }
         }

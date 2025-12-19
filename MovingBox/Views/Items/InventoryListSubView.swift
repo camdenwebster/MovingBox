@@ -113,7 +113,7 @@ struct InventoryListSubView: View {
             // Show items with specific label
             let labelID = filterLabel.persistentModelID
             predicate = #Predicate<InventoryItem> { item in
-                item.labels?.contains(where: { $0.persistentModelID == labelID }) ?? false
+                item.label?.persistentModelID == labelID
             }
         } else {
             // Show all items (no filter)

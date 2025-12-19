@@ -19,30 +19,13 @@ struct SidebarView: View {
             // Dashboard
             NavigationLink(value: Router.SidebarDestination.dashboard) {
                 Label("Dashboard", systemImage: "house.fill")
+                    .tint(.green)
             }
 
             // All Inventory
             NavigationLink(value: Router.SidebarDestination.allInventory) {
                 Label("All Inventory", systemImage: "shippingbox.fill")
-            }
-
-            // Labels Section
-            Section("Labels") {
-                if labels.isEmpty {
-                    Text("No labels")
-                        .foregroundStyle(.secondary)
-                        .font(.subheadline)
-                } else {
-                    ForEach(labels, id: \.persistentModelID) { label in
-                        NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
-                            Label {
-                                Text(label.name)
-                            } icon: {
-                                Text(label.emoji)
-                            }
-                        }
-                    }
-                }
+                    .tint(.green)
             }
 
             // Locations Section
@@ -62,6 +45,25 @@ struct SidebarView: View {
                                 } else {
                                     Image(systemName: "mappin.circle.fill")
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Labels Section
+            Section("Labels") {
+                if labels.isEmpty {
+                    Text("No labels")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                } else {
+                    ForEach(labels, id: \.persistentModelID) { label in
+                        NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
+                            Label {
+                                Text(label.name)
+                            } icon: {
+                                Text(label.emoji)
                             }
                         }
                     }
