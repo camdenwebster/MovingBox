@@ -120,6 +120,9 @@ struct MovingBoxApp: App {
                         .environment(\.disableAnimations, disableAnimations)
                 }
             }
+            #if os(macOS)
+            .toolbar(removing: .title)
+            #endif
             .task {
                 // Initialize container
                 await containerManager.initialize()

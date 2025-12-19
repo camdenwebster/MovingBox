@@ -70,7 +70,6 @@ struct SidebarView: View {
                 }
             }
         }
-        .navigationTitle("MovingBox")
         .listStyle(.sidebar)
     }
 }

@@ -26,8 +26,8 @@ struct MainSplitView: View {
                         stringDestinationView(for: destination)
                     }
             }
-            .tint(.green)
         }
+        .tint(.green)
     }
 
     @ViewBuilder
