@@ -13,14 +13,13 @@ class PaywallScreen {
     
     func waitForPaywall(timeout: TimeInterval = 5) -> Bool {
         let viewExists = okButton.waitForExistence(timeout: timeout)
-        
         return viewExists
     }
     
     
     func dismiss(timeout: TimeInterval = 5) {
         guard okButton.waitForExistence(timeout: timeout) else {
-            XCTFail("OK button on paywall alert nnot found")
+            XCTFail("OK button on paywall alert not found")
             return
         }
         okButton.tap()

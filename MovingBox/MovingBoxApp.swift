@@ -62,6 +62,10 @@ struct MovingBoxApp: App {
             options.debug = AppConfig.shared.configuration == .debug
             options.tracesSampleRate = 0.2
             
+            // Detect if running in test environment
+            // XCTestConfigurationFilePath is set by Xcode when running tests
+            let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            
             options.configureProfiling = {
                 $0.lifecycle = .trace
                 $0.sessionSampleRate = 1
@@ -78,6 +82,11 @@ struct MovingBoxApp: App {
             // Only configure non-default settings:
             options.enablePreWarmedAppStartTracing = true  // Disabled by default, enable for iOS 15+
             options.enableTimeToFullDisplayTracing = true  // Disabled by default
+            
+            // Disable app hang tracking during test execution to prevent false positives
+            // Tests often perform synchronous operations (SwiftData init, file I/O) that exceed
+            // the 2-second threshold but don't represent real user-facing issues
+            options.enableAppHangTracking = !isRunningTests
 
             // Network Tracking - limit to OpenAI API only for privacy
             options.tracePropagationTargets = ["api.aiproxy.com"]
@@ -124,7 +133,9 @@ struct MovingBoxApp: App {
                 
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                    print("📱 MovingBoxApp - Loading test data...")
                     await TestData.loadTestData(modelContext: containerManager.container.mainContext)
+                    print("📱 MovingBoxApp - Test data loaded, setting app state to main")
                     settings.hasLaunched = true
                     appState = .main
                 } else {

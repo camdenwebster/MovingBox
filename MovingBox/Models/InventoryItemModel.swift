@@ -147,9 +147,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     func migrateSecondaryPhotosIfNeeded() {
         // Ensure secondaryPhotoURLs is initialized as empty array for existing items
         // SwiftData should handle this automatically, but this provides explicit migration
-        if secondaryPhotoURLs.isEmpty {
-            print("📸 InventoryItem - Secondary photos array initialized for item: \(title)")
-        }
+        // Note: Removed logging as this is called for every new item and creates noise
     }
     
     func hasAnalyzableImageAfterMigration() async -> Bool {
@@ -193,14 +191,8 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.createdAt = Date()
         migrateSecondaryPhotosIfNeeded()
         
-        // Only migrate in non-test environment to avoid accessing destroyed contexts
-        if !isRunningTests() {
-            Task { @MainActor in
-                // Add delay to ensure model is fully initialized
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                try? await migrateImageIfNeeded()
-            }
-        }
+        // Skip automatic migration on init - migration will happen on-demand when item is accessed
+        // This prevents blocking the main thread during bulk imports
     }
     
     // MARK: - Core Initializer (for required properties only)
@@ -209,14 +201,8 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.createdAt = Date()
         migrateSecondaryPhotosIfNeeded()
         
-        // Only migrate in non-test environment to avoid accessing destroyed contexts
-        if !isRunningTests() {
-            Task { @MainActor in
-                // Add delay to ensure model is fully initialized
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                try? await migrateImageIfNeeded()
-            }
-        }
+        // Skip automatic migration on init - migration will happen on-demand when item is accessed
+        // This prevents blocking the main thread during bulk imports
     }
     
     // MARK: - Legacy Initializer (for backwards compatibility)
@@ -261,14 +247,8 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         
         migrateSecondaryPhotosIfNeeded()
         
-        // Only migrate in non-test environment to avoid accessing destroyed contexts
-        if !isRunningTests() {
-            Task { @MainActor in
-                // Add delay to ensure model is fully initialized
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                try? await migrateImageIfNeeded()
-            }
-        }
+        // Skip automatic migration on init - migration will happen on-demand when item is accessed
+        // This prevents blocking the main thread during bulk imports
     }
 }
 

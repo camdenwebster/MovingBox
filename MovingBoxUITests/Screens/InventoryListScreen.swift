@@ -31,7 +31,7 @@ class InventoryListScreen {
     // Selection mode elements
     let optionsButton: XCUIElement
     let selectItemsButton: XCUIElement
-    let cancelSelectionButton: XCUIElement
+    let selectionDoneButton: XCUIElement
     let actionsButton: XCUIElement
     let deleteSelectedButton: XCUIElement
     let deleteConfirmationAlert: XCUIElement
@@ -59,11 +59,11 @@ class InventoryListScreen {
         // Initialize selection mode elements
         self.optionsButton = app.buttons["Options"]
         self.selectItemsButton = app.buttons["Select Items"]
-        self.cancelSelectionButton = app.buttons["Cancel"]
+        self.selectionDoneButton = app.buttons["Done"]
         self.actionsButton = app.buttons["Actions"]
-        self.deleteSelectedButton = app.buttons.matching(identifier: "Delete Selected").firstMatch
+        self.deleteSelectedButton = app.buttons["deleteSelected"]
         self.deleteConfirmationAlert = app.alerts["Delete Items"]
-        self.deleteButton = app.buttons["Delete"]
+        self.deleteButton = app.buttons["alertDelete"]
         self.alertCancelButton = app.buttons["Cancel"]
     }
     
@@ -110,7 +110,7 @@ class InventoryListScreen {
     }
     
     func exitSelectionMode() {
-        cancelSelectionButton.tap()
+        selectionDoneButton.tap()
     }
     
     func selectItem(at index: Int) {
@@ -127,8 +127,8 @@ class InventoryListScreen {
     }
     
     func deleteSelectedItems() {
-        actionsButton.tap()
         deleteSelectedButton.tap()
+        deleteConfirmationAlert.deleteButton.tap()
     }
     
     func confirmDeletion() {
@@ -152,6 +152,6 @@ class InventoryListScreen {
     }
     
     func isSelectionModeActive() -> Bool {
-        return cancelSelectionButton.exists
+        return selectionDoneButton.exists
     }
 }

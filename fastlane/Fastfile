@@ -16,6 +16,32 @@ update_fastlane
 default_platform(:ios)
 
 platform :ios do
+  desc "Run unit tests"
+  lane :unit_tests do
+    run_tests(
+      project: "MovingBox.xcodeproj",
+      scheme: "MovingBoxTests",
+      devices: ["iPhone 17 Pro"],
+      derived_data_path: "DerivedData",
+      clean: true,
+      destination: "generic/platform=iOS Simulator"
+    )
+  end
+
+  desc "Build the app"
+  lane :build do
+    build_app(
+      project: "MovingBox.xcodeproj",
+      scheme: "MovingBox",
+      configuration: "Debug",
+      derived_data_path: "DerivedData",
+      destination: "generic/platform=iOS Simulator",
+      skip_package_ipa: true,
+      skip_package_pkg: true,
+      skip_build_archive: true
+    )
+  end
+
   desc "Generate new localized screenshots"
   lane :screenshots do
     # Set simulator boot timeout

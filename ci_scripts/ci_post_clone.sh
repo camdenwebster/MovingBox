@@ -56,6 +56,16 @@ if [ -z "$SENTRY_DSN" ]; then
     SENTRY_DSN="development-placeholder-sentry-dsn"
 fi
 
+# Set version suffix for PR builds (semver pre-release format)
+if [ -n "$CI_PULL_REQUEST_NUMBER" ]; then
+    echo "PR build detected: #$CI_PULL_REQUEST_NUMBER"
+    CI_VERSION_SUFFIX="-pr.$CI_PULL_REQUEST_NUMBER"
+else
+    echo "Non-PR build detected"
+    CI_VERSION_SUFFIX=""
+fi
+export CI_VERSION_SUFFIX
+
 # Create the Base.xcconfig file from template if it exists
 if [ -f "$TEMPLATE_FILE" ]; then
     echo "Generating $OUTPUT_FILE from template..."

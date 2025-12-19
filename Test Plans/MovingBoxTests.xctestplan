@@ -19,7 +19,17 @@
           {
             "name" : "DataManagerTests",
             "testFunctions" : [
-              "importHandlesFileAccessErrors()"
+              "batchedExportWithMultipleTypes()",
+              "batchSizeAdjustsBasedOnMemory()",
+              "exportCanBeCancelled()",
+              "exportProgressReportsAllPhases()",
+              "exportRespectsConfiguration()",
+              "exportWithItemsCreatesZip()",
+              "exportWithLargeDatasetUsesBatching()",
+              "exportWithLocationsIncludesLocationsData()",
+              "exportWithPhotosIncludesPhotos()",
+              "importHandlesFileAccessErrors()",
+              "importWithInvalidZipThrowsError()"
             ]
           },
           {
