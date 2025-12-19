@@ -58,12 +58,6 @@ struct EnhancedItemCreationFlowView: View {
                     bottomProgressIndicator
                 }
             }
-            .overlay {
-                // Processing overlay
-                if viewModel.processingImage {
-                    processingOverlay
-                }
-            }
             .navigationTitle(viewModel.currentStepTitle)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(viewModel.currentStep == .camera)
@@ -338,25 +332,7 @@ struct EnhancedItemCreationFlowView: View {
         }
         .background(Color(.systemBackground))
     }
-    
-    private var processingOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 16) {
-                ProgressView()
-                    .scaleEffect(1.2)
-                
-                Text(viewModel.captureMode == .multiItem ? "Analyzing multiple items..." : "Analyzing image...")
-                    .font(.headline)
-            }
-            .padding(24)
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-        }
-    }
-    
+        
     // MARK: - Actions
 
     private func checkAndTransitionIfReady() {

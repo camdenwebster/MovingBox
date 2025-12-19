@@ -187,6 +187,46 @@ struct ZoomButtonView: View {
 }
 
 
+// MARK: - Camera Control Button
+
+struct CameraControlButton: View {
+    let icon: String
+    let size: CGFloat
+    let action: () -> Void
+    var accessibilityLabel: String?
+    var accessibilityIdentifier: String?
+    
+    init(
+        icon: String,
+        size: CGFloat = 40,
+        action: @escaping () -> Void,
+        accessibilityLabel: String? = nil,
+        accessibilityIdentifier: String? = nil
+    ) {
+        self.icon = icon
+        self.size = size
+        self.action = action
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: iconSize, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: size, height: size)
+                .background(Circle().fill(.white.opacity(0.3)))
+        }
+        .accessibilityLabel(accessibilityLabel ?? "")
+        .accessibilityIdentifier(accessibilityIdentifier ?? "")
+    }
+    
+    private var iconSize: CGFloat {
+        size * 0.5
+    }
+}
+
 // MARK: - Focus Indicator View
 
 struct FocusIndicatorView: View {
@@ -424,11 +464,12 @@ struct CaptureModePicker: View {
             }
         }
         .pickerStyle(.segmented)
-        .frame(width: 200)
+        .frame(width: 150)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(.black.opacity(0.3))
-                .padding(-4)
         )
         .onAppear {
             // Customize segmented control appearance
@@ -510,49 +551,36 @@ struct CameraTopControls: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(.white.opacity(0.3)))
-            }
-            .accessibilityIdentifier("cameraCloseButton")
+            CameraControlButton(
+                icon: "xmark",
+                action: onClose,
+                accessibilityIdentifier: "cameraCloseButton"
+            )
 
             Spacer()
 
             if !isMultiItemPreviewShowing {
                 HStack(spacing: 16) {
-                    Button {
-                        model.cycleFlash()
-                    } label: {
-                        Image(systemName: model.flashIcon)
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(Circle().fill(.white.opacity(0.3)))
-                    }
-                    .accessibilityLabel("Flash \(model.flashModeText)")
+                    CameraControlButton(
+                        icon: model.flashIcon,
+                        action: { model.cycleFlash() },
+                        accessibilityLabel: "Flash \(model.flashModeText)"
+                    )
 
-                    Button {
-                        Task {
-                            await model.switchCamera()
-                        }
-                    } label: {
-                        Image(systemName: "camera.rotate")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(Circle().fill(.white.opacity(0.3)))
-                    }
-                    .accessibilityLabel("Flip camera")
+                    CameraControlButton(
+                        icon: "camera.rotate",
+                        action: {
+                            Task {
+                                await model.switchCamera()
+                            }
+                        },
+                        accessibilityLabel: "Flip camera"
+                    )
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 20)
+        .padding(.horizontal)
         .padding(.bottom, 10)
     }
 }
@@ -615,22 +643,18 @@ struct CameraBottomControls: View {
                 Spacer()
 
                 if captureMode.showsPhotoPickerButton {
-                    Button {
-                        onPhotoPickerTap()
-                    } label: {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(Circle().fill(.white.opacity(0.3)))
-                    }
+                    CameraControlButton(
+                        icon: "photo.on.rectangle",
+                        action: onPhotoPickerTap,
+                        accessibilityLabel: "Choose from library"
+                    )
                 } else {
                     Color.clear
-                        .frame(minWidth: 60)
+                        .frame(width: 40, height: 40)
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 20)
+            .padding(.horizontal)
             .padding(.bottom)
         }
         .frame(maxWidth: .infinity)
@@ -750,5 +774,64 @@ struct CameraPreviewContainer: View {
             onDelete: { _ in }
         )
         .background(Color.black)
+    }
+}
+
+#Preview("Camera Control Buttons") {
+    ZStack {
+        Color.black.ignoresSafeArea()
+        
+        VStack(spacing: 20) {
+            HStack(spacing: 16) {
+                CameraControlButton(
+                    icon: "xmark",
+                    action: {},
+                    accessibilityLabel: "Close"
+                )
+                
+                CameraControlButton(
+                    icon: "bolt.fill",
+                    action: {},
+                    accessibilityLabel: "Flash"
+                )
+                
+                CameraControlButton(
+                    icon: "camera.rotate",
+                    action: {},
+                    accessibilityLabel: "Flip camera"
+                )
+                
+                CameraControlButton(
+                    icon: "photo.on.rectangle",
+                    action: {},
+                    accessibilityLabel: "Photo library"
+                )
+            }
+            
+            Text("Standard Size (40pt)")
+                .foregroundColor(.white)
+                .font(.caption)
+            
+            HStack(spacing: 16) {
+                CameraControlButton(
+                    icon: "xmark",
+                    size: 50,
+                    action: {},
+                    accessibilityLabel: "Close"
+                )
+                
+                CameraControlButton(
+                    icon: "bolt.fill",
+                    size: 50,
+                    action: {},
+                    accessibilityLabel: "Flash"
+                )
+            }
+            
+            Text("Large Size (50pt)")
+                .foregroundColor(.white)
+                .font(.caption)
+        }
+        .padding()
     }
 }

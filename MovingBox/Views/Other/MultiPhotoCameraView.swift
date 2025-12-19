@@ -285,6 +285,9 @@ struct MultiPhotoCameraView: View {
         }
         .onAppear {
             model.loadInitialCaptureMode(preferredCaptureMode: settings.preferredCaptureMode, isPro: settings.isPro)
+            if isPreview && !capturedImages.isEmpty {
+                model.capturedImages = capturedImages
+            }
         }
         .onDisappear {
             Task {
@@ -359,13 +362,12 @@ struct MultiPhotoCameraView: View {
                                     model.removeImage(at: index)
                                 }
                             )
-                            .frame(width: 60, height: 60)
+                            .frame(width: 60, height: 70)
                         }
                     }
                     .padding(.horizontal, 20)
                 }
-                .frame(height: 100)
-                .padding(.vertical, 10)
+                .frame(height: 70)
             }
 
             Spacer()
@@ -471,7 +473,7 @@ struct MultiPhotoCameraView: View {
     }
 
     private func calculateThumbnailDestination(geometry: GeometryProxy) -> CGRect {
-        let thumbnailAreaY: CGFloat = geometry.size.height * -0.11
+        let thumbnailAreaY: CGFloat = geometry.size.height * -0.095
         let thumbnailX = 20 + CGFloat(model.capturedImages.count - 1) * 68
         return CGRect(x: thumbnailX, y: thumbnailAreaY, width: 60, height: 60)
     }
@@ -559,13 +561,42 @@ struct MultiPhotoCameraView: View {
     PreviewContainer {
         MultiPhotoCameraView(
             capturedImages: .constant([
-                UIImage(systemName: "photo")!,
-                UIImage(systemName: "camera")!
+                createPreviewImage(color: .systemBlue, label: "1"),
+                createPreviewImage(color: .systemGreen, label: "2"),
+                createPreviewImage(color: .systemOrange, label: "3")
             ]),
             captureMode: .singleItem,
             onPermissionCheck: { _ in },
             onComplete: { _, _ in }
         )
+    }
+}
+
+private func createPreviewImage(color: UIColor, label: String) -> UIImage {
+    let size = CGSize(width: 200, height: 200)
+    let renderer = UIGraphicsImageRenderer(size: size)
+    return renderer.image { context in
+        color.setFill()
+        context.fill(CGRect(origin: .zero, size: size))
+        
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 80, weight: .bold),
+            .foregroundColor: UIColor.white,
+            .paragraphStyle: paragraphStyle
+        ]
+        
+        let text = label as NSString
+        let textSize = text.size(withAttributes: attributes)
+        let textRect = CGRect(
+            x: (size.width - textSize.width) / 2,
+            y: (size.height - textSize.height) / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+        text.draw(in: textRect, withAttributes: attributes)
     }
 }
 
