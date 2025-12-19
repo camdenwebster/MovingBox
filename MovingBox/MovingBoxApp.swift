@@ -67,12 +67,15 @@ struct MovingBoxApp: App {
             // Debug mode configuration
             let isDebug = AppConfig.shared.configuration == .debug
             options.debug = isDebug
+            
+            // Detect if running in test environment
+            let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
             // PERFORMANCE OPTIMIZATION: Reduce overhead in debug builds
             if isDebug {
                 // Minimal tracing in debug mode to reduce overhead
-                options.tracesSampleRate = 0.0  // Disable performance tracing in debug
-                options.profilesSampleRate = 0.0  // Disable profiling in debug
+                options.tracesSampleRate = 0.0
+                options.profilesSampleRate = 0.0
 
                 // Disable session replay in debug mode (high overhead)
                 options.sessionReplay.onErrorSampleRate = 0.0
@@ -83,20 +86,23 @@ struct MovingBoxApp: App {
 
                 // Disable automatic instrumentation in debug mode
                 options.enableAutoPerformanceTracing = false
-                options.enableCoreDataTracing = false  // Fix for CoreData tracking errors
+                options.enableCoreDataTracing = false
                 options.enableFileIOTracing = false
                 options.enableNetworkTracking = false
-                options.enableSwizzling = false  // Reduce swizzling overhead
+                options.enableSwizzling = false
+                
+                // Disable app hang tracking in debug
+                options.enableAppHangTracking = false
 
                 print("🐛 Sentry Debug Mode: Minimal tracking enabled to reduce overhead")
             } else {
                 // Production/Beta configuration - full feature set
-                options.tracesSampleRate = 0.2  // 20% of transactions for performance
+                options.tracesSampleRate = 0.2
 
                 // Profiling configuration
                 options.configureProfiling = {
                     $0.lifecycle = .trace
-                    $0.sessionSampleRate = 0.2  // Match traces sample rate (reduced from 1.0)
+                    $0.sessionSampleRate = 0.2
                 }
 
                 // Session replays for errors and sampled sessions
@@ -108,11 +114,14 @@ struct MovingBoxApp: App {
 
                 // Automatic iOS Instrumentation
                 options.enableAutoPerformanceTracing = true
-                options.enableCoreDataTracing = false  // Disabled - causes background task assertion issues with CloudKit
-                options.enableFileIOTracing = false  // Disable - high overhead, low value
+                options.enableCoreDataTracing = false
+                options.enableFileIOTracing = false
                 options.enableNetworkTracking = true
                 options.enablePreWarmedAppStartTracing = true
                 options.enableTimeToFullDisplayTracing = true
+                
+                // Disable app hang tracking during test execution to prevent false positives
+                options.enableAppHangTracking = !isRunningTests
             }
 
             // Network Tracking - limit to OpenAI API only for privacy (all configs)
@@ -229,7 +238,9 @@ struct MovingBoxApp: App {
                 
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                    print("📱 MovingBoxApp - Loading test data...")
                     await TestData.loadTestData(modelContext: containerManager.container.mainContext)
+                    print("📱 MovingBoxApp - Test data loaded, setting app state to main")
                     settings.hasLaunched = true
                     appState = .main
                 } else {

@@ -9,7 +9,11 @@ import Foundation
 import TelemetryDeck
 
 /// Centralized manager for tracking app analytics via TelemetryDeck
-class TelemetryManager {
+/// Marked as @unchecked Sendable because:
+/// - All methods call thread-safe TelemetryDeck APIs
+/// - No mutable state is modified after initialization
+/// - Safe to access from any thread/actor
+final class TelemetryManager: @unchecked Sendable {
     static let shared = TelemetryManager()
     
     private init() {}
@@ -165,6 +169,24 @@ class TelemetryManager {
 
     func trackAppReviewRequested() {
         TelemetryManager.signal("AppStore.reviewRequested")
+    }
+    
+    // MARK: - Data Export/Import
+    
+    func trackPhotoCopyFailures(failureCount: Int, totalPhotos: Int, failureRate: Double) {
+        TelemetryManager.signal("photo-copy-failures", with: [
+            "failure_count": String(failureCount),
+            "total_photos": String(totalPhotos),
+            "failure_rate": String(format: "%.2f", failureRate)
+        ])
+    }
+    
+    func trackExportBatchSize(batchSize: Int, deviceMemoryGB: Double, itemCount: Int) {
+        TelemetryManager.signal("export-batch-size-used", with: [
+            "batch_size": String(batchSize),
+            "device_memory_gb": String(format: "%.1f", deviceMemoryGB),
+            "item_count": String(itemCount)
+        ])
     }
 
     // MARK: - Helper

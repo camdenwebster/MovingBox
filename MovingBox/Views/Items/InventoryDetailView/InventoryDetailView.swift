@@ -348,6 +348,7 @@ struct InventoryDetailView: View {
                     )
                     .frame(width: proxy.size.width, height: Self.photoSectionHeightWithPhotos + (scrollY > 0 ? scrollY : 0))
                     .offset(y: scrollY > 0 ? -scrollY : 0)
+                    .modifier(BackgroundExtensionModifier())
                 }
                 .frame(height: Self.photoSectionHeightWithPhotos)
                 

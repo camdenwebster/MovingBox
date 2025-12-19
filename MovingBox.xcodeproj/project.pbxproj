@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0CBDBBF6E6C64A42B24D9534 /* ProgressMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */; };
 		190DFBA42D6FC2170062D079 /* CurrencyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */; };
 		191FEA612D6D04E5006FF067 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191FEA602D6D04E5006FF067 /* SettingsManager.swift */; };
 		1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 1920B0D52D88B13000CFA1E9 /* TelemetryDeck */; };
@@ -23,6 +24,7 @@
 		1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6EA2D9DDC56004CF387 /* RevenueCatUI */; };
 		1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */; };
 		1961C6FA2D9EBB34004CF387 /* MovingBoxStoreKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */; };
+		1961F51B2EC2E67E00C8E0A4 /* ExportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1961F51A2EC2E67E00C8E0A4 /* ExportCoordinator.swift */; };
 		196450542E4D6DC300918795 /* SwiftUIBackports in Frameworks */ = {isa = PBXBuildFile; productRef = 196450532E4D6DC300918795 /* SwiftUIBackports */; };
 		1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */; };
 		1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */; };
@@ -46,6 +48,7 @@
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
+		A96F973C0F954591AB5191A0 /* ProgressMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +70,9 @@
 
 /* Begin PBXFileReference section */
 		190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatter.swift; sourceTree = "<group>"; };
+		191881AB2EC54398009FB4F4 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLAUDE.md; sourceTree = "<group>"; };
+		191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = SmokeTests.xctestplan; path = "Test Plans/SmokeTests.xctestplan"; sourceTree = "<group>"; };
+		191881AD2EC61EB9009FB4F4 /* opencode.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = opencode.json; sourceTree = "<group>"; };
 		191FEA602D6D04E5006FF067 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryManager.swift; sourceTree = "<group>"; };
 		1927DD0F2D89E26600BEFD9D /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -88,6 +94,7 @@
 		1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxStoreKit.storekit; path = MovingBox/MovingBoxStoreKit.storekit; sourceTree = "<group>"; };
 		1961C6FB2D9EBB5F004CF387 /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
+		1961F51A2EC2E67E00C8E0A4 /* ExportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCoordinator.swift; sourceTree = "<group>"; };
 		1965A9702D9D5A7F00B799C9 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotTests.swift; path = MovingBoxTests/SnapshotTests.swift; sourceTree = "<group>"; };
 		19750C372DA07FF40056F0FC /* OnboardingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		1979BBE42EF5E5D700CB8A01 /* Package.resolved */ = {isa = PBXFileReference; lastKnownFileType = text; name = Package.resolved; path = MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved; sourceTree = "<group>"; };
@@ -107,13 +114,15 @@
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
-		19D3759A2E0822C0005B7816 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		19D3759A2E0822C0005B7816 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
 		19E37DFC2E56168500FB73D8 /* MovingBox.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MovingBox.icon; sourceTree = "<group>"; };
 		19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MovingBox-beta.icon"; sourceTree = "<group>"; };
 		19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
 		19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxSnapshotTests.xctestplan; path = "Test Plans/MovingBoxSnapshotTests.xctestplan"; sourceTree = "<group>"; };
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
 		19F765D42DAB558000AE287D /* OptimizedImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedImageManager.swift; sourceTree = "<group>"; };
+		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
+		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -207,7 +216,10 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
-				19D3759A2E0822C0005B7816 /* CLAUDE.md */,
+				191881AD2EC61EB9009FB4F4 /* opencode.json */,
+				191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */,
+				191881AB2EC54398009FB4F4 /* CLAUDE.md */,
+				19D3759A2E0822C0005B7816 /* AGENTS.md */,
 				190B05F92E079A4100F23E05 /* .claude */,
 				19B22B922DFD1AAD000437DE /* MovingBox_Features_Overview.md */,
 				196A7F3E2DB49BA000C5C4E8 /* fastlane */,
@@ -233,6 +245,7 @@
 				1927DD132D89EE5D00BEFD9D /* icon_shadow.png */,
 				1961C6EC2D9DDCA8004CF387 /* Frameworks */,
 				1979BBE42EF5E5D700CB8A01 /* Package.resolved */,
+				1961F3442EC2741300C8E0A4 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -283,10 +296,20 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		1961F3442EC2741300C8E0A4 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		198958A32BF6FDC400C52CAE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				1961F51A2EC2E67E00C8E0A4 /* ExportCoordinator.swift */,
 				19BA29922DC464A70064C5A9 /* DataManager.swift */,
+				675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */,
 				19F765D42DAB558000AE287D /* OptimizedImageManager.swift */,
 				19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */,
 				194195652DA4805B008CABAA /* ModelContainerManager.swift */,
@@ -558,6 +581,8 @@
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
 				19BA29932DC464A70064C5A9 /* DataManager.swift in Sources */,
+				0CBDBBF6E6C64A42B24D9534 /* ProgressMapper.swift in Sources */,
+				1961F51B2EC2E67E00C8E0A4 /* ExportCoordinator.swift in Sources */,
 				196109F52D764D9100A76504 /* ColorExtension.swift in Sources */,
 				19D3430E2C12146800F8B2C7 /* Router.swift in Sources */,
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
@@ -583,6 +608,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */,
+				A96F973C0F954591AB5191A0 /* ProgressMapperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -741,7 +767,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
@@ -762,6 +792,10 @@
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -782,7 +816,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_SOURCE_FILE_NAMES[arch=*]" = TestAssets.xcassets;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -804,6 +842,10 @@
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -891,7 +933,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MovingBox/Info.plist;
@@ -912,6 +958,10 @@
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1042,7 +1092,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"MovingBox/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"EXCLUDED_SOURCE_FILE_NAMES[arch=*]" = TestAssets.xcassets;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1064,6 +1118,10 @@
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

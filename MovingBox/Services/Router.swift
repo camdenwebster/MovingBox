@@ -6,9 +6,30 @@
 //
 
 import SwiftUI
+import SwiftData
 
 final class Router: ObservableObject {
-    
+
+    enum SidebarDestination: Hashable, Identifiable {
+        case dashboard
+        case allInventory
+        case label(PersistentIdentifier)
+        case location(PersistentIdentifier)
+
+        var id: String {
+            switch self {
+            case .dashboard:
+                return "dashboard"
+            case .allInventory:
+                return "allInventory"
+            case .label(let id):
+                return "label-\(id.hashValue)"
+            case .location(let id):
+                return "location-\(id.hashValue)"
+            }
+        }
+    }
+
     enum Destination: Hashable {
         case dashboardView
         case locationsListView
@@ -27,8 +48,9 @@ final class Router: ObservableObject {
         case aboutView
         case featureRequestView
     }
-    
+
     @Published var navigationPath = NavigationPath()
+    @Published var sidebarSelection: SidebarDestination? = .dashboard
     
     func navigate(to destination: Destination) {
         navigationPath.append(destination)

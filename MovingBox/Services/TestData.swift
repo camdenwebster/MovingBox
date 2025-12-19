@@ -66,14 +66,14 @@ struct TestData {
         ("123 Main Street", "craftsman-home")
     ]
     
-    // Sample locations with local image paths
-    static let locations: [(name: String, desc: String, imageName: String)] = [
-        ("Living Room", "Main living area with fireplace", "living-room"),
-        ("Master Bedroom", "Primary bedroom suite", "master-bedroom"),
-        ("Kitchen", "Modern kitchen with island", "kitchen"),
-        ("Home Office", "Work from home setup", "home-office"),
-        ("Garage", "Two-car garage with storage", "garage"),
-        ("Basement", "Finished basement with storage", "basement")
+    // Sample locations with local image paths and SF Symbols
+    static let locations: [(name: String, desc: String, imageName: String, sfSymbol: String)] = [
+        ("Living Room", "Main living area with fireplace", "living-room", "sofa.fill"),
+        ("Master Bedroom", "Primary bedroom suite", "master-bedroom", "bed.double.fill"),
+        ("Kitchen", "Modern kitchen with island", "kitchen", "fork.knife"),
+        ("Home Office", "Work from home setup", "home-office", "desktopcomputer"),
+        ("Garage", "Two-car garage with storage", "garage", "door.garage.closed"),
+        ("Basement", "Finished basement with storage", "basement", "building.columns.fill")
     ]
     
     // Default rooms for first launch with SFSymbol icons
@@ -261,6 +261,7 @@ struct TestData {
             let location = InventoryLocation()
             location.name = locationData.name
             location.desc = locationData.desc
+            location.sfSymbolName = locationData.sfSymbol
             let locationId = UUID().uuidString
             if let imageURL = await setupImageURL(imageName: locationData.imageName, id: locationId) {
                 location.imageURL = imageURL
@@ -319,7 +320,13 @@ struct TestData {
             modelContext.insert(item)
         }
         
-        try? modelContext.save()
+        // Force save to persist changes
+        do {
+            try modelContext.save()
+            print("✅ TestData - Successfully saved test items to context")
+        } catch {
+            print("❌ TestData - Error saving context: \(error)")
+        }
     }
 }
 

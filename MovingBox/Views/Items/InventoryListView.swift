@@ -17,6 +17,7 @@ enum Options: Hashable {
 
 struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
+    @EnvironmentObject private var containerManager: ModelContainerManager
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
@@ -47,26 +48,23 @@ struct InventoryListView: View {
     @State private var showingDeleteConfirmation = false
     
     // State for new toolbar functionality
-    @State private var showingExportShare = false
     @State private var showingLocationPicker = false
     @State private var showingLabelPicker = false
     @State private var showingLocationChangeConfirmation = false
     @State private var showingLabelChangeConfirmation = false
     @State private var selectedNewLocation: InventoryLocation?
     @State private var selectedNewLabel: InventoryLabel?
-    @State private var exportURL: URL?
-    @State private var isExporting = false
-    @State private var showingExportProgress = false
-    @State private var exportError: Error?
-    @State private var showingExportError = false
+    @State private var exportCoordinator = ExportCoordinator()
     
     @Query private var allItems: [InventoryItem]
 
     let location: InventoryLocation?
+    let filterLabel: InventoryLabel?
     let showOnlyUnassigned: Bool
 
-    init(location: InventoryLocation?, showOnlyUnassigned: Bool = false) {
+    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false) {
         self.location = location
+        self.filterLabel = filterLabel
         self.showOnlyUnassigned = showOnlyUnassigned
     }
 
@@ -119,6 +117,7 @@ struct InventoryListView: View {
         case .reverse:
             InventoryListSubView(
                 location: location,
+                filterLabel: filterLabel,
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
@@ -128,6 +127,7 @@ struct InventoryListView: View {
         default:
             InventoryListSubView(
                 location: location,
+                filterLabel: filterLabel,
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
@@ -140,7 +140,7 @@ struct InventoryListView: View {
     var body: some View {
         inventoryListContent
             .environment(\.editMode, $editMode)
-            .navigationTitle(showOnlyUnassigned ? "No Location" : (location?.name ?? "All Items"))
+            .navigationTitle(showOnlyUnassigned ? "No Location" : (filterLabel?.name ?? location?.name ?? "All Items"))
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
                 InventoryDetailView(inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
             }
@@ -163,6 +163,7 @@ struct InventoryListView: View {
             .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive, action: deleteSelectedItems)
+                    .accessibilityIdentifier("alertDelete")
             } message: {
                 Text("Are you sure you want to permanently delete \(selectedCount) item\(selectedCount == 1 ? "" : "s")? This action cannot be undone.")
             }
@@ -172,12 +173,11 @@ struct InventoryListView: View {
             .sheet(isPresented: $showingLabelPicker) {
                 labelPickerSheet()
             }
-            .sheet(isPresented: $showingExportShare, onDismiss: {
-                // When share sheet is dismissed, also dismiss the progress sheet and clean up
-                showingExportProgress = false
-                exportURL = nil
+            .sheet(isPresented: $exportCoordinator.showShareSheet, onDismiss: {
+                exportCoordinator.showExportProgress = false
+                exportCoordinator.archiveURL = nil
             }) {
-                if let url = exportURL {
+                if let url = exportCoordinator.archiveURL {
                     ShareSheet(activityItems: [url])
                 }
             }
@@ -207,15 +207,21 @@ struct InventoryListView: View {
                 let labelName = selectedNewLabel?.name ?? "No Label"
                 Text("Are you sure you want to set the label for \(selectedCount) item\(selectedCount == 1 ? "" : "s") to \(labelName)?")
             }
-            .sheet(isPresented: $showingExportProgress) {
-                exportProgressSheet()
+            .sheet(isPresented: $exportCoordinator.showExportProgress) {
+                ExportProgressView(
+                    phase: exportCoordinator.exportPhase,
+                    progress: exportCoordinator.exportProgress,
+                    onCancel: { exportCoordinator.cancelExport() }
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
-            .alert("Export Error", isPresented: $showingExportError) {
+            .alert("Export Error", isPresented: $exportCoordinator.showExportError) {
                 Button("OK") {
-                    exportError = nil
+                    exportCoordinator.exportError = nil
                 }
             } message: {
-                Text(exportError?.localizedDescription ?? "An error occurred while exporting items.")
+                Text(exportCoordinator.exportError?.localizedDescription ?? "An error occurred while exporting items.")
             }
             .sentryTrace("InventoryListView")
     }
@@ -310,7 +316,7 @@ struct InventoryListView: View {
                 Button(action: exportSelectedItems) {
                     Label("Export Selected (\(selectedCount))", systemImage: "square.and.arrow.up")
                 }
-                .disabled(selectedCount == 0 || isExporting)
+                .disabled(selectedCount == 0 || exportCoordinator.isExporting)
                 
                 // Change Location Button
                 Button(action: {
@@ -352,6 +358,7 @@ struct InventoryListView: View {
                     Label("Delete Selected (\(selectedCount))", systemImage: "trash")
                 }
                 .disabled(selectedCount == 0)
+                .accessibilityIdentifier("deleteSelected")
             }
         } else {
             
@@ -457,29 +464,6 @@ struct InventoryListView: View {
                 showingLabelPicker = false
             }
         )
-    }
-    
-    @ViewBuilder
-    private func exportProgressSheet() -> some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                ProgressView()
-                    .scaleEffect(1.5)
-                
-                VStack(spacing: 8) {
-                    Text("Exporting Items")
-                        .font(.headline)
-                    Text("Please wait while we prepare your export...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("Export")
-            .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
-        }
     }
     
     private func createManualItem() {
@@ -636,26 +620,10 @@ struct InventoryListView: View {
         guard !selectedItems.isEmpty else { return }
         
         Task { @MainActor in
-            do {
-                showingExportProgress = true
-                isExporting = true
-                
-                // Create a custom DataManager method for exporting specific items
-                let url = try await DataManager.shared.exportSpecificItems(
-                    items: selectedItems,
-                    modelContext: modelContext
-                )
-                
-                exportURL = url
-                showingExportShare = true
-                
-            } catch {
-                showingExportProgress = false
-                exportError = error
-                showingExportError = true
-            }
-            
-            isExporting = false
+            await exportCoordinator.exportSpecificItems(
+                items: selectedItems,
+                modelContainer: containerManager.container
+            )
         }
     }
     

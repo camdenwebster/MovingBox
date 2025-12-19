@@ -17,7 +17,8 @@ TELEMETRY_DECK_APP_ID = $(TELEMETRY_DECK_APP_ID)
 WISHKIT_API_KEY = $(WISHKIT_API_KEY)
 
 // App version information
-MARKETING_VERSION = 2.1.0$(CI_PULL_REQUEST_NUMBER)
+// CI_VERSION_SUFFIX is set by ci_post_clone.sh: empty for releases, -pr.XXX for PR builds (semver pre-release)
+MARKETING_VERSION = 2.1.0$(CI_VERSION_SUFFIX)
 
 // AIProxy DeviceCheck Bypass
 AIPROXY_DEVICE_CHECK_BYPASS = $(AIPROXY_DEVICE_CHECK_BYPASS)

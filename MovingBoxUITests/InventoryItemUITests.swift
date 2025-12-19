@@ -18,6 +18,7 @@ final class InventoryItemUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        app.launchEnvironment = [ "AIPROXY_DEVICE_CHECK_BYPASS": "f3543606-afa8-4394-99a9-74bd9a2421a2"]
         app.launchArguments = [
             "Is-Pro",
             "Skip-Onboarding",
@@ -98,6 +99,8 @@ final class InventoryItemUITests: XCTestCase {
         detailScreen.tapAnalyzeWithAI()
         
         // Then: Detail view should be updated after AI analysis completes
+        detailScreen.waitForAIAnalysisToComplete()
+        
         // And: Fields should be populated with AI analysis results
         detailScreen.verifyPopulatedFields()
         
