@@ -150,16 +150,9 @@ struct ZoomControlView: View {
                 )
             }
         }
-
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 12) {
-                zoomButtons
-            }
+        
+        zoomButtons
             .frame(maxWidth: .infinity)
-        } else {
-            zoomButtons
-                .frame(maxWidth: .infinity)
-        }
     }
 }
 
@@ -175,23 +168,18 @@ struct ZoomButtonView: View {
             ZStack {
                 // Circular background for selected state (iOS native style)
                 if isSelected {
-                    zoomText
-                        .backport.glassEffect(in: Circle())
-                        .backport.glassEffectID("\(formatZoomText(zoomFactor)) zoom", in: glassEffectNamespace)
-
-                } else {
-                    zoomText
+                    Circle()
+                        .fill(.white.opacity(0.3))
+                        .frame(width: 50, height: 50)
                 }
+                
+                Text(formatZoomText(zoomFactor))
+                    .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 50)
             }
         }
         .accessibilityLabel("\(formatZoomText(zoomFactor)) zoom")
-    }
-
-    var zoomText: some View {
-        Text(formatZoomText(zoomFactor))
-            .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
-            .foregroundColor(.white)
-            .frame(width: 50, height: 50)
     }
 
     private func formatZoomText(_ factor: CGFloat) -> String {
@@ -214,9 +202,7 @@ struct CameraControlButton: View {
     let action: () -> Void
     var accessibilityLabel: String?
     var accessibilityIdentifier: String?
-    var isInteractive: Bool
 
-    @Namespace private var glassEffectNamespace
 
     init(
         icon: String,
@@ -224,14 +210,12 @@ struct CameraControlButton: View {
         action: @escaping () -> Void,
         accessibilityLabel: String? = nil,
         accessibilityIdentifier: String? = nil,
-        isInteractive: Bool = true
     ) {
         self.icon = icon
         self.size = size
         self.action = action
         self.accessibilityLabel = accessibilityLabel
         self.accessibilityIdentifier = accessibilityIdentifier
-        self.isInteractive = isInteractive
     }
 
     var body: some View {
@@ -240,9 +224,9 @@ struct CameraControlButton: View {
                 .font(.system(size: iconSize, weight: .medium))
                 .foregroundColor(.white)
                 .frame(width: size, height: size)
+                .background(Circle().fill(.white.opacity(0.3)))
         }
-        .backport.glassEffect(in: Circle())
-        .backport.glassEffectID(icon, in: glassEffectNamespace)
+
         .accessibilityLabel(accessibilityLabel ?? "")
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
@@ -596,13 +580,7 @@ struct CameraTopControls: View {
             Spacer()
 
             if !isMultiItemPreviewShowing {
-                if #available(iOS 26.0, *) {
-                    GlassEffectContainer(spacing: 16) {
-                        cameraControlButtons
-                    }
-                } else {
-                    cameraControlButtons
-                }
+                cameraControlButtons
             }
 
             Spacer()

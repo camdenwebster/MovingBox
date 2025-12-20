@@ -66,9 +66,7 @@ struct MultiItemSelectionView: View {
                         .ignoresSafeArea(edges: .top)
                 }
 
-                if viewModel.isProcessingSelection {
-                    processingOverlay
-                }
+
             }
             .navigationTitle("We found \(viewModel.detectedItems.count) item\(viewModel.detectedItems.count == 1 ? "" : "s")")
             .navigationBarTitleDisplayMode(.inline)
@@ -126,7 +124,7 @@ struct MultiItemSelectionView: View {
                             .padding(.horizontal, 16)
                         continueButton
                             .backport.glassProminentButtonStyle()
-                            .disabled(viewModel.selectedItemsCount == 0)
+                            .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection)
                             .padding(.horizontal)
                             .padding(.bottom, 10)
                     }
@@ -337,44 +335,20 @@ struct MultiItemSelectionView: View {
     }
     
     private var continueButton: some View {
-        // Continue button (full width)
         Button(action: handleContinue) {
             HStack {
                 Spacer()
-                Text("Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")")
-                    .font(.headline)
+                if viewModel.isProcessingSelection {
+                    ProgressView()
+                } else {
+                    Text("Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")")
+                        .font(.headline)
+                }
                 Spacer()
             }
             .padding(.vertical, 12)
         }
         .accessibilityIdentifier("multiItemContinueButton")
-    }
-    
-    private var processingOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 16) {
-                ProgressView()
-                    .scaleEffect(1.2)
-                
-                Text("Creating items...")
-                    .font(.headline)
-                
-                if viewModel.creationProgress > 0 {
-                    ProgressView(value: viewModel.creationProgress)
-                        .frame(width: 200)
-                    
-                    Text("\(Int(viewModel.creationProgress * 100))% complete")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(24)
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-        }
     }
     
     // MARK: - Actions

@@ -193,38 +193,13 @@ struct MovingBoxApp: App {
                     ))
                     .environment(\.disableAnimations, disableAnimations)
                 case .main:
-                    NavigationStack(path: $router.navigationPath) {
-                        DashboardView()
-                            .navigationDestination(for: Router.Destination.self) { destination in
-                                destinationView(for: destination, navigationPath: $router.navigationPath)
-                            }
-                            .navigationDestination(for: String.self) { destination in
-                                Group {
-                                    switch destination {
-                                    case "appearance":
-                                        AppearanceSettingsView()
-                                    case "notifications":
-                                        NotificationSettingsView()
-                                    case "ai":
-                                        AISettingsView()
-                                    case "locations":
-                                        LocationSettingsView()
-                                    case "labels":
-                                        LabelSettingsView()
-                                    case "home":
-                                        EditHomeView()
-                                    case "no-location":
-                                        InventoryListView(location: nil, showOnlyUnassigned: true)
-                                    default:
-                                        EmptyView()
-                                    }
-                                }
-                            }
-                    }
-                    .environment(\.disableAnimations, disableAnimations)
-                    .tint(.green)
+                    MainSplitView(navigationPath: $router.navigationPath)
+                        .environment(\.disableAnimations, disableAnimations)
                 }
             }
+            #if os(macOS)
+            .toolbar(removing: .title)
+            #endif
             .task {
                 // Initialize container
                 await containerManager.initialize()
