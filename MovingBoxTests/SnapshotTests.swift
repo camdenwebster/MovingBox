@@ -54,19 +54,19 @@ final class SnapshotTests {
         
         do {
             print("Deleting items...")
-            try context.delete(model: InventoryItem.self)
+            try context.deleteAllItems()
             
             print("Deleting locations...")
-            try context.delete(model: InventoryLocation.self)
+            try context.deleteAllLocations()
             
             print("Deleting labels...")
-            try context.delete(model: InventoryLabel.self)
+            try context.deleteAllLabels()
             
             print("Deleting homes...")
-            try context.delete(model: Home.self)
+            try context.deleteAllHomes()
             
             print("Deleting policies...")
-            try context.delete(model: InsurancePolicy.self)
+            try context.deleteAllPolicies()
             
             try context.save()
             print("Test data cleared successfully")
@@ -118,10 +118,29 @@ final class SnapshotTests {
 
 // MARK: - Test Extensions
 extension ModelContext {
-    func delete<T: PersistentModel>(model: T.Type) throws {
-        let descriptor = FetchDescriptor<T>()
-        let items = try fetch(descriptor)
+    func deleteAllItems() throws {
+        let items = try fetch(FetchDescriptor<InventoryItem>())
         items.forEach { delete($0) }
+    }
+    
+    func deleteAllLocations() throws {
+        let locations = try fetch(FetchDescriptor<InventoryLocation>())
+        locations.forEach { delete($0) }
+    }
+    
+    func deleteAllLabels() throws {
+        let labels = try fetch(FetchDescriptor<InventoryLabel>())
+        labels.forEach { delete($0) }
+    }
+    
+    func deleteAllHomes() throws {
+        let homes = try fetch(FetchDescriptor<Home>())
+        homes.forEach { delete($0) }
+    }
+    
+    func deleteAllPolicies() throws {
+        let policies = try fetch(FetchDescriptor<InsurancePolicy>())
+        policies.forEach { delete($0) }
     }
 }
 

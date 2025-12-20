@@ -1392,7 +1392,10 @@ struct InventoryDetailView: View {
             
             if inventoryItemToDisplay.imageURL == nil {
                 // No primary image yet, save the first image as primary
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(images.first!, id: itemId)
+                guard let firstImage = images.first else {
+                    throw NSError(domain: "InventoryDetailView", code: 1, userInfo: [NSLocalizedDescriptionKey: "No images provided"])
+                }
+                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(firstImage, id: itemId)
                 
                 await MainActor.run {
                     inventoryItemToDisplay.imageURL = primaryImageURL
@@ -1444,7 +1447,8 @@ struct InventoryDetailView: View {
                     
                     // If there are secondary photos, promote the first one to primary
                     if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
-                        if let firstSecondaryURL = URL(string: inventoryItemToDisplay.secondaryPhotoURLs.first!) {
+                        if let firstSecondaryURLString = inventoryItemToDisplay.secondaryPhotoURLs.first,
+                           let firstSecondaryURL = URL(string: firstSecondaryURLString) {
                             inventoryItemToDisplay.imageURL = firstSecondaryURL
                             inventoryItemToDisplay.secondaryPhotoURLs.removeFirst()
                         }
@@ -1987,7 +1991,9 @@ extension InventoryDetailView {
                     destinationURL = try await OptimizedImageManager.shared.saveImage(image, id: attachmentId)
                 } else {
                     // Copy to Documents directory for non-image files
-                    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                    guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                        throw NSError(domain: "InventoryDetailView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Cannot access documents directory"])
+                    }
                     destinationURL = documentsURL.appendingPathComponent(attachmentId + "." + url.pathExtension)
                     try data.write(to: destinationURL)
                 }
