@@ -5,19 +5,33 @@ import UIKit
 @MainActor
 class ModelContainerManager: ObservableObject {
     static let shared = ModelContainerManager()
-    
+
     @Published private(set) var container: ModelContainer
     @Published private(set) var isLoading = false
-    
+
     // Migration Progress Properties
     @Published var migrationProgress: Double = 0.0
     @Published var migrationStatus: String = "Initializing..."
     @Published var migrationDetailMessage: String = "Preparing your data for the new version"
     @Published var isMigrationComplete: Bool = false
-    
+
+    // iCloud Sync Properties
+    @Published var isWaitingForInitialSync: Bool = false
+    @Published var syncStatus: String = "Checking for existing data..."
+
     // UI timing
     private var initStartTime: Date?
     private let minimumDisplayTime: TimeInterval = 2.0 // 2 seconds minimum
+    private var syncStartTime: Date?
+    private let initialCloudKitWait: TimeInterval = 3.0 // Wait for CloudKit to initialize
+    private let syncUIThreshold: TimeInterval = 5.0 // Show UI if sync takes > 5 seconds (3s initial + 2s buffer)
+    private let minimumSyncUIDisplay: TimeInterval = 0.5 // Show sync UI for at least 0.5 seconds
+    private var syncUIShownTime: Date?
+
+    // Sync timeout configuration
+    private let maxInitialWait: TimeInterval = 30.0 // Maximum wait for first piece of data
+    private let additionalSyncTime: TimeInterval = 10.0 // Additional time once data detected
+    private let dataStableThreshold: TimeInterval = 2.0 // No new data for this long = stable
     
     // Track migration completion in UserDefaults
     private var migrationCompletedKey = "MovingBox_v2_MigrationCompleted"
@@ -448,15 +462,190 @@ class ModelContainerManager: ObservableObject {
     var isSyncEnabled: Bool {
         UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
     }
-    
+
     func getCurrentSyncStatus() -> String {
         // This is a simplified sync status check
         // In practice, you would monitor NSPersistentCloudKitContainer notifications
         if !isSyncEnabled {
             return "Disabled"
         }
-        
+
         // Check if we have network connectivity and return appropriate status
         return "Ready"
+    }
+
+    // MARK: - Initial iCloud Sync
+
+    /// Wait for initial iCloud sync on first launch
+    /// Shows progress UI only if sync takes longer than 5 seconds
+    /// Keeps UI visible for minimum 0.5 seconds once shown
+    /// Uses two-phase approach: wait for first data, then wait for sync to complete
+    func waitForInitialSync() async {
+        // Only wait for sync on first launch
+        guard shouldSkipMigrationForNewInstall else {
+            print("📦 ModelContainerManager - Not first launch, skipping initial sync wait")
+            return
+        }
+
+        // Only wait if iCloud sync is enabled
+        guard isSyncEnabled else {
+            print("📦 ModelContainerManager - iCloud sync disabled, skipping wait")
+            return
+        }
+
+        print("📦 ModelContainerManager - Starting initial sync wait for first launch")
+        syncStartTime = Date()
+
+        // Give CloudKit time to initialize and connect before checking
+        // This is critical - CloudKit doesn't start syncing instantly
+        let initialWaitNanoseconds = UInt64(initialCloudKitWait * 1_000_000_000)
+        print("📦 ModelContainerManager - Waiting \(Int(initialCloudKitWait))s for CloudKit to initialize...")
+        try? await Task.sleep(nanoseconds: initialWaitNanoseconds)
+
+        let checkInterval: UInt64 = 500_000_000 // 0.5 seconds in nanoseconds
+        var hasShownUI = false
+
+        // PHASE 1: Wait for first piece of data to appear (up to maxInitialWait)
+        print("📦 ModelContainerManager - Phase 1: Waiting for first data to appear (max \(Int(maxInitialWait))s)")
+        var dataDetected = false
+
+        while true {
+            let elapsed = Date().timeIntervalSince(syncStartTime!)
+
+            // Check if we've exceeded maximum initial wait time
+            if elapsed > maxInitialWait {
+                print("📦 ModelContainerManager - No data found after \(Int(maxInitialWait))s, proceeding without iCloud data")
+                break
+            }
+
+            // Check for existing data
+            let dataCount = await getCloudKitDataCount()
+
+            if dataCount > 0 {
+                print("📦 ModelContainerManager - First data detected (\(dataCount) items) at \(String(format: "%.1f", elapsed))s")
+                dataDetected = true
+                break
+            }
+
+            // If we've passed the UI threshold and haven't shown UI yet, show it
+            if elapsed > syncUIThreshold && !hasShownUI {
+                print("📦 ModelContainerManager - Sync taking longer than \(syncUIThreshold)s, showing UI")
+                isWaitingForInitialSync = true
+                syncUIShownTime = Date()
+                hasShownUI = true
+            }
+
+            // Update sync status message
+            if hasShownUI {
+                let timeWaited = Int(elapsed)
+                syncStatus = "Syncing with iCloud... (\(timeWaited)s)"
+            }
+
+            // Wait before next check
+            try? await Task.sleep(nanoseconds: checkInterval)
+        }
+
+        // PHASE 2: If data was detected, wait for sync to stabilize or timeout
+        if dataDetected {
+            print("📦 ModelContainerManager - Phase 2: Waiting for sync to complete...")
+
+            var lastDataCount = await getCloudKitDataCount()
+            var lastChangeTime = Date()
+            let phase2Start = Date()
+
+            if !hasShownUI {
+                // Show UI for phase 2 if not already shown
+                isWaitingForInitialSync = true
+                syncUIShownTime = Date()
+                hasShownUI = true
+            }
+
+            while true {
+                let phase2Elapsed = Date().timeIntervalSince(phase2Start)
+                let totalElapsed = Date().timeIntervalSince(syncStartTime!)
+
+                // Check if we've exceeded additional sync time
+                if phase2Elapsed > additionalSyncTime {
+                    print("📦 ModelContainerManager - Phase 2 timeout after \(Int(additionalSyncTime))s, proceeding with synced data")
+                    break
+                }
+
+                // Check current data count
+                let currentDataCount = await getCloudKitDataCount()
+
+                // If data count increased, update last change time
+                if currentDataCount > lastDataCount {
+                    print("📦 ModelContainerManager - Data still arriving: \(lastDataCount) → \(currentDataCount)")
+                    lastDataCount = currentDataCount
+                    lastChangeTime = Date()
+                }
+
+                // If no new data for dataStableThreshold seconds, consider sync complete
+                let timeSinceLastChange = Date().timeIntervalSince(lastChangeTime)
+                if timeSinceLastChange > dataStableThreshold {
+                    print("📦 ModelContainerManager - Data stable for \(String(format: "%.1f", timeSinceLastChange))s, sync complete")
+                    print("📦 ModelContainerManager - Final count: \(currentDataCount) items")
+                    break
+                }
+
+                // Update sync status message
+                syncStatus = "Syncing \(currentDataCount) items... (\(Int(totalElapsed))s)"
+
+                // Wait before next check
+                try? await Task.sleep(nanoseconds: checkInterval)
+            }
+        }
+
+        // If we showed UI, ensure it's visible for minimum duration
+        if hasShownUI, let shownTime = syncUIShownTime {
+            let uiElapsed = Date().timeIntervalSince(shownTime)
+            let remaining = minimumSyncUIDisplay - uiElapsed
+
+            if remaining > 0 {
+                print("📦 ModelContainerManager - Ensuring minimum UI display time (\(String(format: "%.1f", remaining))s remaining)")
+                syncStatus = "Sync complete!"
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            }
+        }
+
+        // Hide sync UI
+        isWaitingForInitialSync = false
+        let totalElapsed = Date().timeIntervalSince(syncStartTime!)
+        print("📦 ModelContainerManager - Initial sync wait complete after \(String(format: "%.1f", totalElapsed))s")
+    }
+
+    /// Get total count of CloudKit data (Homes + Locations + Items)
+    /// Returns 0 if no data or error
+    private func getCloudKitDataCount() async -> Int {
+        do {
+            let context = container.mainContext
+            var totalCount = 0
+
+            // Count Homes
+            let homeDescriptor = FetchDescriptor<Home>()
+            let homes = try context.fetch(homeDescriptor)
+            totalCount += homes.count
+
+            // Count Locations
+            let locationDescriptor = FetchDescriptor<InventoryLocation>()
+            let locations = try context.fetch(locationDescriptor)
+            totalCount += locations.count
+
+            // Count Items
+            let itemDescriptor = FetchDescriptor<InventoryItem>()
+            let items = try context.fetch(itemDescriptor)
+            totalCount += items.count
+
+            return totalCount
+        } catch {
+            print("📦 ModelContainerManager - Error counting data: \(error)")
+            return 0
+        }
+    }
+
+    /// Check if existing data exists in CloudKit
+    private func checkForExistingCloudKitData() async -> Bool {
+        let count = await getCloudKitDataCount()
+        return count > 0
     }
 }
