@@ -23,6 +23,7 @@ class ModelContainerManager: ObservableObject {
     private var migrationCompletedKey = "MovingBox_v2_MigrationCompleted"
     private var deviceIdKey = "MovingBox_DeviceId"
     private var migrationSchemaVersionKey = "MovingBox_SchemaVersion"
+    private let multiHomeMigrationKey = "MovingBox_MultiHomeMigration_v1"
     
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -319,7 +320,10 @@ class ModelContainerManager: ObservableObject {
         
         await updateMigrationStatus("Migrating inventory items...", progress: 0.6)
         try? await migrateInventoryItems()
-        
+
+        await updateMigrationStatus("Setting up multi-home support...", progress: 0.7)
+        try? await performMultiHomeMigration()
+
         await updateMigrationStatus("Completing migration...", progress: 0.8)
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
@@ -437,7 +441,85 @@ class ModelContainerManager: ObservableObject {
         
         print("📦 ModelContainerManager - Completed inventory item migrations")
     }
-    
+
+    // MARK: - Multi-Home Migration
+
+    private var isMultiHomeMigrationCompleted: Bool {
+        UserDefaults.standard.bool(forKey: multiHomeMigrationKey)
+    }
+
+    internal func performMultiHomeMigration() async throws {
+        guard !isMultiHomeMigrationCompleted else {
+            print("📦 ModelContainerManager - Multi-home migration already completed, skipping")
+            return
+        }
+
+        let context = container.mainContext
+        print("📦 ModelContainerManager - Starting multi-home migration")
+
+        // 1. Get or create primary home
+        let homeDescriptor = FetchDescriptor<Home>()
+        let homes = try context.fetch(homeDescriptor)
+
+        let primaryHome: Home
+        if let existingHome = homes.first {
+            primaryHome = existingHome
+            print("📦 ModelContainerManager - Found existing home: \(primaryHome.name)")
+        } else {
+            primaryHome = Home(name: "My Home")
+            context.insert(primaryHome)
+            print("📦 ModelContainerManager - Created new primary home")
+        }
+        primaryHome.isPrimary = true
+
+        // 2. Assign all orphaned locations to primary home
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let locations = try context.fetch(locationDescriptor)
+        var migratedLocationsCount = 0
+
+        for location in locations where location.home == nil {
+            location.home = primaryHome
+            migratedLocationsCount += 1
+        }
+        print("📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations to primary home")
+
+        // 3. Assign all orphaned labels to primary home
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let labels = try context.fetch(labelDescriptor)
+        var migratedLabelsCount = 0
+
+        for label in labels where label.home == nil {
+            label.home = primaryHome
+            migratedLabelsCount += 1
+        }
+        print("📦 ModelContainerManager - Migrated \(migratedLabelsCount) labels to primary home")
+
+        // 4. Assign all orphaned items (without location) to primary home
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try context.fetch(itemDescriptor)
+        var migratedItemsCount = 0
+
+        for item in items where item.location == nil && item.home == nil {
+            item.home = primaryHome
+            migratedItemsCount += 1
+        }
+        print("📦 ModelContainerManager - Migrated \(migratedItemsCount) orphaned items to primary home")
+
+        // 5. Save and mark complete
+        try context.save()
+        UserDefaults.standard.set(true, forKey: multiHomeMigrationKey)
+
+        // 6. Store active home ID in SettingsManager format
+        if let modelID = try? primaryHome.persistentModelID.uriRepresentation().dataRepresentation {
+            let idString = modelID.base64EncodedString()
+            UserDefaults.standard.set(idString, forKey: "activeHomeId")
+            print("📦 ModelContainerManager - Set active home ID: \(idString)")
+        }
+
+        print("📦 ModelContainerManager - Multi-home migration completed successfully")
+        print("📦 ModelContainerManager - Summary: \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items")
+    }
+
     // MARK: - Sync Control Methods
     
     func setSyncEnabled(_ enabled: Bool) {
