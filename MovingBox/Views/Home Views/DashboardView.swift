@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import RevenueCatUI
+import WhatsNewKit
 
 @MainActor
 struct DashboardView: View {
@@ -223,11 +224,9 @@ struct DashboardView: View {
             EnhancedItemCreationFlowView(
                 captureMode: .singleItem,
                 location: nil
-            ) {
-                // Optional callback when item creation is complete
-                dismiss()
-            }
+            )
         }
+        .whatsNewSheet()
         .task(id: home?.imageURL) {
             guard let home = home,
                   let imageURL = home.imageURL,

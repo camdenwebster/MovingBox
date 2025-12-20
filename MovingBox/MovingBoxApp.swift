@@ -11,6 +11,7 @@ import SwiftData
 import SwiftUI
 import TelemetryDeck
 import UIKit
+import WhatsNewKit
 import WishKit
 
 @main
@@ -231,6 +232,7 @@ struct MovingBoxApp: App {
             }
             .modelContainer(containerManager.container)
             .environment(\.featureFlags, FeatureFlags(distribution: .current))
+            .environment(\.whatsNew, .forMovingBox())
             .environmentObject(router)
             .environmentObject(settings)
             .environmentObject(containerManager)

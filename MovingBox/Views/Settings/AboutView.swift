@@ -1,7 +1,10 @@
 import SwiftUI
 import AcknowList
+import WhatsNewKit
 
 struct AboutView: View {
+    @State private var whatsNew: WhatsNew? = nil
+    
     private var appVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
@@ -35,13 +38,14 @@ struct AboutView: View {
     var body: some View {
         List {
             Section {
-                VStack(spacing: 20) {
-                    if let uiImage = UIImage(named: "AppIcon") {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .frame(width: 100, height: 100)
-                            .clipShape(RoundedRectangle(cornerRadius: 22))
-                    }
+                VStack(alignment: .leading, spacing: 20) {
+                    if let appIcon = Bundle.main.icon {
+                                        Image(uiImage: appIcon)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 80, height: 80)
+                                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    }
                     
                     Text("About MovingBox")
                         .font(.title2)
@@ -51,7 +55,7 @@ struct AboutView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Text("MovingBox is built by an independent developer dedicated to helping you organize and protect your home inventory, and we strive to offer the best experience on Apple Platforms.")
+                    Text("MovingBox is built by an independent developer dedicated to offering the best home inventory experience on Apple Platforms.")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)
@@ -95,7 +99,9 @@ struct AboutView: View {
             }
             
             Section {
-                Link(destination: externalLinks["roadmap"]!.url) {
+                Button {
+                    whatsNew = .current
+                } label: {
                     HStack {
                         Label {
                             Text("What's New")
@@ -104,7 +110,7 @@ struct AboutView: View {
                             Image(systemName: "sparkles")
                         }
                         Spacer()
-                        Image(systemName: "arrow.up.right.square")
+                        Image(systemName: "chevron.right")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -115,7 +121,7 @@ struct AboutView: View {
                         .navigationBarTitleDisplayMode(.inline)
                 } label: {
                     Label {
-                        Text("Credits")
+                        Text("Third Party Acknowledgements")
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "heart")
@@ -125,6 +131,7 @@ struct AboutView: View {
         }
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(whatsNew: $whatsNew)
     }
 }
 

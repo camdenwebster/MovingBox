@@ -32,6 +32,7 @@
 		1979BBBA2EF5E07300CB8A01 /* WishKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1979BBB92EF5E07300CB8A01 /* WishKit */; };
 		1979BBBD2EF5E08400CB8A01 /* AcknowList in Frameworks */ = {isa = PBXBuildFile; productRef = 1979BBBC2EF5E08400CB8A01 /* AcknowList */; };
 		1979BBE52EF5E5D700CB8A01 /* Package.resolved in Resources */ = {isa = PBXBuildFile; fileRef = 1979BBE42EF5E5D700CB8A01 /* Package.resolved */; };
+		1979BE542EF6E18700CB8A01 /* WhatsNewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1979BE532EF6E18700CB8A01 /* WhatsNewKit */; };
 		197D67CD2EAA7B1500A53A02 /* SentrySwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
@@ -179,6 +180,7 @@
 				19A6B2982E74721C006A6EF6 /* AIProxy in Frameworks */,
 				1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */,
 				4A01539D070041769323F9C9 /* Sentry in Frameworks */,
+				1979BE542EF6E18700CB8A01 /* WhatsNewKit in Frameworks */,
 				19BA299C2DC465170064C5A9 /* ZIPFoundation in Frameworks */,
 				1979BBBD2EF5E08400CB8A01 /* AcknowList in Frameworks */,
 				196450542E4D6DC300918795 /* SwiftUIBackports in Frameworks */,
@@ -368,6 +370,7 @@
 				197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */,
 				1979BBB92EF5E07300CB8A01 /* WishKit */,
 				1979BBBC2EF5E08400CB8A01 /* AcknowList */,
+				1979BE532EF6E18700CB8A01 /* WhatsNewKit */,
 			);
 			productName = MovingBox;
 			productReference = 1942DC7A2BF391CB00734AF4 /* MovingBox.app */;
@@ -508,6 +511,7 @@
 				19A6B2962E74721C006A6EF6 /* XCRemoteSwiftPackageReference "AIProxySwift" */,
 				1979BBB82EF5E07300CB8A01 /* XCRemoteSwiftPackageReference "wishkit-ios" */,
 				1979BBBB2EF5E08400CB8A01 /* XCRemoteSwiftPackageReference "AcknowList" */,
+				1979BE522EF6E18700CB8A01 /* XCRemoteSwiftPackageReference "WhatsNewKit" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -1373,6 +1377,14 @@
 				minimumVersion = 3.4.0;
 			};
 		};
+		1979BE522EF6E18700CB8A01 /* XCRemoteSwiftPackageReference "WhatsNewKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SvenTiigi/WhatsNewKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.1;
+			};
+		};
 		19A6B2962E74721C006A6EF6 /* XCRemoteSwiftPackageReference "AIProxySwift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/lzell/AIProxySwift";
@@ -1434,6 +1446,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1979BBBB2EF5E08400CB8A01 /* XCRemoteSwiftPackageReference "AcknowList" */;
 			productName = AcknowList;
+		};
+		1979BE532EF6E18700CB8A01 /* WhatsNewKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1979BE522EF6E18700CB8A01 /* XCRemoteSwiftPackageReference "WhatsNewKit" */;
+			productName = WhatsNewKit;
 		};
 		197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */ = {
 			isa = XCSwiftPackageProductDependency;
