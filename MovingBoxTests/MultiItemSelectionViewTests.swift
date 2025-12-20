@@ -563,26 +563,3 @@ import UIKit
         }
     }
 }
-
-// MARK: - Supporting Types and Extensions
-
-/// Custom error type for inventory item creation
-enum InventoryItemCreationError: Error {
-    case noImagesProvided
-    case imageProcessingFailed
-    case contextSaveFailure
-    case invalidItemData
-    
-    var localizedDescription: String {
-        switch self {
-        case .noImagesProvided:
-            return "No images provided for item creation"
-        case .imageProcessingFailed:
-            return "Failed to process item images"
-        case .contextSaveFailure:
-            return "Failed to save item to database"
-        case .invalidItemData:
-            return "Invalid item data provided"
-        }
-    }
-}

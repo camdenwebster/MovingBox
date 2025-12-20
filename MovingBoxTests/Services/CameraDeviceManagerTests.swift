@@ -8,8 +8,12 @@ final class CameraDeviceManagerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        #if targetEnvironment(simulator)
+        // Skip setup on simulator - no hardware cameras available
+        #else
         // Create manager for back camera
         manager = CameraDeviceManager(position: .back)
+        #endif
     }
 
     override func tearDown() {
@@ -19,12 +23,19 @@ final class CameraDeviceManagerTests: XCTestCase {
 
     // MARK: - Camera Discovery Tests
 
-    func testCameraDiscoveryReturnsAvailableCameras() {
+    func testCameraDiscoveryReturnsAvailableCameras() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         // The manager should discover at least the wide angle camera on any device
         XCTAssertGreaterThan(manager.availableCameras.count, 0, "Should discover at least one camera")
+        #endif
     }
 
-    func testDiscoveredCamerasHaveValidCapabilities() {
+    func testDiscoveredCamerasHaveValidCapabilities() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         for capability in manager.availableCameras {
             // Check min/max zoom factors are valid
             XCTAssertGreaterThan(capability.maxZoomFactor, 0, "Max zoom should be positive")
@@ -41,74 +52,114 @@ final class CameraDeviceManagerTests: XCTestCase {
             // Check display zoom factor
             XCTAssertGreaterThan(capability.displayZoomFactor, 0, "Display zoom should be positive")
         }
+        #endif
     }
 
-    func testWideAngleAlwaysHas1xZoom() {
+    func testWideAngleAlwaysHas1xZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let wideAngle = manager.availableCameras.first { $0.displayZoomFactor == 1.0 }
         XCTAssertNotNil(wideAngle, "Should find a 1.0x (wide angle) camera")
+        #endif
     }
 
-    func testUltraWideHasLessThan1xZoom() {
+    func testUltraWideHasLessThan1xZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let ultraWide = manager.availableCameras.first { $0.displayZoomFactor < 1.0 }
         if ultraWide != nil {
             // If ultra-wide exists, verify it's around 0.5x
             XCTAssertLessThan(ultraWide!.displayZoomFactor, 0.7)
         }
         // Note: Not all devices have ultra-wide, so this is optional
+        #endif
     }
 
-    func testTelephotoHasGreaterThan1xZoom() {
+    func testTelephotoHasGreaterThan1xZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let telephoto = manager.availableCameras.first { $0.displayZoomFactor > 1.0 }
         if telephoto != nil {
             // If telephoto exists, verify it's at least 3x
             XCTAssertGreaterThanOrEqual(telephoto!.displayZoomFactor, 3.0)
         }
         // Note: Not all devices have telephoto, so this is optional
+        #endif
     }
 
     // MARK: - Zoom Level Calculation Tests
 
-    func testOptimalZoomLevelsAreSorted() {
+    func testOptimalZoomLevelsAreSorted() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let levels = manager.optimalZoomLevels
         XCTAssertEqual(levels, levels.sorted(), "Zoom levels should be sorted in ascending order")
+        #endif
     }
 
-    func testOptimalZoomLevelsInclude1x() {
+    func testOptimalZoomLevelsInclude1x() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let levels = manager.optimalZoomLevels
         XCTAssertTrue(levels.contains(1.0), "1.0x should always be in optimal zoom levels")
+        #endif
     }
 
-    func testOptimalZoomLevelsMatchAvailableCameras() {
+    func testOptimalZoomLevelsMatchAvailableCameras() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let levels = manager.optimalZoomLevels
         let cameraZooms = manager.availableCameras.map { $0.displayZoomFactor }
 
         for level in levels {
             XCTAssertTrue(cameraZooms.contains(level), "Zoom level \(level) should match a camera")
         }
+        #endif
     }
 
     // MARK: - Camera Selection Tests
 
-    func testCanGetCameraForZoomLevel() {
+    func testCanGetCameraForZoomLevel() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         for level in manager.optimalZoomLevels {
             let camera = manager.camera(forZoomLevel: level)
             XCTAssertNotNil(camera, "Should get camera for zoom level \(level)")
             XCTAssertEqual(camera?.displayZoomFactor, level, "Camera zoom should match requested level")
         }
+        #endif
     }
 
-    func testCameraSelectionReturnsNilForUnavailableZoom() {
+    func testCameraSelectionReturnsNilForUnavailableZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let unavailableZoom: CGFloat = 100.0
         let camera = manager.camera(forZoomLevel: unavailableZoom)
         XCTAssertNil(camera, "Should return nil for unavailable zoom level")
+        #endif
     }
 
-    func testBestCameraForMacroIsAvailable() {
+    func testBestCameraForMacroIsAvailable() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let macro = manager.bestCameraForMacro()
         XCTAssertNotNil(macro, "Should find a camera for macro photography")
+        #endif
     }
 
-    func testBestCameraForMacroHasShortestFocusDistance() {
+    func testBestCameraForMacroHasShortestFocusDistance() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let macro = manager.bestCameraForMacro()
         let allFocusDistances = manager.availableCameras.map { $0.minimumFocusDistance }
 
@@ -120,11 +171,15 @@ final class CameraDeviceManagerTests: XCTestCase {
                 "Macro camera should have shortest or tied focus distance"
             )
         }
+        #endif
     }
 
     // MARK: - Macro Recommendation Tests
 
-    func testMacroRecommendationNotReturnedWhenAlreadyOnBestCamera() {
+    func testMacroRecommendationNotReturnedWhenAlreadyOnBestCamera() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let macro = manager.bestCameraForMacro()
         if let macro = macro {
             let recommendation = manager.checkMacroRecommendation(
@@ -133,9 +188,13 @@ final class CameraDeviceManagerTests: XCTestCase {
             )
             XCTAssertNil(recommendation, "Should not recommend switching when already on best camera")
         }
+        #endif
     }
 
-    func testMacroRecommendationHasValidMessage() {
+    func testMacroRecommendationHasValidMessage() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         // Find a non-macro camera
         let nonMacro = manager.availableCameras.max { $0.minimumFocusDistance > $1.minimumFocusDistance }
         let macro = manager.bestCameraForMacro()
@@ -154,9 +213,13 @@ final class CameraDeviceManagerTests: XCTestCase {
                 )
             }
         }
+        #endif
     }
 
-    func testMacroRecommendationIncludesCorrectImprovement() {
+    func testMacroRecommendationIncludesCorrectImprovement() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let nonMacro = manager.availableCameras.max { $0.minimumFocusDistance > $1.minimumFocusDistance }
         let macro = manager.bestCameraForMacro()
 
@@ -175,27 +238,39 @@ final class CameraDeviceManagerTests: XCTestCase {
                 )
             }
         }
+        #endif
     }
 
     // MARK: - Zoom Support Tests
 
-    func testCanAchieveZoomReturnsTrueForSupportedZoom() {
+    func testCanAchieveZoomReturnsTrueForSupportedZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         for level in manager.optimalZoomLevels {
             XCTAssertTrue(
                 manager.canAchieveZoom(level),
                 "Should report support for zoom level \(level)"
             )
         }
+        #endif
     }
 
-    func testCanAchieveZoomReturnsFalseForUnsupportedZoom() {
+    func testCanAchieveZoomReturnsFalseForUnsupportedZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let unsupported: CGFloat = 999.0
         XCTAssertFalse(manager.canAchieveZoom(unsupported), "Should not support extreme zoom")
+        #endif
     }
 
     // MARK: - Front Camera Tests
 
-    func testCanCreateManagerForFrontCamera() {
+    func testCanCreateManagerForFrontCamera() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let frontManager = CameraDeviceManager(position: .front)
         // Front camera should also have at least wide angle
         XCTAssertGreaterThan(
@@ -203,28 +278,41 @@ final class CameraDeviceManagerTests: XCTestCase {
             0,
             "Front camera should have at least one camera"
         )
+        #endif
     }
 
     // MARK: - Zoom Factor Formatting Tests
 
-    func testDisplayLabelForHalfZoom() {
+    func testDisplayLabelForHalfZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let capability = manager.availableCameras.first { $0.displayZoomFactor == 0.5 }
         if let capability = capability {
             XCTAssertEqual(capability.displayLabel, "0.5x")
         }
+        #endif
     }
 
-    func testDisplayLabelForIntegerZoom() {
+    func testDisplayLabelForIntegerZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let capability = manager.availableCameras.first { $0.displayZoomFactor == 1.0 }
         if let capability = capability {
             XCTAssertEqual(capability.displayLabel, "1x")
         }
+        #endif
     }
 
-    func testDisplayLabelForDecimalZoom() {
+    func testDisplayLabelForDecimalZoom() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Camera tests require physical device with cameras")
+        #else
         let capability = manager.availableCameras.first { $0.displayZoomFactor == 3.0 }
         if let capability = capability {
             XCTAssertEqual(capability.displayLabel, "3x")
         }
+        #endif
     }
 }

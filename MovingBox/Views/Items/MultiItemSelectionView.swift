@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import SwiftUIBackports
 
 struct MultiItemSelectionView: View {
 
@@ -113,10 +114,7 @@ struct MultiItemSelectionView: View {
                         .frame(height: geometry.size.height * 0.35)
 
                     // Card and controls section
-                    VStack {
-                        cardCarouselView
-                        instructionText
-                    }
+                    cardCarouselView
                     
                     VStack {
                         selectionSummaryView
@@ -155,16 +153,6 @@ struct MultiItemSelectionView: View {
         }
         .padding(.horizontal, 32)
     }
-    
-
-    
-    private var instructionText: some View {
-        Text("Swipe through and select the items you want to add to your inventory")
-            .font(.caption)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 16)
-    }
-
     
     private var imageView: some View {
         ZStack(alignment: .bottom) {
@@ -381,6 +369,8 @@ struct DetectedItemCard: View {
     var body: some View {
         Button(action: onToggleSelection) {
             VStack(alignment: .leading, spacing: 8) {
+                // Label emoji
+                // i
                 // Title and confidence badge
                 HStack {
                     Text(item.title)
@@ -398,14 +388,11 @@ struct DetectedItemCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         if let label = matchedLabel {
                             HStack(spacing: 4) {
-                                if let color = label.color {
-                                    Circle()
-                                        .fill(Color(uiColor: color))
-                                        .frame(width: 8, height: 8)
-                                }
                                 Text(label.emoji)
-                                    .font(.caption)
-                                Text(label.name)
+                                    .padding(7)
+                                    .background(in: Circle())
+                                    .backgroundStyle(Color(label.color ?? .blue))
+                                Label(label.name, systemImage: "tag")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -421,7 +408,7 @@ struct DetectedItemCard: View {
 
                 // Description
                 if !item.description.isEmpty {
-                    Text(item.description)
+                    Label(item.description, systemImage: "list.clipboard")
                         .font(.callout)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)
@@ -459,6 +446,7 @@ struct DetectedItemCard: View {
             }
             .padding()
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .backport.glassEffect()
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(isSelected ? Color.blue : Color(.systemGray5), lineWidth: isSelected ? 2 : 1)

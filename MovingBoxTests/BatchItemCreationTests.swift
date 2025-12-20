@@ -243,19 +243,18 @@ struct BatchItemCreationTests {
             ("$2,999", 2999)
         ]
         
-        let location = createTestLocation()
+        // Create a single container and context for all test cases to avoid overhead
         let container = try createTestContainer()
         let modelContext = container.mainContext
+        let location = createTestLocation()
         
-        let viewModel = await ItemCreationFlowViewModel(
-            captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
-        )
+        // Create one set of test images to reuse
+        let testImages = createTestImages()
         
+        // Test all cases in a single batch to avoid repeated async overhead
         for (input, expected) in testCases {
             let detectedItem = DetectedInventoryItem(
-                id: "price-test",
+                id: "price-test-\(UUID().uuidString)",
                 title: "Price Test Item",
                 description: "Test item for price parsing",
                 category: "Test Category",
@@ -265,16 +264,24 @@ struct BatchItemCreationTests {
                 confidence: 0.85
             )
             
+            let viewModel = await ItemCreationFlowViewModel(
+                captureMode: .multiItem,
+                location: location,
+                modelContext: modelContext
+            )
+            
             viewModel.selectedMultiItems = [detectedItem]
-            viewModel.capturedImages = createTestImages()
+            viewModel.capturedImages = testImages
             
             let createdItems = try await viewModel.processSelectedMultiItems()
-            #expect(createdItems.count == 1)
+            #expect(createdItems.count == 1, "Failed to create item for input: \(input)")
             let actualPrice = createdItems[0].price
             #expect(actualPrice == expected, "Failed for input: \(input), expected: \(expected), got: \(actualPrice)")
             
-            // Clean up for next test
-            try modelContext.delete(model: InventoryItem.self)
+            // Clean up immediately after each test to keep memory usage low
+            for item in createdItems {
+                modelContext.delete(item)
+            }
             try modelContext.save()
         }
     }

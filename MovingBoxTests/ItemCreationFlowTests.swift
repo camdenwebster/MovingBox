@@ -310,12 +310,15 @@ import UIKit
         let context = ModelContext(container)
         
         let mockOpenAIService = MockOpenAIService()
+        let mockSettings = MockSettingsManager()
+        
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .singleItem,
             location: nil,
             modelContext: context,
             openAIService: mockOpenAIService
         )
+        viewModel.updateSettingsManager(mockSettings)
         
         // Set up for analysis
         viewModel.capturedImages = createTestImages(count: 2)
@@ -351,12 +354,15 @@ import UIKit
         let context = ModelContext(container)
         
         let mockOpenAIService = MockOpenAIService()
+        let mockSettings = MockSettingsManager()
+        
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
             location: nil,
             modelContext: context,
             openAIService: mockOpenAIService
         )
+        viewModel.updateSettingsManager(mockSettings)
         
         // Set up mock response
         let mockResponse = createMockMultiItemAnalysisResponse()
@@ -380,6 +386,7 @@ import UIKit
         
         let mockOpenAIService = MockOpenAIService()
         mockOpenAIService.shouldFailMultiItem = true
+        let mockSettings = MockSettingsManager()
         
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
@@ -387,6 +394,7 @@ import UIKit
             modelContext: context,
             openAIService: mockOpenAIService
         )
+        viewModel.updateSettingsManager(mockSettings)
         
         viewModel.capturedImages = createTestImages(count: 1)
         

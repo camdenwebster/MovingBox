@@ -110,7 +110,7 @@ import AVFoundation
     
     @Test("Camera mode selection state management")
     func testCaptureModeSelectionState() {
-        @State var selectedMode = CaptureMode.singleItem
+        var selectedMode = CaptureMode.singleItem
         
         // Test initial state
         #expect(selectedMode == .singleItem)
