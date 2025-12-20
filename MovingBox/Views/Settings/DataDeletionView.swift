@@ -97,7 +97,10 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     
     private func clearImageCache() async {
         do {
-            let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                print("❌ DataDeletionView - Cannot access documents directory")
+                return
+            }
             let imagesDirectory = documentsDirectory.appendingPathComponent("OptimizedImages")
             if FileManager.default.fileExists(atPath: imagesDirectory.path) {
                 try FileManager.default.removeItem(at: imagesDirectory)

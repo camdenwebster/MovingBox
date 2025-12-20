@@ -61,7 +61,6 @@ class SettingsManager: ObservableObject {
     @Published var isPro: Bool {
         didSet {
             let proValue = ProcessInfo.processInfo.arguments.contains("Is-Pro") ? true : isPro
-            print("📱 SettingsManager - Saving Pro status: \(proValue)")
             UserDefaults.standard.set(proValue, forKey: Keys.isPro)
         }
     }
@@ -125,9 +124,6 @@ class SettingsManager: ObservableObject {
     private let preferredCaptureModeDefault = 0 // 0 = singleItem, 1 = multiItem
     
     init() {
-        print("📱 SettingsManager - Starting initialization")
-        print("📱 SettingsManager - Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))")
-
         // Initialize with default values first
         self.aiModel = defaultAIModel
         self.temperature = defaultTemperature
