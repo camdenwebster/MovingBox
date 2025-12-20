@@ -13,15 +13,17 @@ import RevenueCatUI
 
 @MainActor
 struct DashboardView: View {
+    let specificHome: Home?
+
     @Environment(\.modelContext) var modelContext
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
-    @Query private var items: [InventoryItem]
-    @Query(sort: [SortDescriptor(\InventoryItem.createdAt, order: .reverse)]) private var recentItems: [InventoryItem]
+    @Query private var allItems: [InventoryItem]
+    @Query(sort: [SortDescriptor(\InventoryItem.createdAt, order: .reverse)]) private var allRecentItems: [InventoryItem]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
-    
+
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
@@ -30,15 +32,41 @@ struct DashboardView: View {
     @State private var loadingStartDate: Date? = nil
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
-    
-    private var home: Home? {
-        return homes.last
+
+    // MARK: - Initializer
+
+    init(home: Home? = nil) {
+        self.specificHome = home
     }
-    
+
+    // MARK: - Computed Properties
+
+    private var displayHome: Home? {
+        specificHome ?? homes.first { $0.isPrimary } ?? homes.last
+    }
+
+    private var home: Home? {
+        return displayHome
+    }
+
+    private var items: [InventoryItem] {
+        guard let displayHome = displayHome else {
+            return allItems
+        }
+        return allItems.filter { $0.effectiveHome?.persistentModelID == displayHome.persistentModelID }
+    }
+
+    private var recentItems: [InventoryItem] {
+        guard let displayHome = displayHome else {
+            return allRecentItems
+        }
+        return allRecentItems.filter { $0.effectiveHome?.persistentModelID == displayHome.persistentModelID }
+    }
+
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
     }
-    
+
     private var topRecentItems: [InventoryItem] {
         Array(recentItems.prefix(3))
     }
