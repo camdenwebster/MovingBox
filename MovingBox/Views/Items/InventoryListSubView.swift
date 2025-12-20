@@ -17,6 +17,7 @@ struct InventoryListSubView: View {
     let searchString: String
     let sortOrder: [SortDescriptor<InventoryItem>]
     let showOnlyUnassigned: Bool
+    let showAllHomes: Bool
     @Binding var selectedItemIDs: Set<PersistentIdentifier>
     
     // Use @Query for lazy loading with dynamic predicate and sort
@@ -82,18 +83,19 @@ struct InventoryListSubView: View {
     @ViewBuilder
     private func itemRowView(for inventoryItem: InventoryItem) -> some View {
         NavigationLink(value: inventoryItem) {
-            InventoryItemRow(item: inventoryItem)
+            InventoryItemRow(item: inventoryItem, showHomeBadge: showAllHomes)
                 .listRowInsets(EdgeInsets())
         }
     }
     
     
-    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
+    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, showAllHomes: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
         self.location = location
         self.filterLabel = filterLabel
         self.searchString = searchString
         self.sortOrder = sortOrder
         self.showOnlyUnassigned = showOnlyUnassigned
+        self.showAllHomes = showAllHomes
         self._selectedItemIDs = selectedItemIDs
 
         // Build predicate based on location, label, or unassigned filter

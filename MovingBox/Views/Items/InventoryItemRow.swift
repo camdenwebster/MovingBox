@@ -9,6 +9,7 @@ import SwiftUI
 
 struct InventoryItemRow: View {
     var item: InventoryItem
+    var showHomeBadge: Bool = false
     @State private var imageLoadTrigger = 0
     @State private var hasRetried = false
 
@@ -63,6 +64,14 @@ struct InventoryItemRow: View {
                 Text(item.title)
                     .lineLimit(1)
                     .truncationMode(.tail)
+
+                if showHomeBadge, let home = item.effectiveHome {
+                    Text(home.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
 //                if item.make != "" {
 //                    Text("Make: \(item.make)")
 //                        .lineLimit(1)

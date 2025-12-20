@@ -49,6 +49,8 @@ final class Router: ObservableObject {
         case importDataView
         case exportDataView
         case deleteDataView
+        case homeListView
+        case addHomeView
     }
 
     @Published var navigationPath = NavigationPath()

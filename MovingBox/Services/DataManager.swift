@@ -526,6 +526,7 @@ actor DataManager {
         desc: String,
         locationName: String,
         labelName: String,
+        homeName: String,
         quantity: Int,
         serial: String,
         model: String,
@@ -1283,6 +1284,7 @@ actor DataManager {
                         desc: item.desc,
                         locationName: item.location?.name ?? "",
                         labelName: item.label?.name ?? "",
+                        homeName: item.location?.home?.name ?? "",
                         quantity: item.quantityInt,
                         serial: item.serial,
                         model: item.model,
@@ -1700,7 +1702,7 @@ actor DataManager {
         let csvLines: [String] = {
             var lines: [String] = []
             let header = [
-                "Title","Description","Location","Label","Quantity","Serial","Model","Make",
+                "Title","Description","Location","Label","Home","Quantity","Serial","Model","Make",
                 "Price","Insured","Notes","PhotoFilename","HasUsedAI"
             ]
             lines.append(header.joined(separator: ","))
@@ -1711,6 +1713,7 @@ actor DataManager {
                     item.desc,
                     item.locationName,
                     item.labelName,
+                    item.homeName,
                     String(item.quantity),
                     item.serial,
                     item.model,
@@ -1725,7 +1728,7 @@ actor DataManager {
             }
             return lines
         }()
-        
+
         let csvString = csvLines.joined(separator: "\n")
         try csvString.data(using: .utf8)?.write(to: url)
     }
@@ -1835,6 +1838,7 @@ actor DataManager {
                     desc: item.desc,
                     locationName: item.location?.name ?? "",
                     labelName: item.label?.name ?? "",
+                    homeName: item.location?.home?.name ?? "",
                     quantity: item.quantityInt,
                     serial: item.serial,
                     model: item.model,

@@ -124,33 +124,12 @@ struct SettingsView: View {
             }
             
             Section("Home Settings") {
-                Group {
-                    NavigationLink(value: "home") {
-                        Label {
-                            Text("Home Details")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "house")
-                                
-                        }
-                    }
-                    NavigationLink(value: "locations") {
-                        Label {
-                            Text("Location Settings")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "location")
-                                
-                        }
-                    }
-                    NavigationLink(value: "labels") {
-                        Label {
-                            Text("Label Settings")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "tag")
-                                
-                        }
+                NavigationLink(value: Router.Destination.homeListView) {
+                    Label {
+                        Text("Manage Homes")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "house")
                     }
                 }
             }
@@ -382,6 +361,8 @@ struct SettingsView: View {
                 case .importDataView: ImportDataView()
                 case .exportDataView: ExportDataView()
                 case .deleteDataView: DataDeletionView()
+                case .homeListView: HomeListView()
+                case .addHomeView: AddHomeView()
                 default: EmptyView()
             }
         }
