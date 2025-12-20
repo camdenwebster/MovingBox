@@ -35,8 +35,14 @@ struct MainSplitView: View {
         switch sidebarDestination {
         case .dashboard:
             DashboardView()
+        case .home(let homeId):
+            if let home = modelContext.model(for: homeId) as? Home {
+                DashboardView(home: home)
+            } else {
+                ContentUnavailableView("Home Not Found", systemImage: "house.slash")
+            }
         case .allInventory:
-            InventoryListView(location: nil)
+            InventoryListView(location: nil, showAllHomes: true)
         case .label(let labelId):
             if let label = modelContext.model(for: labelId) as? InventoryLabel {
                 InventoryListView(location: nil, filterLabel: label)

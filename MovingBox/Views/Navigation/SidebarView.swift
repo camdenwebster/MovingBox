@@ -10,16 +10,67 @@ import SwiftData
 
 struct SidebarView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \InventoryLabel.name) private var labels: [InventoryLabel]
-    @Query(sort: \InventoryLocation.name) private var locations: [InventoryLocation]
+    @EnvironmentObject private var settingsManager: SettingsManager
+    @Query(sort: \InventoryLabel.name) private var allLabels: [InventoryLabel]
+    @Query(sort: \InventoryLocation.name) private var allLocations: [InventoryLocation]
+    @Query(sort: \Home.name) private var homes: [Home]
     @Binding var selection: Router.SidebarDestination?
+
+    // MARK: - Computed Properties
+
+    private var primaryHome: Home? {
+        homes.first { $0.isPrimary }
+    }
+
+    private var secondaryHomes: [Home] {
+        homes.filter { !$0.isPrimary }.sorted { $0.name < $1.name }
+    }
+
+    private var activeHome: Home? {
+        guard let activeId = settingsManager.activeHomeId else {
+            return primaryHome
+        }
+        return homes.first { home in
+            if let modelID = try? home.persistentModelID.uriRepresentation().dataRepresentation {
+                return modelID.base64EncodedString() == activeId
+            }
+            return false
+        } ?? primaryHome
+    }
+
+    private var filteredLocations: [InventoryLocation] {
+        guard let activeHome = activeHome else {
+            return []
+        }
+        return allLocations.filter { $0.home?.persistentModelID == activeHome.persistentModelID }
+    }
+
+    private var filteredLabels: [InventoryLabel] {
+        guard let activeHome = activeHome else {
+            return []
+        }
+        return allLabels.filter { $0.home?.persistentModelID == activeHome.persistentModelID }
+    }
+
+    // MARK: - Body
 
     var body: some View {
         List(selection: $selection) {
-            // Dashboard
+            // Dashboard (Primary Home)
             NavigationLink(value: Router.SidebarDestination.dashboard) {
                 Label("Dashboard", systemImage: "house.fill")
                     .tint(.green)
+            }
+
+            // Homes Section (only show if multiple homes exist)
+            if !secondaryHomes.isEmpty {
+                Section("Homes") {
+                    ForEach(secondaryHomes, id: \.persistentModelID) { home in
+                        NavigationLink(value: Router.SidebarDestination.home(home.persistentModelID)) {
+                            Label(home.name.isEmpty ? "Unnamed Home" : home.name, systemImage: "building.2")
+                        }
+                    }
+                }
             }
 
             // All Inventory
@@ -28,14 +79,14 @@ struct SidebarView: View {
                     .tint(.green)
             }
 
-            // Locations Section
+            // Locations Section (filtered by active home)
             Section("Locations") {
-                if locations.isEmpty {
+                if filteredLocations.isEmpty {
                     Text("No locations")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(locations, id: \.persistentModelID) { location in
+                    ForEach(filteredLocations, id: \.persistentModelID) { location in
                         NavigationLink(value: Router.SidebarDestination.location(location.persistentModelID)) {
                             Label {
                                 Text(location.name)
@@ -50,15 +101,15 @@ struct SidebarView: View {
                     }
                 }
             }
-            
-            // Labels Section
+
+            // Labels Section (filtered by active home)
             Section("Labels") {
-                if labels.isEmpty {
+                if filteredLabels.isEmpty {
                     Text("No labels")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(labels, id: \.persistentModelID) { label in
+                    ForEach(filteredLabels, id: \.persistentModelID) { label in
                         NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
                             Label {
                                 Text(label.name)
@@ -71,6 +122,35 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .onChange(of: selection) { _, newValue in
+            updateActiveHome(for: newValue)
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private func updateActiveHome(for destination: Router.SidebarDestination?) {
+        guard let destination = destination else { return }
+
+        switch destination {
+        case .dashboard:
+            // Set active home to primary home
+            if let primaryHome = primaryHome,
+               let modelID = try? primaryHome.persistentModelID.uriRepresentation().dataRepresentation {
+                settingsManager.activeHomeId = modelID.base64EncodedString()
+            }
+
+        case .home(let homeId):
+            // Set active home to selected home
+            if let home = homes.first(where: { $0.persistentModelID == homeId }),
+               let modelID = try? home.persistentModelID.uriRepresentation().dataRepresentation {
+                settingsManager.activeHomeId = modelID.base64EncodedString()
+            }
+
+        default:
+            // For other destinations (labels, locations, all inventory), don't change active home
+            break
+        }
     }
 }
 
