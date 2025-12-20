@@ -37,9 +37,12 @@ If warnings are detected, re-run with `--print-warnings` to view warning details
 Use launch arguments for testing:
 - `"Use-Test-Data"` - Load test data
 - `"Mock-Data"` - Use mock data for snapshots
+- `"Mock-OpenAI"` - Use mock OpenAI service (prevents real API calls in UI tests)
 - `"Disable-Animations"` - Disable animations for tests
 - `"Is-Pro"` - Enable pro features
 - `"Skip-Onboarding"` - Skip onboarding flow
+- `"Disable-Persistence"` - Use in-memory SwiftData container
+- `"UI-Testing-Mock-Camera"` - Use mock camera for UI tests
 
 ## Architecture
 

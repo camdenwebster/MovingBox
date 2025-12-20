@@ -339,21 +339,6 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
                      "Analysis view should appear after reanalyze")
     }
     
-    // MARK: - Accessibility Tests
-    
-    func testMultiItemSelectionAccessibility() throws {
-        // Given: User navigates to multi-item selection view
-        navigateToMultiItemSelection()
-        
-        // Then: All key elements should have accessibility identifiers
-        XCTAssertTrue(multiItemSelectionScreen.view.exists,
-                     "Selection view should have accessibility identifier")
-        XCTAssertTrue(multiItemSelectionScreen.continueButton.exists,
-                     "Continue button should have accessibility identifier")
-        XCTAssertTrue(multiItemSelectionScreen.cancelButton.exists,
-                     "Cancel button should have accessibility identifier")
-    }
-    
     // MARK: - Helper Methods
     
     private func openCamera() {

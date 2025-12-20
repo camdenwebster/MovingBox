@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 import PhotosUI
 import UIKit
 import Combine
@@ -218,6 +219,9 @@ struct MultiPhotoCameraView: View {
 
                 cameraControls(geometry: geometry, cameraRect: cameraRect)
             }
+        }
+        .onCameraCaptureEvent { event in
+            handleCameraCaptureEvent(event)
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {
             if settings.isPro || model.selectedCaptureMode == .multiItem {
@@ -467,6 +471,12 @@ struct MultiPhotoCameraView: View {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             showingFocusIndicator = false
+        }
+    }
+
+    private func handleCameraCaptureEvent(_ event: AVCaptureEvent) {
+        if event.phase == .ended {
+            handleShutterTap()
         }
     }
 

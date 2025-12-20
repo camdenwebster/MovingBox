@@ -62,7 +62,6 @@ struct EnhancedItemCreationFlowView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(viewModel.currentStep == .camera)
             .interactiveDismissDisabled(viewModel.processingImage)
-            .accessibilityIdentifier("enhancedItemCreationFlow")
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -73,8 +72,9 @@ struct EnhancedItemCreationFlowView: View {
                 Button("Continue Anyway", role: .none) {
                     handleErrorContinue()
                 }
-                Button("Try Again", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     viewModel.errorMessage = nil
+                    dismiss()
                 }
             } message: {
                 Text(viewModel.errorMessage ?? "An unknown error occurred during image analysis.")
@@ -384,25 +384,24 @@ struct MultiItemSummaryView: View {
     @State private var showConfetti = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                VStack(spacing: 20) {
-                    // Header
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 64))
-                            .foregroundColor(.green)
-                            .scaleEffect(showConfetti ? 1.0 : 0.5)
-                            .opacity(showConfetti ? 1.0 : 0.0)
+        ZStack {
+            VStack(spacing: 20) {
+                // Header
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundColor(.green)
+                        .scaleEffect(showConfetti ? 1.0 : 0.5)
+                        .opacity(showConfetti ? 1.0 : 0.0)
 
-                        Text("Successfully Added!")
-                            .font(.title2)
-                            .fontWeight(.semibold)
+                    Text("Successfully Added!")
+                        .font(.title2)
+                        .fontWeight(.semibold)
 
-                        Text("\(items.count) item\(items.count == 1 ? "" : "s") added to your inventory")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
+                    Text("\(items.count) item\(items.count == 1 ? "" : "s") added to your inventory")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
                 
                 // Items list
                 ScrollView {
@@ -440,7 +439,6 @@ struct MultiItemSummaryView: View {
             }
         }
     }
-}
 }
 
 // MARK: - Confetti Animation

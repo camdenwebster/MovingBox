@@ -11,6 +11,110 @@ import SwiftData
 import CryptoKit
 import UIKit
 
+// MARK: - Mock Service for Testing
+
+#if DEBUG
+@MainActor
+class MockOpenAIService: OpenAIServiceProtocol {
+    var shouldFail = false
+    var shouldFailMultiItem = false
+    
+    var mockResponse = ImageDetails(
+        title: "Office Desk Chair",
+        quantity: "1",
+        description: "Ergonomic office chair with adjustable height and lumbar support",
+        make: "Herman Miller",
+        model: "Aeron",
+        category: "Furniture",
+        location: "Home Office",
+        price: "$1,295.00",
+        serialNumber: ""
+    )
+    
+    var mockMultiItemResponse = MultiItemAnalysisResponse(
+        items: [
+            DetectedInventoryItem(
+                title: "Office Desk Chair",
+                description: "Ergonomic office chair with adjustable height and lumbar support",
+                category: "Furniture",
+                make: "Herman Miller",
+                model: "Aeron",
+                estimatedPrice: "$1,295.00",
+                confidence: 0.92
+            ),
+            DetectedInventoryItem(
+                title: "MacBook Pro",
+                description: "15-inch laptop with silver finish",
+                category: "Electronics",
+                make: "Apple",
+                model: "MacBook Pro 15-inch",
+                estimatedPrice: "$2,399.00",
+                confidence: 0.95
+            ),
+            DetectedInventoryItem(
+                title: "Standing Desk",
+                description: "Height-adjustable standing desk with electric controls",
+                category: "Furniture",
+                make: "Uplift",
+                model: "V2",
+                estimatedPrice: "$799.00",
+                confidence: 0.88
+            )
+        ],
+        detectedCount: 3,
+        analysisType: "multi_item",
+        confidence: 0.92
+    )
+    
+    func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws -> ImageDetails {
+        print("🧪 MockOpenAIService: getImageDetails called with \(images.count) images")
+        if shouldFail {
+            print("🧪 MockOpenAIService: Simulating failure")
+            throw OpenAIError.invalidData
+        }
+        
+        print("🧪 MockOpenAIService: Simulating analysis delay...")
+        try await Task.sleep(nanoseconds: 500_000_000)
+        
+        print("🧪 MockOpenAIService: Returning mock response")
+        return mockResponse
+    }
+    
+    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws -> MultiItemAnalysisResponse {
+        print("🧪 MockOpenAIService: getMultiItemDetails called with \(images.count) images")
+        if shouldFailMultiItem {
+            print("🧪 MockOpenAIService: Simulating multi-item failure")
+            throw OpenAIError.invalidData
+        }
+        
+        print("🧪 MockOpenAIService: Simulating multi-item analysis delay...")
+        try await Task.sleep(nanoseconds: 500_000_000)
+        
+        print("🧪 MockOpenAIService: Returning mock multi-item response with \(mockMultiItemResponse.items?.count ?? 0) items")
+        return mockMultiItemResponse
+    }
+    
+    func cancelCurrentRequest() {
+    }
+}
+#endif
+
+// MARK: - Service Factory
+
+@MainActor
+enum OpenAIServiceFactory {
+    static func create() -> OpenAIServiceProtocol {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("Mock-OpenAI") {
+            print("🧪 OpenAIServiceFactory: Creating MockOpenAIService for testing")
+            return MockOpenAIService()
+        }
+        #endif
+        print("🔧 OpenAIServiceFactory: Creating real OpenAIService")
+        return OpenAIService()
+    }
+}
+
 // MARK: - Multi-Item Analysis Types
 
 struct MultiItemAnalysisResponse: Codable {

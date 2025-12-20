@@ -25,7 +25,8 @@ final class FastlaneSnapshots: XCTestCase {
             "Is-Pro",
             "Skip-Onboarding",
             "Disable-Persistence",
-            "UI-Testing-Mock-Camera"
+            "UI-Testing-Mock-Camera",
+            "Mock-OpenAI"
         ]
         
         // Initialize screen objects
@@ -143,8 +144,7 @@ final class FastlaneSnapshots: XCTestCase {
         cameraScreen.captureButton.tap()
         
         // And: User taps chevron to continue to analysis
-        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
-        if previewOverlay.waitForExistence(timeout: 5) {
+        if cameraScreen.previewRetakeButton.waitForExistence(timeout: 5) {
             cameraScreen.doneButton.tap()
         }
         

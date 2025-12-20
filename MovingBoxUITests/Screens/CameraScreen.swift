@@ -13,7 +13,6 @@ class CameraScreen {
     let modePicker: XCUIElement          // Segmented control for Single/Multi mode
     
     // Multi-item preview overlay
-    let previewOverlay: XCUIElement
     let previewRetakeButton: XCUIElement
     
     // Camera control buttons (no explicit identifiers, use accessibility labels)
@@ -45,11 +44,10 @@ class CameraScreen {
         self.photoCountLabel = app.staticTexts["cameraPhotoCount"]
         self.modePicker = app.otherElements["cameraModePicker"]
         
-        // Done button - uses accessibility label, not identifier
-        self.doneButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Continue to analysis'")).firstMatch
+        // Done button
+        self.doneButton = app.buttons["chevron.right"].firstMatch
         
         // Multi-item preview overlay
-        self.previewOverlay = app.otherElements["multiItemPreviewOverlay"]
         self.previewRetakeButton = app.buttons["multiItemRetakeButton"]
         
         // Set up interruption monitor for camera permissions
@@ -93,7 +91,7 @@ class CameraScreen {
     }
     
     func waitForPreviewOverlay(timeout: TimeInterval = 5) -> Bool {
-        return previewOverlay.waitForExistence(timeout: timeout)
+        return previewRetakeButton.waitForExistence(timeout: timeout)
     }
     
     // MARK: - Photo Capture Methods
@@ -229,7 +227,7 @@ class CameraScreen {
     // MARK: - Multi-Item Preview
     
     func isPreviewOverlayVisible() -> Bool {
-        return previewOverlay.exists
+        return previewRetakeButton.exists
     }
     
     func tapPreviewRetake() {

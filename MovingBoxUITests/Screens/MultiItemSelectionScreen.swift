@@ -3,7 +3,6 @@ import XCTest
 class MultiItemSelectionScreen {
     let app: XCUIApplication
     
-    let view: XCUIElement
     let cancelButton: XCUIElement
     let reanalyzeButton: XCUIElement
     let selectAllButton: XCUIElement
@@ -15,7 +14,6 @@ class MultiItemSelectionScreen {
     init(app: XCUIApplication) {
         self.app = app
         
-        self.view = app.otherElements["multiItemSelectionView"]
         self.cancelButton = app.buttons["multiItemCancelButton"]
         self.reanalyzeButton = app.buttons["multiItemReanalyzeButton"]
         self.selectAllButton = app.buttons["multiItemSelectAllButton"]
@@ -26,7 +24,7 @@ class MultiItemSelectionScreen {
     }
     
     func isDisplayed(timeout: TimeInterval = 5) -> Bool {
-        return view.waitForExistence(timeout: timeout)
+        return cancelButton.waitForExistence(timeout: timeout)
     }
     
     func getItemCard(at index: Int) -> XCUIElement {

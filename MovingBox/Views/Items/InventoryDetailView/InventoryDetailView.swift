@@ -1324,7 +1324,7 @@ struct InventoryDetailView: View {
             throw OpenAIError.invalidData
         }
         
-        let openAi = OpenAIService()
+        let openAi = OpenAIServiceFactory.create()
         
         TelemetryManager.shared.trackCameraAnalysisUsed()
         

@@ -153,6 +153,11 @@ class ItemCreationFlowViewModel: ObservableObject {
         print("✅ ItemCreationFlowViewModel - Capture mode updated. Current mode: \(captureMode)")
         print("📋 ItemCreationFlowViewModel - Navigation flow: \(navigationFlow.map { $0.displayName })")
     }
+    
+    /// Create OpenAI service with mock support for UI testing
+    private func createOpenAIService() -> OpenAIServiceProtocol {
+        return OpenAIServiceFactory.create()
+    }
 
     // MARK: - Navigation Methods
     
@@ -213,8 +218,14 @@ class ItemCreationFlowViewModel: ObservableObject {
                     }
                 }
             } catch {
+                print("❌ ItemCreationFlowViewModel: Analysis error: \(error)")
+                if let openAIError = error as? OpenAIError {
+                    print("   OpenAI Error Details: \(openAIError)")
+                }
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
+                    let detailedError = "Analysis failed: \(error.localizedDescription)\n\nError type: \(type(of: error))"
+                    errorMessage = detailedError
+                    processingImage = false
                 }
             }
         }
@@ -304,7 +315,8 @@ class ItemCreationFlowViewModel: ObservableObject {
                 return
             }
 
-            let openAi = openAIService ?? OpenAIService()
+            let openAi = openAIService ?? createOpenAIService()
+            print("🔍 ItemCreationFlowViewModel: Using OpenAI service: \(type(of: openAi))")
             let imageDetails = try await openAi.getImageDetails(
                 from: capturedImages,
                 settings: settings,
@@ -344,8 +356,13 @@ class ItemCreationFlowViewModel: ObservableObject {
             }
             
         } catch {
+            print("❌ ItemCreationFlowViewModel (Single): Analysis error: \(error)")
+            if let openAIError = error as? OpenAIError {
+                print("   OpenAI Error Details: \(openAIError)")
+            }
             await MainActor.run {
-                errorMessage = error.localizedDescription
+                let detailedError = "Analysis failed: \(error.localizedDescription)\n\nError type: \(type(of: error))"
+                errorMessage = detailedError
                 processingImage = false
             }
         }
@@ -380,7 +397,8 @@ class ItemCreationFlowViewModel: ObservableObject {
             let originalHighDetail = settings.isHighDetail
             settings.isHighDetail = true
 
-            let openAi = openAIService ?? OpenAIService()
+            let openAi = openAIService ?? createOpenAIService()
+            print("🔍 ItemCreationFlowViewModel (Multi-Item): Using OpenAI service: \(type(of: openAi))")
             let response = try await openAi.getMultiItemDetails(
                 from: capturedImages,
                 settings: settings,
@@ -399,8 +417,13 @@ class ItemCreationFlowViewModel: ObservableObject {
             }
             
         } catch {
+            print("❌ ItemCreationFlowViewModel (Multi-Item): Analysis error: \(error)")
+            if let openAIError = error as? OpenAIError {
+                print("   OpenAI Error Details: \(openAIError)")
+            }
             await MainActor.run {
-                errorMessage = error.localizedDescription
+                let detailedError = "Multi-item analysis failed: \(error.localizedDescription)\n\nError type: \(type(of: error))"
+                errorMessage = detailedError
                 processingImage = false
             }
         }

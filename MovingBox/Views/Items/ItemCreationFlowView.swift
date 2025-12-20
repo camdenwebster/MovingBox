@@ -310,7 +310,7 @@ struct ItemCreationFlowView: View {
             }
             
             // Create OpenAI service and get image details
-            let openAi = OpenAIService()
+            let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for image analysis...")
@@ -389,7 +389,7 @@ struct ItemCreationFlowView: View {
             }
             
             // Create OpenAI service with multiple images and get image details
-            let openAi = OpenAIService()
+            let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for multi-image analysis...")

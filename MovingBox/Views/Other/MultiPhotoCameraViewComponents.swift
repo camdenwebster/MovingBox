@@ -473,9 +473,10 @@ struct CaptureModePicker: View {
             }
         }
         .pickerStyle(.segmented)
-        .frame(width: 150)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .scaleEffect(1.2)
+        .frame(width: 180, height: 50)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(.black.opacity(0.3))
@@ -483,13 +484,13 @@ struct CaptureModePicker: View {
         .onAppear {
             // Customize segmented control appearance
             UISegmentedControl.appearance().backgroundColor = UIColor.black.withAlphaComponent(0.5)
-            UISegmentedControl.appearance().selectedSegmentTintColor = UIColor.yellow
+            UISegmentedControl.appearance().selectedSegmentTintColor = UIColor.green
             UISegmentedControl.appearance().setTitleTextAttributes([
                 .foregroundColor: UIColor.white
             ], for: .normal)
-            UISegmentedControl.appearance().setTitleTextAttributes([
-                .foregroundColor: UIColor.black
-            ], for: .selected)
+//            UISegmentedControl.appearance().setTitleTextAttributes([
+//                .foregroundColor: UIColor.black
+//            ], for: .selected)
         }
         .accessibilityLabel("Camera mode selector")
         .accessibilityHint("Switch between single item and multi item capture modes")
@@ -536,7 +537,6 @@ struct MultiItemPreviewOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.7))
-        .accessibilityIdentifier("multiItemPreviewOverlay")
     }
 }
 

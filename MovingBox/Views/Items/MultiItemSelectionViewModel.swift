@@ -181,6 +181,9 @@ final class MultiItemSelectionViewModel {
         creationProgress = 0.0
         errorMessage = nil
         
+        // Fetch existing labels to match against categories
+        let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+        
         var createdItems: [InventoryItem] = []
         let selectedDetectedItems = detectedItems.filter { selectedItems.contains($0.id) }
         let totalItems = selectedDetectedItems.count
@@ -190,8 +193,11 @@ final class MultiItemSelectionViewModel {
                 // Update progress
                 creationProgress = Double(index) / Double(totalItems)
                 
-                // Create inventory item
-                let inventoryItem = try await createInventoryItem(from: detectedItem)
+                // Find matching label for this item's category
+                let matchingLabel = findMatchingLabel(for: detectedItem.category, in: existingLabels)
+                
+                // Create inventory item with matched label
+                let inventoryItem = try await createInventoryItem(from: detectedItem, label: matchingLabel)
                 createdItems.append(inventoryItem)
                 
                 // Small delay for UI feedback
@@ -219,7 +225,7 @@ final class MultiItemSelectionViewModel {
     // MARK: - Private Methods
     
     /// Create a single InventoryItem from a DetectedInventoryItem
-    private func createInventoryItem(from detectedItem: DetectedInventoryItem) async throws -> InventoryItem {
+    private func createInventoryItem(from detectedItem: DetectedInventoryItem, label: InventoryLabel?) async throws -> InventoryItem {
         // Create new inventory item
         let inventoryItem = InventoryItem(
             title: detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title,
@@ -230,7 +236,7 @@ final class MultiItemSelectionViewModel {
             model: detectedItem.model,
             make: detectedItem.make,
             location: location,
-            label: nil,
+            label: label,
             price: parsePrice(from: detectedItem.estimatedPrice),
             insured: false,
             assetId: "",
@@ -285,6 +291,18 @@ final class MultiItemSelectionViewModel {
     private func formattedConfidence(_ confidence: Double) -> String {
         let percentage = Int(confidence * 100)
         return "\(percentage)%"
+    }
+    
+    /// Find matching label for a given category from existing labels
+    private func findMatchingLabel(for category: String, in labels: [InventoryLabel]) -> InventoryLabel? {
+        guard !category.isEmpty else { return nil }
+        return labels.first { $0.name.lowercased() == category.lowercased() }
+    }
+    
+    /// Get the label that would be matched for a detected item (for preview in card)
+    func getMatchingLabel(for item: DetectedInventoryItem) -> InventoryLabel? {
+        let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+        return findMatchingLabel(for: item.category, in: existingLabels)
     }
 }
 

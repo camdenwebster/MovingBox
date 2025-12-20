@@ -88,7 +88,6 @@ struct MultiItemSelectionView: View {
                     .accessibilityIdentifier("multiItemCancelButton")
                 }
             }
-            .accessibilityIdentifier("multiItemSelectionView")
             .alert("Error Creating Items", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
                     viewModel.errorMessage = nil
@@ -208,6 +207,7 @@ struct MultiItemSelectionView: View {
                         DetectedItemCard(
                             item: item,
                             isSelected: viewModel.isItemSelected(item),
+                            matchedLabel: viewModel.getMatchingLabel(for: item),
                             onToggleSelection: {
                                 selectionHaptic.impactOccurred()
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -375,6 +375,7 @@ struct MultiItemSelectionView: View {
 struct DetectedItemCard: View {
     let item: DetectedInventoryItem
     let isSelected: Bool
+    let matchedLabel: InventoryLabel?
     let onToggleSelection: () -> Void
 
     var body: some View {
@@ -392,13 +393,22 @@ struct DetectedItemCard: View {
                     confidenceBadge
                 }
 
-                // Category and make/model
-                if !item.category.isEmpty || (!item.make.isEmpty && !item.model.isEmpty) {
+                // Label (if matched) and make/model
+                if matchedLabel != nil || (!item.make.isEmpty && !item.model.isEmpty) {
                     VStack(alignment: .leading, spacing: 2) {
-                        if !item.category.isEmpty {
-                            Label(item.category, systemImage: "tag")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                        if let label = matchedLabel {
+                            HStack(spacing: 4) {
+                                if let color = label.color {
+                                    Circle()
+                                        .fill(Color(uiColor: color))
+                                        .frame(width: 8, height: 8)
+                                }
+                                Text(label.emoji)
+                                    .font(.caption)
+                                Text(label.name)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
                         }
 
                         if !item.make.isEmpty && !item.model.isEmpty {
