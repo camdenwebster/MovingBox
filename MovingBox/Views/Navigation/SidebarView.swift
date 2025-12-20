@@ -31,10 +31,12 @@ struct SidebarView: View {
             return primaryHome
         }
         return homes.first { home in
-            if let modelID = try? home.persistentModelID.uriRepresentation().dataRepresentation {
-                return modelID.base64EncodedString() == activeId
+            do {
+                let idData = try JSONEncoder().encode(home.persistentModelID)
+                return idData.base64EncodedString() == activeId
+            } catch {
+                return false
             }
-            return false
         } ?? primaryHome
     }
 
@@ -135,16 +137,24 @@ struct SidebarView: View {
         switch destination {
         case .dashboard:
             // Set active home to primary home
-            if let primaryHome = primaryHome,
-               let modelID = try? primaryHome.persistentModelID.uriRepresentation().dataRepresentation {
-                settingsManager.activeHomeId = modelID.base64EncodedString()
+            if let primaryHome = primaryHome {
+                do {
+                    let idData = try JSONEncoder().encode(primaryHome.persistentModelID)
+                    settingsManager.activeHomeId = idData.base64EncodedString()
+                } catch {
+                    print("Failed to encode home ID: \(error)")
+                }
             }
 
         case .home(let homeId):
             // Set active home to selected home
-            if let home = homes.first(where: { $0.persistentModelID == homeId }),
-               let modelID = try? home.persistentModelID.uriRepresentation().dataRepresentation {
-                settingsManager.activeHomeId = modelID.base64EncodedString()
+            if let home = homes.first(where: { $0.persistentModelID == homeId }) {
+                do {
+                    let idData = try JSONEncoder().encode(home.persistentModelID)
+                    settingsManager.activeHomeId = idData.base64EncodedString()
+                } catch {
+                    print("Failed to encode home ID: \(error)")
+                }
             }
 
         default:

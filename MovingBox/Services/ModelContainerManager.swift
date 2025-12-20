@@ -510,10 +510,13 @@ class ModelContainerManager: ObservableObject {
         UserDefaults.standard.set(true, forKey: multiHomeMigrationKey)
 
         // 6. Store active home ID in SettingsManager format
-        if let modelID = try? primaryHome.persistentModelID.uriRepresentation().dataRepresentation {
-            let idString = modelID.base64EncodedString()
+        do {
+            let idData = try JSONEncoder().encode(primaryHome.persistentModelID)
+            let idString = idData.base64EncodedString()
             UserDefaults.standard.set(idString, forKey: "activeHomeId")
             print("📦 ModelContainerManager - Set active home ID: \(idString)")
+        } catch {
+            print("📦 ModelContainerManager - Failed to encode home ID: \(error)")
         }
 
         print("📦 ModelContainerManager - Multi-home migration completed successfully")

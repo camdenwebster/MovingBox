@@ -93,6 +93,10 @@ struct MainSplitView: View {
             ExportDataView()
         case .deleteDataView:
             DataDeletionView()
+        case .homeListView:
+            HomeListView()
+        case .addHomeView:
+            AddHomeView()
         }
     }
 
