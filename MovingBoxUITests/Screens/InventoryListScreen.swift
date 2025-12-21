@@ -128,7 +128,7 @@ class InventoryListScreen {
     
     func deleteSelectedItems() {
         deleteSelectedButton.tap()
-        deleteConfirmationAlert.deleteButton.tap()
+        deleteButton.tap()
     }
     
     func confirmDeletion() {

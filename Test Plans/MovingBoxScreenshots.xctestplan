@@ -34,6 +34,7 @@
         "FastlaneSnapshots\/testItemDetailViewSnapshots()",
         "FastlaneSnapshots\/testItemListViewSnapshot()",
         "FastlaneSnapshots\/testLocationsSnapshot()",
+        "FastlaneSnapshots\/testMultiItemSelectionSnapshot()",
         "FastlaneSnapshots\/testSyncAndDataScreen()"
       ],
       "target" : {

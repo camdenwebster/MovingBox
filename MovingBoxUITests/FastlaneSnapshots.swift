@@ -14,6 +14,7 @@ final class FastlaneSnapshots: XCTestCase {
     var detailScreen: InventoryDetailScreen!
     var cameraScreen: CameraScreen!
     var settingsScreen: SettingsScreen!
+    var multiItemSelectionScreen: MultiItemSelectionScreen!
     
     var navigationHelper: NavigationHelper!
     let app = XCUIApplication()
@@ -24,7 +25,8 @@ final class FastlaneSnapshots: XCTestCase {
             "Is-Pro",
             "Skip-Onboarding",
             "Disable-Persistence",
-            "UI-Testing-Mock-Camera"
+            "UI-Testing-Mock-Camera",
+            "Mock-OpenAI"
         ]
         
         // Initialize screen objects
@@ -33,6 +35,7 @@ final class FastlaneSnapshots: XCTestCase {
         detailScreen = InventoryDetailScreen(app: app)
         cameraScreen = CameraScreen(app: app, testCase: self)
         settingsScreen = SettingsScreen(app: app)
+        multiItemSelectionScreen = MultiItemSelectionScreen(app: app)
         
         navigationHelper = NavigationHelper(app: app)
         
@@ -44,9 +47,13 @@ final class FastlaneSnapshots: XCTestCase {
     }
     
     override func tearDownWithError() throws {
+        dashboardScreen = nil
         listScreen = nil
         detailScreen = nil
         cameraScreen = nil
+        settingsScreen = nil
+        multiItemSelectionScreen = nil
+        navigationHelper = nil
     }
     
     func testDashboardSnapshot() throws {
@@ -111,5 +118,58 @@ final class FastlaneSnapshots: XCTestCase {
         settingsScreen.tapSyncAndData()
         snapshot("01_SyncAndDataSettings")
     }
+    
+    func testMultiItemSelectionSnapshot() throws {
+        // Given: User is on dashboard with Pro access
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
+        
+        // When: User taps Add Item button to open camera
+        dashboardScreen.addItemFromCameraButton.tap()
+        
+        guard cameraScreen.waitForCamera(timeout: 5) else {
+            XCTFail("Camera should open")
+            return
+        }
+        
+        // And: User switches to Multi mode via segmented control
+        let modePicker = app.segmentedControls.firstMatch
+        if modePicker.waitForExistence(timeout: 5) {
+            let multiButton = modePicker.buttons["Multi"]
+            if multiButton.exists {
+                multiButton.tap()
+            }
+        }
+        
+        // And: User captures a photo
+        cameraScreen.captureButton.tap()
+        
+        // And: User taps chevron to continue to analysis
+        if cameraScreen.previewRetakeButton.waitForExistence(timeout: 5) {
+            cameraScreen.doneButton.tap()
+        }
+        
+        // And: Analysis completes
+        guard multiItemSelectionScreen.waitForAnalysisToComplete(timeout: 15) else {
+            XCTFail("Analysis should complete and show selection view")
+            return
+        }
+        
+        // And: User selects some items (select first 2 if available)
+        let itemCount = multiItemSelectionScreen.getItemCardCount()
+        if itemCount > 0 {
+            multiItemSelectionScreen.tapItemCard(at: 0)
+        }
+        if itemCount > 1 {
+            multiItemSelectionScreen.scrollToItemCard(at: 1)
+            multiItemSelectionScreen.tapItemCard(at: 1)
+        }
+        
+        // Wait a moment for selection animation to complete
+        sleep(1)
+        
+        // Then: Take snapshot of multi-item selection view
+        snapshot("01_MultiItemSelection")
+    }
 
 }
+

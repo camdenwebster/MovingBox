@@ -54,6 +54,7 @@ struct AppConfig {
         static let revenueCatAPIKey = "REVENUE_CAT_API_KEY"
         static let sentryDsn = "SENTRY_DSN"
         static let telemetryDeckAppId = "TELEMETRY_DECK_APP_ID"
+        static let wishKitAPIKey = "WISHKIT_API_KEY"
     }
     
     private static func checkBundleVariable(_ key: String) -> String? {
@@ -122,5 +123,12 @@ struct AppConfig {
             return appId
         }
         return "missing-telemetrydeck-app-id"
+    }
+    
+    static var wishKitAPIKey: String {
+        if let key = checkBundleVariable(Keys.wishKitAPIKey) {
+            return key
+        }
+        return "missing-wishkit-api-key"
     }
 }

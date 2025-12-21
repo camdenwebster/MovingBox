@@ -3,10 +3,29 @@ import SwiftData
 import AVFoundation
 import StoreKit
 
-enum ItemCreationStep {
+enum ItemCreationStep: CaseIterable {
     case camera
     case analyzing
+    case multiItemSelection
     case details
+    
+    var displayName: String {
+        switch self {
+        case .camera: return "Camera"
+        case .analyzing: return "Analyzing"
+        case .multiItemSelection: return "Select Items"
+        case .details: return "Details"
+        }
+    }
+    
+    static func getNavigationFlow(for captureMode: CaptureMode) -> [ItemCreationStep] {
+        switch captureMode {
+        case .singleItem:
+            return [.camera, .analyzing, .details]
+        case .multiItem:
+            return [.camera, .analyzing, .multiItemSelection, .details]
+        }
+    }
 }
 
 struct ItemCreationFlowView: View {
@@ -19,16 +38,17 @@ struct ItemCreationFlowView: View {
     @State private var currentStep: ItemCreationStep = .camera
     @State private var capturedImage: UIImage?
     @State private var capturedImages: [UIImage] = []
+    @State private var captureMode: CaptureMode = .singleItem
     @State private var item: InventoryItem?
     @State private var showingPermissionDenied = false
     @State private var processingImage = false
     @State private var analysisComplete = false
     @State private var errorMessage: String?
     @State private var transitionId = UUID()
-    
+
     // Animation properties
     private let transitionAnimation = Animation.easeInOut(duration: 0.3)
-    
+
     let location: InventoryLocation?
     let onComplete: (() -> Void)?
     
@@ -44,16 +64,20 @@ struct ItemCreationFlowView: View {
                                 showingPermissionDenied = true
                             }
                         },
-                        onComplete: { images in
+                        onComplete: { images, selectedMode in
                             // Set processing flag to prevent premature dismissal
                             processingImage = true
-                            
+
                             Task {
+                                // Update capture mode based on user selection in camera
+                                await updateCaptureMode(selectedMode)
                                 // Process the images
                                 await handleCapturedImages(images)
-                                
+
                                 // Transition to next step
-                                if self.item != nil {
+                                // For single-item mode: check if item was created
+                                // For multi-item mode: always proceed to analyzing
+                                if selectedMode == .multiItem || self.item != nil {
                                     await MainActor.run {
                                         withAnimation(transitionAnimation) {
                                             transitionId = UUID()
@@ -112,6 +136,13 @@ struct ItemCreationFlowView: View {
                         ))
                         .id("analysis-\(transitionId)")
                     }
+                    
+                case .multiItemSelection:
+                    // This view doesn't support multi-item selection, fall back to details
+                    Text("Multi-item selection not supported in this view")
+                        .onAppear {
+                            currentStep = .details
+                        }
                     
                 case .details:
                     if let item = item {
@@ -187,13 +218,31 @@ struct ItemCreationFlowView: View {
             Text(errorMessage ?? "An unknown error occurred during image analysis.")
         }
     }
-    
+
+    private func updateCaptureMode(_ mode: CaptureMode) async {
+        await MainActor.run {
+            print("🔄 ItemCreationFlowView - Updating capture mode from \(captureMode) to \(mode)")
+            captureMode = mode
+            print("✅ ItemCreationFlowView - Capture mode updated. Current mode: \(captureMode)")
+        }
+    }
+
     private func handleCapturedImages(_ images: [UIImage]) async {
         await MainActor.run {
             capturedImages = images
             capturedImage = images.first // For backward compatibility
         }
-        
+
+        print("📸 ItemCreationFlowView - handleCapturedImages called. Capture mode: \(captureMode)")
+
+        // Only run single-item creation if in single-item mode
+        guard captureMode == .singleItem else {
+            print("⏭️ ItemCreationFlowView - Skipping single-item creation (in multi-item mode)")
+            return
+        }
+
+        print("➡️ ItemCreationFlowView - Running single item creation flow")
+
         // Create the item first
         let newItem = InventoryItem(
             title: "",
@@ -256,12 +305,12 @@ struct ItemCreationFlowView: View {
         
         do {
             // Prepare image for AI
-            guard let imageBase64 = await OptimizedImageManager.shared.prepareImageForAI(from: image) else {
+            guard await OptimizedImageManager.shared.prepareImageForAI(from: image) != nil else {
                 throw OpenAIError.invalidData
             }
             
             // Create OpenAI service and get image details
-            let openAi = OpenAIService()
+            let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for image analysis...")
@@ -340,7 +389,7 @@ struct ItemCreationFlowView: View {
             }
             
             // Create OpenAI service with multiple images and get image details
-            let openAi = OpenAIService()
+            let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
             
             print("Calling OpenAI for multi-image analysis...")

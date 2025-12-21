@@ -79,8 +79,6 @@ struct MainSplitView: View {
             EditLabelView(label: label, isEditing: isEditing)
         case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
             InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
-        case .addInventoryItemView(let location):
-            AddInventoryItemView(location: location)
         case .locationsSettingsView:
             LocationSettingsView()
         case .subscriptionSettingsView:
@@ -97,6 +95,10 @@ struct MainSplitView: View {
             HomeListView()
         case .addHomeView:
             AddHomeView()
+        case .aboutView:
+            AboutView()
+        case .featureRequestView:
+            FeatureRequestView()
         }
     }
 

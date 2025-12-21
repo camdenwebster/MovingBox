@@ -43,7 +43,6 @@ final class Router: ObservableObject {
         case editLabelView(label: InventoryLabel?, isEditing: Bool = false)
         case inventoryDetailView(item: InventoryItem, showSparklesButton: Bool = false, isEditing: Bool = false)
         case aISettingsView
-        case addInventoryItemView(location: InventoryLocation?)
         case subscriptionSettingsView
         case syncDataSettingsView
         case importDataView
@@ -51,6 +50,8 @@ final class Router: ObservableObject {
         case deleteDataView
         case homeListView
         case addHomeView
+        case aboutView
+        case featureRequestView
     }
 
     @Published var navigationPath = NavigationPath()

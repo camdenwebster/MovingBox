@@ -256,7 +256,10 @@ struct InventoryDetailViewModelTests {
             context: context
         )
         
-        let urlToDelete = item.secondaryPhotoURLs.first!
+        guard let urlToDelete = item.secondaryPhotoURLs.first else {
+            Issue.record("Test setup failed: No secondary photos available")
+            return
+        }
         await viewModel.deletePhoto(urlString: urlToDelete, for: item)
         
         #expect(item.secondaryPhotoURLs.count == 1) // Should have one less

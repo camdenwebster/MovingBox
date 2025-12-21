@@ -13,7 +13,7 @@ struct SidebarView: View {
     @EnvironmentObject private var settingsManager: SettingsManager
     @Query(sort: \InventoryLabel.name) private var allLabels: [InventoryLabel]
     @Query(sort: \InventoryLocation.name) private var allLocations: [InventoryLocation]
-    @Query(sort: \Home.name) private var homes: [Home]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Binding var selection: Router.SidebarDestination?
 
     // MARK: - Computed Properties
@@ -58,11 +58,6 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            // Dashboard (Primary Home)
-            NavigationLink(value: Router.SidebarDestination.dashboard) {
-                Label("Dashboard", systemImage: "house.fill")
-                    .tint(.green)
-            }
 
             // Homes Section (only show if multiple homes exist)
             if !secondaryHomes.isEmpty {

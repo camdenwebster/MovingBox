@@ -83,7 +83,7 @@ struct ItemAnalysisDetailView: View {
             throw AnalysisError.itemNotFound
         }
         
-        let openAi = OpenAIService()
+        let openAi = OpenAIServiceFactory.create()
         
         let imageDetails = try await openAi.getImageDetails(
             from: [image],
