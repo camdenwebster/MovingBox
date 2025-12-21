@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import RevenueCatUI
+import WhatsNewKit
 
 @MainActor
 struct DashboardView: View {
@@ -20,6 +21,7 @@ struct DashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     
     @State private var loadedImage: UIImage?
@@ -30,7 +32,7 @@ struct DashboardView: View {
     @State private var loadingStartDate: Date? = nil
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
-    
+
     private var home: Home? {
         return homes.last
     }
@@ -166,7 +168,7 @@ struct DashboardView: View {
                     }
                     .padding(.top, 24)
                     .scrollDisabled(true)
-                    
+
                     // MARK: - Location Statistics
                     LocationStatisticsView()
                         .padding(.top, 24)
@@ -216,14 +218,18 @@ struct DashboardView: View {
             }
         }
         .sheet(isPresented: $showingPaywall, content: paywallSheet)
-        .sheet(isPresented: $showItemCreationFlow) {
-            ItemCreationFlowView(location: nil) {
-                // Optional callback when item creation is complete
-            }
+        .fullScreenCover(isPresented: $showItemCreationFlow) {
+            // Present camera directly with default single-item mode
+            // User can switch modes via segmented control in camera
+            EnhancedItemCreationFlowView(
+                captureMode: .singleItem,
+                location: nil
+            )
         }
+        .whatsNewSheet()
         .task(id: home?.imageURL) {
-            guard let home = home, 
-                  let imageURL = home.imageURL, 
+            guard let home = home,
+                  let imageURL = home.imageURL,
                   !isLoading else { return }
             
             // If the imageURL changed, clear the cached image
@@ -379,4 +385,3 @@ struct StatCard: View {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
 }
-

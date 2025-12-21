@@ -17,6 +17,12 @@
       "skippedTests" : {
         "suites" : [
           {
+            "name" : "BatchAnalysisTests"
+          },
+          {
+            "name" : "BatchItemCreationTests"
+          },
+          {
             "name" : "DataManagerTests",
             "testFunctions" : [
               "batchedExportWithMultipleTypes()",
@@ -41,6 +47,16 @@
           },
           {
             "name" : "InventoryDetailViewModelTests"
+          },
+          {
+            "name" : "ItemCreationFlowTests"
+          },
+          {
+            "name" : "OpenAIMultiItemAnalysisTests",
+            "testFunctions" : [
+              "testAnalysisPerformance()",
+              "testProVsFreeSettings()"
+            ]
           },
           {
             "name" : "OptimizedImageManagerTests",

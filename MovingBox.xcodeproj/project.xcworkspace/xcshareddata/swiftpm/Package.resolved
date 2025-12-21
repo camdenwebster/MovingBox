@@ -1,6 +1,15 @@
 {
-  "originHash" : "55099192847e1acebde8c56b93d4e8780fef359c6e59a8c96989d73d4537d891",
+  "originHash" : "088f595a94a5df0c9ac943ee0e0b636013111f8e0a0c91cb0f0890098317e00a",
   "pins" : [
+    {
+      "identity" : "acknowlist",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vtourraine/AcknowList",
+      "state" : {
+        "revision" : "2b8be7841af2eefa0e75640d0c1a2312a1ba75be",
+        "version" : "3.4.0"
+      }
+    },
     {
       "identity" : "aiproxyswift",
       "kind" : "remoteSourceControl",
@@ -71,6 +80,33 @@
       "state" : {
         "revision" : "a7fd1eb469589a3c8fd8cc3abe19b092b5d674dc",
         "version" : "2.9.4"
+      }
+    },
+    {
+      "identity" : "whatsnewkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SvenTiigi/WhatsNewKit.git",
+      "state" : {
+        "revision" : "6157c77e8be9b3d2310bc680681b61a8d9e290ac",
+        "version" : "2.2.1"
+      }
+    },
+    {
+      "identity" : "wishkit-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wishkit/wishkit-ios.git",
+      "state" : {
+        "revision" : "951b17b6b683c72d36627de77e8e26afcfbde6ae",
+        "version" : "4.7.0"
+      }
+    },
+    {
+      "identity" : "wishkit-ios-shared",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wishkit/wishkit-ios-shared.git",
+      "state" : {
+        "revision" : "cd184932bcdbdc8766137ef8ecac63c424be93a7",
+        "version" : "1.5.0"
       }
     },
     {

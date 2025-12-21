@@ -44,10 +44,12 @@ struct ImportPreviewView: View {
                     zipURL.stopAccessingSecurityScopedResource()
                 }
                
-                let documentsDirectory = FileManager.default.urls(
+                guard let documentsDirectory = FileManager.default.urls(
                     for: .documentDirectory,
                     in: .userDomainMask
-                ).first!
+                ).first else {
+                    throw NSError(domain: "ImportPreviewView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot access documents directory"])
+                }
                 let importDirectory = documentsDirectory.appendingPathComponent("Imports", isDirectory: true)
                 
                 if !FileManager.default.fileExists(atPath: importDirectory.path) {

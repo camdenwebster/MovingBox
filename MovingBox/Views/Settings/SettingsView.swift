@@ -48,29 +48,9 @@ struct SettingsView: View {
             url: URL(string: "https://movingbox.ai/help")!
         ),
         "rateUs": ExternalLink(
-            title: "Rate Us",
+            title: "Rate MovingBox",
             icon: "star",
             url: URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review")!
-        ),
-        "roadmap": ExternalLink(
-            title: "Roadmap",
-            icon: "map",
-            url: URL(string: "https://movingbox.ai/roadmap")!
-        ),
-        "bugs": ExternalLink(
-            title: "View and Report Issues",
-            icon: "ladybug",
-            url: URL(string: "https://movingbox.ai/bugs")!
-        ),
-        "privacyPolicy": ExternalLink(
-            title: "Privacy Policy",
-            icon: "lock",
-            url: URL(string: "https://movingbox.ai/privacy")!
-        ),
-        "termsOfService": ExternalLink(
-            title: "Terms of Service",
-            icon: "doc.text",
-            url: URL(string: "https://movingbox.ai/eula")!
         )
     ]
 
@@ -257,8 +237,7 @@ struct SettingsView: View {
                 
                 ForEach([
                     externalLinks["knowledgeBase"]!,
-                    externalLinks["support"]!,
-                    externalLinks["bugs"]!
+                    externalLinks["support"]!
                 ], id: \.title) { link in
                     Link(destination: link.url) {
                         HStack {
@@ -273,6 +252,25 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                NavigationLink(value: Router.Destination.featureRequestView) {
+                    Label {
+                        Text("Request a Feature")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "lightbulb")
+                    }
+                }
+                
+                NavigationLink(value: Router.Destination.aboutView) {
+                    Label {
+                        Text("About")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "info.circle")
                     }
                 }
             }
@@ -318,40 +316,7 @@ struct SettingsView: View {
             }
             #endif
             
-            Section("About") {
-                HStack {
-                    Label {
-                        Text("Version")
-                            .foregroundStyle(.primary)
-                    } icon: {
-                        Image(systemName: "info.circle")
 
-                    }
-                    Spacer()
-                    Text(appVersion)
-                        .foregroundColor(.secondary)
-                }
-                ForEach([
-                    externalLinks["roadmap"]!,
-                    externalLinks["privacyPolicy"]!,
-                    externalLinks["termsOfService"]!
-                ], id: \.title) { link in
-                    Link(destination: link.url) {
-                        HStack {
-                            Label {
-                                Text(link.title)
-                                    .foregroundStyle(.primary)
-                            } icon: {
-                                Image(systemName: link.icon)
-                            }
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
         }
         .navigationBarTitleDisplayMode(.large)
         .navigationTitle("Settings")
@@ -382,6 +347,8 @@ struct SettingsView: View {
                 case .importDataView: ImportDataView()
                 case .exportDataView: ExportDataView()
                 case .deleteDataView: DataDeletionView()
+                case .aboutView: AboutView()
+                case .featureRequestView: FeatureRequestView()
                 default: EmptyView()
             }
         }
@@ -648,12 +615,7 @@ struct LabelSettingsView: View {
     }
 }
 
-struct AboutView: View {
-    var body: some View {
-        Text("About MovingBox")
-            .navigationTitle("About")
-    }
-}
+
 
 #Preview {
     do {

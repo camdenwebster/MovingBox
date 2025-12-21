@@ -240,7 +240,10 @@ final class InventoryDetailViewModel {
             
             if item.imageURL == nil {
                 // No primary image yet, save the first image as primary
-                let primaryImageURL = try await imageManager.saveImage(images.first!, id: itemId)
+                guard let firstImage = images.first else {
+                    throw NSError(domain: "InventoryDetailViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "No images provided"])
+                }
+                let primaryImageURL = try await imageManager.saveImage(firstImage, id: itemId)
                 
                 item.imageURL = primaryImageURL
                 item.assetId = itemId
@@ -284,7 +287,8 @@ final class InventoryDetailViewModel {
                 
                 // If there are secondary photos, promote the first one to primary
                 if !item.secondaryPhotoURLs.isEmpty {
-                    if let firstSecondaryURL = URL(string: item.secondaryPhotoURLs.first!) {
+                    if let firstSecondaryURLString = item.secondaryPhotoURLs.first,
+                       let firstSecondaryURL = URL(string: firstSecondaryURLString) {
                         item.imageURL = firstSecondaryURL
                         item.secondaryPhotoURLs.removeFirst()
                     }
@@ -331,7 +335,9 @@ final class InventoryDetailViewModel {
                     destinationURL = try await imageManager.saveImage(image, id: attachmentId)
                 } else {
                     // Copy to Documents directory for non-image files
-                    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                    guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                        throw NSError(domain: "InventoryDetailViewModel", code: 2, userInfo: [NSLocalizedDescriptionKey: "Cannot access documents directory"])
+                    }
                     destinationURL = documentsURL.appendingPathComponent(attachmentId + "." + url.pathExtension)
                     try data.write(to: destinationURL)
                 }

@@ -11,6 +11,8 @@ import SwiftData
 import SwiftUI
 import TelemetryDeck
 import UIKit
+import WhatsNewKit
+import WishKit
 
 @main
 struct MovingBoxApp: App {
@@ -49,6 +51,9 @@ struct MovingBoxApp: App {
         Purchases.logLevel = .debug
         #endif
         
+        // Configure WishKit
+        WishKit.configure(with: AppConfig.wishKitAPIKey)
+        
         let dsn = "https://\(AppConfig.sentryDsn)"
         guard dsn != "https://missing-sentry-dsn" else {
             #if DEBUG
@@ -59,36 +64,68 @@ struct MovingBoxApp: App {
         
         SentrySDK.start { options in
             options.dsn = dsn
-            options.debug = AppConfig.shared.configuration == .debug
-            options.tracesSampleRate = 0.2
+
+            // Debug mode configuration
+            let isDebug = AppConfig.shared.configuration == .debug
+            options.debug = isDebug
             
             // Detect if running in test environment
-            // XCTestConfigurationFilePath is set by Xcode when running tests
             let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            
-            options.configureProfiling = {
-                $0.lifecycle = .trace
-                $0.sessionSampleRate = 1
+
+            // PERFORMANCE OPTIMIZATION: Reduce overhead in debug builds
+            if isDebug {
+                // Minimal tracing in debug mode to reduce overhead
+                options.tracesSampleRate = 0.0
+                options.profilesSampleRate = 0.0
+
+                // Disable session replay in debug mode (high overhead)
+                options.sessionReplay.onErrorSampleRate = 0.0
+                options.sessionReplay.sessionSampleRate = 0.0
+
+                // Disable experimental logs in debug (verbose)
+                options.experimental.enableLogs = false
+
+                // Disable automatic instrumentation in debug mode
+                options.enableAutoPerformanceTracing = false
+                options.enableCoreDataTracing = false
+                options.enableFileIOTracing = false
+                options.enableNetworkTracking = false
+                options.enableSwizzling = false
+                
+                // Disable app hang tracking in debug
+                options.enableAppHangTracking = false
+
+                print("🐛 Sentry Debug Mode: Minimal tracking enabled to reduce overhead")
+            } else {
+                // Production/Beta configuration - full feature set
+                options.tracesSampleRate = 0.2
+
+                // Profiling configuration
+                options.configureProfiling = {
+                    $0.lifecycle = .trace
+                    $0.sessionSampleRate = 0.2
+                }
+
+                // Session replays for errors and sampled sessions
+                options.sessionReplay.onErrorSampleRate = 1.0
+                options.sessionReplay.sessionSampleRate = 0.1
+
+                // Enable logs in production
+                options.experimental.enableLogs = true
+
+                // Automatic iOS Instrumentation
+                options.enableAutoPerformanceTracing = true
+                options.enableCoreDataTracing = false
+                options.enableFileIOTracing = false
+                options.enableNetworkTracking = true
+                options.enablePreWarmedAppStartTracing = true
+                options.enableTimeToFullDisplayTracing = true
+                
+                // Disable app hang tracking during test execution to prevent false positives
+                options.enableAppHangTracking = !isRunningTests
             }
-            
-            // Record session replays for 100% of errors and 10% of sessions
-            options.sessionReplay.onErrorSampleRate = 1.0
-            options.sessionReplay.sessionSampleRate = 0.1
 
-            // Enable logs to be sent to Sentry
-            options.experimental.enableLogs = true
-
-            // Automatic iOS Instrumentation (most features enabled by default in v8+)
-            // Only configure non-default settings:
-            options.enablePreWarmedAppStartTracing = true  // Disabled by default, enable for iOS 15+
-            options.enableTimeToFullDisplayTracing = true  // Disabled by default
-            
-            // Disable app hang tracking during test execution to prevent false positives
-            // Tests often perform synchronous operations (SwiftData init, file I/O) that exceed
-            // the 2-second threshold but don't represent real user-facing issues
-            options.enableAppHangTracking = !isRunningTests
-
-            // Network Tracking - limit to OpenAI API only for privacy
+            // Network Tracking - limit to OpenAI API only for privacy (all configs)
             options.tracePropagationTargets = ["api.aiproxy.com"]
 
             #if DEBUG
@@ -101,6 +138,47 @@ struct MovingBoxApp: App {
     
     private var disableAnimations: Bool {
         ProcessInfo.processInfo.arguments.contains("Disable-Animations")
+    }
+    
+    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> AnyView {
+        AnyView(
+            Group {
+                switch destination {
+                case .dashboardView:
+                    DashboardView()
+                case .locationsListView:
+                    LocationsListView()
+                case .settingsView:
+                    SettingsView()
+                case .aISettingsView:
+                    AISettingsView()
+                case .inventoryListView(let location):
+                    InventoryListView(location: location)
+                case .editLocationView(let location, let isEditing):
+                    EditLocationView(location: location, isEditing: isEditing)
+                case .editLabelView(let label, let isEditing):
+                    EditLabelView(label: label, isEditing: isEditing)
+                case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
+                    InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
+                case .locationsSettingsView:
+                    LocationSettingsView()
+                case .subscriptionSettingsView:
+                    SubscriptionSettingsView()
+                case .syncDataSettingsView:
+                    SyncDataSettingsView()
+                case .importDataView:
+                    ImportDataView()
+                case .exportDataView:
+                    ExportDataView()
+                case .deleteDataView:
+                    DataDeletionView()
+                case .aboutView:
+                    AboutView()
+                case .featureRequestView:
+                    FeatureRequestView()
+                }
+            }
+        )
     }
     
     var body: some Scene {
@@ -153,6 +231,8 @@ struct MovingBoxApp: App {
                 TelemetryDeck.signal("appLaunched")
             }
             .modelContainer(containerManager.container)
+            .environment(\.featureFlags, FeatureFlags(distribution: .current))
+            .environment(\.whatsNew, .forMovingBox())
             .environmentObject(router)
             .environmentObject(settings)
             .environmentObject(containerManager)

@@ -136,7 +136,7 @@ struct MockSimpleCameraView: View {
             Button("Take Photo") {
                 image = UIImage(named: "tablet")
             }
-            .accessibilityIdentifier("takePhotoButton")
+            .accessibilityIdentifier("cameraShutterButton")
             .padding()
             .background(Color.blue)
             .foregroundColor(.white)

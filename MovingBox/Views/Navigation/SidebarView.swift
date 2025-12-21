@@ -10,16 +10,24 @@ import SwiftData
 
 struct SidebarView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Query(sort: \InventoryLabel.name) private var labels: [InventoryLabel]
     @Query(sort: \InventoryLocation.name) private var locations: [InventoryLocation]
+    
     @Binding var selection: Router.SidebarDestination?
+    
+    private var home: Home? {
+        return homes.last
+    }
 
     var body: some View {
         List(selection: $selection) {
-            // Dashboard
-            NavigationLink(value: Router.SidebarDestination.dashboard) {
-                Label("Dashboard", systemImage: "house.fill")
-                    .tint(.green)
+            Section("Homes"){
+                // Dashboard
+                NavigationLink(value: Router.SidebarDestination.dashboard) {
+                    Label((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard", systemImage: "house.fill")
+                        .tint(.green)
+                }
             }
 
             // All Inventory
@@ -27,6 +35,8 @@ struct SidebarView: View {
                 Label("All Inventory", systemImage: "shippingbox.fill")
                     .tint(.green)
             }
+            
+
 
             // Locations Section
             Section("Locations") {
@@ -73,17 +83,17 @@ struct SidebarView: View {
         .listStyle(.sidebar)
     }
 }
-
-#Preview {
-    do {
-        let previewer = try Previewer()
-        return NavigationSplitView {
-            SidebarView(selection: .constant(.dashboard))
-                .modelContainer(previewer.container)
-        } detail: {
-            Text("Select an item")
-        }
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
-    }
-}
+//
+//#Preview {
+//    do {
+//        let previewer = try Previewer()
+//        return NavigationSplitView {
+//            SidebarView(selection: .constant(.dashboard))
+//                .modelContainer(previewer.container)
+//        } detail: {
+//            Text("Select an item")
+//        }
+//    } catch {
+//        return Text("Failed to create preview: \(error.localizedDescription)")
+//    }
+//}

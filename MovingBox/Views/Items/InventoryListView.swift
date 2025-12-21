@@ -30,6 +30,15 @@ struct InventoryListView: View {
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
     @State private var isContextValid = true
+
+    // Sorting state
+    enum SortField {
+        case title, date, value
+    }
+    @State private var currentSortField: SortField = .title
+    @State private var titleAscending = true
+    @State private var dateNewestFirst = true
+    @State private var valueGreatestFirst = true
     
     // Selection state - using native SwiftUI selection
     @State private var editMode: EditMode = .inactive
@@ -91,6 +100,15 @@ struct InventoryListView: View {
     private var selectedCount: Int {
         selectedItemIDs.count
     }
+
+    // Version-appropriate menu icon
+    private var menuIcon: String {
+        if #available(iOS 26.0, *) {
+            return "ellipsis"
+        } else {
+            return "ellipsis.circle"
+        }
+    }
     
     private var inventoryListContent: some View {
         // Create a unique view based on sort order to force recreation when sort changes
@@ -134,8 +152,11 @@ struct InventoryListView: View {
             .sheet(isPresented: $showingPaywall, content: paywallSheet)
             .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
             .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
-            .sheet(isPresented: $showItemCreationFlow) {
-                ItemCreationFlowView(location: location) {
+            .fullScreenCover(isPresented: $showItemCreationFlow) {
+                EnhancedItemCreationFlowView(
+                    captureMode: .singleItem,
+                    location: location
+                ) {
                     // Optional callback when item creation is complete
                 }
             }
@@ -234,7 +255,7 @@ struct InventoryListView: View {
             }
         } else {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Menu("Options", systemImage: "ellipsis.circle") {
+                Menu("Options", systemImage: menuIcon) {
                     Button(action: createManualItem) {
                         Label("Add Manually", systemImage: "square.and.pencil")
                     }
@@ -248,11 +269,37 @@ struct InventoryListView: View {
                     }
                     
                     Divider()
-                    Picker("Sort", selection: $sortOrder) {
-                        Text("Title (A-Z)")
-                            .tag([SortDescriptor(\InventoryItem.title)])
-                        Text("Title (Z-A)")
-                            .tag([SortDescriptor(\InventoryItem.title, order: .reverse)])
+                    Button {
+                        sortByTitle()
+                    } label: {
+                        if currentSortField == .title {
+                            Label("Title", systemImage: "checkmark")
+                        } else {
+                            Text("Title")
+                        }
+                        Text(titleAscending ? "Ascending" : "Descending")
+                    }
+
+                    Button {
+                        sortByDate()
+                    } label: {
+                        if currentSortField == .date {
+                            Label("Date", systemImage: "checkmark")
+                        } else {
+                            Text("Date")
+                        }
+                        Text(dateNewestFirst ? "Newest First" : "Oldest First")
+                    }
+
+                    Button {
+                        sortByValue()
+                    } label: {
+                        if currentSortField == .value {
+                            Label("Value", systemImage: "checkmark")
+                        } else {
+                            Text("Value")
+                        }
+                        Text(valueGreatestFirst ? "Highest First" : "Lowest First")
                     }
                 }
                 .accessibilityIdentifier("toolbarMenu")
@@ -596,6 +643,54 @@ struct InventoryListView: View {
         try? modelContext.save()
         selectedItemIDs.removeAll()
         editMode = .inactive
+    }
+
+    // MARK: - Sorting Functions
+    private func sortByTitle() {
+        if currentSortField == .title {
+            // Toggle direction
+            titleAscending.toggle()
+        } else {
+            // Switch to title sorting with default direction (A-Z)
+            currentSortField = .title
+            titleAscending = true
+        }
+        updateSortOrder()
+    }
+
+    private func sortByDate() {
+        if currentSortField == .date {
+            // Toggle direction
+            dateNewestFirst.toggle()
+        } else {
+            // Switch to date sorting with default direction (newest first)
+            currentSortField = .date
+            dateNewestFirst = true
+        }
+        updateSortOrder()
+    }
+
+    private func sortByValue() {
+        if currentSortField == .value {
+            // Toggle direction
+            valueGreatestFirst.toggle()
+        } else {
+            // Switch to value sorting with default direction (greatest first)
+            currentSortField = .value
+            valueGreatestFirst = true
+        }
+        updateSortOrder()
+    }
+
+    private func updateSortOrder() {
+        switch currentSortField {
+        case .title:
+            sortOrder = [SortDescriptor(\InventoryItem.title, order: titleAscending ? .forward : .reverse)]
+        case .date:
+            sortOrder = [SortDescriptor(\InventoryItem.createdAt, order: dateNewestFirst ? .reverse : .forward)]
+        case .value:
+            sortOrder = [SortDescriptor(\InventoryItem.price, order: valueGreatestFirst ? .reverse : .forward)]
+        }
     }
 }
 

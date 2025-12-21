@@ -15,6 +15,7 @@ class SettingsManager: ObservableObject {
         static let highQualityAnalysisEnabled = "highQualityAnalysisEnabled"
         static let hasLaunched = "hasLaunched"
         static let isPro = "isPro"
+        static let preferredCaptureMode = "preferredCaptureMode"
         static let successfulAIAnalysisCount = "successfulAIAnalysisCount"
         static let firstLaunchDate = "firstLaunchDate"
         static let hasRequestedReviewAfter30Days = "hasRequestedReviewAfter30Days"
@@ -60,7 +61,6 @@ class SettingsManager: ObservableObject {
     @Published var isPro: Bool {
         didSet {
             let proValue = ProcessInfo.processInfo.arguments.contains("Is-Pro") ? true : isPro
-            print("📱 SettingsManager - Saving Pro status: \(proValue)")
             UserDefaults.standard.set(proValue, forKey: Keys.isPro)
         }
     }
@@ -71,6 +71,13 @@ class SettingsManager: ObservableObject {
             UserDefaults.standard.set(highQualityAnalysisEnabled, forKey: Keys.highQualityAnalysisEnabled)
         }
     }
+    
+    @Published var preferredCaptureMode: Int {
+        didSet {
+            UserDefaults.standard.set(preferredCaptureMode, forKey: Keys.preferredCaptureMode)
+        }
+    }
+    
 
     @Published var successfulAIAnalysisCount: Int {
         didSet {
@@ -114,11 +121,9 @@ class SettingsManager: ObservableObject {
     private let isHighDetailDefault = false
     private let highQualityAnalysisEnabledDefault = false
     private let hasLaunchedDefault = false
+    private let preferredCaptureModeDefault = 0 // 0 = singleItem, 1 = multiItem
     
     init() {
-        print("📱 SettingsManager - Starting initialization")
-        print("📱 SettingsManager - Is-Pro argument present: \(ProcessInfo.processInfo.arguments.contains("Is-Pro"))")
-
         // Initialize with default values first
         self.aiModel = defaultAIModel
         self.temperature = defaultTemperature
@@ -128,6 +133,7 @@ class SettingsManager: ObservableObject {
         self.highQualityAnalysisEnabled = highQualityAnalysisEnabledDefault
         self.hasLaunched = hasLaunchedDefault
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
+        self.preferredCaptureMode = preferredCaptureModeDefault
         self.successfulAIAnalysisCount = UserDefaults.standard.integer(forKey: Keys.successfulAIAnalysisCount)
         
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
@@ -163,6 +169,7 @@ class SettingsManager: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: Keys.apiKey) ?? defaultApiKey
         self.isHighDetail = UserDefaults.standard.bool(forKey: Keys.isHighDetail)
         self.hasLaunched = UserDefaults.standard.bool(forKey: Keys.hasLaunched)
+        self.preferredCaptureMode = UserDefaults.standard.integer(forKey: Keys.preferredCaptureMode)
         
         // Set high quality default based on Pro status, but allow override
         if !UserDefaults.standard.contains(key: Keys.highQualityAnalysisEnabled) {

@@ -36,6 +36,14 @@ final class TelemetryManager: @unchecked Sendable {
         TelemetryManager.signal("Inventory.Analysis.photoUsed")
     }
     
+    func trackCaptureModeSelected(mode: String, imageCount: Int, isProUser: Bool) {
+        TelemetryManager.signal("Inventory.Analysis.captureModeSelected", with: [
+            "mode": mode,
+            "image_count": String(imageCount),
+            "is_pro_user": isProUser ? "true" : "false"
+        ])
+    }
+    
     // MARK: - AI Analysis Detailed Tracking
     
     func trackAIAnalysisStarted(
