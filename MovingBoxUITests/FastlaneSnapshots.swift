@@ -168,7 +168,7 @@ final class FastlaneSnapshots: XCTestCase {
         sleep(1)
         
         // Then: Take snapshot of multi-item selection view
-        snapshot("02_MultiItemSelection")
+        snapshot("01_MultiItemSelection")
     }
 
 }
