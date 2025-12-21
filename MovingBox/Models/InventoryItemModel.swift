@@ -41,6 +41,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var showInvalidQuantityAlert: Bool = false
     var hasUsedAI: Bool = false
     var createdAt: Date = Date()
+    var home: Home?
     
     // MARK: - Purchase & Ownership Tracking
     var purchaseDate: Date?
@@ -68,7 +69,15 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var isFragile: Bool = false
     var movingPriority: Int = 3
     var roomDestination: String = ""
-    
+
+    // MARK: - Computed Properties
+
+    /// Returns the effective home for this item
+    /// Items inherit home from their location; if no location, uses direct home reference
+    var effectiveHome: Home? {
+        location?.home ?? home
+    }
+
     @Attribute(.externalStorage) var data: Data?
     
     private var isMigrating = false

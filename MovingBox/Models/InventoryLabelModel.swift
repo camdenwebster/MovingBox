@@ -58,7 +58,8 @@ class InventoryLabel {
     @Attribute(.transformable(by: UIColorValueTransformer.self)) var color: UIColor?
     var emoji: String = "🏷️" // Default emoji
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
-    
+    var home: Home?
+
     init(name: String = "", desc: String = "", color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil, emoji: String = "🏷️") {
         self.name = name
         self.desc = desc

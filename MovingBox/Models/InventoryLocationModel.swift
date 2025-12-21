@@ -17,7 +17,8 @@ class InventoryLocation: PhotoManageable {
     var imageURL: URL?
     var secondaryPhotoURLs: [String] = []
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
-    
+    var home: Home?
+
     // ADD: Legacy Support
     @Attribute(.externalStorage) var data: Data?
     

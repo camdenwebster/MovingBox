@@ -23,6 +23,7 @@ class Home: PhotoManageable {
     var imageURL: URL?
     var secondaryPhotoURLs: [String] = []
     var insurancePolicy: InsurancePolicy?
+    var isPrimary: Bool = false
     
     // MARK: - Legacy Support
     @Attribute(.externalStorage) var data: Data?

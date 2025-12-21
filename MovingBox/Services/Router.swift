@@ -12,6 +12,7 @@ final class Router: ObservableObject {
 
     enum SidebarDestination: Hashable, Identifiable {
         case dashboard
+        case home(PersistentIdentifier)
         case allInventory
         case label(PersistentIdentifier)
         case location(PersistentIdentifier)
@@ -20,6 +21,8 @@ final class Router: ObservableObject {
             switch self {
             case .dashboard:
                 return "dashboard"
+            case .home(let id):
+                return "home-\(id.hashValue)"
             case .allInventory:
                 return "allInventory"
             case .label(let id):
@@ -45,6 +48,8 @@ final class Router: ObservableObject {
         case importDataView
         case exportDataView
         case deleteDataView
+        case homeListView
+        case addHomeView
         case aboutView
         case featureRequestView
     }

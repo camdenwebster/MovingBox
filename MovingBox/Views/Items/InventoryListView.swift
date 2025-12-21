@@ -61,11 +61,13 @@ struct InventoryListView: View {
     let location: InventoryLocation?
     let filterLabel: InventoryLabel?
     let showOnlyUnassigned: Bool
+    let showAllHomes: Bool
 
-    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false) {
+    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false, showAllHomes: Bool = false) {
         self.location = location
         self.filterLabel = filterLabel
         self.showOnlyUnassigned = showOnlyUnassigned
+        self.showAllHomes = showAllHomes
     }
 
     // Computed properties for selection state
@@ -121,6 +123,7 @@ struct InventoryListView: View {
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
+                showAllHomes: showAllHomes,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("reverse-\(sortOrder.hashValue)")
@@ -131,6 +134,7 @@ struct InventoryListView: View {
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
+                showAllHomes: showAllHomes,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("forward-\(sortOrder.hashValue)")
@@ -562,17 +566,39 @@ struct InventoryListView: View {
     func getAllLocations() -> [InventoryLocation] {
         do {
             let descriptor = FetchDescriptor<InventoryLocation>(sortBy: [SortDescriptor(\InventoryLocation.name)])
-            return try modelContext.fetch(descriptor)
+            let allLocations = try modelContext.fetch(descriptor)
+
+            // Filter by active home if one is set
+            if let activeHomeId = settings.activeHomeId,
+               let activeHomeIdHash = Int(activeHomeId) {
+                return allLocations.filter { location in
+                    location.home?.persistentModelID.hashValue == activeHomeIdHash
+                }
+            }
+
+            // Return all locations if no active home is set
+            return allLocations
         } catch {
             print("Error fetching locations: \(error)")
             return []
         }
     }
-    
+
     func getAllLabels() -> [InventoryLabel] {
         do {
             let descriptor = FetchDescriptor<InventoryLabel>(sortBy: [SortDescriptor(\InventoryLabel.name)])
-            return try modelContext.fetch(descriptor)
+            let allLabels = try modelContext.fetch(descriptor)
+
+            // Filter by active home if one is set
+            if let activeHomeId = settings.activeHomeId,
+               let activeHomeIdHash = Int(activeHomeId) {
+                return allLabels.filter { label in
+                    label.home?.persistentModelID.hashValue == activeHomeIdHash
+                }
+            }
+
+            // Return all labels if no active home is set
+            return allLabels
         } catch {
             print("Error fetching labels: \(error)")
             return []
