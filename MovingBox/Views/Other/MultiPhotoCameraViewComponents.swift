@@ -236,6 +236,28 @@ struct CameraControlButton: View {
     }
 }
 
+// MARK: - Continue Button
+
+struct ContinueButton: View {
+    let action: () -> Void
+    var isDisabled: Bool = false
+    var accessibilityLabel: String = "Continue to analysis"
+    var accessibilityIdentifier: String = "continueToAnalysis"
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.right")
+                .foregroundStyle(.white)
+                .font(.title)
+                .frame(width: 30, height: 40)
+        }
+        .disabled(isDisabled)
+        .backport.glassProminentButtonStyle()
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier("continueToAnalysis")
+    }
+}
+
 // MARK: - Focus Indicator View
 
 struct FocusIndicatorView: View {
@@ -509,7 +531,7 @@ struct MultiItemPreviewOverlay: View {
     @Namespace private var glassEffectNamespace
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 24) {
             ZStack {
                 Image(uiImage: capturedImage)
                     .resizable()
@@ -520,20 +542,26 @@ struct MultiItemPreviewOverlay: View {
             }
             .frame(maxHeight: .infinity)
 
-            Spacer()
-
-            Button {
-                onRetake()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.title)
-                    .foregroundColor(.red)
-                    .padding()
+            HStack(spacing: 24) {
+                Button {
+                    onRetake()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.title)
+                        .foregroundColor(.red)
+                        .padding()
+                }
+                .backport.glassEffect(in: Circle())
+                .backport.glassEffectID("retake", in: glassEffectNamespace)
+                .tint(.red)
+                .accessibilityIdentifier("multiItemRetakeButton")
+                
+                ContinueButton(
+                    action: onAnalyze,
+                )
             }
-            .backport.glassEffect(in: Circle())
-            .backport.glassEffectID("retake", in: glassEffectNamespace)
-            .tint(.red)
-            .accessibilityIdentifier("multiItemRetakeButton")
+            
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.7))
@@ -581,20 +609,14 @@ struct CameraTopControls: View {
 
             if !isMultiItemPreviewShowing {
                 cameraControlButtons
+                Spacer()
+
+                ContinueButton(
+                    action: onDone,
+                    isDisabled: !hasPhotoCaptured,
+                    accessibilityLabel: "Continue to analysis"
+                )
             }
-
-            Spacer()
-
-            Button(action: onDone) {
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.white)
-                    .font(.title)
-                    .frame(width: 30, height: 40)
-            }
-            .disabled(!hasPhotoCaptured)
-            .backport.glassProminentButtonStyle()
-            .accessibilityLabel("Continue to analysis")
-
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)

@@ -213,7 +213,7 @@ struct MultiItemSelectionView: View {
                     }
                 }
                 .scrollTargetLayout()
-                .padding(.horizontal, geometry.size.width * 0.075)
+                .padding(.horizontal, geometry.size.width * 0.05)
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollClipDisabled()
@@ -369,8 +369,7 @@ struct DetectedItemCard: View {
     var body: some View {
         Button(action: onToggleSelection) {
             VStack(alignment: .leading, spacing: 8) {
-                // Label emoji
-                // i
+
                 // Title and confidence badge
                 HStack {
                     Text(item.title)
@@ -384,14 +383,10 @@ struct DetectedItemCard: View {
                 }
 
                 // Label (if matched) and make/model
-                if matchedLabel != nil || (!item.make.isEmpty && !item.model.isEmpty) {
-                    VStack(alignment: .leading, spacing: 2) {
+                if matchedLabel != nil || ((!item.make.isEmpty || item.make != "Unknown") && (!item.model.isEmpty || item.model != "Unknown")) {
+                    VStack(alignment: .leading, spacing: 8) {
                         if let label = matchedLabel {
                             HStack(spacing: 4) {
-                                Text(label.emoji)
-                                    .padding(7)
-                                    .background(in: Circle())
-                                    .backgroundStyle(Color(label.color ?? .blue))
                                 Label(label.name, systemImage: "tag")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
@@ -415,6 +410,7 @@ struct DetectedItemCard: View {
                         .lineLimit(3)
                 }
 
+
                 // Price
                 if !item.estimatedPrice.isEmpty {
                     HStack {
@@ -428,7 +424,6 @@ struct DetectedItemCard: View {
                             .font(.headline)
                             .foregroundColor(.primary)
                     }
-                    .padding(.top, 4)
                 }
 
                 Spacer()

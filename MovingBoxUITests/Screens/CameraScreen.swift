@@ -45,7 +45,7 @@ class CameraScreen {
         self.modePicker = app.otherElements["cameraModePicker"]
         
         // Done button
-        self.doneButton = app.buttons["chevron.right"].firstMatch
+        self.doneButton = app.buttons["continueToAnalysis"]
         
         // Multi-item preview overlay
         self.previewRetakeButton = app.buttons["multiItemRetakeButton"]
