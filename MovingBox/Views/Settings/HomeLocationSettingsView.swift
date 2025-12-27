@@ -17,7 +17,7 @@ struct HomeLocationSettingsView: View {
 
     private var filteredLocations: [InventoryLocation] {
         allLocations.filter { location in
-            location.home?.persistentModelID == home.persistentModelID
+            location.home?.id == home.id
         }.sorted { $0.name < $1.name }
     }
 

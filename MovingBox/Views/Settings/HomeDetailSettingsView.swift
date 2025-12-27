@@ -18,6 +18,21 @@ struct HomeDetailSettingsView: View {
     @State private var isEditing = false
     @State private var showingDeleteConfirmation = false
     @State private var deleteError: String?
+    
+    private let availableColors: [(name: String, color: Color)] = [
+        ("green", .green),
+        ("blue", .blue),
+        ("purple", .purple),
+        ("pink", .pink),
+        ("red", .red),
+        ("orange", .orange),
+        ("yellow", .yellow),
+        ("teal", .teal),
+        ("cyan", .cyan),
+        ("indigo", .indigo),
+        ("mint", .mint),
+        ("brown", .brown)
+    ]
 
     var body: some View {
         Form {
@@ -43,17 +58,17 @@ struct HomeDetailSettingsView: View {
                             if newValue {
                                 // Make this home primary and unmark all others
                                 for otherHome in allHomes {
-                                    otherHome.isPrimary = (otherHome.persistentModelID == home.persistentModelID)
+                                    otherHome.isPrimary = (otherHome.id == home.id)
                                 }
                                 // Update active home ID
-                                settings.activeHomeId = home.persistentModelID.hashValue.description
+                                settings.activeHomeId = home.id.uuidString
                             } else {
                                 // Can't unset if it's the only home or currently primary
                                 // Find another home to make primary
-                                if let firstOtherHome = allHomes.first(where: { $0.persistentModelID != home.persistentModelID }) {
+                                if let firstOtherHome = allHomes.first(where: { $0.id != home.id }) {
                                     firstOtherHome.isPrimary = true
                                     home.isPrimary = false
-                                    settings.activeHomeId = firstOtherHome.persistentModelID.hashValue.description
+                                    settings.activeHomeId = firstOtherHome.id.uuidString
                                 }
                             }
                         }
@@ -66,6 +81,38 @@ struct HomeDetailSettingsView: View {
                             Image(systemName: "checkmark")
                                 .foregroundColor(.accentColor)
                         }
+                    }
+                }
+                
+                if isEditing {
+                    HStack {
+                        Text("Color")
+                        Spacer()
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(availableColors, id: \.name) { colorOption in
+                                    Circle()
+                                        .fill(colorOption.color)
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(home.colorName == colorOption.name ? Color.primary : Color.clear, lineWidth: 2)
+                                        )
+                                        .onTapGesture {
+                                            home.colorName = colorOption.name
+                                        }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                } else {
+                    HStack {
+                        Text("Color")
+                        Spacer()
+                        Circle()
+                            .fill(home.color)
+                            .frame(width: 24, height: 24)
                     }
                 }
             }
@@ -155,16 +202,16 @@ struct HomeDetailSettingsView: View {
 
         // If deleting primary home, make another home primary first
         if home.isPrimary {
-            if let firstOtherHome = allHomes.first(where: { $0.persistentModelID != home.persistentModelID }) {
+            if let firstOtherHome = allHomes.first(where: { $0.id != home.id }) {
                 firstOtherHome.isPrimary = true
-                settings.activeHomeId = firstOtherHome.persistentModelID.hashValue.description
+                settings.activeHomeId = firstOtherHome.id.uuidString
             }
         }
 
         // Delete all locations associated with this home
         let locationDescriptor = FetchDescriptor<InventoryLocation>()
         if let locations = try? modelContext.fetch(locationDescriptor) {
-            for location in locations where location.home?.persistentModelID == home.persistentModelID {
+            for location in locations where location.home?.id == home.id {
                 // Unassign items from this location
                 if let items = location.inventoryItems {
                     for item in items {
@@ -178,7 +225,7 @@ struct HomeDetailSettingsView: View {
         // Delete all labels associated with this home
         let labelDescriptor = FetchDescriptor<InventoryLabel>()
         if let labels = try? modelContext.fetch(labelDescriptor) {
-            for label in labels where label.home?.persistentModelID == home.persistentModelID {
+            for label in labels where label.home?.id == home.id {
                 // Unassign items from this label
                 if let items = label.inventoryItems {
                     for item in items {

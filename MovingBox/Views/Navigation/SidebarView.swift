@@ -27,31 +27,25 @@ struct SidebarView: View {
     }
 
     private var activeHome: Home? {
-        guard let activeId = settingsManager.activeHomeId else {
+        guard let activeIdString = settingsManager.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
             return primaryHome
         }
-        return homes.first { home in
-            do {
-                let idData = try JSONEncoder().encode(home.persistentModelID)
-                return idData.base64EncodedString() == activeId
-            } catch {
-                return false
-            }
-        } ?? primaryHome
+        return homes.first { $0.id == activeId } ?? primaryHome
     }
 
     private var filteredLocations: [InventoryLocation] {
         guard let activeHome = activeHome else {
             return []
         }
-        return allLocations.filter { $0.home?.persistentModelID == activeHome.persistentModelID }
+        return allLocations.filter { $0.home?.id == activeHome.id }
     }
 
     private var filteredLabels: [InventoryLabel] {
         guard let activeHome = activeHome else {
             return []
         }
-        return allLabels.filter { $0.home?.persistentModelID == activeHome.persistentModelID }
+        return allLabels.filter { $0.home?.id == activeHome.id }
     }
 
     // MARK: - Body
@@ -59,21 +53,19 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
 
-            // Homes Section (only show if multiple homes exist)
-            if !secondaryHomes.isEmpty {
-                Section("Homes") {
-                    ForEach(secondaryHomes, id: \.persistentModelID) { home in
-                        NavigationLink(value: Router.SidebarDestination.home(home.persistentModelID)) {
-                            Label(home.name.isEmpty ? "Unnamed Home" : home.name, systemImage: "building.2")
-                        }
-                    }
-                }
-            }
-
             // All Inventory
             NavigationLink(value: Router.SidebarDestination.allInventory) {
                 Label("All Inventory", systemImage: "shippingbox.fill")
                     .tint(.green)
+            }
+            
+            // Homes Section
+            Section("Homes") {
+                ForEach(homes, id: \.persistentModelID) { home in
+                    NavigationLink(value: Router.SidebarDestination.home(home.persistentModelID)) {
+                        SidebarHomeRow(home: home, isActive: home.id == activeHome?.id)
+                    }
+                }
             }
 
             // Locations Section (filtered by active home)
@@ -133,28 +125,48 @@ struct SidebarView: View {
         case .dashboard:
             // Set active home to primary home
             if let primaryHome = primaryHome {
-                do {
-                    let idData = try JSONEncoder().encode(primaryHome.persistentModelID)
-                    settingsManager.activeHomeId = idData.base64EncodedString()
-                } catch {
-                    print("Failed to encode home ID: \(error)")
-                }
+                settingsManager.activeHomeId = primaryHome.id.uuidString
             }
 
         case .home(let homeId):
             // Set active home to selected home
             if let home = homes.first(where: { $0.persistentModelID == homeId }) {
-                do {
-                    let idData = try JSONEncoder().encode(home.persistentModelID)
-                    settingsManager.activeHomeId = idData.base64EncodedString()
-                } catch {
-                    print("Failed to encode home ID: \(error)")
-                }
+                settingsManager.activeHomeId = home.id.uuidString
             }
 
         default:
             // For other destinations (labels, locations, all inventory), don't change active home
             break
+        }
+    }
+}
+
+// MARK: - Sidebar Row Views
+
+struct SidebarHomeRow: View {
+    let home: Home
+    let isActive: Bool
+    
+    var body: some View {
+        HStack {
+            Label(home.name.isEmpty ? "Unnamed Home" : home.name, systemImage: "building.2")
+            
+            Spacer()
+            
+            if home.isPrimary {
+                Text("PRIMARY")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor)
+                    .cornerRadius(4)
+            }
+            
+            if isActive {
+                Image(systemName: "checkmark")
+            }
         }
     }
 }

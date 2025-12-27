@@ -55,14 +55,14 @@ struct DashboardView: View {
         guard let displayHome = displayHome else {
             return allItems
         }
-        return allItems.filter { $0.effectiveHome?.persistentModelID == displayHome.persistentModelID }
+        return allItems.filter { $0.effectiveHome?.id == displayHome.id }
     }
 
     private var recentItems: [InventoryItem] {
         guard let displayHome = displayHome else {
             return allRecentItems
         }
-        return allRecentItems.filter { $0.effectiveHome?.persistentModelID == displayHome.persistentModelID }
+        return allRecentItems.filter { $0.effectiveHome?.id == displayHome.id }
     }
 
     private var totalReplacementCost: Decimal {
@@ -158,9 +158,9 @@ struct DashboardView: View {
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityIdentifier("dashboard-recent-item-\(item.persistentModelID)")
+                                    .accessibilityIdentifier("dashboard-recent-item-\(item.id)")
                                     
-                                    if item.persistentModelID != topRecentItems.last?.persistentModelID {
+                                    if item.id != topRecentItems.last?.id {
                                         Divider()
                                             .padding(.leading, 92)
                                     }

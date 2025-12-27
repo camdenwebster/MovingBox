@@ -50,6 +50,9 @@ final class MultiItemSelectionViewModel {
     /// SwiftData context for saving items
     let modelContext: ModelContext
 
+    /// Settings manager for accessing active home
+    var settingsManager: SettingsManager?
+
     /// Currently detected items from analysis
     var detectedItems: [DetectedInventoryItem] {
         analysisResponse.safeItems
@@ -261,12 +264,36 @@ final class MultiItemSelectionViewModel {
                 inventoryItem.secondaryPhotoURLs = secondaryURLs
             }
             
+            // Assign active home if item has no location or location has no home
+            if inventoryItem.location == nil || inventoryItem.location?.home == nil {
+                // Get active home from SettingsManager
+                if let activeHomeIdString = settingsManager?.activeHomeId,
+                   let activeHomeId = UUID(uuidString: activeHomeIdString) {
+                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
+                    if let activeHome = try? modelContext.fetch(homeDescriptor).first {
+                        inventoryItem.home = activeHome
+                    } else {
+                        // Fallback to primary home
+                        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+                        if let primaryHome = try? modelContext.fetch(primaryHomeDescriptor).first {
+                            inventoryItem.home = primaryHome
+                        }
+                    }
+                } else {
+                    // Fallback to primary home
+                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+                    if let primaryHome = try? modelContext.fetch(homeDescriptor).first {
+                        inventoryItem.home = primaryHome
+                    }
+                }
+            }
+
             // Insert into context
             modelContext.insert(inventoryItem)
-            
+
             // Track telemetry
             TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItem.title)
-            
+
             return inventoryItem
             
         } catch {

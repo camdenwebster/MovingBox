@@ -20,53 +20,51 @@ struct AddHomeView: View {
     @State private var error: String?
 
     var body: some View {
-        NavigationStack {
-            Form {
+        Form {
+            Section {
+                TextField("Home Name", text: $homeName)
+                    .textInputAutocapitalization(.words)
+            } header: {
+                Text("Home Details")
+            } footer: {
+                Text("Give this home a name to help you identify it (e.g., 'Main House', 'Beach House', 'Apartment')")
+            }
+
+            if let error = error {
                 Section {
-                    TextField("Home Name", text: $homeName)
-                        .textInputAutocapitalization(.words)
-                } header: {
-                    Text("Home Details")
-                } footer: {
-                    Text("Give this home a name to help you identify it (e.g., 'Main House', 'Beach House', 'Apartment')")
-                }
-
-                if let error = error {
-                    Section {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .font(.caption)
-                    }
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.caption)
                 }
             }
-            .navigationTitle("Add Home")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        router.navigateBack()
-                    }
-                    .disabled(isCreating)
+        }
+        .navigationTitle("Add Home")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    router.navigateBack()
                 }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await createHome()
-                        }
-                    }
-                    .bold()
-                    .disabled(homeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
-                }
+                .disabled(isCreating)
             }
-            .disabled(isCreating)
-            .overlay {
-                if isCreating {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black.opacity(0.2))
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    Task {
+                        await createHome()
+                    }
                 }
+                .bold()
+                .disabled(homeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
+            }
+        }
+        .disabled(isCreating)
+        .overlay {
+            if isCreating {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.opacity(0.2))
             }
         }
     }
@@ -87,7 +85,7 @@ struct AddHomeView: View {
             // If this is the first home, make it primary
             if existingHomes.isEmpty {
                 newHome.isPrimary = true
-                settings.activeHomeId = newHome.persistentModelID.hashValue.description
+                settings.activeHomeId = newHome.id.uuidString
             }
 
             // Save context

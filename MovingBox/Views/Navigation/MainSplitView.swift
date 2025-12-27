@@ -11,7 +11,22 @@ import SwiftData
 struct MainSplitView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject private var settingsManager: SettingsManager
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Binding var navigationPath: NavigationPath
+    @State private var currentTintColor: Color = .green
+    
+    private var primaryHome: Home? {
+        homes.first { $0.isPrimary }
+    }
+    
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return primaryHome
+        }
+        return homes.first { $0.id == activeId } ?? primaryHome
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -27,7 +42,24 @@ struct MainSplitView: View {
                     }
             }
         }
-        .tint(.green)
+        .tint(currentTintColor)
+        .onAppear {
+            updateTintColor()
+        }
+        .onChange(of: settingsManager.activeHomeId) { oldValue, newValue in
+            print("🎨 MainSplitView - activeHomeId changed from \(oldValue ?? "nil") to \(newValue ?? "nil")")
+            updateTintColor()
+        }
+        .onChange(of: homes) { oldValue, newValue in
+            print("🎨 MainSplitView - Homes changed, updating tint color")
+            updateTintColor()
+        }
+    }
+    
+    private func updateTintColor() {
+        let newColor = activeHome?.color ?? .green
+        print("🎨 MainSplitView - Updating tint color to: \(activeHome?.colorName ?? "green")")
+        currentTintColor = newColor
     }
 
     @ViewBuilder
@@ -131,6 +163,7 @@ struct MainSplitView: View {
         return PreviewWrapper()
             .modelContainer(previewer.container)
             .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

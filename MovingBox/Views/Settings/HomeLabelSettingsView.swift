@@ -17,7 +17,7 @@ struct HomeLabelSettingsView: View {
 
     private var filteredLabels: [InventoryLabel] {
         allLabels.filter { label in
-            label.home?.persistentModelID == home.persistentModelID
+            label.home?.id == home.id
         }.sorted { $0.name < $1.name }
     }
 

@@ -102,7 +102,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Disable-Persistence"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Skip-Onboarding"

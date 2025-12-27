@@ -24,6 +24,7 @@ class ModelContainerManager: ObservableObject {
     private var deviceIdKey = "MovingBox_DeviceId"
     private var migrationSchemaVersionKey = "MovingBox_SchemaVersion"
     private let multiHomeMigrationKey = "MovingBox_MultiHomeMigration_v1"
+    private let orphanedItemsMigrationKey = "MovingBox_OrphanedItemsMigration_v1"
     
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -115,6 +116,12 @@ class ModelContainerManager: ObservableObject {
                 // Skip migration and go straight to CloudKit setup - no UI needed
                 try await enableCloudKitSync()
                 
+                // Ensure at least one home exists
+                await ensureHomeExists()
+                
+                // Run orphaned items migration if needed (silent, no UI)
+                try? await performOrphanedItemsMigration()
+                
                 await MainActor.run {
                     self.isMigrationComplete = true
                     // isLoading already false, so no UI shows
@@ -131,6 +138,9 @@ class ModelContainerManager: ObservableObject {
                 
                 // Setup CloudKit for new install
                 try await enableCloudKitSync()
+                
+                // Ensure at least one home exists for new installs
+                await ensureHomeExists()
                 
                 await MainActor.run {
                     self.isMigrationComplete = true
@@ -442,6 +452,37 @@ class ModelContainerManager: ObservableObject {
         print("📦 ModelContainerManager - Completed inventory item migrations")
     }
 
+    // MARK: - Home Management
+    
+    private func ensureHomeExists() async {
+        // Skip if we're using test data (it will create its own home)
+        guard !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") else {
+            print("📦 ModelContainerManager - Skipping home creation for test data")
+            return
+        }
+        
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<Home>()
+        
+        do {
+            let homes = try context.fetch(descriptor)
+            
+            if homes.isEmpty {
+                print("📦 ModelContainerManager - No homes found, creating initial home")
+                let newHome = Home(name: "My Home")
+                newHome.isPrimary = true
+                context.insert(newHome)
+                try context.save()
+                
+                UserDefaults.standard.set(newHome.id.uuidString, forKey: "activeHomeId")
+                
+                print("📦 ModelContainerManager - Created initial home")
+            }
+        } catch {
+            print("📦 ModelContainerManager - Error ensuring home exists: \(error)")
+        }
+    }
+
     // MARK: - Multi-Home Migration
 
     private var isMultiHomeMigrationCompleted: Bool {
@@ -494,33 +535,108 @@ class ModelContainerManager: ObservableObject {
         }
         print("📦 ModelContainerManager - Migrated \(migratedLabelsCount) labels to primary home")
 
-        // 4. Assign all orphaned items (without location) to primary home
+        // 4. Assign all items without an effective home to primary home
         let itemDescriptor = FetchDescriptor<InventoryItem>()
         let items = try context.fetch(itemDescriptor)
         var migratedItemsCount = 0
 
-        for item in items where item.location == nil && item.home == nil {
-            item.home = primaryHome
-            migratedItemsCount += 1
+        for item in items {
+            // Item needs migration if:
+            // 1. Has no location and no direct home assignment, OR
+            // 2. Has a location but that location has no home
+            let needsMigration = (item.location == nil && item.home == nil) || 
+                                 (item.location != nil && item.location?.home == nil)
+            
+            if needsMigration {
+                item.home = primaryHome
+                migratedItemsCount += 1
+            }
         }
-        print("📦 ModelContainerManager - Migrated \(migratedItemsCount) orphaned items to primary home")
+        print("📦 ModelContainerManager - Migrated \(migratedItemsCount) items without effective home to primary home")
 
         // 5. Save and mark complete
         try context.save()
         UserDefaults.standard.set(true, forKey: multiHomeMigrationKey)
 
         // 6. Store active home ID in SettingsManager format
-        do {
-            let idData = try JSONEncoder().encode(primaryHome.persistentModelID)
-            let idString = idData.base64EncodedString()
-            UserDefaults.standard.set(idString, forKey: "activeHomeId")
-            print("📦 ModelContainerManager - Set active home ID: \(idString)")
-        } catch {
-            print("📦 ModelContainerManager - Failed to encode home ID: \(error)")
-        }
+        UserDefaults.standard.set(primaryHome.id.uuidString, forKey: "activeHomeId")
+        print("📦 ModelContainerManager - Set active home ID: \(primaryHome.id.uuidString)")
 
         print("📦 ModelContainerManager - Multi-home migration completed successfully")
         print("📦 ModelContainerManager - Summary: \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items")
+    }
+
+    // MARK: - Orphaned Items Migration
+
+    private var isOrphanedItemsMigrationCompleted: Bool {
+        UserDefaults.standard.bool(forKey: orphanedItemsMigrationKey)
+    }
+
+    internal func performOrphanedItemsMigration(force: Bool = false) async throws {
+        guard force || !isOrphanedItemsMigrationCompleted else {
+            print("📦 ModelContainerManager - Orphaned items migration already completed, skipping")
+            return
+        }
+
+        let context = container.mainContext
+        print("📦 ModelContainerManager - Starting orphaned items migration")
+
+        // Get primary home
+        let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+        guard let primaryHome = try context.fetch(homeDescriptor).first else {
+            print("📦 ModelContainerManager - No primary home found, skipping orphaned items migration")
+            UserDefaults.standard.set(true, forKey: orphanedItemsMigrationKey)
+            return
+        }
+
+        // Migrate orphaned locations
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let locations = try context.fetch(locationDescriptor)
+        var migratedLocationsCount = 0
+        
+        for location in locations where location.home == nil {
+            location.home = primaryHome
+            migratedLocationsCount += 1
+            print("📦 ModelContainerManager - Assigned location '\(location.name)' to primary home")
+        }
+        
+        // Migrate orphaned labels
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let labels = try context.fetch(labelDescriptor)
+        var migratedLabelsCount = 0
+        
+        for label in labels where label.home == nil {
+            label.home = primaryHome
+            migratedLabelsCount += 1
+            print("📦 ModelContainerManager - Assigned label '\(label.name)' to primary home")
+        }
+
+        // Find and migrate all items without an effective home
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try context.fetch(itemDescriptor)
+        var migratedItemsCount = 0
+
+        for item in items {
+            // Check if item has an effective home through location or direct assignment
+            let hasEffectiveHome = (item.location?.home != nil) || (item.home != nil)
+            
+            if !hasEffectiveHome {
+                item.home = primaryHome
+                migratedItemsCount += 1
+                print("📦 ModelContainerManager - Assigned item '\(item.title)' to primary home")
+            }
+        }
+
+        // Save changes
+        try context.save()
+        
+        // Only mark as completed if this wasn't a forced run
+        if !force {
+            UserDefaults.standard.set(true, forKey: orphanedItemsMigrationKey)
+        }
+
+        print("📦 ModelContainerManager - Orphaned items migration completed successfully\(force ? " (forced)" : "")")
+        print("📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items to primary home '\(primaryHome.name)'")
     }
 
     // MARK: - Sync Control Methods

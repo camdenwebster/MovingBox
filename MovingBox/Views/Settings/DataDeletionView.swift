@@ -53,12 +53,24 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     private func performDeletion(scope: DeletionScope) async throws {
         try await deleteSwiftDataContent()
         await clearImageCache()
+        try await createInitialHome()
         
         if scope == .localAndICloud {
             print("🗑️ Deleted all data including iCloud sync")
         } else {
             print("🗑️ Deleted local data only")
         }
+    }
+    
+    private func createInitialHome() async throws {
+        let newHome = Home(name: "My Home")
+        newHome.isPrimary = true
+        modelContext.insert(newHome)
+        try modelContext.save()
+        
+        UserDefaults.standard.set(newHome.id.uuidString, forKey: "activeHomeId")
+        
+        print("🏠 Created initial home after data deletion")
     }
     
     private func deleteSwiftDataContent() async throws {

@@ -569,10 +569,10 @@ struct InventoryListView: View {
             let allLocations = try modelContext.fetch(descriptor)
 
             // Filter by active home if one is set
-            if let activeHomeId = settings.activeHomeId,
-               let activeHomeIdHash = Int(activeHomeId) {
+            if let activeHomeIdString = settings.activeHomeId,
+               let activeHomeId = UUID(uuidString: activeHomeIdString) {
                 return allLocations.filter { location in
-                    location.home?.persistentModelID.hashValue == activeHomeIdHash
+                    location.home?.id == activeHomeId
                 }
             }
 
@@ -590,10 +590,10 @@ struct InventoryListView: View {
             let allLabels = try modelContext.fetch(descriptor)
 
             // Filter by active home if one is set
-            if let activeHomeId = settings.activeHomeId,
-               let activeHomeIdHash = Int(activeHomeId) {
+            if let activeHomeIdString = settings.activeHomeId,
+               let activeHomeId = UUID(uuidString: activeHomeIdString) {
                 return allLabels.filter { label in
-                    label.home?.persistentModelID.hashValue == activeHomeIdHash
+                    label.home?.id == activeHomeId
                 }
             }
 

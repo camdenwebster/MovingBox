@@ -11,6 +11,7 @@ import SwiftUI
 
 @Model
 class InventoryLocation: PhotoManageable {
+    @Attribute(.unique) var id: UUID = UUID()
     var name: String = ""
     var desc: String = ""
     var sfSymbolName: String? = nil  // Optional SF Symbol for default room icons
