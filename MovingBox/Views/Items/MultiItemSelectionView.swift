@@ -441,7 +441,6 @@ struct DetectedItemCard: View {
             }
             .padding()
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .backport.glassEffect()
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(isSelected ? Color.blue : Color(.systemGray5), lineWidth: isSelected ? 2 : 1)

@@ -225,6 +225,7 @@ struct DashboardView: View {
                 captureMode: .singleItem,
                 location: nil
             )
+            .tint(.green)
         }
         .whatsNewSheet()
         .task(id: home?.imageURL) {

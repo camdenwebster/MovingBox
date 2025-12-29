@@ -33,6 +33,7 @@ struct InventoryListSubView: View {
                 ) {
                     // Optional callback when item creation is complete
                 }
+                .tint(.green)
             }
     }
     

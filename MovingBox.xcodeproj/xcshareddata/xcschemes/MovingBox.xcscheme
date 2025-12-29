@@ -82,11 +82,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "Use-Test-Data"
-            isEnabled = "YES">
-         </CommandLineArgument>
-         <CommandLineArgument
-            argument = ""
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "UI-Testing-Mock-Camera"
@@ -94,7 +90,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Show-Onboarding"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Is-Pro"
@@ -102,11 +98,11 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Disable-Persistence"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "Skip-Onboarding"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
       <EnvironmentVariables>

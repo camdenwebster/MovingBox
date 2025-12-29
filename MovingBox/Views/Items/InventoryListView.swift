@@ -159,6 +159,7 @@ struct InventoryListView: View {
                 ) {
                     // Optional callback when item creation is complete
                 }
+                .tint(.green)
             }
             .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
