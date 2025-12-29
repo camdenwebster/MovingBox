@@ -225,6 +225,7 @@ struct DashboardView: View {
                 captureMode: .singleItem,
                 location: nil
             )
+            .tint(.green)
         }
         .whatsNewSheet()
         .task(id: home?.imageURL) {
@@ -307,10 +308,9 @@ struct DashboardView: View {
                         loadedImage: $loadedImage,
                         isLoading: $isLoading
                     )
-                    .padding(.trailing)
                 }
             }
-            .padding(.bottom)
+//            .padding(.bottom)
         }
         .background(alignment: .bottom) {
             LinearGradient(

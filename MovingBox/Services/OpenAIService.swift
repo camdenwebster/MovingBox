@@ -1176,14 +1176,15 @@ class OpenAIService: OpenAIServiceProtocol {
             body: .init(
                 model: baseRequestBody.model,
                 messages: baseRequestBody.messages,
-                maxTokens: adjustedMaxTokens,
+                maxCompletionTokens: adjustedMaxTokens,
                 responseFormat: .jsonSchema(
                     name: "multi_item_analysis",
                     description: "Analysis of multiple inventory items in the image",
                     schema: multiItemSchema,
                     strict: true
                 )
-            )
+            ),
+            secondsToWait: 60
         )
         
         print("✅ Received multi-item structured response with \(response.choices.count) choices")
@@ -1886,7 +1887,7 @@ class OpenAIService: OpenAIServiceProtocol {
             print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
         }
         
-        let response: OpenAIChatCompletionResponseBody = try await requestBuilder.openAIService.chatCompletionRequest(body: requestBody)
+        let response: OpenAIChatCompletionResponseBody = try await requestBuilder.openAIService.chatCompletionRequest(body: requestBody, secondsToWait: 60)
         
         print("✅ Received AIProxy response with \(response.choices.count) choices")
         
