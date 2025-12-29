@@ -51,8 +51,13 @@ final class OptimizedImageManager {
     
     private func setupImageDirectory() {
         if !fileManager.fileExists(atPath: imagesDirectoryURL.path) {
-            try? fileManager.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true)
-            print("📸 OptimizedImageManager - Created images directory at: \(imagesDirectoryURL)")
+            do {
+                try fileManager.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true)
+                print("📸 OptimizedImageManager - Created images directory at: \(imagesDirectoryURL)")
+            } catch {
+                print("📸 OptimizedImageManager - ERROR creating images directory: \(error.localizedDescription)")
+                print("📸 OptimizedImageManager - Attempted path: \(imagesDirectoryURL.path)")
+            }
         }
     }
     
@@ -91,13 +96,24 @@ final class OptimizedImageManager {
     // MARK: - Image Saving and Loading
     
     func saveImage(_ image: UIImage, id: String) async throws -> URL {
+        // Ensure directory exists before attempting to save
+        if !fileManager.fileExists(atPath: imagesDirectoryURL.path) {
+            do {
+                try fileManager.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true)
+                print("📸 OptimizedImageManager - Created images directory at: \(imagesDirectoryURL)")
+            } catch {
+                print("📸 OptimizedImageManager - CRITICAL: Failed to create images directory: \(error.localizedDescription)")
+                throw error
+            }
+        }
+
         let imageURL = imagesDirectoryURL.appendingPathComponent("\(id).jpg")
-        
+
         let optimizedImage = await optimizeImage(image)
         guard let data = optimizedImage.jpegData(compressionQuality: ImageConfig.jpegQuality) else {
             throw ImageError.compressionFailed
         }
-        
+
         var error: NSError?
         fileCoordinator.coordinate(writingItemAt: imageURL, options: .forReplacing, error: &error) { url in
             do {
@@ -108,7 +124,7 @@ final class OptimizedImageManager {
                 print("📸 OptimizedImageManager - Error saving image: \(error.localizedDescription)")
             }
         }
-        
+
         if let error {
             throw error
         }
@@ -250,7 +266,12 @@ final class OptimizedImageManager {
         let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
 
         // Create thumbnails directory if needed
-        try? fileManager.createDirectory(at: thumbnailURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: thumbnailURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        } catch {
+            print("📸 OptimizedImageManager - Error creating thumbnails directory: \(error.localizedDescription)")
+            return
+        }
 
         guard let thumbnail = await image.byPreparingThumbnail(ofSize: ImageConfig.thumbnailSize) else { return }
 

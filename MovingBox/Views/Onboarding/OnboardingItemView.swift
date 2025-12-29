@@ -85,7 +85,7 @@ struct OnboardingItemView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .sheet(isPresented: $showItemCreationFlow) {
+        .fullScreenCover(isPresented: $showItemCreationFlow) {
             EnhancedItemCreationFlowView(
                 captureMode: .singleItem,
                 location: locations.first
@@ -94,6 +94,7 @@ struct OnboardingItemView: View {
             }
             .environment(\.isOnboarding, true)
             .interactiveDismissDisabled(isProcessingImage)
+            .tint(.green)
         }
         .alert("Privacy Notice", isPresented: $showPrivacyAlert) {
             Button("Cancel", role: .cancel) { }

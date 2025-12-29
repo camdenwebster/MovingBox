@@ -29,15 +29,21 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     
     func deleteAllData(scope: DeletionScope) async {
         guard !isDeleting else { return }
-        
+
         isDeleting = true
         lastError = nil
         deletionCompleted = false
-        
+
         defer { isDeleting = false }
-        
+
         do {
             try await performDeletion(scope: scope)
+
+            // Give SwiftData time to process all deletions and refresh queries
+            // This is critical to prevent crashes from stale @Query results
+            // Views like DashboardView, LabelStatisticsView, LocationStatisticsView all have @Query
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1.0 second
+
             deletionCompleted = true
         } catch {
             lastError = error
@@ -54,7 +60,11 @@ final class DataDeletionService: DataDeletionServiceProtocol {
         try await deleteSwiftDataContent()
         await clearImageCache()
         try await createInitialHome()
-        
+
+        // Force model context to process all pending changes
+        // This helps ensure @Query results refresh before views render
+        try modelContext.save()
+
         if scope == .localAndICloud {
             print("🗑️ Deleted all data including iCloud sync")
         } else {
@@ -149,12 +159,13 @@ enum DeletionScope: String, CaseIterable {
 struct DataDeletionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var router: Router
     @State private var selectedScope: DeletionScope = .localOnly
     @State private var confirmationText = ""
     @State private var showFinalConfirmation = false
     @State private var showErrorAlert = false
     @State private var deletionService: DataDeletionServiceProtocol?
-    
+
     private let requiredConfirmationText = "DELETE"
     
     // Dependency injection initializer for testing
@@ -213,7 +224,24 @@ struct DataDeletionView: View {
         }
         .onChange(of: deletionService?.deletionCompleted) { _, completed in
             if completed == true {
-                dismiss()
+                // Dismiss back to settings and clear navigation stack
+                // We stay in settings to avoid Dashboard which has stale @Query results
+                Task {
+                    // First dismiss this view
+                    await MainActor.run {
+                        dismiss()
+                    }
+
+                    // Give time for dismiss animation and SwiftData to process changes
+                    // The 1s delay in the service + 500ms here = 1.5s total
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+
+                    // Clear navigation to go back to top-level settings view
+                    // User can manually navigate to Dashboard when ready
+                    await MainActor.run {
+                        router.navigateToRoot()
+                    }
+                }
             }
         }
     }
@@ -332,5 +360,6 @@ struct DataDeletionView: View {
 #Preview {
     NavigationStack {
         DataDeletionView()
+            .environmentObject(Router())
     }
 }

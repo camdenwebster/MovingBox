@@ -219,8 +219,42 @@ final class MultiItemSelectionViewModel {
             return createdItems
             
         } catch {
-            errorMessage = error.localizedDescription
+            // Provide user-friendly error message
+            let userMessage: String
+            if let imageError = error as? OptimizedImageManager.ImageError {
+                switch imageError {
+                case .compressionFailed:
+                    userMessage = "Failed to compress images. Please try again with different photos."
+                case .invalidImageData:
+                    userMessage = "Invalid image data. Please use a different photo."
+                case .iCloudNotAvailable:
+                    userMessage = "iCloud is not available. Please check your iCloud settings or try again later."
+                case .invalidBaseURL:
+                    userMessage = "Storage configuration error. Please restart the app."
+                }
+            } else if let nsError = error as NSError? {
+                // File system errors
+                if nsError.domain == NSCocoaErrorDomain {
+                    switch nsError.code {
+                    case NSFileWriteOutOfSpaceError:
+                        userMessage = "Not enough storage space available. Please free up some space and try again."
+                    case NSFileWriteNoPermissionError:
+                        userMessage = "Permission denied. Please check app permissions in Settings."
+                    case NSFileWriteVolumeReadOnlyError:
+                        userMessage = "Storage is read-only. Please check your device settings."
+                    default:
+                        userMessage = "Failed to save images: \(nsError.localizedDescription)"
+                    }
+                } else {
+                    userMessage = error.localizedDescription
+                }
+            } else {
+                userMessage = error.localizedDescription
+            }
+
+            errorMessage = userMessage
             isProcessingSelection = false
+            print("❌ Multi-item creation failed: \(error)")
             throw error
         }
     }
@@ -256,7 +290,7 @@ final class MultiItemSelectionViewModel {
                 let primaryImageURL = try await OptimizedImageManager.shared.saveImage(primaryImage, id: itemId)
                 inventoryItem.imageURL = primaryImageURL
             }
-            
+
             // Save secondary images if available
             if images.count > 1 {
                 let secondaryImages = Array(images.dropFirst())
@@ -295,9 +329,11 @@ final class MultiItemSelectionViewModel {
             TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItem.title)
 
             return inventoryItem
-            
+
         } catch {
-            throw InventoryItemCreationError.imageProcessingFailed
+            // Preserve the actual error message for better debugging
+            print("❌ Failed to save images for item: \(error.localizedDescription)")
+            throw error
         }
     }
     
