@@ -308,10 +308,9 @@ struct DashboardView: View {
                         loadedImage: $loadedImage,
                         isLoading: $isLoading
                     )
-                    .padding(.trailing)
                 }
             }
-            .padding(.bottom)
+//            .padding(.bottom)
         }
         .background(alignment: .bottom) {
             LinearGradient(
