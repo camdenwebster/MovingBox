@@ -11,7 +11,7 @@ import SwiftUI
 
 @Model
 class Home: PhotoManageable {
-    @Attribute(.unique) var id: UUID = UUID()
+    var id: UUID = UUID()
     var name: String = ""
     var address1: String = ""
     var address2: String = ""
@@ -26,7 +26,23 @@ class Home: PhotoManageable {
     var insurancePolicy: InsurancePolicy?
     var isPrimary: Bool = false
     var colorName: String = "green"
-    
+
+    // Inverse relationships for CloudKit compatibility
+    @Relationship(inverse: \InventoryItem.home) var items: [InventoryItem]?
+    @Relationship(inverse: \InventoryLocation.home) var locations: [InventoryLocation]?
+    @Relationship(inverse: \InventoryLabel.home) var labels: [InventoryLabel]?
+
+    /// Display name for the home - uses name if provided, otherwise falls back to address1, then "Unnamed Home"
+    var displayName: String {
+        if !name.isEmpty {
+            return name
+        } else if !address1.isEmpty {
+            return address1
+        } else {
+            return "Unnamed Home"
+        }
+    }
+
     var color: Color {
         get {
             switch colorName {

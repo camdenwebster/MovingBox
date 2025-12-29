@@ -101,9 +101,17 @@ struct SidebarView: View {
                     ForEach(filteredLabels, id: \.persistentModelID) { label in
                         NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
                             Label {
+                                let backgroundColor = Color(label.color ?? .blue)
                                 Text(label.name)
+                                    .fontDesign(.rounded)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(backgroundColor.idealTextColor())
+                                    .padding(7)
+                                    .background(in: Capsule())
+                                    .backgroundStyle(backgroundColor.gradient)
                             } icon: {
                                 Text(label.emoji)
+
                             }
                         }
                     }
@@ -149,9 +157,7 @@ struct SidebarHomeRow: View {
     
     var body: some View {
         HStack {
-            Label(home.name.isEmpty ? "Unnamed Home" : home.name, systemImage: "building.2")
-            
-            Spacer()
+            Label(home.displayName, systemImage: "building.2")
             
             if home.isPrimary {
                 Text("PRIMARY")
@@ -160,9 +166,11 @@ struct SidebarHomeRow: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.accentColor)
+                    .background(.green)
                     .cornerRadius(4)
             }
+            
+            Spacer()
             
             if isActive {
                 Image(systemName: "checkmark")

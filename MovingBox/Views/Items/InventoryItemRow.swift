@@ -60,36 +60,25 @@ struct InventoryItemRow: View {
                 }
             }
             .id(imageLoadTrigger)
-            VStack(alignment: .leading) {
+            
+            VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 if showHomeBadge, let home = item.effectiveHome {
-                    Text(home.name)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    Label(home.displayName, systemImage: "house.circle")
+                        .detailLabelStyle()
                 }
-//                if item.make != "" {
-//                    Text("Make: \(item.make)")
-//                        .lineLimit(1)
-//                        .truncationMode(.tail)
-//                        .detailLabelStyle()
-//                } else {
-//                    EmptyView()
-//                }
-//                if item.model != "" {
-//                    Text("Model: \(item.model)")
-//                        .lineLimit(1)
-//                        .truncationMode(.tail)
-//                        .detailLabelStyle()
-//                } else {
-//                    EmptyView()
-//                }
+                
+                if !item.make.isEmpty {
+                    Label("\(item.make) \(item.model)", systemImage: "info.circle")
+                        .detailLabelStyle()
+                }
             }
+            
             Spacer()
+            
             if let label = item.label {
                 Text(label.emoji)
                     .padding(7)
@@ -107,7 +96,7 @@ struct InventoryItemRow: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        return InventoryItemRow(item: previewer.inventoryItem)
+        return InventoryItemRow(item: previewer.inventoryItem, showHomeBadge: true)
             .modelContainer(previewer.container)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")

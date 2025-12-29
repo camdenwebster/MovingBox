@@ -121,24 +121,24 @@ class DefaultDataManager {
     // MARK: - Home-Scoped Data Creation
 
     static func populateDefaultLabels(modelContext: ModelContext, home: Home) async {
-        print("🏷️ Creating default labels for home: \(home.name)")
+        print("🏷️ Creating default labels for home: \(home.displayName)")
         await TestData.loadDefaultData(context: modelContext, home: home)
 
         do {
             try modelContext.save()
-            print("✅ Default labels saved successfully for home: \(home.name)")
+            print("✅ Default labels saved successfully for home: \(home.displayName)")
         } catch {
             print("❌ Error saving default labels: \(error)")
         }
     }
 
     static func populateDefaultLocations(modelContext: ModelContext, home: Home) async {
-        print("📍 Creating default locations for home: \(home.name)")
+        print("📍 Creating default locations for home: \(home.displayName)")
         await createDefaultRooms(context: modelContext, home: home)
 
         do {
             try modelContext.save()
-            print("✅ Default locations saved successfully for home: \(home.name)")
+            print("✅ Default locations saved successfully for home: \(home.displayName)")
         } catch {
             print("❌ Error saving default locations: \(error)")
         }
@@ -189,12 +189,12 @@ class DefaultDataManager {
     static func populateDefaultData(modelContext: ModelContext) async {
         if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
             do {
-                let _ = try await getOrCreateHome(modelContext: modelContext)
+                let home = try await getOrCreateHome(modelContext: modelContext)
 
                 // Only populate defaults for first launch
                 if !OnboardingManager.hasCompletedOnboarding() {
-                    await populateDefaultLabels(modelContext: modelContext)
-                    await populateDefaultLocations(modelContext: modelContext)
+                    await populateDefaultLabels(modelContext: modelContext, home: home)
+                    await populateDefaultLocations(modelContext: modelContext, home: home)
                 }
 
                 try modelContext.save()

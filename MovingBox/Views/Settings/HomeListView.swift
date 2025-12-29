@@ -30,7 +30,7 @@ struct HomeListView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    Text(home.name.isEmpty ? "Unnamed Home" : home.name)
+                                    Text(home.displayName)
                                         .font(.headline)
 
                                     if home.isPrimary {
@@ -62,8 +62,8 @@ struct HomeListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Add Home", systemImage: "plus") {
-                    router.navigate(to: .addHomeView)
+                NavigationLink(destination: HomeDetailSettingsView(home: nil)) {
+                    Label("Add Home", systemImage: "plus")
                 }
             }
         }
