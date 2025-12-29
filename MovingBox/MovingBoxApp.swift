@@ -146,14 +146,14 @@ struct MovingBoxApp: App {
                 switch destination {
                 case .dashboardView:
                     DashboardView()
-                case .locationsListView:
-                    LocationsListView()
+                case .locationsListView(let showAllHomes):
+                    LocationsListView(showAllHomes: showAllHomes)
                 case .settingsView:
                     SettingsView()
                 case .aISettingsView:
                     AISettingsView()
-                case .inventoryListView(let location):
-                    InventoryListView(location: location)
+                case .inventoryListView(let location, let showAllHomes):
+                    InventoryListView(location: location, showAllHomes: showAllHomes)
                 case .editLocationView(let location, let isEditing):
                     EditLocationView(location: location, isEditing: isEditing)
                 case .editLabelView(let label, let isEditing):

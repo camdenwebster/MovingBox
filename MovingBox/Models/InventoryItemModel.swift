@@ -23,7 +23,7 @@ struct AttachmentInfo: Codable, Hashable {
 
 @Model
 final class InventoryItem: ObservableObject, PhotoManageable {
-    @Attribute(.unique) var id: UUID = UUID()
+    var id: UUID = UUID()
     var title: String = ""
     var quantityString: String = "1"
     var quantityInt: Int = 1

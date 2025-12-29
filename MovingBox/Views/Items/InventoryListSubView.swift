@@ -18,6 +18,7 @@ struct InventoryListSubView: View {
     let sortOrder: [SortDescriptor<InventoryItem>]
     let showOnlyUnassigned: Bool
     let showAllHomes: Bool
+    let activeHome: Home?
     @Binding var selectedItemIDs: Set<PersistentIdentifier>
     
     // Use @Query for lazy loading with dynamic predicate and sort
@@ -52,7 +53,14 @@ struct InventoryListSubView: View {
     // Computed property for filtered items - performs filtering in-memory only on fetched items
     private var filteredItems: [InventoryItem] {
         var result = items
-        
+
+        // Apply home filtering if needed (can't do this in predicate due to computed property)
+        if !showAllHomes, let activeHome = activeHome {
+            result = result.filter { item in
+                item.effectiveHome?.id == activeHome.id
+            }
+        }
+
         // Apply search filtering if needed
         if !searchString.isEmpty {
             let lowercasedTerm = searchString.lowercased()
@@ -65,7 +73,7 @@ struct InventoryListSubView: View {
                 item.serial.localizedStandardContains(lowercasedTerm)
             }
         }
-        
+
         return result
     }
     
@@ -101,16 +109,19 @@ struct InventoryListSubView: View {
     }
     
     
-    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, showAllHomes: Bool = false, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
+    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, showAllHomes: Bool = false, activeHome: Home? = nil, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
         self.location = location
         self.filterLabel = filterLabel
         self.searchString = searchString
         self.sortOrder = sortOrder
         self.showOnlyUnassigned = showOnlyUnassigned
         self.showAllHomes = showAllHomes
+        self.activeHome = activeHome
         self._selectedItemIDs = selectedItemIDs
 
         // Build predicate based on location, label, or unassigned filter
+        // Note: Home filtering is done in-memory in filteredItems computed property
+        // because SwiftData predicates can't handle the effectiveHome computed property
         let predicate: Predicate<InventoryItem>?
         if showOnlyUnassigned {
             // Show only items without a location
@@ -130,7 +141,8 @@ struct InventoryListSubView: View {
                 item.label?.persistentModelID == labelID
             }
         } else {
-            // Show all items (no filter)
+            // No predicate-level filtering needed
+            // Home filtering happens in-memory via filteredItems
             predicate = nil
         }
 

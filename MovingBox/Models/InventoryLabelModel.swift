@@ -53,7 +53,7 @@ final class UIColorValueTransformer: ValueTransformer {
 
 @Model
 class InventoryLabel {
-    @Attribute(.unique) var id: UUID = UUID()
+    var id: UUID = UUID()
     var name: String = ""
     var desc: String = ""
     @Attribute(.transformable(by: UIColorValueTransformer.self)) var color: UIColor?

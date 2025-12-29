@@ -35,7 +35,7 @@ struct LocationStatisticsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                router.navigate(to: .locationsListView)
+                router.navigate(to: .locationsListView(showAllHomes: false))
             } label: {
                 DashboardSectionLabel(text: "Locations")
             }
@@ -58,7 +58,7 @@ struct LocationStatisticsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {
                         ForEach(locations) { location in
-                            NavigationLink(value: Router.Destination.inventoryListView(location: location)) {
+                            NavigationLink(value: Router.Destination.inventoryListView(location: location, showAllHomes: false)) {
                                 LocationItemCard(location: location)
                                     .frame(width: 180)
                             }

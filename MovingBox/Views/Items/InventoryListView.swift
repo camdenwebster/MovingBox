@@ -21,6 +21,7 @@ struct InventoryListView: View {
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
@@ -62,6 +63,14 @@ struct InventoryListView: View {
     let filterLabel: InventoryLabel?
     let showOnlyUnassigned: Bool
     let showAllHomes: Bool
+
+    private var activeHome: Home? {
+        guard let activeIdString = settings.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
 
     init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false, showAllHomes: Bool = false) {
         self.location = location
@@ -124,6 +133,7 @@ struct InventoryListView: View {
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
                 showAllHomes: showAllHomes,
+                activeHome: activeHome,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("reverse-\(sortOrder.hashValue)")
@@ -135,6 +145,7 @@ struct InventoryListView: View {
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
                 showAllHomes: showAllHomes,
+                activeHome: activeHome,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("forward-\(sortOrder.hashValue)")

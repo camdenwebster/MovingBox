@@ -104,7 +104,7 @@ struct DashboardView: View {
                     // MARK: - Inventory Statistics
                     VStack(alignment: .leading, spacing: 16) {
                         Button {
-                            router.navigate(to: .inventoryListView(location: nil))
+                            router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
                         } label: {
                             DashboardSectionLabel(text: "All Inventory")
                         }
@@ -168,9 +168,9 @@ struct DashboardView: View {
                                 
                                 Divider()
                                     .padding(.leading, 16)
-                                
+
                                 Button {
-                                    router.navigate(to: .inventoryListView(location: nil))
+                                    router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
                                 } label: {
                                     HStack {
                                         Text("View All Items")
@@ -308,7 +308,7 @@ struct DashboardView: View {
         VStack {
             Spacer()
             HStack {
-                Text((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard")
+                Text((home?.displayName.isEmpty == false ? home?.displayName : nil) ?? "Dashboard")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
