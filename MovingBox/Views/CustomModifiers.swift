@@ -11,6 +11,9 @@ struct DetailLabel: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
     }
 }
 

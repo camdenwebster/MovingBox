@@ -10,6 +10,8 @@ import SwiftUI
 import SwiftData
 
 struct LocationsListView: View {
+    let showAllHomes: Bool
+
     @Environment(\.modelContext) var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
@@ -19,13 +21,31 @@ struct LocationsListView: View {
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
     @State private var searchText = ""
-    
+
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
-    
+
     // Use @Query with sort descriptor for efficient loading
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
-    ]) private var locations: [InventoryLocation]
+    ]) private var allLocations: [InventoryLocation]
+
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+
+    private var activeHome: Home? {
+        guard let activeIdString = settings.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter locations by active home
+    private var locations: [InventoryLocation] {
+        guard !showAllHomes, let activeHome = activeHome else {
+            return allLocations
+        }
+        return allLocations.filter { $0.home?.id == activeHome.id }
+    }
 
     // Query for items without location
     @Query(filter: #Predicate<InventoryItem> { item in
@@ -198,8 +218,10 @@ struct LocationsListView: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        return LocationsListView()
+        return LocationsListView(showAllHomes: false)
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

@@ -39,7 +39,13 @@ struct EnhancedItemCreationFlowView: View {
 
         // Initialize StateObject using temporary container
         // Force new instance by using the captureMode in initialization
-        let tempContainer = try! ModelContainer(for: InventoryItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let schema = Schema([
+            InventoryItem.self,
+            InventoryLocation.self,
+            InventoryLabel.self,
+            Home.self
+        ])
+        let tempContainer = try! ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         self._viewModel = StateObject(wrappedValue: ItemCreationFlowViewModel(
             captureMode: captureMode,
             location: location,
@@ -561,12 +567,20 @@ struct ItemSummaryCard: View {
 // MARK: - Preview
 
 #Preview {
-    EnhancedItemCreationFlowView(
+    let schema = Schema([
+        InventoryItem.self,
+        InventoryLocation.self,
+        InventoryLabel.self,
+        Home.self
+    ])
+    let container = try! ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+
+    return EnhancedItemCreationFlowView(
         captureMode: .multiItem,
         location: nil,
         onComplete: nil
     )
-    .modelContainer(try! ModelContainer(for: InventoryItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+    .modelContainer(container)
     .environmentObject(Router())
     .environmentObject(SettingsManager())
 }

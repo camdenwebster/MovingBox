@@ -23,9 +23,17 @@ class ModelContainerManager: ObservableObject {
     private var migrationCompletedKey = "MovingBox_v2_MigrationCompleted"
     private var deviceIdKey = "MovingBox_DeviceId"
     private var migrationSchemaVersionKey = "MovingBox_SchemaVersion"
-    
+    private let multiHomeMigrationKey = "MovingBox_MultiHomeMigration_v1"
+    private let orphanedItemsMigrationKey = "MovingBox_OrphanedItemsMigration_v1"
+    private let schemaRecoveryPerformedKey = "MovingBox_SchemaRecoveryPerformed"
+
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
+
+    /// Check if schema recovery (data backup and fresh start) was performed
+    var didPerformSchemaRecovery: Bool {
+        UserDefaults.standard.bool(forKey: schemaRecoveryPerformedKey)
+    }
     
     private var isMigrationAlreadyCompleted: Bool {
         let completed = UserDefaults.standard.bool(forKey: migrationCompletedKey)
@@ -89,12 +97,64 @@ class ModelContainerManager: ObservableObject {
             allowsSave: true,
             cloudKitDatabase: .none  // Disable CloudKit during migration
         )
-        
+
         do {
+            // Try to create container with automatic migration
             self.container = try ModelContainer(for: schema, configurations: [configuration])
             print("📦 ModelContainerManager - Created local container for migration")
-        } catch {
-            print("📦 ModelContainerManager - Fatal error creating container: \(error)")
+        } catch let error as NSError {
+            print("📦 ModelContainerManager - Error creating container: \(error)")
+            print("📦 ModelContainerManager - Error domain: \(error.domain), code: \(error.code)")
+            print("📦 ModelContainerManager - Error userInfo: \(error.userInfo)")
+
+            // If this is a migration error, try to handle it
+            if error.domain == "SwiftData.SwiftDataError" {
+                print("📦 ModelContainerManager - SwiftData error detected, attempting recovery")
+
+                // Attempt to create a fresh container by removing the old store
+                do {
+                    // Get the default store URL
+                    let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                    let storeURL = appSupportURL.appendingPathComponent("default.store")
+                    let shmURL = appSupportURL.appendingPathComponent("default.store-shm")
+                    let walURL = appSupportURL.appendingPathComponent("default.store-wal")
+
+                    // Create backup directory
+                    let backupURL = appSupportURL.appendingPathComponent("backup-\(Date().timeIntervalSince1970)")
+                    try? FileManager.default.createDirectory(at: backupURL, withIntermediateDirectories: true)
+
+                    // Move old database files to backup
+                    if FileManager.default.fileExists(atPath: storeURL.path) {
+                        let backupStoreURL = backupURL.appendingPathComponent("default.store")
+                        try? FileManager.default.moveItem(at: storeURL, to: backupStoreURL)
+                        print("📦 ModelContainerManager - Backed up old store to: \(backupURL.path)")
+                    }
+                    if FileManager.default.fileExists(atPath: shmURL.path) {
+                        try? FileManager.default.removeItem(at: shmURL)
+                    }
+                    if FileManager.default.fileExists(atPath: walURL.path) {
+                        try? FileManager.default.removeItem(at: walURL)
+                    }
+
+                    // Try to create fresh container
+                    self.container = try ModelContainer(for: schema, configurations: [configuration])
+                    print("📦 ModelContainerManager - Created fresh container after backup")
+
+                    // Mark that we need to skip migration since we started fresh
+                    UserDefaults.standard.set(true, forKey: self.migrationCompletedKey)
+                    UserDefaults.standard.set(self.currentSchemaVersion, forKey: self.migrationSchemaVersionKey)
+                    UserDefaults.standard.set(true, forKey: self.schemaRecoveryPerformedKey)
+
+                    print("⚠️ ModelContainerManager - Schema recovery performed. Old data backed up to: \(backupURL.path)")
+                    print("⚠️ ModelContainerManager - Users should be informed about the fresh start")
+
+                    return
+                } catch {
+                    print("📦 ModelContainerManager - Recovery attempt failed: \(error)")
+                    fatalError("Failed to create ModelContainer even after recovery attempt: \(error)")
+                }
+            }
+
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }
@@ -114,6 +174,12 @@ class ModelContainerManager: ObservableObject {
                 // Skip migration and go straight to CloudKit setup - no UI needed
                 try await enableCloudKitSync()
                 
+                // Ensure at least one home exists
+                await ensureHomeExists()
+                
+                // Run orphaned items migration if needed (silent, no UI)
+                try? await performOrphanedItemsMigration()
+                
                 await MainActor.run {
                     self.isMigrationComplete = true
                     // isLoading already false, so no UI shows
@@ -130,6 +196,9 @@ class ModelContainerManager: ObservableObject {
                 
                 // Setup CloudKit for new install
                 try await enableCloudKitSync()
+                
+                // Ensure at least one home exists for new installs
+                await ensureHomeExists()
                 
                 await MainActor.run {
                     self.isMigrationComplete = true
@@ -319,7 +388,10 @@ class ModelContainerManager: ObservableObject {
         
         await updateMigrationStatus("Migrating inventory items...", progress: 0.6)
         try? await migrateInventoryItems()
-        
+
+        await updateMigrationStatus("Setting up multi-home support...", progress: 0.7)
+        try? await performMultiHomeMigration()
+
         await updateMigrationStatus("Completing migration...", progress: 0.8)
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
@@ -393,7 +465,7 @@ class ModelContainerManager: ObservableObject {
                 try await home.migrateImageIfNeeded()
                 try context.save()
             } catch {
-                print("📦 ModelContainerManager - Failed to migrate home \(home.name): \(error)")
+                print("📦 ModelContainerManager - Failed to migrate home \(home.displayName): \(error)")
             }
         }
         
@@ -437,7 +509,203 @@ class ModelContainerManager: ObservableObject {
         
         print("📦 ModelContainerManager - Completed inventory item migrations")
     }
+
+    // MARK: - Home Management
     
+    private func ensureHomeExists() async {
+        // Skip if we're using test data (it will create its own home)
+        guard !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") else {
+            print("📦 ModelContainerManager - Skipping home creation for test data")
+            return
+        }
+        
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<Home>()
+        
+        do {
+            let homes = try context.fetch(descriptor)
+            
+            if homes.isEmpty {
+                print("📦 ModelContainerManager - No homes found, creating initial home")
+                let newHome = Home(name: "My Home")
+                newHome.isPrimary = true
+                context.insert(newHome)
+                try context.save()
+                
+                UserDefaults.standard.set(newHome.id.uuidString, forKey: "activeHomeId")
+                
+                print("📦 ModelContainerManager - Created initial home")
+            }
+        } catch {
+            print("📦 ModelContainerManager - Error ensuring home exists: \(error)")
+        }
+    }
+
+    // MARK: - Multi-Home Migration
+
+    private var isMultiHomeMigrationCompleted: Bool {
+        UserDefaults.standard.bool(forKey: multiHomeMigrationKey)
+    }
+
+    internal func performMultiHomeMigration() async throws {
+        guard !isMultiHomeMigrationCompleted else {
+            print("📦 ModelContainerManager - Multi-home migration already completed, skipping")
+            return
+        }
+
+        let context = container.mainContext
+        print("📦 ModelContainerManager - Starting multi-home migration")
+
+        // 1. Get or create primary home
+        let homeDescriptor = FetchDescriptor<Home>()
+        let homes = try context.fetch(homeDescriptor)
+
+        let primaryHome: Home
+        if let existingHome = homes.first {
+            primaryHome = existingHome
+            print("📦 ModelContainerManager - Found existing home: \(primaryHome.name)")
+        } else {
+            primaryHome = Home(name: "My Home")
+            context.insert(primaryHome)
+            print("📦 ModelContainerManager - Created new primary home")
+        }
+        primaryHome.isPrimary = true
+
+        // 2. Assign all orphaned locations to primary home
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let locations = try context.fetch(locationDescriptor)
+        var migratedLocationsCount = 0
+
+        for location in locations where location.home == nil {
+            location.home = primaryHome
+            migratedLocationsCount += 1
+        }
+        print("📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations to primary home")
+
+        // 3. Assign all orphaned labels to primary home
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let labels = try context.fetch(labelDescriptor)
+        var migratedLabelsCount = 0
+
+        for label in labels where label.home == nil {
+            label.home = primaryHome
+            migratedLabelsCount += 1
+        }
+        print("📦 ModelContainerManager - Migrated \(migratedLabelsCount) labels to primary home")
+
+        // 4. Assign all items without an effective home to primary home
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try context.fetch(itemDescriptor)
+        var migratedItemsCount = 0
+
+        for item in items {
+            // Item needs migration if:
+            // 1. Has no location and no direct home assignment, OR
+            // 2. Has a location but that location has no home
+            let needsMigration = (item.location == nil && item.home == nil) || 
+                                 (item.location != nil && item.location?.home == nil)
+            
+            if needsMigration {
+                item.home = primaryHome
+                migratedItemsCount += 1
+            }
+        }
+        print("📦 ModelContainerManager - Migrated \(migratedItemsCount) items without effective home to primary home")
+
+        // 5. Save and mark complete
+        try context.save()
+        UserDefaults.standard.set(true, forKey: multiHomeMigrationKey)
+
+        // 6. Store active home ID in SettingsManager format
+        UserDefaults.standard.set(primaryHome.id.uuidString, forKey: "activeHomeId")
+        print("📦 ModelContainerManager - Set active home ID: \(primaryHome.id.uuidString)")
+
+        print("📦 ModelContainerManager - Multi-home migration completed successfully")
+        print("📦 ModelContainerManager - Summary: \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items")
+    }
+
+    // MARK: - Orphaned Items Migration
+
+    private var isOrphanedItemsMigrationCompleted: Bool {
+        UserDefaults.standard.bool(forKey: orphanedItemsMigrationKey)
+    }
+
+    internal func performOrphanedItemsMigration(force: Bool = false) async throws {
+        let context = container.mainContext
+
+        // Get primary home first
+        let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+        guard let primaryHome = try context.fetch(homeDescriptor).first else {
+            print("📦 ModelContainerManager - No primary home found, skipping orphaned items migration")
+            UserDefaults.standard.set(true, forKey: orphanedItemsMigrationKey)
+            return
+        }
+
+        // Check if there are actually any orphaned items that need migration
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let locations = try context.fetch(locationDescriptor)
+        let orphanedLocations = locations.filter { $0.home == nil }
+
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let labels = try context.fetch(labelDescriptor)
+        let orphanedLabels = labels.filter { $0.home == nil }
+
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try context.fetch(itemDescriptor)
+        let orphanedItems = items.filter { item in
+            (item.location?.home == nil) && (item.home == nil)
+        }
+
+        let hasOrphans = !orphanedLocations.isEmpty || !orphanedLabels.isEmpty || !orphanedItems.isEmpty
+
+        // Skip if already completed AND no orphans found
+        guard force || hasOrphans || !isOrphanedItemsMigrationCompleted else {
+            print("📦 ModelContainerManager - Orphaned items migration already completed and no orphans found, skipping")
+            return
+        }
+
+        if hasOrphans {
+            print("📦 ModelContainerManager - Found \(orphanedLocations.count) orphaned locations, \(orphanedLabels.count) orphaned labels, \(orphanedItems.count) orphaned items - running migration")
+        } else {
+            print("📦 ModelContainerManager - No orphaned items found, but force=\(force), running migration anyway")
+        }
+
+        // Migrate orphaned locations
+        var migratedLocationsCount = 0
+        for location in orphanedLocations {
+            location.home = primaryHome
+            migratedLocationsCount += 1
+            print("📦 ModelContainerManager - Assigned location '\(location.name)' to primary home")
+        }
+
+        // Migrate orphaned labels
+        var migratedLabelsCount = 0
+        for label in orphanedLabels {
+            label.home = primaryHome
+            migratedLabelsCount += 1
+            print("📦 ModelContainerManager - Assigned label '\(label.name)' to primary home")
+        }
+
+        // Migrate orphaned items
+        var migratedItemsCount = 0
+        for item in orphanedItems {
+            item.home = primaryHome
+            migratedItemsCount += 1
+            print("📦 ModelContainerManager - Assigned item '\(item.title)' to primary home")
+        }
+
+        // Save changes
+        try context.save()
+        
+        // Only mark as completed if this wasn't a forced run
+        if !force {
+            UserDefaults.standard.set(true, forKey: orphanedItemsMigrationKey)
+        }
+
+        print("📦 ModelContainerManager - Orphaned items migration completed successfully\(force ? " (forced)" : "")")
+        print("📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items to primary home '\(primaryHome.name)'")
+    }
+
     // MARK: - Sync Control Methods
     
     func setSyncEnabled(_ enabled: Bool) {

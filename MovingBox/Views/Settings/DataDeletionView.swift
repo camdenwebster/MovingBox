@@ -71,12 +71,15 @@ final class DataDeletionService: DataDeletionServiceProtocol {
             print("🗑️ Deleted local data only")
         }
     }
-
+    
     private func createInitialHome() async throws {
         let newHome = Home(name: "My Home")
+        newHome.isPrimary = true
         modelContext.insert(newHome)
         try modelContext.save()
-
+        
+        UserDefaults.standard.set(newHome.id.uuidString, forKey: "activeHomeId")
+        
         print("🏠 Created initial home after data deletion")
     }
     

@@ -232,8 +232,39 @@ struct OpenAIRequestBuilder {
         modelContext: ModelContext,
         isMultiItem: Bool
     ) async -> OpenAIChatCompletionRequestBody {
-        let categories = DefaultDataManager.getAllLabels(from: modelContext)
-        let locations = DefaultDataManager.getAllLocations(from: modelContext)
+        // Get active home to filter labels and locations
+        let homeDescriptor = FetchDescriptor<Home>(sortBy: [SortDescriptor(\Home.purchaseDate)])
+        let homes = (try? modelContext.fetch(homeDescriptor)) ?? []
+
+        let activeHome: Home?
+        if let activeIdString = settings.activeHomeId,
+           let activeId = UUID(uuidString: activeIdString) {
+            activeHome = homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+        } else {
+            activeHome = homes.first { $0.isPrimary }
+        }
+
+        // Get all labels and locations, then filter by active home
+        let allCategories = DefaultDataManager.getAllLabels(from: modelContext)
+        let allLocations = DefaultDataManager.getAllLocations(from: modelContext)
+
+        // Fetch actual label and location objects to filter by home
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let allLabelObjects = (try? modelContext.fetch(labelDescriptor)) ?? []
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let allLocationObjects = (try? modelContext.fetch(locationDescriptor)) ?? []
+
+        // Filter labels and locations by active home
+        let filteredLabelObjects = activeHome != nil
+            ? allLabelObjects.filter { $0.home?.id == activeHome?.id }
+            : allLabelObjects
+        let filteredLocationObjects = activeHome != nil
+            ? allLocationObjects.filter { $0.home?.id == activeHome?.id }
+            : allLocationObjects
+
+        // Convert to name arrays, including "None" as first option
+        let categories = ["None"] + filteredLabelObjects.map { $0.name }
+        let locations = ["None"] + filteredLocationObjects.map { $0.name }
         
         let imagePrompt = createImagePrompt(for: images.count, isMultiItem: isMultiItem)
         let function = buildFunctionDefinition(

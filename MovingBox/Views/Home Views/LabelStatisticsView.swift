@@ -9,10 +9,28 @@ import SwiftData
 import SwiftUI
 
 struct LabelStatisticsView: View {
-    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var labels: [InventoryLabel]
+    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var allLabels: [InventoryLabel]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @EnvironmentObject var router: Router
-    
+    @EnvironmentObject var settingsManager: SettingsManager
+
     private let row = GridItem(.fixed(160))
+
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter labels by active home
+    private var labels: [InventoryLabel] {
+        guard let activeHome = activeHome else {
+            return allLabels
+        }
+        return allLabels.filter { $0.home?.id == activeHome.id }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -53,6 +71,8 @@ struct LabelStatisticsView: View {
         let previewer = try Previewer()
         return LabelStatisticsView()
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

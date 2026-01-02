@@ -21,6 +21,7 @@ struct InventoryListView: View {
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     
     @State private var path = NavigationPath()
     @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
@@ -61,11 +62,21 @@ struct InventoryListView: View {
     let location: InventoryLocation?
     let filterLabel: InventoryLabel?
     let showOnlyUnassigned: Bool
+    let showAllHomes: Bool
 
-    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false) {
+    private var activeHome: Home? {
+        guard let activeIdString = settings.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false, showAllHomes: Bool = false) {
         self.location = location
         self.filterLabel = filterLabel
         self.showOnlyUnassigned = showOnlyUnassigned
+        self.showAllHomes = showAllHomes
     }
 
     // Computed properties for selection state
@@ -121,6 +132,8 @@ struct InventoryListView: View {
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
+                showAllHomes: showAllHomes,
+                activeHome: activeHome,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("reverse-\(sortOrder.hashValue)")
@@ -131,6 +144,8 @@ struct InventoryListView: View {
                 searchString: searchText,
                 sortOrder: sortOrder,
                 showOnlyUnassigned: showOnlyUnassigned,
+                showAllHomes: showAllHomes,
+                activeHome: activeHome,
                 selectedItemIDs: $selectedItemIDs
             )
             .id("forward-\(sortOrder.hashValue)")
@@ -563,17 +578,39 @@ struct InventoryListView: View {
     func getAllLocations() -> [InventoryLocation] {
         do {
             let descriptor = FetchDescriptor<InventoryLocation>(sortBy: [SortDescriptor(\InventoryLocation.name)])
-            return try modelContext.fetch(descriptor)
+            let allLocations = try modelContext.fetch(descriptor)
+
+            // Filter by active home if one is set
+            if let activeHomeIdString = settings.activeHomeId,
+               let activeHomeId = UUID(uuidString: activeHomeIdString) {
+                return allLocations.filter { location in
+                    location.home?.id == activeHomeId
+                }
+            }
+
+            // Return all locations if no active home is set
+            return allLocations
         } catch {
             print("Error fetching locations: \(error)")
             return []
         }
     }
-    
+
     func getAllLabels() -> [InventoryLabel] {
         do {
             let descriptor = FetchDescriptor<InventoryLabel>(sortBy: [SortDescriptor(\InventoryLabel.name)])
-            return try modelContext.fetch(descriptor)
+            let allLabels = try modelContext.fetch(descriptor)
+
+            // Filter by active home if one is set
+            if let activeHomeIdString = settings.activeHomeId,
+               let activeHomeId = UUID(uuidString: activeHomeIdString) {
+                return allLabels.filter { label in
+                    label.home?.id == activeHomeId
+                }
+            }
+
+            // Return all labels if no active home is set
+            return allLabels
         } catch {
             print("Error fetching labels: \(error)")
             return []

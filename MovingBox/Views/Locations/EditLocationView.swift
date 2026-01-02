@@ -13,6 +13,7 @@ import PhotosUI
 struct EditLocationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settingsManager: SettingsManager
     var location: InventoryLocation?
     @State private var locationInstance = InventoryLocation()
     @State private var locationName: String
@@ -21,12 +22,21 @@ struct EditLocationView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) private var locations: [InventoryLocation]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
     @State private var loadingError: Error?
     @State private var cachedImageURL: URL?
     @State private var showPhotoSourceAlert = false
+
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
 
     init(location: InventoryLocation? = nil,
          isEditing: Bool = false) {
@@ -137,9 +147,14 @@ struct EditLocationView: View {
                                 locationInstance.imageURL = imageURL
                             }
                         }
+
+                        // Assign active home to new location
+                        locationInstance.home = activeHome
+
                         modelContext.insert(locationInstance)
                         TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
                         print("EditLocationView: Created new location - \(locationInstance.name)")
+                        print("EditLocationView: Assigned to home - \(activeHome?.name ?? "nil")")
                         print("EditLocationView: Total number of locations after save: \(locations.count)")
                         router.navigateBack()
                     }
@@ -192,9 +207,11 @@ struct EditLocationView: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        
+
         return EditLocationView(location: previewer.location)
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

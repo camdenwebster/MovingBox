@@ -80,6 +80,8 @@ class DefaultDataManager {
         return false
     }
     
+    // MARK: - Legacy Methods (backward compatibility)
+
     static func populateDefaultLabels(modelContext: ModelContext) async {
         let hasExistingLabels = await checkForExistingObjects(of: InventoryLabel.self, in: modelContext)
 
@@ -103,7 +105,7 @@ class DefaultDataManager {
 
         if !hasExistingLocations {
             print("📍 No existing locations found, creating default rooms...")
-            await createDefaultRooms(context: modelContext)
+            await createDefaultRooms(context: modelContext, home: nil)
 
             do {
                 try modelContext.save()
@@ -116,15 +118,55 @@ class DefaultDataManager {
         }
     }
 
-    private static func createDefaultRooms(context: ModelContext) async {
+    // MARK: - Home-Scoped Data Creation
+
+    static func populateDefaultLabels(modelContext: ModelContext, home: Home) async {
+        print("🏷️ Creating default labels for home: \(home.displayName)")
+        await TestData.loadDefaultData(context: modelContext, home: home)
+
+        do {
+            try modelContext.save()
+            print("✅ Default labels saved successfully for home: \(home.displayName)")
+        } catch {
+            print("❌ Error saving default labels: \(error)")
+        }
+    }
+
+    static func populateDefaultLocations(modelContext: ModelContext, home: Home) async {
+        print("📍 Creating default locations for home: \(home.displayName)")
+        await createDefaultRooms(context: modelContext, home: home)
+
+        do {
+            try modelContext.save()
+            print("✅ Default locations saved successfully for home: \(home.displayName)")
+        } catch {
+            print("❌ Error saving default locations: \(error)")
+        }
+    }
+
+    private static func createDefaultRooms(context: ModelContext, home: Home?) async {
         for roomData in TestData.defaultRooms {
             let location = InventoryLocation(
                 name: roomData.name,
                 desc: roomData.desc
             )
             location.sfSymbolName = roomData.sfSymbol
+            location.home = home
             context.insert(location)
         }
+    }
+
+    static func createNewHome(name: String, modelContext: ModelContext) async throws -> Home {
+        print("🏠 Creating new home: \(name)")
+        let home = Home(name: name)
+        modelContext.insert(home)
+
+        await populateDefaultLabels(modelContext: modelContext, home: home)
+        await populateDefaultLocations(modelContext: modelContext, home: home)
+
+        try modelContext.save()
+        print("✅ New home created successfully: \(name)")
+        return home
     }
     
     @MainActor
@@ -147,12 +189,12 @@ class DefaultDataManager {
     static func populateDefaultData(modelContext: ModelContext) async {
         if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
             do {
-                let _ = try await getOrCreateHome(modelContext: modelContext)
+                let home = try await getOrCreateHome(modelContext: modelContext)
 
                 // Only populate defaults for first launch
                 if !OnboardingManager.hasCompletedOnboarding() {
-                    await populateDefaultLabels(modelContext: modelContext)
-                    await populateDefaultLocations(modelContext: modelContext)
+                    await populateDefaultLabels(modelContext: modelContext, home: home)
+                    await populateDefaultLocations(modelContext: modelContext, home: home)
                 }
 
                 try modelContext.save()

@@ -397,4 +397,39 @@ import Foundation
         let expectedTotal = Decimal(string: "150.00")!
         #expect(totalValue == expectedTotal)
     }
+    
+    @Test("Test effectiveHome computed property")
+    func testEffectiveHomeProperty() async throws {
+        // Test case 1: Item with location that has a home
+        let home1 = Home(name: "Test Home 1")
+        let location1 = InventoryLocation(name: "Test Location")
+        location1.home = home1
+        
+        let item1 = InventoryItem()
+        item1.location = location1
+        
+        #expect(item1.effectiveHome === home1, "Item should inherit home from location")
+        
+        // Test case 2: Item without location but with direct home reference
+        let home2 = Home(name: "Test Home 2")
+        let item2 = InventoryItem()
+        item2.home = home2
+        
+        #expect(item2.effectiveHome === home2, "Item should use direct home reference when no location")
+        
+        // Test case 3: Item with both location home and direct home (location takes precedence)
+        let home3 = Home(name: "Test Home 3")
+        let location3 = InventoryLocation(name: "Test Location 3")
+        location3.home = home3
+        
+        let item3 = InventoryItem()
+        item3.location = location3
+        item3.home = Home(name: "Different Home") // This should be ignored
+        
+        #expect(item3.effectiveHome === home3, "Item should prefer location's home over direct home")
+        
+        // Test case 4: Item without location or home
+        let item4 = InventoryItem()
+        #expect(item4.effectiveHome == nil, "Item should have no effective home when neither location nor home is set")
+    }
 }

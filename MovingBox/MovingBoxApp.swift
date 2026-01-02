@@ -146,14 +146,14 @@ struct MovingBoxApp: App {
                 switch destination {
                 case .dashboardView:
                     DashboardView()
-                case .locationsListView:
-                    LocationsListView()
+                case .locationsListView(let showAllHomes):
+                    LocationsListView(showAllHomes: showAllHomes)
                 case .settingsView:
                     SettingsView()
                 case .aISettingsView:
                     AISettingsView()
-                case .inventoryListView(let location):
-                    InventoryListView(location: location)
+                case .inventoryListView(let location, let showAllHomes):
+                    InventoryListView(location: location, showAllHomes: showAllHomes)
                 case .editLocationView(let location, let isEditing):
                     EditLocationView(location: location, isEditing: isEditing)
                 case .editLabelView(let label, let isEditing):
@@ -176,6 +176,10 @@ struct MovingBoxApp: App {
                     AboutView()
                 case .featureRequestView:
                     FeatureRequestView()
+                case .homeListView:
+                    HomeListView()
+                case .addHomeView:
+                    AddHomeView()
                 }
             }
         )
@@ -216,7 +220,15 @@ struct MovingBoxApp: App {
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     print("📱 MovingBoxApp - Loading test data...")
                     await TestData.loadTestData(modelContext: containerManager.container.mainContext)
-                    print("📱 MovingBoxApp - Test data loaded, setting app state to main")
+                    print("📱 MovingBoxApp - Test data loaded")
+                    
+                    // Run orphaned items migration after test data loads
+                    // This ensures test data items/locations/labels are assigned to homes
+                    // Force=true allows it to run even if already completed (for test data scenarios)
+                    print("📱 MovingBoxApp - Running post-test-data migration...")
+                    try? await containerManager.performOrphanedItemsMigration(force: true)
+                    print("📱 MovingBoxApp - Post-test-data migration complete")
+                    
                     settings.hasLaunched = true
                     appState = .main
                 } else {

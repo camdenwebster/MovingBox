@@ -15,6 +15,7 @@ struct MultiItemSelectionView: View {
 
     @State private var viewModel: MultiItemSelectionViewModel
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var settingsManager: SettingsManager
 
     let onItemsSelected: ([InventoryItem]) -> Void
     let onCancel: () -> Void
@@ -95,6 +96,9 @@ struct MultiItemSelectionView: View {
                 }
             } message: {
                 Text(viewModel.errorMessage ?? "")
+            }
+            .onAppear {
+                viewModel.settingsManager = settingsManager
             }
         }
     }
