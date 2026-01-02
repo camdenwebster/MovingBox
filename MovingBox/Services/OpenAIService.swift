@@ -1911,12 +1911,31 @@ class OpenAIService: OpenAIServiceProtocol {
             print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
         }
         
-        let response: OpenAIChatCompletionResponseBody = try await requestBuilder.openAIService.chatCompletionRequest(body: requestBody, secondsToWait: 60)
+        // Convert to OpenRouter request format (model -> models array)
+        let openRouterBody = OpenRouterChatCompletionRequestBody(
+            messages: requestBody.messages,
+            models: [requestBody.model], // Convert single model to array
+            route: .fallback,
+            maxCompletionTokens: requestBody.maxCompletionTokens,
+            tools: requestBody.tools?.map { tool in
+                // Convert OpenAI tool format to OpenRouter tool format
+                switch tool {
+                case .function(let name, let description, let parameters, let strict):
+                    return .function(name: name, description: description, parameters: parameters, strict: strict)
+                }
+            },
+            toolChoice: requestBody.toolChoice
+        )
+
+        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService.chatCompletionRequest(body: openRouterBody, secondsToWait: 60)
         
-        print("✅ Received AIProxy response with \(response.choices.count) choices")
+        print("✅ Received OpenRouter response with \(response.choices.count) choices")
+        if let provider = response.provider {
+            print("   Provider: \(provider)")
+        }
         
         do {
-            // Parse AIProxy response directly
+            // Parse OpenRouter response directly
             let parseResult = try await responseParser.parseAIProxyResponse(
                 response: response,
                 imageCount: imageCount,
