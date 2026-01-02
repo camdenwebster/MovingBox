@@ -29,6 +29,7 @@ class RevenueCatManager: NSObject, ObservableObject {
         let willRenew: Bool
         let expirationDate: Date?
         let managementURL: URL?
+        let customerId: String
     }
     
     private override init() {
@@ -137,7 +138,8 @@ class RevenueCatManager: NSObject, ObservableObject {
             planType: proEntitlement?.productIdentifier == "mb_rc_699_1m_1w0" ? "Monthly" : "Annual",
             willRenew: proEntitlement?.willRenew ?? false,
             expirationDate: proEntitlement?.expirationDate,
-            managementURL: customerInfo.managementURL
+            managementURL: customerInfo.managementURL,
+            customerId: Purchases.shared.appUserID
         )
     }
     

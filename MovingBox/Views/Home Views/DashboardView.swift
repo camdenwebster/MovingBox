@@ -21,6 +21,7 @@ struct DashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
+    @Environment(ModelContainerManager.self) var containerManager
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     
@@ -182,6 +183,9 @@ struct DashboardView: View {
                 
         }
         .flexibleHeaderScrollView()
+        .refreshable {
+            await containerManager.refreshData()
+        }
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
         .toolbar {
@@ -381,6 +385,8 @@ struct StatCard: View {
         return DashboardView()
             .modelContainer(previewer.container)
             .environmentObject(Router())
+            .environmentObject(SettingsManager())
+            .environment(ModelContainerManager.shared)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

@@ -527,6 +527,7 @@ struct MultiItemPreviewOverlay: View {
     let squareSize: CGFloat
     let onRetake: () -> Void
     let onAnalyze: () -> Void
+    var isSyncingData: Bool = false
 
     @Namespace private var glassEffectNamespace
 
@@ -542,25 +543,35 @@ struct MultiItemPreviewOverlay: View {
             }
             .frame(maxHeight: .infinity)
 
-            HStack(spacing: 24) {
-                Button {
-                    onRetake()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.title)
-                        .foregroundColor(.red)
-                        .padding()
+            VStack(spacing: 8) {
+                HStack(spacing: 24) {
+                    Button {
+                        onRetake()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.title)
+                            .foregroundColor(.red)
+                            .padding()
+                    }
+                    .backport.glassEffect(in: Circle())
+                    .backport.glassEffectID("retake", in: glassEffectNamespace)
+                    .tint(.red)
+                    .accessibilityIdentifier("multiItemRetakeButton")
+
+                    ContinueButton(
+                        action: onAnalyze,
+                        isDisabled: isSyncingData,
+                        accessibilityLabel: isSyncingData ? "Waiting for iCloud sync" : "Continue to analysis"
+                    )
                 }
-                .backport.glassEffect(in: Circle())
-                .backport.glassEffectID("retake", in: glassEffectNamespace)
-                .tint(.red)
-                .accessibilityIdentifier("multiItemRetakeButton")
-                
-                ContinueButton(
-                    action: onAnalyze,
-                )
+
+                if isSyncingData {
+                    Text("Waiting for iCloud sync to complete...")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
+                }
             }
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -576,8 +587,13 @@ struct CameraTopControls: View {
     let onDone: () -> Void
     let isMultiItemPreviewShowing: Bool
     let hasPhotoCaptured: Bool
+    var isSyncingData: Bool = false
 
     @Namespace private var glassEffectNamespace
+
+    private var continueButtonDisabled: Bool {
+        !hasPhotoCaptured || isSyncingData
+    }
 
     var body: some View {
         let cameraControlButtons = HStack(spacing: 16) {
@@ -597,7 +613,7 @@ struct CameraTopControls: View {
                 accessibilityLabel: "Flip camera"
             )
         }
-        
+
         HStack(spacing: 16) {
             CameraControlButton(
                 icon: "xmark",
@@ -611,11 +627,19 @@ struct CameraTopControls: View {
                 cameraControlButtons
                 Spacer()
 
-                ContinueButton(
-                    action: onDone,
-                    isDisabled: !hasPhotoCaptured,
-                    accessibilityLabel: "Continue to analysis"
-                )
+                VStack(spacing: 4) {
+                    ContinueButton(
+                        action: onDone,
+                        isDisabled: continueButtonDisabled,
+                        accessibilityLabel: isSyncingData ? "Waiting for iCloud sync" : "Continue to analysis"
+                    )
+
+                    if isSyncingData {
+                        Text("Syncing...")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -719,7 +743,7 @@ struct CameraPreviewContainer: View {
     var body: some View {
         Group {
             if isUITesting {
-                Image("tablet", bundle: .main)
+                Image("desk-chair", bundle: .main)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

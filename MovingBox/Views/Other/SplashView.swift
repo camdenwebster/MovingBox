@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SplashView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @EnvironmentObject private var containerManager: ModelContainerManager
+    @Environment(ModelContainerManager.self) private var containerManager
     
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
@@ -27,6 +27,8 @@ struct SplashView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 20) {
+                Spacer()
+                
                 if let appIcon = Bundle.main.icon {
                     Image(uiImage: appIcon)
                         .resizable()
@@ -45,30 +47,43 @@ struct SplashView: View {
                         .foregroundColor(textColor)
                 }
                 
-                // Migration Progress (only show when loading)
-                if containerManager.isLoading {
+                Spacer()
+                
+                // Migration and CloudKit Sync Progress
+                if containerManager.isLoading || containerManager.isCloudKitSyncing {
                     VStack(spacing: 12) {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .green))
                             .scaleEffect(1.2)
-                        
-                        Text("Migration in progress, please do not close the app")
-                            .font(.caption)
-                            .foregroundColor(textColor.opacity(0.8))
-                            .multilineTextAlignment(.center)
+
+                        if containerManager.isLoading {
+                            Text("Migration in progress, please do not close the app")
+                                .font(.caption)
+                                .foregroundColor(textColor.opacity(0.8))
+                                .multilineTextAlignment(.center)
+                        } else if containerManager.isCloudKitSyncing {
+                            Text(containerManager.cloudKitSyncMessage)
+                                .font(.caption)
+                                .foregroundColor(textColor.opacity(0.8))
+                                .multilineTextAlignment(.center)
+
+                            Text("Please wait while we sync your data")
+                                .font(.caption2)
+                                .foregroundColor(textColor.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                        }
                     }
-                    .padding(.top, 20)
                     .onAppear {
-                        print("🔄 SplashView - Migration UI appeared (isLoading = \(containerManager.isLoading))")
+                        print("🔄 SplashView - Progress UI appeared (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
                     }
                     .onDisappear {
-                        print("🔄 SplashView - Migration UI disappeared")
+                        print("🔄 SplashView - Progress UI disappeared")
                     }
                 } else {
                     // Debug when not loading
                     Text("")
                         .onAppear {
-                            print("🔄 SplashView - No migration UI shown (isLoading = \(containerManager.isLoading))")
+                            print("🔄 SplashView - No progress UI shown (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
                         }
                 }
             }
@@ -90,5 +105,5 @@ extension Bundle {
 
 #Preview {
     SplashView()
-        .environmentObject(ModelContainerManager.shared)
+        .environment(ModelContainerManager.shared)
 }

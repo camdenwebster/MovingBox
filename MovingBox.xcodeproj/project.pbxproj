@@ -49,7 +49,6 @@
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
-		A96F973C0F954591AB5191A0 /* ProgressMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -566,10 +565,11 @@
 			);
 			name = "Upload Debug Symbols to Sentry";
 			outputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}.sentry-uploaded",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# This script is responsible for uploading debug symbols and source context for Sentry.\nif which sentry-cli >/dev/null; then\nexport SENTRY_ORG=mothersound\nexport SENTRY_PROJECT=movingbox\nERROR=$(sentry-cli debug-files upload --include-sources \"$DWARF_DSYM_FOLDER_PATH\" 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
+			shellScript = "# This script is responsible for uploading debug symbols and source context for Sentry.\nOUTPUT_FILE=\"$DWARF_DSYM_FOLDER_PATH/$DWARF_DSYM_FILE_NAME/Contents/Resources/DWARF/$TARGET_NAME.sentry-uploaded\"\nif which sentry-cli >/dev/null; then\nexport SENTRY_ORG=mothersound\nexport SENTRY_PROJECT=movingbox\nERROR=$(sentry-cli debug-files upload --include-sources \"$DWARF_DSYM_FOLDER_PATH\" 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n\n# Mark output so Xcode can skip re-running when inputs are unchanged.\nmkdir -p \"$(dirname \"$OUTPUT_FILE\")\"\ntouch \"$OUTPUT_FILE\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -612,7 +612,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				1965A9712D9D5A7F00B799C9 /* SnapshotTests.swift in Sources */,
-				A96F973C0F954591AB5191A0 /* ProgressMapperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

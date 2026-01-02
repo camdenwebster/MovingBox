@@ -14,6 +14,7 @@ struct LocationsListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
+    @Environment(ModelContainerManager.self) var containerManager
     @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @State private var showingCamera = false
     @State private var showingImageAnalysis = false
@@ -157,6 +158,9 @@ struct LocationsListView: View {
                     }
                     .padding()
                 }
+                .refreshable {
+                    await containerManager.refreshData()
+                }
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
                         Button {
@@ -200,6 +204,9 @@ struct LocationsListView: View {
         let previewer = try Previewer()
         return LocationsListView()
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
+            .environment(ModelContainerManager.shared)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

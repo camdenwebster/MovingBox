@@ -1,20 +1,39 @@
 import SwiftData
 import Foundation
 import UIKit
+import CoreData
 
+@Observable
 @MainActor
-class ModelContainerManager: ObservableObject {
+class ModelContainerManager {
     static let shared = ModelContainerManager()
-    
-    @Published private(set) var container: ModelContainer
-    @Published private(set) var isLoading = false
-    
+
+    private(set) var container: ModelContainer
+    private(set) var isLoading = false
+
     // Migration Progress Properties
-    @Published var migrationProgress: Double = 0.0
-    @Published var migrationStatus: String = "Initializing..."
-    @Published var migrationDetailMessage: String = "Preparing your data for the new version"
-    @Published var isMigrationComplete: Bool = false
-    
+    var migrationProgress: Double = 0.0
+    var migrationStatus: String = "Initializing..."
+    var migrationDetailMessage: String = "Preparing your data for the new version"
+    var isMigrationComplete: Bool = false
+
+    // CloudKit Sync Progress Properties
+    var isCloudKitSyncing: Bool = false
+    var cloudKitSyncMessage: String = ""
+    private(set) var isCloudKitImportActive: Bool = false
+
+    // CloudKit event tracking
+    private var cloudKitEventObserver: NSObjectProtocol?
+    private var activeImportEvents: Set<UUID> = []
+    private var syncStartTime: Date?
+    private let initialSyncGracePeriod: TimeInterval = 2.0 // Wait for import events to start
+
+    // Last sync time tracking (persisted in UserDefaults, key defined in SettingsManager)
+    private var lastSyncDate: Date? {
+        get { UserDefaults.standard.object(forKey: SettingsManager.lastSyncDateKey) as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: SettingsManager.lastSyncDateKey) }
+    }
+
     // UI timing
     private var initStartTime: Date?
     private let minimumDisplayTime: TimeInterval = 2.0 // 2 seconds minimum
@@ -82,20 +101,40 @@ class ModelContainerManager: ObservableObject {
     ])
     
     private init() {
-        // Always start with CloudKit disabled during initialization/migration
+        // Register value transformers before creating ModelContainer
+        // This must happen before any SwiftData operations
+        UIColorValueTransformer.register()
+
+        // Determine CloudKit configuration upfront - NEVER replace the container later
+        // to avoid CloudKit mirroring delegate teardown blocking (50+ seconds)
+        let isInMemory = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
+        let isSyncEnabled = UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil
+            ? true  // Default to enabled for new installs
+            : UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+
+        // Create container with final CloudKit configuration from the start
+        let cloudKitSetting: ModelConfiguration.CloudKitDatabase = (isSyncEnabled && !isInMemory) ? .automatic : .none
+
         let configuration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
+            isStoredInMemoryOnly: isInMemory,
             allowsSave: true,
-            cloudKitDatabase: .none  // Disable CloudKit during migration
+            cloudKitDatabase: cloudKitSetting
         )
-        
+
+        let isCloudKitEnabled = isSyncEnabled && !isInMemory
+
         do {
             self.container = try ModelContainer(for: schema, configurations: [configuration])
-            print("📦 ModelContainerManager - Created local container for migration")
+            print("📦 ModelContainerManager - Created container with CloudKit: \(isCloudKitEnabled ? "enabled" : "disabled")")
         } catch {
             print("📦 ModelContainerManager - Fatal error creating container: \(error)")
             fatalError("Failed to create ModelContainer: \(error)")
+        }
+
+        // Start CloudKit event monitoring immediately if sync is enabled
+        if isCloudKitEnabled {
+            startCloudKitEventMonitoring()
         }
     }
     
@@ -157,9 +196,6 @@ class ModelContainerManager: ObservableObject {
                 print("📦 ModelContainerManager - Hiding migration UI")
                 self.isMigrationComplete = true
                 self.isLoading = false
-                
-                // Force UI update
-                self.objectWillChange.send()
             }
         } catch {
             print("📦 ModelContainerManager - Error during initialization: \(error)")
@@ -218,51 +254,147 @@ class ModelContainerManager: ObservableObject {
     }
     
     private func enableCloudKitSync() async throws {
-        // Check user's CloudKit preference
+        // Check if CloudKit is enabled (determined at init time)
         let isSyncEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
-        
-        // Set default for new installations
-        if UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil {
-            UserDefaults.standard.set(true, forKey: "iCloudSyncEnabled")
-        }
-        
-        // Only recreate container if sync is enabled
+
         guard isSyncEnabled else {
             print("📦 ModelContainerManager - CloudKit sync disabled by user")
             return
         }
-        
-        // Create new container with CloudKit enabled
-        let syncConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: ProcessInfo.processInfo.arguments.contains("Disable-Persistence"),
-            allowsSave: true,
-            cloudKitDatabase: .automatic
-        )
-        
-        do {
-            let newContainer = try ModelContainer(for: schema, configurations: [syncConfiguration])
-            
-            // Migrate data from local container to sync-enabled container
-            try await migrateToSyncContainer(from: container, to: newContainer)
-            
-            await MainActor.run {
-                self.container = newContainer
+
+        // CloudKit is already configured in init() - just show sync progress UI
+        // and wait for initial sync to complete
+        await MainActor.run {
+            self.isCloudKitSyncing = true
+            self.cloudKitSyncMessage = "Downloading your items from iCloud..."
+        }
+
+        print("📦 ModelContainerManager - Waiting for CloudKit initial sync")
+
+        // Record sync start time
+        syncStartTime = Date()
+
+        // Wait for initial sync to complete or grace period to expire
+        await waitForInitialSync()
+
+        await MainActor.run {
+            self.isCloudKitSyncing = false
+            self.cloudKitSyncMessage = ""
+        }
+
+        print("📦 ModelContainerManager - CloudKit initial sync completed")
+    }
+
+    // MARK: - CloudKit Event Monitoring
+
+    private func startCloudKitEventMonitoring() {
+        // Remove existing observer if any
+        if let observer = cloudKitEventObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+
+        // Listen to CloudKit sync events from NSPersistentCloudKitContainer
+        cloudKitEventObserver = NotificationCenter.default.addObserver(
+            forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleCloudKitEvent(notification)
+        }
+
+        print("📦 ModelContainerManager - Started CloudKit event monitoring")
+    }
+
+    private nonisolated func handleCloudKitEvent(_ notification: Notification) {
+        guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey] as? NSPersistentCloudKitContainer.Event else {
+            return
+        }
+
+        Task { @MainActor in
+            let eventType: String
+            switch event.type {
+            case .setup:
+                eventType = "setup"
+            case .import:
+                eventType = "import"
+            case .export:
+                eventType = "export"
+            @unknown default:
+                eventType = "unknown"
             }
-            
-            print("📦 ModelContainerManager - Successfully enabled CloudKit sync")
-        } catch {
-            print("📦 ModelContainerManager - Failed to enable CloudKit sync: \(error)")
-            // Continue with local container if CloudKit fails
+
+            if event.endDate == nil {
+                // Event started
+                print("📦 CloudKit event started: \(eventType) (id: \(event.identifier))")
+
+                if event.type == .import {
+                    self.activeImportEvents.insert(event.identifier)
+                    self.isCloudKitImportActive = true
+                    self.cloudKitSyncMessage = "Downloading your items from iCloud..."
+                }
+            } else {
+                // Event ended
+                let succeeded = event.succeeded
+                print("📦 CloudKit event ended: \(eventType) (id: \(event.identifier), succeeded: \(succeeded))")
+
+                if event.type == .import {
+                    self.activeImportEvents.remove(event.identifier)
+
+                    if self.activeImportEvents.isEmpty {
+                        self.isCloudKitImportActive = false
+                        print("📦 ModelContainerManager - All CloudKit imports completed")
+                    }
+                }
+
+                // Update last sync time on successful import or export
+                if succeeded && (event.type == .import || event.type == .export) {
+                    self.lastSyncDate = Date()
+                    print("📦 ModelContainerManager - Updated last sync time: \(self.lastSyncDate?.description ?? "nil")")
+                }
+
+                if let error = event.error {
+                    print("📦 CloudKit event error: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func waitForInitialSync() async {
+        // Wait for grace period to allow import events to start
+        try? await Task.sleep(nanoseconds: UInt64(initialSyncGracePeriod * 1_000_000_000))
+
+        // If imports are active, wait for them to complete (with timeout)
+        let maxWaitTime: TimeInterval = 30.0 // Maximum 30 seconds wait
+        let startTime = Date()
+
+        while isCloudKitImportActive {
+            let elapsed = Date().timeIntervalSince(startTime)
+
+            if elapsed >= maxWaitTime {
+                print("📦 ModelContainerManager - Initial sync timeout after \(Int(elapsed))s, proceeding anyway")
+                break
+            }
+
+            // Update message with progress indication
+            await MainActor.run {
+                self.cloudKitSyncMessage = "Downloading your items from iCloud..."
+            }
+
+            try? await Task.sleep(nanoseconds: 500_000_000) // Check every 0.5 seconds
+        }
+
+        let totalWait = Date().timeIntervalSince(syncStartTime ?? Date())
+        print("📦 ModelContainerManager - Initial sync wait completed after \(String(format: "%.1f", totalWait))s")
+    }
+
+    func stopCloudKitEventMonitoring() {
+        if let observer = cloudKitEventObserver {
+            NotificationCenter.default.removeObserver(observer)
+            cloudKitEventObserver = nil
+            print("📦 ModelContainerManager - Stopped CloudKit event monitoring")
         }
     }
     
-    private func migrateToSyncContainer(from localContainer: ModelContainer, to syncContainer: ModelContainer) async throws {
-        // This is a placeholder for data migration logic
-        // In a production app, you might need to copy data between containers
-        // For now, we'll rely on SwiftData's automatic migration capabilities
-        print("📦 ModelContainerManager - Data migration to sync container completed")
-    }
     
     // MARK: - Multi-Device Migration Coordination
     
@@ -439,24 +571,67 @@ class ModelContainerManager: ObservableObject {
     }
     
     // MARK: - Sync Control Methods
-    
+
+    /// Sets iCloud sync preference. Requires app restart to take effect.
+    /// The container's CloudKit configuration is determined at app launch and cannot be changed mid-flight
+    /// to avoid CloudKit mirroring delegate teardown blocking.
     func setSyncEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: "iCloudSyncEnabled")
-        print("📦 ModelContainerManager - Sync \(enabled ? "enabled" : "disabled"). App restart required for full effect.")
+        print("📦 ModelContainerManager - Sync preference set to \(enabled ? "enabled" : "disabled"). App restart required.")
     }
-    
+
     var isSyncEnabled: Bool {
         UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
     }
-    
+
     func getCurrentSyncStatus() -> String {
-        // This is a simplified sync status check
-        // In practice, you would monitor NSPersistentCloudKitContainer notifications
         if !isSyncEnabled {
             return "Disabled"
         }
-        
-        // Check if we have network connectivity and return appropriate status
+
+        if isCloudKitImportActive {
+            return "Syncing"
+        }
+
         return "Ready"
+    }
+
+    /// Triggers a refresh by saving the context, which prompts CloudKit to sync
+    /// Returns when any resulting import operations complete (or timeout)
+    func refreshData() async {
+        guard isSyncEnabled else {
+            print("📦 ModelContainerManager - Refresh skipped: sync is disabled")
+            return
+        }
+
+        print("📦 ModelContainerManager - Manual refresh triggered")
+
+        // Save context to trigger CloudKit export/import cycle
+        do {
+            try container.mainContext.save()
+            print("📦 ModelContainerManager - Context saved, waiting for sync")
+        } catch {
+            print("📦 ModelContainerManager - Error saving context during refresh: \(error)")
+        }
+
+        // Wait briefly for import events to start
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+
+        // If imports started, wait for them to complete (with shorter timeout for manual refresh)
+        let maxWaitTime: TimeInterval = 10.0
+        let startTime = Date()
+
+        while isCloudKitImportActive {
+            let elapsed = Date().timeIntervalSince(startTime)
+
+            if elapsed >= maxWaitTime {
+                print("📦 ModelContainerManager - Refresh timeout after \(Int(elapsed))s")
+                break
+            }
+
+            try? await Task.sleep(nanoseconds: 250_000_000) // Check every 0.25 seconds
+        }
+
+        print("📦 ModelContainerManager - Refresh completed")
     }
 }

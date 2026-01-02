@@ -21,22 +21,12 @@ struct LocationItemCard: View {
         VStack(spacing: 0) {
             // Photo section
             Group {
-                if thumbnail != nil {
-                    AsyncImage(url: location.thumbnailURL) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(height: 100)
-                            .clipped()
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color(.systemGray5))
-                            .overlay {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .tint(.secondary)
-                            }
-                    }
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 100)
+                        .clipped()
                 } else if let sfSymbol = location.sfSymbolName {
                     // Show SF Symbol for default rooms
                     Rectangle()
@@ -61,6 +51,7 @@ struct LocationItemCard: View {
                 }
             }
             .task(id: location.imageURL) {
+                loadingError = nil
                 do {
                     thumbnail = try await location.thumbnail
                 } catch {

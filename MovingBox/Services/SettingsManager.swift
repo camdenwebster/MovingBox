@@ -19,6 +19,7 @@ class SettingsManager: ObservableObject {
         static let successfulAIAnalysisCount = "successfulAIAnalysisCount"
         static let firstLaunchDate = "firstLaunchDate"
         static let hasRequestedReviewAfter30Days = "hasRequestedReviewAfter30Days"
+        static let lastSyncDate = "MovingBox_LastSyncDate"
     }
     
     // Published properties that will update the UI
@@ -106,6 +107,16 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    /// Last successful CloudKit sync date (updated by ModelContainerManager)
+    @Published var lastSyncDate: Date? {
+        didSet {
+            UserDefaults.standard.set(lastSyncDate, forKey: Keys.lastSyncDate)
+        }
+    }
+
+    /// Static key for ModelContainerManager to update sync date via UserDefaults
+    static let lastSyncDateKey = "MovingBox_LastSyncDate"
+
     // Pro feature constants
     public struct AppConstants: Sendable {
         static let maxFreeAiScans = 50
@@ -135,6 +146,7 @@ class SettingsManager: ObservableObject {
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         self.preferredCaptureMode = preferredCaptureModeDefault
         self.successfulAIAnalysisCount = UserDefaults.standard.integer(forKey: Keys.successfulAIAnalysisCount)
+        self.lastSyncDate = UserDefaults.standard.object(forKey: Keys.lastSyncDate) as? Date
         
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
         

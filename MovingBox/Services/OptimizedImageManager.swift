@@ -135,29 +135,44 @@ final class OptimizedImageManager {
     }
     
     func loadImage(url: URL) async throws -> UIImage {
-        var error: NSError?
-        var loadedImage: UIImage?
-        
-        fileCoordinator.coordinate(readingItemAt: url, options: [], error: &error) { url in
-            do {
-                let data = try Data(contentsOf: url)
-                if let image = UIImage(data: data) {
-                    loadedImage = image
+        guard await ensureUbiquitousItemAvailable(at: url) else {
+            throw ImageError.iCloudNotAvailable
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var coordinationError: NSError?
+                var readError: NSError?
+                var loadedImage: UIImage?
+
+                self.fileCoordinator.coordinate(readingItemAt: url, options: [], error: &coordinationError) { url in
+                    do {
+                        let data = try Data(contentsOf: url)
+                        loadedImage = UIImage(data: data)
+                    } catch let error {
+                        print("📸 OptimizedImageManager - Error loading image: \(error.localizedDescription)")
+                        readError = error as NSError
+                    }
                 }
-            } catch {
-                print("📸 OptimizedImageManager - Error loading image: \(error.localizedDescription)")
+
+                if let coordinationError {
+                    continuation.resume(throwing: coordinationError)
+                    return
+                }
+                
+                if let readError {
+                    continuation.resume(throwing: readError)
+                    return
+                }
+
+                guard let image = loadedImage else {
+                    continuation.resume(throwing: ImageError.invalidImageData)
+                    return
+                }
+
+                continuation.resume(returning: image)
             }
         }
-        
-        if let error {
-            throw error
-        }
-        
-        guard let image = loadedImage else {
-            throw ImageError.invalidImageData
-        }
-        
-        return image
     }
     
     // MARK: - Multiple Image Management
@@ -263,35 +278,34 @@ final class OptimizedImageManager {
     // MARK: - Thumbnail Management
     
     private func saveThumbnail(_ image: UIImage, id: String) async {
-        let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
+        await Task.detached(priority: .userInitiated) { [self] in
+            let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
 
-        // Create thumbnails directory if needed
-        do {
-            try fileManager.createDirectory(at: thumbnailURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        } catch {
-            print("📸 OptimizedImageManager - Error creating thumbnails directory: \(error.localizedDescription)")
-            return
-        }
-
-        guard let thumbnail = await image.byPreparingThumbnail(ofSize: ImageConfig.thumbnailSize) else { return }
-
-        // Cache thumbnail immediately before writing to disk to prevent race conditions
-        cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
-
-        guard let data = thumbnail.jpegData(compressionQuality: 0.7) else { return }
-
-        var error: NSError?
-        fileCoordinator.coordinate(writingItemAt: thumbnailURL, options: .forReplacing, error: &error) { url in
             do {
-                try data.write(to: url)
+                try fileManager.createDirectory(at: thumbnailURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             } catch {
+                print("📸 OptimizedImageManager - Error creating thumbnails directory: \(error.localizedDescription)")
+                return
+            }
+
+            guard let thumbnail = await image.byPreparingThumbnail(ofSize: ImageConfig.thumbnailSize),
+                  let data = thumbnail.jpegData(compressionQuality: 0.7) else { return }
+
+            cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
+
+            var error: NSError?
+            fileCoordinator.coordinate(writingItemAt: thumbnailURL, options: .forReplacing, error: &error) { url in
+                do {
+                    try data.write(to: url)
+                } catch {
+                    print("📸 OptimizedImageManager - Error saving thumbnail: \(error.localizedDescription)")
+                }
+            }
+
+            if let error {
                 print("📸 OptimizedImageManager - Error saving thumbnail: \(error.localizedDescription)")
             }
-        }
-
-        if let error {
-            print("📸 OptimizedImageManager - Error saving thumbnail: \(error.localizedDescription)")
-        }
+        }.value
     }
     
     func loadThumbnail(id: String) async throws -> UIImage {
@@ -300,31 +314,88 @@ final class OptimizedImageManager {
         }
         
         let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
+
+        guard await ensureUbiquitousItemAvailable(at: thumbnailURL) else {
+            throw ImageError.iCloudNotAvailable
+        }
         
-        var error: NSError?
-        var loadedImage: UIImage?
+        let thumbnail = try await loadThumbnailFromDisk(thumbnailURL)
+        cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
+        return thumbnail
+    }
+    
+    func loadThumbnail(for imageURL: URL) async throws -> UIImage {
+        let id = imageURL.deletingPathExtension().lastPathComponent
+        if let cached = cache.object(forKey: "\(id)_thumb" as NSString) {
+            return cached
+        }
         
-        fileCoordinator.coordinate(readingItemAt: thumbnailURL, options: [], error: &error) { url in
+        let thumbnailURL = imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
+        
+        if await ensureUbiquitousItemAvailable(at: thumbnailURL) {
             do {
-                let data = try Data(contentsOf: url)
-                if let image = UIImage(data: data) {
-                    loadedImage = image
-                }
+                let thumbnail = try await loadThumbnailFromDisk(thumbnailURL)
+                cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
+                return thumbnail
             } catch {
-                print("📸 OptimizedImageManager - Error loading thumbnail: \(error.localizedDescription)")
+                // Fall through to regeneration attempt below.
             }
         }
         
-        if let error {
-            throw error
+        // If the thumbnail is missing, regenerate it from the full-size image.
+        guard await ensureUbiquitousItemAvailable(at: imageURL) else {
+            throw ImageError.iCloudNotAvailable
         }
         
-        guard let thumbnail = loadedImage else {
-            throw ImageError.invalidImageData
+        return try await Task.detached(priority: .userInitiated) { [self] in
+            let fullImage = try await loadImage(url: imageURL)
+            await saveThumbnail(fullImage, id: id)
+
+            if let cached = cache.object(forKey: "\(id)_thumb" as NSString) {
+                return cached
+            }
+
+            let regenerated = try await loadThumbnailFromDisk(thumbnailURL)
+            cache.setObject(regenerated, forKey: "\(id)_thumb" as NSString)
+            return regenerated
+        }.value
+    }
+    
+    private func loadThumbnailFromDisk(_ thumbnailURL: URL) async throws -> UIImage {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var coordinationError: NSError?
+                var readError: NSError?
+                var loadedImage: UIImage?
+
+                self.fileCoordinator.coordinate(readingItemAt: thumbnailURL, options: [], error: &coordinationError) { url in
+                    do {
+                        let data = try Data(contentsOf: url)
+                        loadedImage = UIImage(data: data)
+                    } catch let error {
+                        print("📸 OptimizedImageManager - Error loading thumbnail: \(error.localizedDescription)")
+                        readError = error as NSError
+                    }
+                }
+
+                if let coordinationError {
+                    continuation.resume(throwing: coordinationError)
+                    return
+                }
+                
+                if let readError {
+                    continuation.resume(throwing: readError)
+                    return
+                }
+
+                guard let thumbnail = loadedImage else {
+                    continuation.resume(throwing: ImageError.invalidImageData)
+                    return
+                }
+
+                continuation.resume(returning: thumbnail)
+            }
         }
-        
-        cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
-        return thumbnail
     }
     
     func loadSecondaryThumbnails(from urlStrings: [String]) async -> [UIImage] {
@@ -332,13 +403,12 @@ final class OptimizedImageManager {
         
         for urlString in urlStrings {
             guard let url = URL(string: urlString) else { continue }
-            let imageId = url.deletingPathExtension().lastPathComponent
             
             do {
-                let thumbnail = try await loadThumbnail(id: imageId)
+                let thumbnail = try await loadThumbnail(for: url)
                 thumbnails.append(thumbnail)
             } catch {
-                print("📸 OptimizedImageManager - Failed to load thumbnail for \(imageId): \(error)")
+                print("📸 OptimizedImageManager - Failed to load thumbnail for \(url.lastPathComponent): \(error)")
                 continue
             }
         }
@@ -434,6 +504,49 @@ final class OptimizedImageManager {
     
     func clearCache() {
         cache.removeAllObjects()
+    }
+
+    private func ensureUbiquitousItemAvailable(at url: URL) async -> Bool {
+        guard isUbiquitousItem(url) else {
+            return fileManager.fileExists(atPath: url.path)
+        }
+        
+        if isUbiquitousItemDownloaded(url) {
+            return true
+        }
+        
+        do {
+            try fileManager.startDownloadingUbiquitousItem(at: url)
+        } catch {
+            print("📸 OptimizedImageManager - Failed to start iCloud download: \(error.localizedDescription)")
+            return false
+        }
+        
+        for _ in 0..<10 {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            if isUbiquitousItemDownloaded(url) {
+                return true
+            }
+        }
+        
+        return fileManager.fileExists(atPath: url.path)
+    }
+    
+    private func isUbiquitousItem(_ url: URL) -> Bool {
+        return (try? url.resourceValues(forKeys: [.isUbiquitousItemKey]))?.isUbiquitousItem ?? false
+    }
+    
+    private func isUbiquitousItemDownloaded(_ url: URL) -> Bool {
+        guard isUbiquitousItem(url) else {
+            return fileManager.fileExists(atPath: url.path)
+        }
+        
+        let values = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
+        if let status = values?.ubiquitousItemDownloadingStatus {
+            return status == URLUbiquitousItemDownloadingStatus.current
+        }
+        
+        return fileManager.fileExists(atPath: url.path)
     }
     
     deinit {
