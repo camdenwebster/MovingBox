@@ -11,6 +11,8 @@ struct SplashView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ModelContainerManager.self) private var containerManager
     
+    private let bottomStatusHeight: CGFloat = 140
+    
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
     }
@@ -50,42 +52,44 @@ struct SplashView: View {
                 Spacer()
                 
                 // Migration and CloudKit Sync Progress
-                if containerManager.isLoading || containerManager.isCloudKitSyncing {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                            .scaleEffect(1.2)
+                Group {
+                    if containerManager.isLoading || containerManager.isCloudKitSyncing {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                                .scaleEffect(1.2)
 
-                        if containerManager.isLoading {
-                            Text("Migration in progress, please do not close the app")
-                                .font(.caption)
-                                .foregroundColor(textColor.opacity(0.8))
-                                .multilineTextAlignment(.center)
-                        } else if containerManager.isCloudKitSyncing {
-                            Text(containerManager.cloudKitSyncMessage)
-                                .font(.caption)
-                                .foregroundColor(textColor.opacity(0.8))
-                                .multilineTextAlignment(.center)
+                            if containerManager.isLoading {
+                                Text("Migration in progress, please do not close the app")
+                                    .font(.caption)
+                                    .foregroundColor(textColor.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                            } else if containerManager.isCloudKitSyncing {
+                                Text(containerManager.cloudKitSyncMessage)
+                                    .font(.caption)
+                                    .foregroundColor(textColor.opacity(0.8))
+                                    .multilineTextAlignment(.center)
 
-                            Text("Please wait while we sync your data")
-                                .font(.caption2)
-                                .foregroundColor(textColor.opacity(0.6))
-                                .multilineTextAlignment(.center)
+                                Text("Please wait while we sync your data")
+                                    .font(.caption2)
+                                    .foregroundColor(textColor.opacity(0.6))
+                                    .multilineTextAlignment(.center)
+                            }
                         }
-                    }
-                    .onAppear {
-                        print("🔄 SplashView - Progress UI appeared (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
-                    }
-                    .onDisappear {
-                        print("🔄 SplashView - Progress UI disappeared")
-                    }
-                } else {
-                    // Debug when not loading
-                    Text("")
                         .onAppear {
-                            print("🔄 SplashView - No progress UI shown (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
+                            print("🔄 SplashView - Progress UI appeared (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
                         }
+                        .onDisappear {
+                            print("🔄 SplashView - Progress UI disappeared")
+                        }
+                    } else {
+                        Color.clear
+                            .onAppear {
+                                print("🔄 SplashView - No progress UI shown (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
+                            }
+                    }
                 }
+                .frame(height: bottomStatusHeight)
             }
         }
     }

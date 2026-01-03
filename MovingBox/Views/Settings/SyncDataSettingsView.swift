@@ -205,7 +205,7 @@ struct SyncDataSettingsView: View {
                 }
             }
             
-            if let lastSync = settings.lastSyncDate {
+            if let lastSyncText = formattedLastSyncText(for: settings.lastSyncDate) {
                 HStack {
                     Label {
                         Text("Last Sync")
@@ -215,7 +215,7 @@ struct SyncDataSettingsView: View {
 
                     }
                     Spacer()
-                    Text(lastSync, style: .relative)
+                    Text(lastSyncText)
                         .foregroundColor(.secondary)
                 }
             }
@@ -275,6 +275,25 @@ struct SyncDataSettingsView: View {
                 }
             }
         }
+    }
+
+    private func formattedLastSyncText(for date: Date?) -> String? {
+        guard let date else { return nil }
+
+        let now = Date()
+        let elapsed = now.timeIntervalSince(date)
+        let oneDay: TimeInterval = 24 * 60 * 60
+
+        if elapsed >= 0, elapsed < oneDay {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .short
+            return formatter.localizedString(for: date, relativeTo: now)
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 

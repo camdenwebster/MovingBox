@@ -28,11 +28,7 @@ class ModelContainerManager {
     private var syncStartTime: Date?
     private let initialSyncGracePeriod: TimeInterval = 2.0 // Wait for import events to start
 
-    // Last sync time tracking (persisted in UserDefaults, key defined in SettingsManager)
-    private var lastSyncDate: Date? {
-        get { UserDefaults.standard.object(forKey: SettingsManager.lastSyncDateKey) as? Date }
-        set { UserDefaults.standard.set(newValue, forKey: SettingsManager.lastSyncDateKey) }
-    }
+    private weak var settingsManager: SettingsManager?
 
     // UI timing
     private var initStartTime: Date?
@@ -108,9 +104,10 @@ class ModelContainerManager {
         // Determine CloudKit configuration upfront - NEVER replace the container later
         // to avoid CloudKit mirroring delegate teardown blocking (50+ seconds)
         let isInMemory = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
-        let isSyncEnabled = UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil
-            ? true  // Default to enabled for new installs
-            : UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+        if UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil {
+            UserDefaults.standard.set(true, forKey: "iCloudSyncEnabled")
+        }
+        let isSyncEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
 
         // Create container with final CloudKit configuration from the start
         let cloudKitSetting: ModelConfiguration.CloudKitDatabase = (isSyncEnabled && !isInMemory) ? .automatic : .none
@@ -141,6 +138,10 @@ class ModelContainerManager {
     init(testContainer: ModelContainer) {
         self.container = testContainer
         self.isLoading = false
+    }
+    
+    func setSettingsManager(_ settingsManager: SettingsManager) {
+        self.settingsManager = settingsManager
     }
     
     func initialize() async {
@@ -348,8 +349,9 @@ class ModelContainerManager {
 
                 // Update last sync time on successful import or export
                 if succeeded && (event.type == .import || event.type == .export) {
-                    self.lastSyncDate = Date()
-                    print("📦 ModelContainerManager - Updated last sync time: \(self.lastSyncDate?.description ?? "nil")")
+                    let newSyncDate = Date()
+                    self.updateLastSyncDate(newSyncDate)
+                    print("📦 ModelContainerManager - Updated last sync time: \(newSyncDate)")
                 }
 
                 if let error = event.error {
@@ -392,6 +394,14 @@ class ModelContainerManager {
             NotificationCenter.default.removeObserver(observer)
             cloudKitEventObserver = nil
             print("📦 ModelContainerManager - Stopped CloudKit event monitoring")
+        }
+    }
+    
+    private func updateLastSyncDate(_ date: Date) {
+        if let settingsManager {
+            settingsManager.lastSyncDate = date
+        } else {
+            UserDefaults.standard.set(date, forKey: SettingsManager.lastSyncDateKey)
         }
     }
     
@@ -581,7 +591,10 @@ class ModelContainerManager {
     }
 
     var isSyncEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+        if UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
     }
 
     func getCurrentSyncStatus() -> String {
