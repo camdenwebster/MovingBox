@@ -42,7 +42,6 @@ class SyncStatusMonitor: ObservableObject {
             }
         }
     }
-    @Published var lastSyncDate: Date?
     
     private let networkMonitor = NWPathMonitor()
     private let networkQueue = DispatchQueue(label: "NetworkMonitor")
@@ -92,7 +91,7 @@ class SyncStatusMonitor: ObservableObject {
                 guard let self = self else { return }
                 if self.isSyncEnabled && self.isNetworkAvailable {
                     self.syncStatus = .ready
-                    self.lastSyncDate = Date()
+                    // Note: lastSyncDate is now updated by ModelContainerManager via CloudKit events
                 }
             }
         }
@@ -125,7 +124,10 @@ class SyncStatusMonitor: ObservableObject {
 struct SyncDataSettingsView: View {
     @StateObject private var syncMonitor = SyncStatusMonitor()
     @EnvironmentObject var router: Router
-    
+    @EnvironmentObject var settings: SettingsManager
+    @State private var showRestartAlert = false
+    @State private var initialSyncState: Bool?
+
     var body: some View {
         List {
             syncSettingsSection
@@ -135,6 +137,27 @@ struct SyncDataSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             syncMonitor.refreshStatus()
+            // Capture initial state on first appear
+            if initialSyncState == nil {
+                initialSyncState = syncMonitor.isSyncEnabled
+            }
+        }
+        .onChange(of: syncMonitor.isSyncEnabled) { _, newValue in
+            // Show alert if sync setting changed from initial state
+            if let initial = initialSyncState, initial != newValue {
+                showRestartAlert = true
+            }
+        }
+        .alert("Restart Required", isPresented: $showRestartAlert) {
+            Button("Restart Now") {
+                // Exit the app - user will need to reopen manually
+                exit(0)
+            }
+            Button("Later", role: .cancel) {
+                // User chose to restart later - do nothing
+            }
+        } message: {
+            Text("The app needs to restart for sync changes to take effect. Your data is safe and will be preserved.")
         }
     }
     
@@ -182,17 +205,17 @@ struct SyncDataSettingsView: View {
                 }
             }
             
-            if let lastSync = syncMonitor.lastSyncDate {
+            if let lastSyncText = formattedLastSyncText(for: settings.lastSyncDate) {
                 HStack {
                     Label {
                         Text("Last Sync")
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "clock")
-                            
+
                     }
                     Spacer()
-                    Text(lastSync, style: .relative)
+                    Text(lastSyncText)
                         .foregroundColor(.secondary)
                 }
             }
@@ -202,6 +225,8 @@ struct SyncDataSettingsView: View {
         } footer: {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your data is automatically synced across all your devices using iCloud when sync is enabled.")
+                Text("Changes to sync settings require restarting the app to take effect.")
+                    .foregroundColor(.secondary)
                 if !syncMonitor.isSyncEnabled {
                     Text("Sync is currently disabled. Your data will only be available on this device.")
                         .foregroundColor(.orange)
@@ -251,11 +276,31 @@ struct SyncDataSettingsView: View {
             }
         }
     }
+
+    private func formattedLastSyncText(for date: Date?) -> String? {
+        guard let date else { return nil }
+
+        let now = Date()
+        let elapsed = now.timeIntervalSince(date)
+        let oneDay: TimeInterval = 24 * 60 * 60
+
+        if elapsed >= 0, elapsed < oneDay {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .short
+            return formatter.localizedString(for: date, relativeTo: now)
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
 }
 
 #Preview {
     NavigationStack {
         SyncDataSettingsView()
             .environmentObject(Router())
+            .environmentObject(SettingsManager())
     }
 }

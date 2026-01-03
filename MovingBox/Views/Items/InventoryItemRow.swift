@@ -9,56 +9,31 @@ import SwiftUI
 
 struct InventoryItemRow: View {
     var item: InventoryItem
-    @State private var imageLoadTrigger = 0
+    @State private var thumbnail: UIImage?
     @State private var hasRetried = false
 
     var body: some View {
         HStack {
-            AsyncImage(url: item.thumbnailURL) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        Color(.systemGray6)
-                        Image(systemName: "photo")
-                            .foregroundColor(.gray)
-                    }
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                case .success(let image):
-                    image
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 60, height: 60)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                case .failure:
+                } else {
                     ZStack {
                         Color(.systemGray6)
-                        Image(systemName: "photo.trianglebadge.exclamationmark")
-                            .foregroundColor(.gray)
-                    }
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                    .onAppear {
-                        // Retry loading once after a brief delay to handle race conditions
-                        // where thumbnail file isn't quite ready yet
-                        guard !hasRetried else { return }
-                        hasRetried = true
-                        Task {
-                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                            imageLoadTrigger += 1
-                        }
-                    }
-                @unknown default:
-                    ZStack {
-                        Color(.systemGray6)
-                        Image(systemName: "photo")
+                        Image(systemName: hasRetried ? "photo.trianglebadge.exclamationmark" : "photo")
                             .foregroundColor(.gray)
                     }
                     .frame(width: 60, height: 60)
                     .cornerRadius(8)
                 }
             }
-            .id(imageLoadTrigger)
+            .task(id: item.imageURL) {
+                await loadThumbnail()
+            }
             VStack(alignment: .leading) {
                 Text(item.title)
                     .lineLimit(1)
@@ -91,6 +66,32 @@ struct InventoryItemRow: View {
             }
         }
     }
+
+    @MainActor
+    private func loadThumbnail() async {
+        hasRetried = false
+        guard item.imageURL != nil else {
+            thumbnail = nil
+            return
+        }
+        
+        do {
+            thumbnail = try await item.thumbnail
+        } catch {
+            guard !hasRetried else {
+                thumbnail = nil
+                return
+            }
+            
+            hasRetried = true
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            do {
+                thumbnail = try await item.thumbnail
+            } catch {
+                thumbnail = nil
+            }
+        }
+    }
 }
 
 
@@ -104,4 +105,3 @@ struct InventoryItemRow: View {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
 }
-

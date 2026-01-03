@@ -19,7 +19,7 @@ struct MovingBoxApp: App {
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
-    @StateObject private var containerManager = ModelContainerManager.shared
+    @State private var containerManager = ModelContainerManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var appState: AppState = .splash
     
@@ -202,16 +202,17 @@ struct MovingBoxApp: App {
             .toolbar(removing: .title)
             #endif
             .task {
-                // Initialize container
+                containerManager.setSettingsManager(settings)
+                // Initialize container (waits for initial CloudKit sync to complete)
                 await containerManager.initialize()
-                
+
                 // Check RevenueCat subscription status
                 do {
                     try await revenueCatManager.updateCustomerInfo()
                 } catch {
                     print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
                 }
-                
+
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     print("📱 MovingBoxApp - Loading test data...")
@@ -221,9 +222,10 @@ struct MovingBoxApp: App {
                     appState = .main
                 } else {
                     // Determine if we should show the welcome screen
+                    print("📱 MovingBoxApp - CloudKit sync complete, transitioning to app")
                     appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
                 }
-                
+
                 // Record that we've launched
                 settings.hasLaunched = true
 
@@ -233,13 +235,12 @@ struct MovingBoxApp: App {
             .modelContainer(containerManager.container)
             .environment(\.featureFlags, FeatureFlags(distribution: .current))
             .environment(\.whatsNew, .forMovingBox())
+            .environment(containerManager)
             .environmentObject(router)
             .environmentObject(settings)
-            .environmentObject(containerManager)
             .environmentObject(onboardingManager)
             .environmentObject(revenueCatManager)
         }
     }
 }
-
 

@@ -3,7 +3,7 @@ import SwiftUI
 import SwiftData
 
 struct ExportDataView: View {
-    @EnvironmentObject private var containerManager: ModelContainerManager
+    @Environment(ModelContainerManager.self) private var containerManager
     @State private var exportCoordinator = ExportCoordinator()
     @State private var exportItems = true
     @State private var exportLocations = true

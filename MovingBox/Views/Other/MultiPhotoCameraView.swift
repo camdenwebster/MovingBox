@@ -141,6 +141,7 @@ enum CaptureModeError {
 struct MultiPhotoCameraView: View {
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
+    @Environment(ModelContainerManager.self) private var containerManager
     @StateObject private var model = MultiPhotoCameraViewModel()
     @Binding var capturedImages: [UIImage]
     let captureMode: CaptureMode
@@ -212,7 +213,8 @@ struct MultiPhotoCameraView: View {
                             }
                             model.capturedImages.removeAll()
                         },
-                        onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) }
+                        onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) },
+                        isSyncingData: containerManager.isCloudKitImportActive
                     )
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -316,7 +318,7 @@ struct MultiPhotoCameraView: View {
     private func cameraPreview(geometry: GeometryProxy) -> some View {
         Group {
             if isUITesting {
-                Image("tablet", bundle: .main)
+                Image("desk-chair", bundle: .main)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -360,7 +362,8 @@ struct MultiPhotoCameraView: View {
                     onComplete(model.capturedImages, model.selectedCaptureMode)
                 },
                 isMultiItemPreviewShowing: isMultiItemPreview,
-                hasPhotoCaptured: !model.capturedImages.isEmpty
+                hasPhotoCaptured: !model.capturedImages.isEmpty,
+                isSyncingData: containerManager.isCloudKitImportActive
             )
 
             if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
@@ -642,5 +645,6 @@ private struct PreviewContainer<Content: View>: View {
             .environment(\.isPreview, true)
             .environmentObject(SettingsManager())
             .environmentObject(RevenueCatManager.shared)
+            .environment(ModelContainerManager.shared)
     }
 }

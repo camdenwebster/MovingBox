@@ -47,7 +47,7 @@ struct Previewer {
             location.name = "Office"
             location.desc = "Camden's office"
             
-            if let url = Bundle.main.url(forResource: "home-office", withExtension: "jpg") {
+            if let url = Bundle.main.url(forResource: "desk-chair", withExtension: "jpg") {
                 location.imageURL = url
             }
             return location

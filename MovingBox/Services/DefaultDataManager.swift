@@ -142,15 +142,52 @@ class DefaultDataManager {
     static func checkForExistingHome(modelContext: ModelContext) async -> Bool {
         return await checkForExistingObjects(of: Home.self, in: modelContext)
     }
+
+    private static func hasExistingICloudData(modelContext: ModelContext) async -> Bool {
+        func hasAnyObjects<T: PersistentModel>(_ type: T.Type) -> Bool {
+            let descriptor = FetchDescriptor<T>()
+            return (try? modelContext.fetch(descriptor).isEmpty == false) ?? false
+        }
+
+        if hasAnyObjects(Home.self)
+            || hasAnyObjects(InventoryItem.self)
+            || hasAnyObjects(InventoryLocation.self)
+            || hasAnyObjects(InventoryLabel.self) {
+            return true
+        }
+
+        let isUsingICloud = modelContext.container.configurations.first?.cloudKitDatabase != nil
+        guard isUsingICloud else {
+            return false
+        }
+
+        print("🔍 Checking for existing iCloud data before creating defaults...")
+        try? await Task.sleep(nanoseconds: 2 * 1_000_000_000)
+
+        return hasAnyObjects(Home.self)
+            || hasAnyObjects(InventoryItem.self)
+            || hasAnyObjects(InventoryLocation.self)
+            || hasAnyObjects(InventoryLabel.self)
+    }
     
     @MainActor
     static func populateDefaultData(modelContext: ModelContext) async {
         if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
             do {
+                let shouldCheckDefaults = !OnboardingManager.hasCompletedOnboarding()
+                let hasExistingICloudData = shouldCheckDefaults ? await hasExistingICloudData(modelContext: modelContext) : false
+
                 let _ = try await getOrCreateHome(modelContext: modelContext)
 
                 // Only populate defaults for first launch
-                if !OnboardingManager.hasCompletedOnboarding() {
+                if shouldCheckDefaults {
+                    print("🔎 Default data gate - existing iCloud data: \(hasExistingICloudData)")
+                    if hasExistingICloudData {
+                        print("☁️ Existing iCloud data found, skipping default data creation")
+                        try modelContext.save()
+                        return
+                    }
+
                     await populateDefaultLabels(modelContext: modelContext)
                     await populateDefaultLocations(modelContext: modelContext)
                 }

@@ -37,13 +37,12 @@ struct EnhancedItemCreationFlowView: View {
         self.location = location
         self.onComplete = onComplete
 
-        // Initialize StateObject using temporary container
-        // Force new instance by using the captureMode in initialization
-        let tempContainer = try! ModelContainer(for: InventoryItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        // Initialize StateObject without a modelContext - it will be set in onAppear
+        // DO NOT create a temp container here as it can interfere with CloudKit mirroring
         self._viewModel = StateObject(wrappedValue: ItemCreationFlowViewModel(
             captureMode: captureMode,
             location: location,
-            modelContext: ModelContext(tempContainer)
+            modelContext: nil
         ))
     }
     
