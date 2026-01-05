@@ -11,7 +11,6 @@ import SwiftData
 struct MainSplitView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
-    @Environment(ModelContainerManager.self) var containerManager
     @Binding var navigationPath: NavigationPath
 
     var body: some View {
@@ -29,13 +28,6 @@ struct MainSplitView: View {
             }
         }
         .tint(.green)
-        .overlay(alignment: .top) {
-            if containerManager.isCloudKitImportActive {
-                CloudKitSyncBanner()
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .animation(.easeInOut(duration: 0.3), value: containerManager.isCloudKitImportActive)
     }
 
     @ViewBuilder

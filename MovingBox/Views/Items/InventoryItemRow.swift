@@ -11,6 +11,7 @@ struct InventoryItemRow: View {
     var item: InventoryItem
     @State private var thumbnail: UIImage?
     @State private var hasRetried = false
+    @State private var isDownloading = false
 
     var body: some View {
         HStack {
@@ -24,8 +25,13 @@ struct InventoryItemRow: View {
                 } else {
                     ZStack {
                         Color(.systemGray6)
-                        Image(systemName: hasRetried ? "photo.trianglebadge.exclamationmark" : "photo")
-                            .foregroundColor(.gray)
+                        if isDownloading {
+                            ProgressView()
+                                .tint(.gray)
+                        } else {
+                            Image(systemName: hasRetried ? "photo.trianglebadge.exclamationmark" : "photo")
+                                .foregroundColor(.gray)
+                        }
                     }
                     .frame(width: 60, height: 60)
                     .cornerRadius(8)
@@ -72,25 +78,44 @@ struct InventoryItemRow: View {
         hasRetried = false
         guard item.imageURL != nil else {
             thumbnail = nil
+            isDownloading = false
             return
         }
         
         do {
+            updateDownloadState()
             thumbnail = try await item.thumbnail
+            isDownloading = false
         } catch {
             guard !hasRetried else {
                 thumbnail = nil
+                isDownloading = false
                 return
             }
             
             hasRetried = true
             try? await Task.sleep(nanoseconds: 200_000_000)
             do {
+                updateDownloadState()
                 thumbnail = try await item.thumbnail
+                isDownloading = false
             } catch {
                 thumbnail = nil
+                isDownloading = false
             }
         }
+    }
+
+    private func updateDownloadState() {
+        guard let imageURL = item.imageURL else {
+            isDownloading = false
+            return
+        }
+
+        let id = imageURL.deletingPathExtension().lastPathComponent
+        let thumbnailURL = OptimizedImageManager.shared.getThumbnailURL(for: id)
+        isDownloading = OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
+            || OptimizedImageManager.shared.isUbiquitousItemDownloading(imageURL)
     }
 }
 

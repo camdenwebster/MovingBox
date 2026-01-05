@@ -12,6 +12,7 @@ struct LocationItemCard: View {
     var showCost: Bool = false
     @State private var thumbnail: UIImage?
     @State private var loadingError: Error?
+    @State private var isDownloading = false
     
     private var totalReplacementCost: Decimal {
         location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
@@ -44,19 +45,29 @@ struct LocationItemCard: View {
                         .fill(Color(.secondarySystemGroupedBackground))
                         .frame(width: 160, height: 100)
                         .overlay(
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .tint(.secondary)
+                            Group {
+                                if isDownloading {
+                                    ProgressView()
+                                        .tint(.secondary)
+                                } else {
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 40))
+                                        .tint(.secondary)
+                                }
+                            }
                         )
                 }
             }
             .task(id: location.imageURL) {
                 loadingError = nil
+                updateDownloadState()
                 do {
                     thumbnail = try await location.thumbnail
+                    isDownloading = false
                 } catch {
                     loadingError = error
                     thumbnail = nil
+                    isDownloading = false
                 }
             }
             
@@ -94,6 +105,18 @@ struct LocationItemCard: View {
             .fill(Color(.secondarySystemGroupedBackground))
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
         .padding(1)
+    }
+
+    private func updateDownloadState() {
+        guard let imageURL = location.imageURL else {
+            isDownloading = false
+            return
+        }
+
+        let id = imageURL.deletingPathExtension().lastPathComponent
+        let thumbnailURL = OptimizedImageManager.shared.getThumbnailURL(for: id)
+        isDownloading = OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
+            || OptimizedImageManager.shared.isUbiquitousItemDownloading(imageURL)
     }
 }
 

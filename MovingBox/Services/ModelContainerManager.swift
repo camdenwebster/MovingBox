@@ -13,8 +13,8 @@ class ModelContainerManager {
 
     // Migration Progress Properties
     var migrationProgress: Double = 0.0
-    var migrationStatus: String = "Initializing..."
-    var migrationDetailMessage: String = "Preparing your data for the new version"
+    var migrationStatus: String = MigrationCopy.initializing
+    var migrationDetailMessage: String = MigrationCopy.initialDetail
     var isMigrationComplete: Bool = false
 
     // CloudKit Sync Progress Properties
@@ -34,10 +34,31 @@ class ModelContainerManager {
     private var initStartTime: Date?
     private let minimumDisplayTime: TimeInterval = 2.0 // 2 seconds minimum
     
+    private enum DefaultsKey {
+        static let migrationCompleted = "MovingBox_v2_MigrationCompleted"
+        static let deviceId = "MovingBox_DeviceId"
+        static let migrationSchemaVersion = "MovingBox_SchemaVersion"
+        static let hasLaunched = "hasLaunched"
+        static let iCloudSyncEnabled = "iCloudSyncEnabled"
+    }
+
+    private enum MigrationCopy {
+        static let initializing = "Initializing..."
+        static let initialDetail = "Preparing your data for the new version"
+        static let checkingCompatibility = "Checking data compatibility..."
+        static let migratingHomes = "Migrating home data..."
+        static let migratingLocations = "Migrating locations..."
+        static let migratingItems = "Migrating inventory items..."
+        static let completing = "Completing migration..."
+        static let enablingCloudKit = "Enabling iCloud sync..."
+        static let ready = "Ready!"
+        static let syncMessage = "Downloading your items from iCloud..."
+    }
+
     // Track migration completion in UserDefaults
-    private var migrationCompletedKey = "MovingBox_v2_MigrationCompleted"
-    private var deviceIdKey = "MovingBox_DeviceId"
-    private var migrationSchemaVersionKey = "MovingBox_SchemaVersion"
+    private var migrationCompletedKey = DefaultsKey.migrationCompleted
+    private var deviceIdKey = DefaultsKey.deviceId
+    private var migrationSchemaVersionKey = DefaultsKey.migrationSchemaVersion
     
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -53,7 +74,7 @@ class ModelContainerManager {
     }
     
     private var shouldSkipMigrationForNewInstall: Bool {
-        let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunched")
+        let hasLaunched = UserDefaults.standard.bool(forKey: DefaultsKey.hasLaunched)
         print("📦 ModelContainerManager - hasLaunched check: \(hasLaunched)")
         return !hasLaunched
     }
@@ -104,10 +125,10 @@ class ModelContainerManager {
         // Determine CloudKit configuration upfront - NEVER replace the container later
         // to avoid CloudKit mirroring delegate teardown blocking (50+ seconds)
         let isInMemory = ProcessInfo.processInfo.arguments.contains("Disable-Persistence")
-        if UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil {
-            UserDefaults.standard.set(true, forKey: "iCloudSyncEnabled")
+        if UserDefaults.standard.object(forKey: DefaultsKey.iCloudSyncEnabled) == nil {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.iCloudSyncEnabled)
         }
-        let isSyncEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+        let isSyncEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.iCloudSyncEnabled)
 
         // Create container with final CloudKit configuration from the start
         let cloudKitSetting: ModelConfiguration.CloudKitDatabase = (isSyncEnabled && !isInMemory) ? .automatic : .none
@@ -151,13 +172,7 @@ class ModelContainerManager {
             // Check if migration was already completed
             if isMigrationAlreadyCompleted {
                 print("📦 ModelContainerManager - Migration already completed, skipping")
-                // Skip migration and go straight to CloudKit setup - no UI needed
-                try await enableCloudKitSync()
-                
-                await MainActor.run {
-                    self.isMigrationComplete = true
-                    // isLoading already false, so no UI shows
-                }
+                await completeInitializationWithoutMigration()
                 print("📦 ModelContainerManager - Initialization complete, no migration UI shown")
                 return
             }
@@ -168,13 +183,7 @@ class ModelContainerManager {
                 // Mark as completed to avoid showing migration on next launch
                 markMigrationCompleted()
                 
-                // Setup CloudKit for new install
-                try await enableCloudKitSync()
-                
-                await MainActor.run {
-                    self.isMigrationComplete = true
-                    // isLoading already false, so no UI shows
-                }
+                await completeInitializationWithoutMigration()
                 print("📦 ModelContainerManager - New install initialization complete, no migration UI shown")
                 return
             }
@@ -217,6 +226,16 @@ class ModelContainerManager {
             }
         }
     }
+
+    private func completeInitializationWithoutMigration() async {
+        // Skip migration and go straight to CloudKit setup - no UI needed
+        try? await enableCloudKitSync()
+
+        await MainActor.run {
+            self.isMigrationComplete = true
+            // isLoading already false, so no UI shows
+        }
+    }
     
     private func ensureMinimumDisplayTime() async {
         guard let startTime = initStartTime else { return }
@@ -256,7 +275,7 @@ class ModelContainerManager {
     
     private func enableCloudKitSync() async throws {
         // Check if CloudKit is enabled (determined at init time)
-        let isSyncEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+        let isSyncEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.iCloudSyncEnabled)
 
         guard isSyncEnabled else {
             print("📦 ModelContainerManager - CloudKit sync disabled by user")
@@ -267,7 +286,7 @@ class ModelContainerManager {
         // and wait for initial sync to complete
         await MainActor.run {
             self.isCloudKitSyncing = true
-            self.cloudKitSyncMessage = "Downloading your items from iCloud..."
+            self.cloudKitSyncMessage = MigrationCopy.syncMessage
         }
 
         print("📦 ModelContainerManager - Waiting for CloudKit initial sync")
@@ -331,7 +350,7 @@ class ModelContainerManager {
                 if event.type == .import {
                     self.activeImportEvents.insert(event.identifier)
                     self.isCloudKitImportActive = true
-                    self.cloudKitSyncMessage = "Downloading your items from iCloud..."
+                    self.cloudKitSyncMessage = MigrationCopy.syncMessage
                 }
             } else {
                 // Event ended
@@ -379,7 +398,7 @@ class ModelContainerManager {
 
             // Update message with progress indication
             await MainActor.run {
-                self.cloudKitSyncMessage = "Downloading your items from iCloud..."
+                self.cloudKitSyncMessage = MigrationCopy.syncMessage
             }
 
             try? await Task.sleep(nanoseconds: 500_000_000) // Check every 0.5 seconds
@@ -410,7 +429,7 @@ class ModelContainerManager {
     
     private func checkForCloudKitData() async -> Bool {
         // Check if CloudKit sync is enabled
-        let isSyncEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+        let isSyncEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.iCloudSyncEnabled)
         guard isSyncEnabled else { return false }
         
         // For the initial release, assume we need local migration first
@@ -449,27 +468,27 @@ class ModelContainerManager {
     
     private func performLocalMigration() async {
         // Original migration logic for first device or when CloudKit is disabled
-        await updateMigrationStatus("Checking data compatibility...", progress: 0.1)
+        await updateMigrationStatus(MigrationCopy.checkingCompatibility, progress: 0.1)
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         // Migrate all models before enabling CloudKit
-        await updateMigrationStatus("Migrating home data...", progress: 0.2)
+        await updateMigrationStatus(MigrationCopy.migratingHomes, progress: 0.2)
         try? await migrateHomes()
         
-        await updateMigrationStatus("Migrating locations...", progress: 0.4)
+        await updateMigrationStatus(MigrationCopy.migratingLocations, progress: 0.4)
         try? await migrateLocations()
         
-        await updateMigrationStatus("Migrating inventory items...", progress: 0.6)
+        await updateMigrationStatus(MigrationCopy.migratingItems, progress: 0.6)
         try? await migrateInventoryItems()
         
-        await updateMigrationStatus("Completing migration...", progress: 0.8)
+        await updateMigrationStatus(MigrationCopy.completing, progress: 0.8)
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         // Phase 2: Enable CloudKit after successful migration
-        await updateMigrationStatus("Enabling iCloud sync...", progress: 0.9)
+        await updateMigrationStatus(MigrationCopy.enablingCloudKit, progress: 0.9)
         try? await enableCloudKitSync()
         
-        await updateMigrationStatus("Ready!", progress: 1.0)
+        await updateMigrationStatus(MigrationCopy.ready, progress: 1.0)
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         markMigrationCompleted()
@@ -524,60 +543,54 @@ class ModelContainerManager {
     }
     
     internal func migrateHomes() async throws {
-        let context = container.mainContext
-        let descriptor = FetchDescriptor<Home>()
-        
-        let homes = try context.fetch(descriptor)
-        print("📦 ModelContainerManager - Beginning migration for \(homes.count) homes")
-        
-        for home in homes {
-            do {
-                try await home.migrateImageIfNeeded()
-                try context.save()
-            } catch {
-                print("📦 ModelContainerManager - Failed to migrate home \(home.name): \(error)")
-            }
-        }
-        
-        print("📦 ModelContainerManager - Completed home migrations")
+        try await migrateEntities(
+            Home.self,
+            entityName: "home",
+            itemName: { $0.name },
+            migrate: { try await $0.migrateImageIfNeeded() }
+        )
     }
     
     internal func migrateLocations() async throws {
-        let context = container.mainContext
-        let descriptor = FetchDescriptor<InventoryLocation>()
-        
-        let locations = try context.fetch(descriptor)
-        print("📦 ModelContainerManager - Beginning migration for \(locations.count) locations")
-        
-        for location in locations {
-            do {
-                try await location.migrateImageIfNeeded()
-                try context.save()
-            } catch {
-                print("📦 ModelContainerManager - Failed to migrate location \(location.name): \(error)")
-            }
-        }
-        
-        print("📦 ModelContainerManager - Completed location migrations")
+        try await migrateEntities(
+            InventoryLocation.self,
+            entityName: "location",
+            itemName: { $0.name },
+            migrate: { try await $0.migrateImageIfNeeded() }
+        )
     }
     
     internal func migrateInventoryItems() async throws {
+        try await migrateEntities(
+            InventoryItem.self,
+            entityName: "inventory item",
+            itemName: { $0.title },
+            migrate: { try await $0.migrateImageIfNeeded() }
+        )
+    }
+
+    private func migrateEntities<T: PersistentModel>(
+        _ type: T.Type,
+        entityName: String,
+        itemName: (T) -> String,
+        migrate: (T) async throws -> Void
+    ) async throws {
         let context = container.mainContext
-        let descriptor = FetchDescriptor<InventoryItem>()
-        
+        let descriptor = FetchDescriptor<T>()
+
         let items = try context.fetch(descriptor)
-        print("📦 ModelContainerManager - Beginning migration for \(items.count) inventory items")
-        
+        print("📦 ModelContainerManager - Beginning migration for \(items.count) \(entityName)s")
+
         for item in items {
             do {
-                try await item.migrateImageIfNeeded()
+                try await migrate(item)
                 try context.save()
             } catch {
-                print("📦 ModelContainerManager - Failed to migrate inventory item \(item.title): \(error)")
+                print("📦 ModelContainerManager - Failed to migrate \(entityName) \(itemName(item)): \(error)")
             }
         }
-        
-        print("📦 ModelContainerManager - Completed inventory item migrations")
+
+        print("📦 ModelContainerManager - Completed \(entityName) migrations")
     }
     
     // MARK: - Sync Control Methods
@@ -586,15 +599,15 @@ class ModelContainerManager {
     /// The container's CloudKit configuration is determined at app launch and cannot be changed mid-flight
     /// to avoid CloudKit mirroring delegate teardown blocking.
     func setSyncEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: "iCloudSyncEnabled")
+        UserDefaults.standard.set(enabled, forKey: DefaultsKey.iCloudSyncEnabled)
         print("📦 ModelContainerManager - Sync preference set to \(enabled ? "enabled" : "disabled"). App restart required.")
     }
 
     var isSyncEnabled: Bool {
-        if UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil {
+        if UserDefaults.standard.object(forKey: DefaultsKey.iCloudSyncEnabled) == nil {
             return true
         }
-        return UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
+        return UserDefaults.standard.bool(forKey: DefaultsKey.iCloudSyncEnabled)
     }
 
     func getCurrentSyncStatus() -> String {

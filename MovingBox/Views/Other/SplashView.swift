@@ -55,9 +55,6 @@ struct SplashView: View {
                 Group {
                     if containerManager.isLoading || containerManager.isCloudKitSyncing {
                         VStack(spacing: 12) {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                                .scaleEffect(1.2)
 
                             if containerManager.isLoading {
                                 Text("Migration in progress, please do not close the app")
@@ -69,11 +66,9 @@ struct SplashView: View {
                                     .font(.caption)
                                     .foregroundColor(textColor.opacity(0.8))
                                     .multilineTextAlignment(.center)
-
-                                Text("Please wait while we sync your data")
-                                    .font(.caption2)
-                                    .foregroundColor(textColor.opacity(0.6))
-                                    .multilineTextAlignment(.center)
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                                    .scaleEffect(1.2)
                             }
                         }
                         .onAppear {

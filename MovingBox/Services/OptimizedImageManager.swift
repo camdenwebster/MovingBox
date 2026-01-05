@@ -474,6 +474,18 @@ final class OptimizedImageManager {
         return imagesDirectoryURL.appendingPathComponent("Thumbnails/\(id)_thumb.jpg")
     }
 
+    func isUbiquitousItemDownloading(_ url: URL) -> Bool {
+        guard isUbiquitousItem(url) else { return false }
+        guard !fileManager.fileExists(atPath: url.path) else { return false }
+
+        let values = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
+        if let status = values?.ubiquitousItemDownloadingStatus {
+            return status != URLUbiquitousItemDownloadingStatus.current
+        }
+
+        return true
+    }
+
     func imageExists(for url: URL?) -> Bool {
         guard let url = url else { return false }
         return fileManager.fileExists(atPath: url.path)
