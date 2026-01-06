@@ -132,15 +132,62 @@ class RevenueCatManager: NSObject, ObservableObject {
     func getSubscriptionInfo() async throws -> SubscriptionInfo {
         let customerInfo = try await Purchases.shared.customerInfo()
         let proEntitlement = customerInfo.entitlements["Pro"]
+        let planType = planType(
+            for: proEntitlement?.productIdentifier,
+            purchasedProductIdentifiers: customerInfo.allPurchasedProductIdentifiers
+        )
         
         return SubscriptionInfo(
             status: proEntitlement?.isActive == true ? "Active" : "Inactive",
-            planType: proEntitlement?.productIdentifier == "mb_rc_699_1m_1w0" ? "Monthly" : "Annual",
+            planType: planType,
             willRenew: proEntitlement?.willRenew ?? false,
             expirationDate: proEntitlement?.expirationDate,
             managementURL: customerInfo.managementURL,
             customerId: Purchases.shared.appUserID
         )
+    }
+
+    private func planType(for productIdentifier: String?, purchasedProductIdentifiers: Set<String>) -> String {
+        let lifetimeIds: Set<String> = ["mb_iap_12999_lt_1w0", "lifetime", "rc_promo_Pro_lifetime"]
+        let annualIds: Set<String> = ["mb_rc_4999_1y_1w0", "subscription_annual"]
+        let monthlyIds: Set<String> = ["mb_rc_699_1m_1w0", "subscription_monthly"]
+        let planTypeByIdentifier: [String: String] = [
+            "mb_iap_12999_lt_1w0": "Lifetime",
+            "lifetime": "Lifetime",
+            "rc_promo_Pro_lifetime": "Lifetime",
+            "mb_rc_4999_1y_1w0": "Annual",
+            "subscription_annual": "Annual",
+            "mb_rc_699_1m_1w0": "Monthly",
+            "subscription_monthly": "Monthly"
+        ]
+
+        guard let productIdentifier else {
+            if !purchasedProductIdentifiers.isDisjoint(with: lifetimeIds) {
+                return "Lifetime"
+            }
+            if !purchasedProductIdentifiers.isDisjoint(with: annualIds) {
+                return "Annual"
+            }
+            if !purchasedProductIdentifiers.isDisjoint(with: monthlyIds) {
+                return "Monthly"
+            }
+            return "Unknown"
+        }
+
+        if let planType = planTypeByIdentifier[productIdentifier] {
+            return planType
+        }
+
+        if !purchasedProductIdentifiers.isDisjoint(with: lifetimeIds) {
+            return "Lifetime"
+        }
+        if !purchasedProductIdentifiers.isDisjoint(with: annualIds) {
+            return "Annual"
+        }
+        if !purchasedProductIdentifiers.isDisjoint(with: monthlyIds) {
+            return "Monthly"
+        }
+        return "Unknown"
     }
     
     func presentPaywall(isPresented: Binding<Bool>, onCompletion: (() -> Void)? = nil, onDismiss: (() -> Void)? = nil) -> some View {
