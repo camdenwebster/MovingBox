@@ -46,10 +46,14 @@ struct MovingBoxApp: App {
         
         // Configure RevenueCat
         Purchases.configure(withAPIKey: AppConfig.revenueCatAPIKey)
-        
+
         #if DEBUG
         Purchases.logLevel = .debug
         #endif
+
+        // Configure TelemetryDeck integration with RevenueCat
+        // This must happen after both SDKs are initialized
+        RevenueCatManager.shared.configureTelemetryDeckIntegration(appId: appId)
         
         // Configure WishKit
         WishKit.configure(with: AppConfig.wishKitAPIKey)

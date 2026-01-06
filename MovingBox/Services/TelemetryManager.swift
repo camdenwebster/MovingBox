@@ -7,6 +7,8 @@
 
 import Foundation
 import TelemetryDeck
+import UIKit
+import CryptoKit
 
 /// Centralized manager for tracking app analytics via TelemetryDeck
 /// Marked as @unchecked Sendable because:
@@ -15,8 +17,27 @@ import TelemetryDeck
 /// - Safe to access from any thread/actor
 final class TelemetryManager: @unchecked Sendable {
     static let shared = TelemetryManager()
-    
+
     private init() {}
+
+    // MARK: - RevenueCat Integration
+
+    /// Returns the hashed user identifier that TelemetryDeck uses
+    /// This matches the identifier that TelemetryDeck sends to its servers
+    /// for RevenueCat integration purposes
+    var hashedDefaultUser: String {
+        // TelemetryDeck uses the device's identifierForVendor by default
+        // and hashes it with SHA256
+        let defaultIdentifier = UIDevice.current.identifierForVendor?.uuidString ?? "unknown-device"
+        return sha256Hash(defaultIdentifier)
+    }
+
+    /// Hash a string using SHA256, matching TelemetryDeck's approach
+    private func sha256Hash(_ string: String) -> String {
+        let data = Data(string.utf8)
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
     
     // MARK: - Inventory Items
     

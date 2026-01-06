@@ -37,12 +37,12 @@ class RevenueCatManager: NSObject, ObservableObject {
         print("📱 RevenueCatManager - Initializing with Is-Pro: \(isPro)")
         self._isProSubscriptionActive = isPro
         super.init()
-        
+
         // Only setup purchases if Is-Pro is not present
         if !isPro {
             print("📱 RevenueCatManager - Setting up purchases updates")
             setupPurchasesUpdates()
-            
+
             Task {
                 do {
                     try await updateCustomerInfo()
@@ -53,6 +53,26 @@ class RevenueCatManager: NSObject, ObservableObject {
         } else {
             print("📱 RevenueCatManager - Skipping RevenueCat setup due to Is-Pro argument")
         }
+    }
+
+    // MARK: - TelemetryDeck Integration
+
+    /// Configures RevenueCat with TelemetryDeck subscriber attributes
+    /// This enables the RevenueCat integration to associate subscription events
+    /// with the correct TelemetryDeck user
+    func configureTelemetryDeckIntegration(appId: String) {
+        let hashedUserId = TelemetryManager.shared.hashedDefaultUser
+
+        print("📱 RevenueCatManager - Configuring TelemetryDeck integration")
+        print("  - App ID: \(appId)")
+        print("  - Hashed User ID: \(hashedUserId.prefix(10))...")
+
+        Purchases.shared.attribution.setAttributes([
+            "$telemetryDeckUserId": hashedUserId,
+            "$telemetryDeckAppId": appId
+        ])
+
+        print("📱 RevenueCatManager - TelemetryDeck attributes set successfully")
     }
     
     private func setupPurchasesUpdates() {
