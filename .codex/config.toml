@@ -1,0 +1,19 @@
+# Repo-local Codex config
+[app]
+log_level = "info"
+
+[models]
+# default model used by Codex CLI
+default = "gpt-5.2-codex"
+
+[sandbox]
+# options: "read-only", "workspace-write", "danger-full-access"
+mode = "workspace-write"
+
+[network]
+# options: "restricted", "enabled"
+access = "restricted"
+
+[approvals]
+# options: "on-request", "on-failure", "never", "untrusted"
+policy = "on-request"

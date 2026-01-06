@@ -3,7 +3,7 @@ import SwiftUI
 import SwiftData
 
 struct ImportPreviewView: View {
-    @EnvironmentObject private var containerManager: ModelContainerManager
+    @Environment(ModelContainerManager.self) private var containerManager
     @Environment(\.dismiss) private var dismiss
     
     let previewData: DataManager.ImportResult

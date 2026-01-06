@@ -26,6 +26,9 @@ struct SubscriptionSettingsView: View {
                     
                     subscriptionRow(title: "Plan", value: "\(info.planType) Pro", systemImage: "creditcard")
                     
+                    subscriptionRow(title: "Customer ID", value: info.customerId, systemImage: "person.text.rectangle")
+                        .textSelection(.enabled)
+                    
                     if let expirationDate = info.expirationDate {
                         subscriptionRow(
                             title: info.willRenew ? "Next Billing Date" : "Expires",

@@ -121,6 +121,7 @@ struct MainSplitView: View {
         return PreviewWrapper()
             .modelContainer(previewer.container)
             .environmentObject(Router())
+            .environment(ModelContainerManager.shared)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

@@ -17,7 +17,7 @@ enum Options: Hashable {
 
 struct InventoryListView: View {
     @Environment(\.modelContext) var modelContext
-    @EnvironmentObject private var containerManager: ModelContainerManager
+    @Environment(ModelContainerManager.self) private var containerManager
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
@@ -139,6 +139,9 @@ struct InventoryListView: View {
     
     var body: some View {
         inventoryListContent
+            .refreshable {
+                await containerManager.refreshData()
+            }
             .environment(\.editMode, $editMode)
             .navigationTitle(showOnlyUnassigned ? "No Location" : (filterLabel?.name ?? location?.name ?? "All Items"))
             .navigationDestination(for: InventoryItem.self) { inventoryItem in
@@ -703,6 +706,7 @@ struct InventoryListView: View {
             .environmentObject(Router())
             .environmentObject(SettingsManager())
             .environmentObject(RevenueCatManager.shared)
+            .environment(ModelContainerManager.shared)
     } catch {
         return Text("Preview Error: \(error.localizedDescription)")
     }
