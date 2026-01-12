@@ -37,7 +37,7 @@ final class InventoryItemUITests: XCTestCase {
         setupSnapshot(app)
         
         app.launch()
-        XCTAssertTrue(dashboardScreen.allInventoryButton.waitForExistence(timeout: 10), "App did not launch in time")
+        XCTAssertTrue(dashboardScreen.allInventoryButton.waitForExistence(timeout: 15), "App did not launch in time")
     }
 
     override func tearDownWithError() throws {

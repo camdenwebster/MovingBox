@@ -125,7 +125,12 @@
       "Read(//Users/camden.webster/Library/Developer/Xcode/DerivedData/**)",
       "Read(///**)",
       "Bash(awk:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "mcp__sosumi__searchAppleDocumentation",
+      "mcp__sosumi__fetchAppleDocumentation",
+      "mcp__ios-simulator__launch_app",
+      "Bash(xcrun simctl listapps:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

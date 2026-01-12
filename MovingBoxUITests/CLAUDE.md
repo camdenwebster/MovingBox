@@ -1,478 +1,118 @@
-# MovingBoxUITests Directory - UI Testing Best Practices
+# MovingBoxUITests
 
-This directory contains UI tests for the MovingBox iOS app using XCTest framework with the Page Object Model pattern.
+UI tests using XCTest with Page Object Model pattern.
 
-## Page Object Model Architecture
-
-### Current Screen Objects
-- **CameraScreen**: Camera functionality and photo capture
-- **DashboardScreen**: Main dashboard interactions and data validation
-- **ImportExportScreen**: Data import/export functionality
-- **InventoryDetailScreen**: Item detail view interactions
-- **InventoryListScreen**: Inventory list management
-- **PaywallScreen**: Subscription and paywall interactions
-- **SettingsScreen**: App settings management
-- **TabBar**: Navigation between main app sections
-
-### Screen Object Design Pattern
-
-#### Basic Structure
-```swift
-import XCTest
-
-class ScreenName {
-    let app: XCUIApplication
-    
-    // UI Elements
-    let primaryButton: XCUIElement
-    let textField: XCUIElement
-    
-    init(app: XCUIApplication) {
-        self.app = app
-        self.primaryButton = app.buttons["accessibility-identifier"]
-        self.textField = app.textFields["text-field-identifier"]
-    }
-    
-    // Actions
-    func performAction() {
-        primaryButton.tap()
-    }
-    
-    // Validations
-    func isDisplayed() -> Bool {
-        return primaryButton.waitForExistence(timeout: 5)
-    }
-}
+## Test Command
+```bash
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./DerivedData 2>&1 | xcsift
 ```
 
-## UI Testing Best Practices
+## Launch Arguments
 
-### Test Structure and Organization
+| Argument | Purpose |
+|----------|---------|
+| `Mock-OpenAI` | Mock AI API calls |
+| `Use-Test-Data` | Load 53+ test items |
+| `Disable-Animations` | Faster, stable tests |
+| `Skip-Onboarding` | Skip welcome flow |
+| `Show-Onboarding` | Force welcome flow |
+| `Is-Pro` | Enable pro features |
+| `UI-Testing-Mock-Camera` | Mock camera |
+| `Disable-Persistence` | In-memory storage |
 
-#### Test Class Setup
+## Standard Test Setup
+
 ```swift
 final class FeatureUITests: XCTestCase {
     let app = XCUIApplication()
-    var screenObject: ScreenObject!
-    
+    var dashboard: DashboardScreen!
+
     override func setUpWithError() throws {
         continueAfterFailure = false
         app.launchArguments = [
-            "UI-Testing-Mock-Camera",
+            "Mock-OpenAI",
+            "Use-Test-Data",
             "Disable-Animations",
-            "Use-Test-Data"
+            "Skip-Onboarding"
         ]
-        screenObject = ScreenObject(app: app)
+        dashboard = DashboardScreen(app: app)
         app.launch()
-        
-        // IMPORTANT: Make sure user is on dashboard (splash screen has disappeared)
-        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible")
+        XCTAssertTrue(dashboard.isDisplayed(), "Dashboard should be visible")
     }
 }
 ```
 
-#### Test Method Structure
-Follow the Arrange-Act-Assert pattern:
+## Screen Objects (Screens/)
+
+| Screen | File | Purpose |
+|--------|------|---------|
+| `DashboardScreen` | `DashboardScreen.swift` | Main dashboard |
+| `InventoryListScreen` | `InventoryListScreen.swift` | Item list |
+| `InventoryDetailScreen` | `InventoryDetailScreen.swift` | Item detail |
+| `CameraScreen` | `CameraScreen.swift` | Photo capture |
+| `SettingsScreen` | `SettingsScreen.swift` | Settings |
+| `PaywallScreen` | `PaywallScreen.swift` | Subscriptions |
+| `ImportScreen` | `ImportScreen.swift` | Data import |
+| `TabBar` | `TabBar.swift` | Tab navigation |
+
+## Screen Object Pattern
+
 ```swift
-func testFeatureFunctionality() throws {
-    // Arrange: Set up initial state
-    XCTAssertTrue(screen.isDisplayed())
-    
-    // Act: Perform user actions
-    screen.performAction()
-    
-    // Assert: Verify expected outcomes
-    XCTAssertTrue(screen.expectedElement.exists)
-}
-```
-
-### Launch Arguments for Testing
-
-#### Essential Launch Arguments
-- `"UI-Testing-Mock-Camera"`: Mock camera functionality for consistent testing
-- `"Disable-Animations"`: Speed up tests by disabling UI animations
-- `"Use-Test-Data"`: Load predefined test data for consistent scenarios
-- `"Skip-Onboarding"`: Bypass onboarding for most tests
-- `"Show-Onboarding"`: Explicitly test onboarding flow
-- `"Disable-Persistence"`: Use in-memory storage for test isolation
-- `"Is-Pro"`: Test pro features and subscription functionality
-
-#### Test-Specific Configuration
-```swift
-// For onboarding tests
-app.launchArguments = [
-    "Show-Onboarding",
-    "Disable-Persistence", 
-    "UI-Testing-Mock-Camera",
-    "Disable-Animations"
-]
-
-// For feature tests with data
-app.launchArguments = [
-    "Skip-Onboarding",
-    "Use-Test-Data",
-    "Disable-Animations"
-]
-```
-
-### Element Identification Strategies
-
-#### Accessibility Identifiers (Preferred)
-Use consistent, descriptive accessibility identifiers:
-```swift
-// In SwiftUI View
-Button("Save") {
-    // action
-}
-.accessibilityIdentifier("inventory-item-save-button")
-
-// In UI Test
-let saveButton = app.buttons["inventory-item-save-button"]
-```
-
-#### Naming Conventions for Accessibility Identifiers
-- **Format**: `{feature}-{component}-{action/type}`
-- **Examples**:
-  - `"inventory-item-save-button"`
-  - `"onboarding-welcome-continue-button"`
-  - `"dashboard-stats-card-label"`
-  - `"settings-export-button"`
-
-#### Fallback Strategies
-When accessibility identifiers aren't available:
-```swift
-// By button text (less reliable)
-let button = app.buttons["Button Text"]
-
-// By static text
-let label = app.staticTexts["Label Text"]
-
-// By position (avoid when possible)
-let firstButton = app.buttons.firstMatch
-```
-
-### Screen Object Implementation Guidelines
-
-#### Element Declaration
-```swift
-class InventoryDetailScreen {
+class ScreenName {
     let app: XCUIApplication
-    
-    // Primary elements
+
+    // Elements
     let saveButton: XCUIElement
-    let nameTextField: XCUIElement
-    let photoButton: XCUIElement
-    
-    // Navigation elements
-    let backButton: XCUIElement
-    let editButton: XCUIElement
-    
+    let nameField: XCUIElement
+
     init(app: XCUIApplication) {
         self.app = app
         self.saveButton = app.buttons["inventory-item-save-button"]
-        self.nameTextField = app.textFields["inventory-item-name-field"]
-        self.photoButton = app.buttons["inventory-item-photo-button"]
-        self.backButton = app.navigationBars.buttons["Back"]
-        self.editButton = app.buttons["inventory-item-edit-button"]
+        self.nameField = app.textFields["inventory-item-name-field"]
+    }
+
+    // Actions (no assertions)
+    func tapSave() { saveButton.tap() }
+    func enterName(_ name: String) {
+        nameField.tap()
+        nameField.typeText(name)
+    }
+
+    // Queries
+    func isDisplayed() -> Bool {
+        saveButton.waitForExistence(timeout: 5)
     }
 }
 ```
 
-#### Action Methods
-```swift
-// Single action methods
-func tapSaveButton() {
-    saveButton.tap()
-}
+## Accessibility Identifier Convention
 
-func enterItemName(_ name: String) {
-    nameTextField.tap()
-    nameTextField.typeText(name)
-}
+```
+{feature}-{component}-{action/type}
 
-// Complex action methods
-func saveItemWithName(_ name: String) {
-    enterItemName(name)
-    tapSaveButton()
-}
-
-// Navigation methods
-func navigateBack() {
-    backButton.tap()
-}
+Examples:
+- inventory-item-save-button
+- dashboard-stats-card-value
+- settings-export-button
+- onboarding-continue-button
 ```
 
-#### Validation Methods
+## Timeout Guidelines
+
+| Operation | Timeout |
+|-----------|---------|
+| Fast UI | 2-3s |
+| Standard | 5s |
+| Network/AI | 10-30s |
+| App launch | 10s |
+
+## Permission Handlers
+
 ```swift
-// Existence checks
-func isDisplayed() -> Bool {
-    return saveButton.waitForExistence(timeout: 5)
-}
-
-func isEditMode() -> Bool {
-    return editButton.exists && editButton.isEnabled
-}
-
-// Content validation
-func getItemName() -> String {
-    return nameTextField.value as? String ?? ""
-}
-
-// State validation
-func isSaveButtonEnabled() -> Bool {
-    return saveButton.isEnabled
-}
-```
-
-### Waiting and Timing Strategies
-
-#### Smart Waiting
-```swift
-// Wait for element existence
-func waitForSaveButton() -> Bool {
-    return saveButton.waitForExistence(timeout: 10)
-}
-
-// Wait for element to disappear
-func waitForLoadingToComplete() -> Bool {
-    let loadingIndicator = app.activityIndicators["loading"]
-    return !loadingIndicator.waitForExistence(timeout: 1)
-}
-
-// Wait for specific state
-func waitForDataLoad() -> Bool {
-    var iterations = 0
-    while statCardValue.label.isEmpty && iterations < 10 {
-        sleep(1)
-        iterations += 1
-    }
-    return !statCardValue.label.isEmpty
-}
-```
-
-#### Timeout Guidelines
-- **Fast interactions**: 2-3 seconds
-- **Standard UI updates**: 5 seconds  
-- **Network/AI operations**: 10-30 seconds
-- **App launch**: 10 seconds
-- **Complex operations**: Up to 60 seconds
-
-### Camera and Photo Testing
-
-#### Camera Mock Setup
-```swift
-class CameraScreen {
-    let app: XCUIApplication
-    let testCase: XCTestCase
-    
-    let shutterButton: XCUIElement
-    let doneButton: XCUIElement
-    
-    init(app: XCUIApplication, testCase: XCTestCase) {
-        self.app = app
-        self.testCase = testCase
-        self.shutterButton = app.buttons["PhotoCapture"]
-        self.doneButton = app.buttons["Done"]
-    }
-    
-    func waitForCamera() -> Bool {
-        return shutterButton.waitForExistence(timeout: 10)
-    }
-    
-    func takePhoto() {
-        shutterButton.tap()
-        XCTAssertTrue(doneButton.waitForExistence(timeout: 5))
-        doneButton.tap()
+func addCameraPermissionsHandler() {
+    addUIInterruptionMonitor(withDescription: "Camera") { alert in
+        alert.buttons["OK"].tap()
+        return true
     }
 }
 ```
-
-#### Permission Handling
-```swift
-extension XCTestCase {
-    func addCameraPermissionsHandler() {
-        addUIInterruptionMonitor(withDescription: "Camera Authorization Alert") { alert in
-            let allowButton = alert.buttons["OK"]
-            if allowButton.exists {
-                allowButton.tap()
-                return true
-            }
-            return false
-        }
-    }
-    
-    func addNotificationsPermissionsHandler() {
-        addUIInterruptionMonitor(withDescription: "Notifications Authorization Alert") { alert in
-            let allowButton = alert.buttons["Allow"]
-            if allowButton.exists {
-                allowButton.tap()
-                return true
-            }
-            return false
-        }
-    }
-}
-```
-
-### Device-Specific Testing
-
-#### iPad vs iPhone Handling
-```swift
-class TabBar {
-    let app: XCUIApplication
-    let dashboardTab: XCUIElement
-    
-    init(app: XCUIApplication) {
-        self.app = app
-        
-        // Device-specific element selection
-        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
-        
-        if isIPad {
-            self.dashboardTab = app.buttons["Dashboard"]
-        } else {
-            self.dashboardTab = app.tabBars.buttons["Dashboard"]
-        }
-    }
-}
-```
-
-#### Orientation Testing
-```swift
-func testLandscapeLayout() throws {
-    // Change to landscape
-    XCUIDevice.shared.orientation = .landscapeLeft
-    
-    // Verify layout adapts
-    XCTAssertTrue(screen.isDisplayedCorrectly())
-    
-    // Reset to portrait
-    XCUIDevice.shared.orientation = .portrait
-}
-```
-
-### Data-Driven Testing
-
-#### Test Data Management
-```swift
-// Use consistent test data
-let testItemName = "Test Coffee Maker"
-let testLocationName = "Test Kitchen"
-let testHomeData = TestHomeData.sampleHome
-
-// Verify test data state
-func verifyTestDataLoaded() -> Bool {
-    let expectedItemCount = 53
-    guard let actualCount = Int(statCardValue.label) else {
-        return false
-    }
-    return actualCount >= expectedItemCount
-}
-```
-
-#### Dynamic Content Handling
-```swift
-func handleDynamicContent() {
-    // Wait for dynamic content to load
-    let contentLoaded = app.staticTexts["content-loaded-indicator"]
-    XCTAssertTrue(contentLoaded.waitForExistence(timeout: 15))
-    
-    // Verify content is not placeholder
-    let itemName = app.staticTexts["item-name"]
-    XCTAssertFalse(itemName.label.contains("Loading..."))
-}
-```
-
-### Error Handling and Debugging
-
-#### Test Failure Debugging
-```swift
-func debugTestFailure() {
-    // Print current app state
-    print("Current view hierarchy:")
-    print(app.debugDescription)
-    
-    // Take screenshot for analysis
-    let screenshot = app.screenshot()
-    let attachment = XCTAttachment(screenshot: screenshot)
-    attachment.name = "failure_screenshot"
-    add(attachment)
-}
-```
-
-#### Robust Element Interaction
-```swift
-func tapElementSafely(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
-    guard element.waitForExistence(timeout: timeout) else {
-        XCTFail("Element does not exist: \(element)")
-        return false
-    }
-    
-    guard element.isHittable else {
-        XCTFail("Element is not hittable: \(element)")
-        return false
-    }
-    
-    element.tap()
-    return true
-}
-```
-
-### Performance and Reliability
-
-#### Test Reliability Guidelines
-- Always use `waitForExistence` before interacting with elements
-- Handle system alerts and permissions proactively
-- Use appropriate timeouts for different operations
-- Avoid hardcoded delays (`sleep`) - use proper waiting mechanisms
-- Test on multiple device sizes and orientations
-
-#### Performance Considerations
-- Use `continueAfterFailure = false` to stop on first failure
-- Disable animations for faster test execution
-- Use mock data for consistent, fast test scenarios
-- Minimize app launches and setup time
-
-### Test Coverage Strategy
-
-#### Critical User Flows
-1. **Onboarding Flow**: Complete user setup process
-2. **Item Creation**: Camera → AI Analysis → Save
-3. **Navigation**: Tab switching and deep navigation
-4. **Data Management**: Import/Export functionality
-5. **Subscription Flow**: Paywall and pro features
-
-#### Edge Cases to Test
-- Empty states (no items, no locations)
-- Network connectivity issues
-- Permission denied scenarios
-- Large datasets and performance
-- Subscription state changes
-
-### Integration with CI/CD
-
-#### Fastlane Integration
-```ruby
-# In Fastfile
-lane :ui_tests do
-  run_tests(
-    project: "MovingBox.xcodeproj",
-    scheme: "MovingBoxUITests",
-    destination: "platform=iOS Simulator,name=iPhone 16 Pro",
-    output_directory: "./test_output"
-  )
-end
-```
-
-#### Test Result Analysis
-- Capture screenshots on failures
-- Generate detailed test reports
-- Track test execution times
-- Monitor test flakiness and reliability
-
-Remember:
-- **Page Objects should be pure**: No assertions in page objects, only actions and queries
-- **Tests should be independent**: Each test should work in isolation
-- **Use descriptive test names**: Test names should clearly describe what is being tested
-- **Handle system interactions**: Mock or handle camera, notifications, and other system features
-- **Test real user workflows**: Focus on end-to-end user scenarios rather than isolated UI components

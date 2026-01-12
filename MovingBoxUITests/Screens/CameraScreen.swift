@@ -42,7 +42,7 @@ class CameraScreen {
         self.dismissButton = app.buttons["cameraCloseButton"]
         self.retakeButton = app.buttons["cameraRetakeButton"]
         self.photoCountLabel = app.staticTexts["cameraPhotoCount"]
-        self.modePicker = app.otherElements["cameraModePicker"]
+        self.modePicker = app.segmentedControls["cameraModePicker"].firstMatch
         
         // Done button
         self.doneButton = app.buttons["continueToAnalysis"]

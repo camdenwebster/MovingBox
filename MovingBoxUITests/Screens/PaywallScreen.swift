@@ -12,7 +12,7 @@ class PaywallScreen {
     }
     
     func waitForPaywall(timeout: TimeInterval = 5) -> Bool {
-        let viewExists = okButton.waitForExistence(timeout: timeout)
+        let viewExists = app.buttons["Restore Purchases"].firstMatch.exists
         return viewExists
     }
     

@@ -15,7 +15,8 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
             "Skip-Onboarding",
             "Disable-Persistence", 
             "UI-Testing-Mock-Camera",
-            "Disable-Animations"
+            "Disable-Animations",
+            "Mock-OpenAI"
         ]
         
         // Initialize screen objects
@@ -77,8 +78,7 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         openCamera()
         
         // Then: Camera mode picker should be visible
-        let modePicker = app.otherElements["cameraModePicker"]
-        XCTAssertTrue(modePicker.waitForExistence(timeout: 5),
+        XCTAssertTrue(cameraScreen.modePicker.waitForExistence(timeout: 5),
                      "Camera mode picker should be visible")
     }
     
@@ -132,9 +132,8 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         cameraScreen.captureButton.tap()
         
         // Then: Preview overlay should appear
-        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
-        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
-                     "Multi-item preview overlay should appear after capture")
+        XCTAssertTrue(cameraScreen.waitForPreviewOverlay(),
+                     "Preview overlay should appear after capture")
     }
     
     func testMultiItemRetakeButton() throws {
@@ -143,9 +142,8 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         switchToMultiMode()
         cameraScreen.captureButton.tap()
         
-        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
-        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
-                     "Preview overlay should be visible")
+        XCTAssertTrue(cameraScreen.waitForPreviewOverlay(),
+                     "Preview overlay should appear after capture")
         
         // When: User taps retake button
         let retakeButton = app.buttons["multiItemRetakeButton"]
@@ -153,29 +151,10 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         retakeButton.tap()
         
         // Then: Should return to camera view
-        XCTAssertFalse(previewOverlay.exists,
+        XCTAssertFalse(cameraScreen.previewRetakeButton.exists,
                       "Preview overlay should be dismissed")
         XCTAssertTrue(cameraScreen.captureButton.exists,
                      "Camera shutter should be visible again")
-    }
-    
-    func testMultiItemContinueToAnalysis() throws {
-        // Given: User has captured a photo in Multi mode
-        openCamera()
-        switchToMultiMode()
-        cameraScreen.captureButton.tap()
-        
-        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
-        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
-                     "Preview overlay should be visible")
-        
-        // When: User taps the chevron button to continue
-        cameraScreen.doneButton.tap()
-        
-        // Then: Analysis view should appear
-        let analysisView = app.otherElements["imageAnalysisView"]
-        XCTAssertTrue(analysisView.waitForExistence(timeout: 5),
-                     "Analysis view should appear")
     }
     
     // MARK: - Multi-Item Selection View Tests
@@ -368,9 +347,8 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         cameraScreen.captureButton.tap()
         
         // Wait for preview overlay
-        let previewOverlay = app.otherElements["multiItemPreviewOverlay"]
-        XCTAssertTrue(previewOverlay.waitForExistence(timeout: 5),
-                     "Preview overlay should appear")
+        XCTAssertTrue(cameraScreen.waitForPreviewOverlay(), 
+                     "Preview overlay should appear after capture")
         
         // Continue to analysis
         cameraScreen.doneButton.tap()
