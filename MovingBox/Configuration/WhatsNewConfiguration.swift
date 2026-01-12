@@ -5,7 +5,7 @@ extension WhatsNew {
     static var version2_1_0: WhatsNew {
         WhatsNew(
             version: "2.1.0",
-            title: "What's New",
+            title: "What's New in MovingBox",
             features: [
                 WhatsNew.Feature(
                     image: .init(
