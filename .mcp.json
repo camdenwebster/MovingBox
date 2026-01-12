@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+      "sosumi": {
+        "type": "http",
+        "url": "https://sosumi.ai/mcp"
+      },
+      "sentry": {
+        "type": "http",
+        "url": "https://mcp.sentry.dev/mcp"
+      },
+      "ios-simulator": {
+        "type": "stdio",
+        "command": "npx",
+        "args": [
+          "ios-simulator-mcp"
+        ],
+        "env": {}
+      }
+  }
+}

@@ -349,6 +349,7 @@
 				1942DC772BF391CB00734AF4 /* Frameworks */,
 				1942DC782BF391CB00734AF4 /* Resources */,
 				309ED56E16674F43B9263DCC /* Upload Debug Symbols to Sentry */,
+				19B418622F155C6F004DD4F8 /* Run swift-format lint */,
 			);
 			buildRules = (
 			);
@@ -555,6 +556,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		19B418622F155C6F004DD4F8 /* Run swift-format lint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Run swift-format lint";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "xcrun swift-format lint -r -p .\n  \n";
+			showEnvVarsInLog = 0;
+		};
 		309ED56E16674F43B9263DCC /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -671,7 +692,7 @@
 				DEVELOPMENT_TEAM = V7HLP74XY3;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
