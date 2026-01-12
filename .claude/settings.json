@@ -41,19 +41,20 @@
     ],
     "defaultMode": "acceptEdits"
   },
+  "enabledMcpjsonServers": [
+    "sosumi",
+    "sentry",
+    "ios-simulator"
+  ],
   "enabledPlugins": {
     "swift-lsp@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "hookify@claude-plugins-official": true,
-    "pr-review-toolkit@claude-plugins-official": true
+    "pr-review-toolkit@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true
   },
-  "enabledMcpjsonServers": [
-    "sosumi",
-    "sentry",
-    "ios-simulator"
-  ],
   "alwaysThinkingEnabled": true,
   "allowedTools": [
     "Edit",
