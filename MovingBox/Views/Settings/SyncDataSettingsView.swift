@@ -210,7 +210,7 @@ struct SyncDataSettingsView: View {
                 }
             }
 
-            if let lastSyncText = formattedLastSyncText(for: settings.lastSyncDate) {
+            if let lastSyncText = formattedLastSyncText(for: nil) {
                 HStack {
                     Label {
                         Text("Last Sync")

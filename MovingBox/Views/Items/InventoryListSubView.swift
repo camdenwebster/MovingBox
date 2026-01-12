@@ -20,12 +20,12 @@ struct InventoryListSubView: View {
     let showAllHomes: Bool
     let activeHome: Home?
     @Binding var selectedItemIDs: Set<PersistentIdentifier>
-    
+
     // Use @Query for lazy loading with dynamic predicate and sort
     @Query private var items: [InventoryItem]
-    
+
     @State private var showItemCreationFlow = false
-    
+
     var body: some View {
         listContent
             .fullScreenCover(isPresented: $showItemCreationFlow) {
@@ -38,7 +38,7 @@ struct InventoryListSubView: View {
                 .tint(.green)
             }
     }
-    
+
     @ViewBuilder
     private var listContent: some View {
         List(selection: $selectedItemIDs) {
@@ -49,7 +49,7 @@ struct InventoryListSubView: View {
             }
         }
     }
-    
+
     // Computed property for filtered items - performs filtering in-memory only on fetched items
     private var filteredItems: [InventoryItem] {
         var result = items
@@ -65,33 +65,33 @@ struct InventoryListSubView: View {
         if !searchString.isEmpty {
             let lowercasedTerm = searchString.lowercased()
             result = result.filter { item in
-                item.title.localizedStandardContains(lowercasedTerm) ||
-                item.desc.localizedStandardContains(lowercasedTerm) ||
-                item.notes.localizedStandardContains(lowercasedTerm) ||
-                item.make.localizedStandardContains(lowercasedTerm) ||
-                item.model.localizedStandardContains(lowercasedTerm) ||
-                item.serial.localizedStandardContains(lowercasedTerm)
+                item.title.localizedStandardContains(lowercasedTerm)
+                    || item.desc.localizedStandardContains(lowercasedTerm)
+                    || item.notes.localizedStandardContains(lowercasedTerm)
+                    || item.make.localizedStandardContains(lowercasedTerm)
+                    || item.model.localizedStandardContains(lowercasedTerm)
+                    || item.serial.localizedStandardContains(lowercasedTerm)
             }
         }
 
         return result
     }
-    
+
     @ViewBuilder
     private var emptyStateView: some View {
         ContentUnavailableView {
-                Label("No Items", systemImage: "list.bullet")
-            } description: {
-                Text("Start by adding items to your inventory")
-            } actions: {
-                Button("Add Item") {
-                    showItemCreationFlow = true
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("inventory-list-empty-state-add-item-button")
+            Label("No Items", systemImage: "list.bullet")
+        } description: {
+            Text("Start by adding items to your inventory")
+        } actions: {
+            Button("Add Item") {
+                showItemCreationFlow = true
             }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("inventory-list-empty-state-add-item-button")
+        }
     }
-    
+
     @ViewBuilder
     private var itemsSection: some View {
         ForEach(filteredItems) { inventoryItem in
@@ -99,7 +99,7 @@ struct InventoryListSubView: View {
                 .tag(inventoryItem.persistentModelID)
         }
     }
-    
+
     @ViewBuilder
     private func itemRowView(for inventoryItem: InventoryItem) -> some View {
         NavigationLink(value: inventoryItem) {
@@ -107,9 +107,12 @@ struct InventoryListSubView: View {
                 .listRowInsets(EdgeInsets())
         }
     }
-    
-    
-    init(location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "", sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, showAllHomes: Bool = false, activeHome: Home? = nil, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])) {
+
+    init(
+        location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "",
+        sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, showAllHomes: Bool = false,
+        activeHome: Home? = nil, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])
+    ) {
         self.location = location
         self.filterLabel = filterLabel
         self.searchString = searchString
@@ -150,7 +153,5 @@ struct InventoryListSubView: View {
         let finalSortOrder = sortOrder.isEmpty ? [SortDescriptor(\InventoryItem.title)] : sortOrder
         _items = Query(filter: predicate, sort: finalSortOrder)
     }
-    
-    
-    
+
 }

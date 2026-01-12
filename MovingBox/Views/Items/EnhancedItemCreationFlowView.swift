@@ -5,9 +5,9 @@
 //  Created by Claude Code on 9/19/25.
 //
 
-import SwiftUI
-import SwiftData
 import AVFoundation
+import SwiftData
+import SwiftUI
 
 struct EnhancedItemCreationFlowView: View {
     @Environment(\.modelContext) var modelContext
@@ -43,16 +43,18 @@ struct EnhancedItemCreationFlowView: View {
             InventoryItem.self,
             InventoryLocation.self,
             InventoryLabel.self,
-            Home.self
+            Home.self,
         ])
-        let tempContainer = try! ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
-        self._viewModel = StateObject(wrappedValue: ItemCreationFlowViewModel(
-            captureMode: captureMode,
-            location: location,
-            modelContext: ModelContext(tempContainer)
-        ))
+        let tempContainer = try! ModelContainer(
+            for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        self._viewModel = StateObject(
+            wrappedValue: ItemCreationFlowViewModel(
+                captureMode: captureMode,
+                location: location,
+                modelContext: ModelContext(tempContainer)
+            ))
     }
-    
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -97,26 +99,26 @@ struct EnhancedItemCreationFlowView: View {
             }
         }
     }
-    
+
     // MARK: - View Components
-    
+
     @ViewBuilder
     private var mainContentView: some View {
         switch viewModel.currentStep {
         case .camera:
             cameraView
-            
+
         case .analyzing:
             analysisView
-            
+
         case .multiItemSelection:
             multiItemSelectionView
-            
+
         case .details:
             detailsView
         }
     }
-    
+
     private var cameraView: some View {
         MultiPhotoCameraView(
             capturedImages: $viewModel.capturedImages,
@@ -130,14 +132,14 @@ struct EnhancedItemCreationFlowView: View {
                 Task {
                     // Update the viewModel's capture mode based on user selection
                     viewModel.updateCaptureMode(selectedMode)
-                    
+
                     // Track capture mode selection
                     TelemetryManager.shared.trackCaptureModeSelected(
                         mode: selectedMode == .singleItem ? "single_item" : "multi_item",
                         imageCount: images.count,
                         isProUser: settings.isPro
                     )
-                    
+
                     await viewModel.handleCapturedImages(images)
                     await MainActor.run {
                         viewModel.goToNextStep()
@@ -148,13 +150,15 @@ struct EnhancedItemCreationFlowView: View {
                 dismiss()
             }
         )
-        .transition(.asymmetric(
-            insertion: .identity,
-            removal: .move(edge: .leading)
-        ))
+        .transition(
+            .asymmetric(
+                insertion: .identity,
+                removal: .move(edge: .leading)
+            )
+        )
         .id("camera-\(viewModel.transitionId)")
     }
-    
+
     private var analysisView: some View {
         ZStack {
             ImageAnalysisView(images: viewModel.capturedImages) {
@@ -193,13 +197,15 @@ struct EnhancedItemCreationFlowView: View {
                 }
             }
         }
-        .transition(.asymmetric(
-            insertion: .move(edge: .trailing),
-            removal: .move(edge: .leading)
-        ))
+        .transition(
+            .asymmetric(
+                insertion: .move(edge: .trailing),
+                removal: .move(edge: .leading)
+            )
+        )
         .id("analysis-\(viewModel.transitionId)")
     }
-    
+
     @ViewBuilder
     private var multiItemSelectionView: some View {
         if let analysisResponse = viewModel.multiItemAnalysisResponse {
@@ -220,10 +226,12 @@ struct EnhancedItemCreationFlowView: View {
                     viewModel.goToStep(.analyzing)
                 }
             )
-            .transition(.asymmetric(
-                insertion: .move(edge: .trailing),
-                removal: .move(edge: .leading)
-            ))
+            .transition(
+                .asymmetric(
+                    insertion: .move(edge: .trailing),
+                    removal: .move(edge: .leading)
+                )
+            )
             .id("multiItemSelection-\(viewModel.transitionId)")
         } else {
             // Fallback if no analysis response
@@ -231,14 +239,14 @@ struct EnhancedItemCreationFlowView: View {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 64))
                     .foregroundColor(.orange)
-                
+
                 Text("No Items Found")
                     .font(.headline)
-                
+
                 Text("We couldn't detect any items in your photo. Please try taking another photo.")
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
-                
+
                 Button("Try Again") {
                     viewModel.goToStep(.camera)
                 }
@@ -247,7 +255,7 @@ struct EnhancedItemCreationFlowView: View {
             .padding()
         }
     }
-    
+
     @ViewBuilder
     private var detailsView: some View {
         if viewModel.createdItems.count > 1 {
@@ -264,10 +272,12 @@ struct EnhancedItemCreationFlowView: View {
                 }
             )
             .accessibilityIdentifier("multiItemSummaryView")
-            .transition(.asymmetric(
-                insertion: .move(edge: .trailing),
-                removal: .opacity
-            ))
+            .transition(
+                .asymmetric(
+                    insertion: .move(edge: .trailing),
+                    removal: .opacity
+                )
+            )
             .id("summary-\(viewModel.transitionId)")
         } else if let item = viewModel.createdItems.first {
             // Single item details
@@ -283,10 +293,12 @@ struct EnhancedItemCreationFlowView: View {
                     dismiss()
                 }
             )
-            .transition(.asymmetric(
-                insertion: .move(edge: .trailing),
-                removal: .opacity
-            ))
+            .transition(
+                .asymmetric(
+                    insertion: .move(edge: .trailing),
+                    removal: .opacity
+                )
+            )
             .id("details-\(viewModel.transitionId)")
         } else {
             // Fallback
@@ -299,12 +311,15 @@ struct EnhancedItemCreationFlowView: View {
                 }
         }
     }
-    
+
     private var progressIndicator: some View {
         HStack(spacing: 4) {
             ForEach(Array(viewModel.navigationFlow.enumerated()), id: \.element) { index, step in
                 Circle()
-                    .fill(index <= viewModel.navigationFlow.firstIndex(of: viewModel.currentStep) ?? 0 ? Color.blue : Color.secondary.opacity(0.3))
+                    .fill(
+                        index <= viewModel.navigationFlow.firstIndex(of: viewModel.currentStep) ?? 0
+                            ? Color.blue : Color.secondary.opacity(0.3)
+                    )
                     .frame(width: 8, height: 8)
             }
         }
@@ -326,7 +341,10 @@ struct EnhancedItemCreationFlowView: View {
                 HStack(spacing: 6) {
                     ForEach(Array(viewModel.navigationFlow.enumerated()), id: \.element) { index, step in
                         Circle()
-                            .fill(index <= viewModel.navigationFlow.firstIndex(of: viewModel.currentStep) ?? 0 ? Color.blue : Color.secondary.opacity(0.3))
+                            .fill(
+                                index <= viewModel.navigationFlow.firstIndex(of: viewModel.currentStep) ?? 0
+                                    ? Color.blue : Color.secondary.opacity(0.3)
+                            )
                             .frame(width: 8, height: 8)
                     }
                 }
@@ -343,7 +361,7 @@ struct EnhancedItemCreationFlowView: View {
         }
         .background(Color(.systemBackground))
     }
-        
+
     // MARK: - Actions
 
     private func checkAndTransitionIfReady() {
@@ -372,7 +390,7 @@ struct EnhancedItemCreationFlowView: View {
             viewModel.goToNextStep()
         }
     }
-    
+
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
@@ -408,7 +426,7 @@ struct MultiItemSummaryView: View {
                         .font(.body)
                         .foregroundColor(.secondary)
                 }
-                
+
                 // Items list
                 ScrollView {
                     LazyVStack(spacing: 12) {
@@ -475,7 +493,7 @@ private struct SummaryConfettiView: View {
             let piece = SummaryConfettiPiece(
                 id: UUID(),
                 x: CGFloat.random(in: 0...width),
-                y: CGFloat.random(in: -100...height/3),
+                y: CGFloat.random(in: -100...height / 3),
                 color: colors.randomElement() ?? .blue
             )
             confettiPieces.append(piece)
@@ -506,7 +524,7 @@ private struct SummaryConfettiPiece: Identifiable {
 struct ItemSummaryCard: View {
     let item: InventoryItem
     let onTap: () -> Void
-    
+
     var body: some View {
         HStack {
             // Image thumbnail
@@ -524,19 +542,19 @@ struct ItemSummaryCard: View {
             }
             .frame(width: 60, height: 60)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title.isEmpty ? "Untitled Item" : item.title)
                     .font(.headline)
                     .lineLimit(1)
-                
+
                 if !item.make.isEmpty || !item.model.isEmpty {
                     Text("\(item.make) \(item.model)".trimmingCharacters(in: .whitespaces))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
-                
+
                 if item.price > 0 {
                     Text(CurrencyFormatter.format(item.price))
                         .font(.subheadline)
@@ -544,9 +562,9 @@ struct ItemSummaryCard: View {
                         .foregroundColor(.primary)
                 }
             }
-            
+
             Spacer()
-            
+
             Image(systemName: "chevron.right")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -571,7 +589,7 @@ struct ItemSummaryCard: View {
         InventoryItem.self,
         InventoryLocation.self,
         InventoryLabel.self,
-        Home.self
+        Home.self,
     ])
     let container = try! ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
 

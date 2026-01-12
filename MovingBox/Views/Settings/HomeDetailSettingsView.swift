@@ -5,8 +5,8 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct HomeDetailSettingsView: View {
     @Environment(\.modelContext) var modelContext
@@ -51,7 +51,7 @@ struct HomeDetailSettingsView: View {
         ("cyan", .cyan),
         ("indigo", .indigo),
         ("mint", .mint),
-        ("brown", .brown)
+        ("brown", .brown),
     ]
 
     init(home: Home?) {
@@ -76,10 +76,12 @@ struct HomeDetailSettingsView: View {
         Form {
             Section {
                 if isEditing {
-                    TextField("Home Name (Optional)", text: Binding(
-                        get: { tempHome.name },
-                        set: { tempHome.name = $0 }
-                    ))
+                    TextField(
+                        "Home Name (Optional)",
+                        text: Binding(
+                            get: { tempHome.name },
+                            set: { tempHome.name = $0 }
+                        ))
                 } else {
                     HStack {
                         Text("Name")
@@ -90,28 +92,30 @@ struct HomeDetailSettingsView: View {
                 }
 
                 if isEditing && !isNewHome {
-                    Toggle("Set as Primary", isOn: Binding(
-                        get: { tempHome.isPrimary },
-                        set: { newValue in
-                            if newValue {
-                                // Make this home primary and unmark all others
-                                for otherHome in allHomes {
-                                    otherHome.isPrimary = (otherHome.id == tempHome.id)
-                                }
-                                tempHome.isPrimary = true
-                                // Update active home ID
-                                settings.activeHomeId = tempHome.id.uuidString
-                            } else {
-                                // Can't unset if it's the only home or currently primary
-                                // Find another home to make primary
-                                if let firstOtherHome = allHomes.first(where: { $0.id != tempHome.id }) {
-                                    firstOtherHome.isPrimary = true
-                                    tempHome.isPrimary = false
-                                    settings.activeHomeId = firstOtherHome.id.uuidString
+                    Toggle(
+                        "Set as Primary",
+                        isOn: Binding(
+                            get: { tempHome.isPrimary },
+                            set: { newValue in
+                                if newValue {
+                                    // Make this home primary and unmark all others
+                                    for otherHome in allHomes {
+                                        otherHome.isPrimary = (otherHome.id == tempHome.id)
+                                    }
+                                    tempHome.isPrimary = true
+                                    // Update active home ID
+                                    settings.activeHomeId = tempHome.id.uuidString
+                                } else {
+                                    // Can't unset if it's the only home or currently primary
+                                    // Find another home to make primary
+                                    if let firstOtherHome = allHomes.first(where: { $0.id != tempHome.id }) {
+                                        firstOtherHome.isPrimary = true
+                                        tempHome.isPrimary = false
+                                        settings.activeHomeId = firstOtherHome.id.uuidString
+                                    }
                                 }
                             }
-                        }
-                    ))
+                        ))
                 } else if !isEditing {
                     HStack {
                         Text("Primary Home")
@@ -135,7 +139,9 @@ struct HomeDetailSettingsView: View {
                                         .frame(width: 32, height: 32)
                                         .overlay(
                                             Circle()
-                                                .strokeBorder(tempHome.colorName == colorOption.name ? Color.primary : Color.clear, lineWidth: 2)
+                                                .strokeBorder(
+                                                    tempHome.colorName == colorOption.name
+                                                        ? Color.primary : Color.clear, lineWidth: 2)
                                         )
                                         .onTapGesture {
                                             tempHome.colorName = colorOption.name
@@ -164,10 +170,13 @@ struct HomeDetailSettingsView: View {
 
             Section("Address") {
                 if isEditing {
-                    TextField("Street Address", text: Binding(
-                        get: { tempHome.address1 },
-                        set: { tempHome.address1 = $0 }
-                    ))
+                    TextField(
+                        "Street Address",
+                        text: Binding(
+                            get: { tempHome.address1 },
+                            set: { tempHome.address1 = $0 }
+                        )
+                    )
                     .textContentType(.streetAddressLine1)
                     .focused($focusedField, equals: .street)
                     .submitLabel(.next)
@@ -183,10 +192,13 @@ struct HomeDetailSettingsView: View {
                         }
                     }
 
-                    TextField("Apt, Suite, Unit", text: Binding(
-                        get: { tempHome.address2 },
-                        set: { tempHome.address2 = $0 }
-                    ))
+                    TextField(
+                        "Apt, Suite, Unit",
+                        text: Binding(
+                            get: { tempHome.address2 },
+                            set: { tempHome.address2 = $0 }
+                        )
+                    )
                     .textContentType(.streetAddressLine2)
                     .focused($focusedField, equals: .unit)
                     .submitLabel(.next)
@@ -202,10 +214,13 @@ struct HomeDetailSettingsView: View {
                         }
                     }
 
-                    TextField("City", text: Binding(
-                        get: { tempHome.city },
-                        set: { tempHome.city = $0 }
-                    ))
+                    TextField(
+                        "City",
+                        text: Binding(
+                            get: { tempHome.city },
+                            set: { tempHome.city = $0 }
+                        )
+                    )
                     .textContentType(.addressCity)
                     .focused($focusedField, equals: .city)
                     .submitLabel(.next)
@@ -220,10 +235,13 @@ struct HomeDetailSettingsView: View {
                         }
                     }
 
-                    TextField("State/Province", text: Binding(
-                        get: { tempHome.state },
-                        set: { tempHome.state = $0 }
-                    ))
+                    TextField(
+                        "State/Province",
+                        text: Binding(
+                            get: { tempHome.state },
+                            set: { tempHome.state = $0 }
+                        )
+                    )
                     .textContentType(.addressState)
                     .focused($focusedField, equals: .state)
                     .submitLabel(.next)
@@ -238,10 +256,13 @@ struct HomeDetailSettingsView: View {
                         }
                     }
 
-                    TextField("ZIP/Postal Code", text: Binding(
-                        get: { tempHome.zip },
-                        set: { tempHome.zip = $0 }
-                    ))
+                    TextField(
+                        "ZIP/Postal Code",
+                        text: Binding(
+                            get: { tempHome.zip },
+                            set: { tempHome.zip = $0 }
+                        )
+                    )
                     .textContentType(.postalCode)
                     .keyboardType(.numberPad)
                     .focused($focusedField, equals: .zip)
@@ -258,10 +279,13 @@ struct HomeDetailSettingsView: View {
                         }
                     }
 
-                    Picker("Country", selection: Binding(
-                        get: { tempHome.country },
-                        set: { tempHome.country = $0 }
-                    )) {
+                    Picker(
+                        "Country",
+                        selection: Binding(
+                            get: { tempHome.country },
+                            set: { tempHome.country = $0 }
+                        )
+                    ) {
                         // Current user's country at the top
                         if let userCountry = Locale.current.region?.identifier {
                             Text(countryName(for: userCountry))
@@ -271,7 +295,11 @@ struct HomeDetailSettingsView: View {
                         }
 
                         // All other countries, sorted alphabetically
-                        ForEach(Locale.Region.isoRegions.filter { $0.identifier != Locale.current.region?.identifier }.sorted(by: { countryName(for: $0.identifier) < countryName(for: $1.identifier) }), id: \.identifier) { region in
+                        ForEach(
+                            Locale.Region.isoRegions.filter { $0.identifier != Locale.current.region?.identifier }
+                                .sorted(by: { countryName(for: $0.identifier) < countryName(for: $1.identifier) }),
+                            id: \.identifier
+                        ) { region in
                             Text(countryName(for: region.identifier))
                                 .tag(region.identifier)
                         }
@@ -316,13 +344,18 @@ struct HomeDetailSettingsView: View {
 
             if !isNewHome && allHomes.count > 1 {
                 Section {
-                    Button(role: .destructive, action: {
-                        showingDeleteConfirmation = true
-                    }) {
+                    Button(
+                        role: .destructive,
+                        action: {
+                            showingDeleteConfirmation = true
+                        }
+                    ) {
                         Label("Delete Home", systemImage: "trash")
                     }
                 } footer: {
-                    Text("Deleting this home will also delete all associated locations and labels. Items will remain but will be unassigned.")
+                    Text(
+                        "Deleting this home will also delete all associated locations and labels. Items will remain but will be unassigned."
+                    )
                 }
             }
         }
@@ -373,27 +406,35 @@ struct HomeDetailSettingsView: View {
             }
         }
         .alert("Delete Home", isPresented: $showingDeleteConfirmation) {
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 deleteHome()
             }
         } message: {
-            Text("Are you sure you want to delete \(displayHome.displayName)? This will also delete all locations and labels associated with this home. Items will remain but will be unassigned.")
+            Text(
+                "Are you sure you want to delete \(displayHome.displayName)? This will also delete all locations and labels associated with this home. Items will remain but will be unassigned."
+            )
         }
-        .alert("Cannot Delete", isPresented: Binding(
-            get: { deleteError != nil },
-            set: { if !$0 { deleteError = nil } }
-        )) {
+        .alert(
+            "Cannot Delete",
+            isPresented: Binding(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )
+        ) {
             Button("OK") { deleteError = nil }
         } message: {
             if let error = deleteError {
                 Text(error)
             }
         }
-        .alert("Error", isPresented: Binding(
-            get: { saveError != nil },
-            set: { if !$0 { saveError = nil } }
-        )) {
+        .alert(
+            "Error",
+            isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )
+        ) {
             Button("OK") { saveError = nil }
         } message: {
             if let error = saveError {
@@ -530,12 +571,14 @@ struct HomeDetailSettingsView: View {
 #Preview {
     do {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Home.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
+        let container = try ModelContainer(
+            for: Home.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
 
         let home1 = Home(name: "Main House", address1: "123 Main St", city: "San Francisco", state: "CA", zip: "94102")
         home1.isPrimary = true
 
-        let home2 = Home(name: "Beach House", address1: "456 Ocean Ave", city: "Santa Monica", state: "CA", zip: "90401")
+        let home2 = Home(
+            name: "Beach House", address1: "456 Ocean Ave", city: "Santa Monica", state: "CA", zip: "90401")
 
         container.mainContext.insert(home1)
         container.mainContext.insert(home2)

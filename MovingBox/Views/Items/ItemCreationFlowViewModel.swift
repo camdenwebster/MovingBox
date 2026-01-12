@@ -281,13 +281,16 @@ class ItemCreationFlowViewModel: ObservableObject {
                     if newItem.location == nil || newItem.location?.home == nil {
                         // Get active home from SettingsManager
                         if let activeHomeIdString = settingsManager?.activeHomeId,
-                           let activeHomeId = UUID(uuidString: activeHomeIdString) {
-                            let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
+                            let activeHomeId = UUID(uuidString: activeHomeIdString)
+                        {
+                            let homeDescriptor = FetchDescriptor<Home>(
+                                predicate: #Predicate<Home> { $0.id == activeHomeId })
                             if let activeHome = try? context.fetch(homeDescriptor).first {
                                 newItem.home = activeHome
                             } else {
                                 // Fallback to primary home
-                                let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+                                let primaryHomeDescriptor = FetchDescriptor<Home>(
+                                    predicate: #Predicate { $0.isPrimary })
                                 if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
                                     newItem.home = primaryHome
                                 }
@@ -300,7 +303,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                             }
                         }
                     }
-                    
+
                     context.insert(newItem)
                     try? context.save()
                 }
@@ -548,7 +551,8 @@ class ItemCreationFlowViewModel: ObservableObject {
             if item.location == nil || item.location?.home == nil {
                 // Get active home from SettingsManager
                 if let activeHomeIdString = settingsManager?.activeHomeId,
-                   let activeHomeId = UUID(uuidString: activeHomeIdString) {
+                    let activeHomeId = UUID(uuidString: activeHomeIdString)
+                {
                     let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
                     if let activeHome = try? context.fetch(homeDescriptor).first {
                         item.home = activeHome
@@ -567,7 +571,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                     }
                 }
             }
-            
+
             context.insert(item)
             // Track telemetry for each item
             TelemetryManager.shared.trackInventoryItemAdded(name: item.title)

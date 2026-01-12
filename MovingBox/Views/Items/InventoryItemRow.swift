@@ -45,7 +45,7 @@ struct InventoryItemRow: View {
                         guard !hasRetried else { return }
                         hasRetried = true
                         Task {
-                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                            try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
                             imageLoadTrigger += 1
                         }
                     }
@@ -60,7 +60,7 @@ struct InventoryItemRow: View {
                 }
             }
             .id(imageLoadTrigger)
-            
+
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
                     .lineLimit(1)
@@ -70,15 +70,15 @@ struct InventoryItemRow: View {
                     Label(home.displayName, systemImage: "house.circle")
                         .detailLabelStyle()
                 }
-                
+
                 if !item.make.isEmpty {
                     Label("\(item.make) \(item.model)", systemImage: "info.circle")
                         .detailLabelStyle()
                 }
             }
-            
+
             Spacer()
-            
+
             if let label = item.label {
                 Text(label.emoji)
                     .padding(7)
@@ -91,8 +91,6 @@ struct InventoryItemRow: View {
     }
 }
 
-
-
 #Preview {
     do {
         let previewer = try Previewer()
@@ -102,4 +100,3 @@ struct InventoryItemRow: View {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
 }
-

@@ -303,12 +303,13 @@ final class MultiItemSelectionViewModel {
                     secondaryImages, itemId: itemId)
                 inventoryItem.secondaryPhotoURLs = secondaryURLs
             }
-            
+
             // Assign active home if item has no location or location has no home
             if inventoryItem.location == nil || inventoryItem.location?.home == nil {
                 // Get active home from SettingsManager
                 if let activeHomeIdString = settingsManager?.activeHomeId,
-                   let activeHomeId = UUID(uuidString: activeHomeIdString) {
+                    let activeHomeId = UUID(uuidString: activeHomeIdString)
+                {
                     let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
                     if let activeHome = try? modelContext.fetch(homeDescriptor).first {
                         inventoryItem.home = activeHome

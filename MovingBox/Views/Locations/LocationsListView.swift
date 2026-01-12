@@ -6,8 +6,8 @@
 //
 
 import RevenueCatUI
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct LocationsListView: View {
     let showAllHomes: Bool
@@ -33,7 +33,8 @@ struct LocationsListView: View {
 
     private var activeHome: Home? {
         guard let activeIdString = settings.activeHomeId,
-              let activeId = UUID(uuidString: activeIdString) else {
+            let activeId = UUID(uuidString: activeIdString)
+        else {
             return homes.first { $0.isPrimary }
         }
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
@@ -48,9 +49,10 @@ struct LocationsListView: View {
     }
 
     // Query for items without location
-    @Query(filter: #Predicate<InventoryItem> { item in
-        item.location == nil
-    }) private var unassignedItems: [InventoryItem]
+    @Query(
+        filter: #Predicate<InventoryItem> { item in
+            item.location == nil
+        }) private var unassignedItems: [InventoryItem]
 
     // Computed property for unassigned items count and total value
     private var unassignedItemsCount: Int {
@@ -70,7 +72,7 @@ struct LocationsListView: View {
             location.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     private var columns: [GridItem] {
         let minimumCardWidth: CGFloat = 160
         let maximumCardWidth: CGFloat = 220
@@ -120,9 +122,11 @@ struct LocationsListView: View {
             .padding(.vertical, 8)
         }
         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
-        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
-            .fill(Color(.secondarySystemGroupedBackground))
-            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+        .background(
+            RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
+                .fill(Color(.secondarySystemGroupedBackground))
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
         .padding(1)
     }
 
@@ -199,11 +203,11 @@ struct LocationsListView: View {
             print("LocationsListView: Total number of locations: \(locations.count)")
         }
     }
-    
+
     private func addLocation() {
         router.navigate(to: .editLocationView(location: nil))
     }
-    
+
     private func deleteLocations(at offsets: IndexSet) {
         Task {
             for index in offsets {

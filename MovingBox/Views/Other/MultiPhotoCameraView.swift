@@ -219,7 +219,7 @@ struct MultiPhotoCameraView: View {
                             model.capturedImages.removeAll()
                         },
                         onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) },
-                        isSyncingData: containerManager.isCloudKitImportActive
+                        isSyncingData: containerManager.isCloudKitSyncing
                     )
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -373,7 +373,7 @@ struct MultiPhotoCameraView: View {
                 },
                 isMultiItemPreviewShowing: isMultiItemPreview,
                 hasPhotoCaptured: !model.capturedImages.isEmpty,
-                isSyncingData: containerManager.isCloudKitImportActive
+                isSyncingData: containerManager.isCloudKitSyncing
             )
 
             if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {

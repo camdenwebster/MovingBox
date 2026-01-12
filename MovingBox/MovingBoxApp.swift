@@ -211,7 +211,6 @@ struct MovingBoxApp: App {
                 .toolbar(removing: .title)
             #endif
             .task {
-                containerManager.setSettingsManager(settings)
                 // Initialize container (waits for initial CloudKit sync to complete)
                 await containerManager.initialize()
 

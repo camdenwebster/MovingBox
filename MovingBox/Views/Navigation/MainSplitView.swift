@@ -5,8 +5,8 @@
 //  Created by Claude Code
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct MainSplitView: View {
     @Environment(\.modelContext) private var modelContext
@@ -15,14 +15,15 @@ struct MainSplitView: View {
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Binding var navigationPath: NavigationPath
     @State private var currentTintColor: Color = .green
-    
+
     private var primaryHome: Home? {
         homes.first { $0.isPrimary }
     }
-    
+
     private var activeHome: Home? {
         guard let activeIdString = settingsManager.activeHomeId,
-              let activeId = UUID(uuidString: activeIdString) else {
+            let activeId = UUID(uuidString: activeIdString)
+        else {
             return primaryHome
         }
         return homes.first { $0.id == activeId } ?? primaryHome
@@ -55,7 +56,7 @@ struct MainSplitView: View {
             updateTintColor()
         }
     }
-    
+
     private func updateTintColor() {
         let newColor = activeHome?.color ?? .green
         print("🎨 MainSplitView - Updating tint color to: \(activeHome?.colorName ?? "green")")
@@ -93,7 +94,9 @@ struct MainSplitView: View {
     }
 
     @ViewBuilder
-    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
+    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>)
+        -> some View
+    {
         switch destination {
         case .dashboardView:
             DashboardView()
@@ -110,7 +113,9 @@ struct MainSplitView: View {
         case .editLabelView(let label, let isEditing):
             EditLabelView(label: label, isEditing: isEditing)
         case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-            InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
+            InventoryDetailView(
+                inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton,
+                isEditing: isEditing)
         case .locationsSettingsView:
             LocationSettingsView()
         case .subscriptionSettingsView:
