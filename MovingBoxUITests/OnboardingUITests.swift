@@ -26,21 +26,21 @@ final class OnboardingUITests: XCTestCase {
     func testOnboardingHappyPath() throws {
         // Welcome View
         handleOnboardingWelcomeStep(app: app)
-        
+
         // Item View
-        handleOnboardingItemsStep(app: app, camera: cameraScreen)
-        
+        handleOnboardingItemsStep(app: app, camera: cameraScreen, detail: detailScreen)
+
         // Notification View
         handleOnboardingNotificationsStep(app: app)
-        
+
         // Survey View
         handleOnboardingSurveyStep(app: app)
-        
+
         // Completion View
         handleOnboardingCompletionStep(app: app)
-        
+
         // Paywall
-        handleOnboardingPaywallStep(app: app)
+        handleOnboardingPaywallStep(app: app, paywall: paywallScreen)
         
         // Verify we're on the dashboard
         XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
@@ -54,15 +54,9 @@ final class OnboardingUITests: XCTestCase {
     }
     
     func testOnboardingSurveyRequiresSelection() throws {
-        
         // Navigate to survey screen
         handleOnboardingWelcomeStep(app: app)
-        
-        XCTAssertTrue(app.buttons["onboarding-item-take-photo-button"].waitForExistence(timeout: 5), "'Take photo' button in the onboarding view did not appear")
-        app.navigationBars.buttons["Skip"].tap()
-        
-        XCTAssertTrue(app.buttons["notificationsButton"].waitForExistence(timeout: 10), "'Enable notifications' button in the onboarding did not appear")
-        app.navigationBars.buttons["Skip"].tap()
+        handleOnboardingItemsStep(app: app, camera: cameraScreen, detail: detailScreen, skip: true)
         
         // Survey View - continue button should be disabled without selection
         let surveyContinueButton = app.buttons["onboarding-survey-continue-button"]
@@ -87,20 +81,16 @@ final class OnboardingUITests: XCTestCase {
     func testOnboardingSurveySkip() throws {
         
         // Navigate to survey screen
-        app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10)
-        app.buttons["onboarding-welcome-continue-button"].tap()
-        
-        app.buttons["onboarding-item-take-photo-button"].waitForExistence(timeout: 5)
-        app.navigationBars.buttons["Skip"].tap()
-        
-        app.buttons["notificationsButton"].waitForExistence(timeout: 10)
-        app.navigationBars.buttons["Skip"].tap()
+        handleOnboardingWelcomeStep(app: app)
+        handleOnboardingItemsStep(app: app, camera: cameraScreen, detail: detailScreen, skip: true)
         
         // Survey View - skip should work
         let surveyProtectOption = app.buttons["onboarding-survey-option-protect"]
         XCTAssertTrue(surveyProtectOption.waitForExistence(timeout: 5))
-        
         app.navigationBars.buttons["Skip"].tap()
+        
+        // Notifications
+        handleOnboardingNotificationsStep(app: app, skip: true)
         
         // Should reach completion view
         let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
@@ -110,14 +100,9 @@ final class OnboardingUITests: XCTestCase {
     func testOnboardingSurveyMultipleSelections() throws {
         
         // Navigate to survey screen
-        app.buttons["onboarding-welcome-continue-button"].waitForExistence(timeout: 10)
-        app.buttons["onboarding-welcome-continue-button"].tap()
+        handleOnboardingWelcomeStep(app: app)
         
-        app.buttons["onboarding-item-take-photo-button"].waitForExistence(timeout: 5)
-        app.navigationBars.buttons["Skip"].tap()
-        
-        app.buttons["notificationsButton"].waitForExistence(timeout: 10)
-        app.navigationBars.buttons["Skip"].tap()
+        handleOnboardingItemsStep(app: app, camera: cameraScreen, detail: detailScreen, skip: true)
         
         // Survey View - select multiple options
         let surveyProtectOption = app.buttons["onboarding-survey-option-protect"]
@@ -142,19 +127,12 @@ final class OnboardingUITests: XCTestCase {
         
         surveyContinueButton.tap()
         
+        // Notifications
+        handleOnboardingNotificationsStep(app: app, skip: true)
+        
         // Should reach completion view
         let completionContinueButton = app.buttons["onboarding-completion-continue-button"]
         XCTAssertTrue(completionContinueButton.waitForExistence(timeout: 5))
-    }
-}
-
-extension XCUIApplication {
-    func setLaunchArgument(skipOnboarding: Bool) {
-        if skipOnboarding {
-            launchArguments.append("Skip-Onboarding")
-        } else {
-            launchArguments.append("Show-Onboarding")
-        }
     }
 }
 
@@ -179,46 +157,61 @@ extension XCTestCase {
         app.buttons["onboarding-welcome-continue-button"].tap()
     }
     
-    func handleOnboardingItemsStep(app: XCUIApplication, camera: CameraScreen) {
+    func handleOnboardingItemsStep(app: XCUIApplication, camera: CameraScreen, detail: InventoryDetailScreen, skip: Bool = false) {
         let itemTakePhotoButton = app.buttons["onboarding-item-take-photo-button"]
         XCTAssertTrue(itemTakePhotoButton.waitForExistence(timeout: 10))
-        itemTakePhotoButton.tap()
 
-        // Handle privacy notice alert
-        let alertContinueButton = app.alerts.buttons["Continue"]
-        XCTAssertTrue(alertContinueButton.waitForExistence(timeout: 5))
-        alertContinueButton.tap()
+        if skip {
+            app.navigationBars.buttons["Skip"].tap()
+        } else {
+            itemTakePhotoButton.tap()
 
-        // Camera should be ready
-        XCTAssertTrue(camera.waitForCamera(),
-                     "Camera should be ready after permissions")
+            // Handle privacy notice alert
+            let alertContinueButton = app.alerts.buttons["Continue"]
+            XCTAssertTrue(alertContinueButton.waitForExistence(timeout: 5))
+            alertContinueButton.tap()
 
-        // User takes a photo
-        camera.takePhoto()
+            // Camera should be ready
+            XCTAssertTrue(camera.waitForCamera(),
+                         "Camera should be ready after permissions")
 
-        // Wait for AI processing and save item
-        XCTAssertTrue(self.detailScreen.saveButton.waitForExistence(timeout: 30))
-        self.detailScreen.saveButton.tap()
-    }
+            // User takes a photo
+            camera.takePhoto()
+
+            // Wait for AI processing and save item
+            XCTAssertTrue(detail.saveButton.waitForExistence(timeout: 30))
+            detail.saveButton.tap()
+        }
+        }
     
-    func handleOnboardingNotificationsStep(app: XCUIApplication) {
+    func handleOnboardingNotificationsStep(app: XCUIApplication, skip: Bool = false) {
         let enableNotificationsButton = app.buttons["notificationsButton"]
         XCTAssertTrue(enableNotificationsButton.waitForExistence(timeout: 10))
-        enableNotificationsButton.tap()
+        
+        if skip {
+            app.navigationBars.buttons["Skip"].tap()
+        } else {
+            enableNotificationsButton.tap()
+        }
     }
     
-    func handleOnboardingSurveyStep(app: XCUIApplication) {
+    func handleOnboardingSurveyStep(app: XCUIApplication, skip: Bool = false) {
         let surveyProtectOption = app.buttons["onboarding-survey-option-protect"]
         XCTAssertTrue(surveyProtectOption.waitForExistence(timeout: 5))
-        surveyProtectOption.tap()
         
-        let surveyOrganizeOption = app.buttons["onboarding-survey-option-organize"]
-        XCTAssertTrue(surveyOrganizeOption.exists)
-        surveyOrganizeOption.tap()
-        
-        let surveyContinueButton = app.buttons["onboarding-survey-continue-button"]
-        XCTAssertTrue(surveyContinueButton.exists)
-        surveyContinueButton.tap()
+        if skip {
+            app.navigationBars.buttons["Skip"].tap()
+        } else {
+            surveyProtectOption.tap()
+            
+            let surveyOrganizeOption = app.buttons["onboarding-survey-option-organize"]
+            XCTAssertTrue(surveyOrganizeOption.exists)
+            surveyOrganizeOption.tap()
+            
+            let surveyContinueButton = app.buttons["onboarding-survey-continue-button"]
+            XCTAssertTrue(surveyContinueButton.exists)
+            surveyContinueButton.tap()
+        }
     }
     
     func handleOnboardingCompletionStep(app: XCUIApplication) {
@@ -227,8 +220,8 @@ extension XCTestCase {
         completionContinueButton.tap()
     }
     
-    func handleOnboardingPaywallStep(app: XCUIApplication) {
-        XCTAssertTrue(self.paywallScreen.okButton.waitForExistence(timeout: 5))
-        self.paywallScreen.okButton.tap()
+    func handleOnboardingPaywallStep(app: XCUIApplication, paywall: PaywallScreen) {
+        XCTAssertTrue(paywall.okButton.waitForExistence(timeout: 5))
+        paywall.okButton.tap()
     }
 }
