@@ -5,11 +5,11 @@
 //  Created by Camden Webster on 6/4/24.
 //
 
-import Sentry
-import StoreKit
-import SwiftData
-import SwiftUI
 import SwiftUIBackports
+import SwiftUI
+import SwiftData
+import StoreKit
+import Sentry
 
 enum SettingsSection: Hashable {
     case categories
@@ -29,18 +29,19 @@ struct SettingsView: View {
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @EnvironmentObject var router: Router
     @Environment(\.modelContext) private var modelContext
-    @State private var selectedSection: SettingsSection? = .categories  // Default selection
+    @State private var selectedSection: SettingsSection? = .categories // Default selection
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
     @State private var analyzedItemsCount: Int = 0
     @Query private var allItems: [InventoryItem]
-
+    
+    
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
             title: "Knowledge Base",
             icon: "questionmark.circle",
             url: URL(string: "https://movingbox.ai/docs")!
-        ),
+            ),
         "support": ExternalLink(
             title: "Support",
             icon: "envelope",
@@ -50,12 +51,11 @@ struct SettingsView: View {
             title: "Rate MovingBox",
             icon: "star",
             url: URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review")!
-        ),
+        )
     ]
 
     private var appVersion: String {
-        let version =
-            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
         return "\(version) (\(build))"
     }
@@ -73,20 +73,20 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                                 .font(.subheadline)
                         }
-
+                        
                         ProgressView(value: Double(analyzedItemsCount), total: 50)
                             .tint(progressTintColor)
                             .background(Color(.systemGray5))
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                             .padding(.bottom, 5)
-
+                        
                         Text("\(50 - analyzedItemsCount) free image analyses remaining")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 10)
                 }
-
+                
                 Section {
                     Button(action: {
                         showingPaywall = true
@@ -102,39 +102,18 @@ struct SettingsView: View {
                     .listRowInsets(EdgeInsets())
                 }
             }
-
+            
             Section("Home Settings") {
-                Group {
-                    NavigationLink(value: "home") {
-                        Label {
-                            Text("Home Details")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "house")
-
-                        }
-                    }
-                    NavigationLink(value: "locations") {
-                        Label {
-                            Text("Location Settings")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "location")
-
-                        }
-                    }
-                    NavigationLink(value: "labels") {
-                        Label {
-                            Text("Label Settings")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "tag")
-
-                        }
+                NavigationLink(value: Router.Destination.homeListView) {
+                    Label {
+                        Text("Manage Homes")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "house")
                     }
                 }
             }
-
+            
             if revenueCatManager.isProSubscriptionActive {
                 Section("Subscription Status") {
                     NavigationLink(value: Router.Destination.subscriptionSettingsView) {
@@ -143,12 +122,12 @@ struct SettingsView: View {
                                 .foregroundStyle(.primary)
                         } icon: {
                             Image(systemName: "creditcard")
-
+                                
                         }
                     }
                 }
             }
-
+            
             Section("Data Management") {
                 NavigationLink(value: Router.Destination.syncDataSettingsView) {
                     Label {
@@ -156,22 +135,22 @@ struct SettingsView: View {
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "arrow.trianglehead.clockwise.icloud")
-
+                            
                     }
                 }
                 .accessibilityIdentifier("syncDataLink")
             }
-
+            
             Section {
                 HStack {
                     Label {
                         Text("High Detail")
                             .foregroundStyle(settingsManager.isPro ? .primary : .secondary)
                     } icon: {
-                        Image(systemName: "brain")
-                            .foregroundStyle(settingsManager.isPro ? .green : .secondary)
+                        Image(systemName: "eye")
+//                            .foregroundStyle(settingsManager.isPro ? .primary : .secondary)
                     }
-
+                    
                     Spacer()
                     if !settingsManager.isPro {
                         Text("Pro")
@@ -200,24 +179,20 @@ struct SettingsView: View {
                 Text("AI Analysis")
             } footer: {
                 if !settingsManager.isHighQualityToggleAvailable {
-                    Text(
-                        "High quality analysis with 1250x1250 resolution and advanced AI models is available with MovingBox Pro."
-                    )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    Text("High quality analysis with 1250x1250 resolution and advanced AI models is available with MovingBox Pro.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 } else if settingsManager.highQualityAnalysisEnabled {
-                    Text(
-                        "Using 1250x1250 resolution with high detail for enhanced accuracy. Disable for faster image analysis."
-                    )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    Text("Using 1250x1250 resolution with high detail for enhanced accuracy. Disable for faster image analysis.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 } else {
                     Text("Using 512x512 resolution with low detail for faster image analysis.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-
+            
             Section("Community & Support") {
                 Button {
                     requestAppReview()
@@ -228,7 +203,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.primary)
                         } icon: {
                             Image(systemName: "star")
-
+                                
                         }
                         Spacer()
                         Image(systemName: "arrow.up.right.square")
@@ -238,13 +213,11 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-
-                ForEach(
-                    [
-                        externalLinks["knowledgeBase"]!,
-                        externalLinks["support"]!,
-                    ], id: \.title
-                ) { link in
+                
+                ForEach([
+                    externalLinks["knowledgeBase"]!,
+                    externalLinks["support"]!
+                ], id: \.title) { link in
                     Link(destination: link.url) {
                         HStack {
                             Label {
@@ -261,7 +234,7 @@ struct SettingsView: View {
                     }
                 }
                 .buttonStyle(.plain)
-
+                
                 NavigationLink(value: Router.Destination.featureRequestView) {
                     Label {
                         Text("Request a Feature")
@@ -270,7 +243,7 @@ struct SettingsView: View {
                         Image(systemName: "lightbulb")
                     }
                 }
-
+                
                 NavigationLink(value: Router.Destination.aboutView) {
                     Label {
                         Text("About")
@@ -280,47 +253,48 @@ struct SettingsView: View {
                     }
                 }
             }
-
+            
             #if DEBUG
-                Section("Debug") {
-                    Button {
-                        SentrySDK.capture(message: "Test message from MovingBox Settings")
-                    } label: {
-                        Label {
-                            Text("Send Test Message to Sentry")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "antenna.radiowaves.left.and.right")
-                        }
-                    }
-
-                    Button {
-                        enum TestError: Error {
-                            case sentryTestError
-                        }
-                        SentrySDK.capture(error: TestError.sentryTestError)
-                    } label: {
-                        Label {
-                            Text("Send Test Error to Sentry")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "exclamationmark.triangle")
-                        }
-                    }
-
-                    Button {
-                        fatalError("Test crash for Sentry")
-                    } label: {
-                        Label {
-                            Text("Trigger Test Crash")
-                                .foregroundStyle(.red)
-                        } icon: {
-                            Image(systemName: "xmark.octagon")
-                                .foregroundStyle(.red)
-                        }
+            Section("Debug") {
+                Button {
+                    SentrySDK.capture(message: "Test message from MovingBox Settings")
+                } label: {
+                    Label {
+                        Text("Send Test Message to Sentry")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
                     }
                 }
+                
+                Button {
+                    enum TestError: Error {
+                        case sentryTestError
+                    }
+                    SentrySDK.capture(error: TestError.sentryTestError)
+                } label: {
+                    Label {
+                        Text("Send Test Error to Sentry")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                    }
+                }
+                
+                Button {
+                    fatalError("Test crash for Sentry")
+                } label: {
+                    Label {
+                        Text("Trigger Test Crash")
+                            .foregroundStyle(.red)
+                    } icon: {
+                        Image(systemName: "xmark.octagon")
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
             #endif
+            
 
         }
         .navigationBarTitleDisplayMode(.large)
@@ -336,35 +310,37 @@ struct SettingsView: View {
         }
         .navigationDestination(for: String.self) { value in
             switch value {
-            case "home": EditHomeView()
-            case "locations": LocationSettingsView()
-            case "labels": LabelSettingsView()
-            case "syncData": SyncDataSettingsView()
-            case "importData": ImportDataView()
-            case "exportData": ExportDataView()
-            case "deleteData": DataDeletionView()
-            default: EmptyView()
+                case "home": EditHomeView()
+                case "locations": LocationSettingsView()
+                case "labels": LabelSettingsView()
+                case "syncData": SyncDataSettingsView()
+                case "importData": ImportDataView()
+                case "exportData": ExportDataView()
+                case "deleteData": DataDeletionView()
+                default: EmptyView()
             }
         }
         .navigationDestination(for: Router.Destination.self) { destination in
             switch destination {
-            case .syncDataSettingsView: SyncDataSettingsView()
-            case .importDataView: ImportDataView()
-            case .exportDataView: ExportDataView()
-            case .deleteDataView: DataDeletionView()
-            case .aboutView: AboutView()
-            case .featureRequestView: FeatureRequestView()
-            default: EmptyView()
+                case .syncDataSettingsView: SyncDataSettingsView()
+                case .importDataView: ImportDataView()
+                case .exportDataView: ExportDataView()
+                case .deleteDataView: DataDeletionView()
+                case .homeListView: HomeListView()
+                case .addHomeView: AddHomeView()
+                case .aboutView: AboutView()
+                case .featureRequestView: FeatureRequestView()
+                default: EmptyView()
             }
         }
         .onAppear {
             updateAnalyzedItemsCount()
         }
     }
-
+    
     private var progressTintColor: Color {
         let percentage = Double(analyzedItemsCount) / 50.0
-
+        
         if percentage < 0.5 {
             return .green
         } else if percentage < 0.8 {
@@ -373,15 +349,15 @@ struct SettingsView: View {
             return .red
         }
     }
-
+    
     private func updateAnalyzedItemsCount() {
         analyzedItemsCount = allItems.filter { $0.hasUsedAI == true }.count
     }
-
+    
     private struct FeatureRow: View {
         let icon: String
         let text: String
-
+        
         var body: some View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
@@ -392,25 +368,19 @@ struct SettingsView: View {
             }
         }
     }
-
+    
     private func requestAppReview() {
         if #available(iOS 18.0, *) {
-            if let scene = UIApplication.shared.connectedScenes.first(where: {
-                $0.activationState == .foregroundActive
-            }) as? UIWindowScene {
+            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
                 AppStore.requestReview(in: scene)
                 print("Requested app review using AppStore API")
             }
         } else {
-            if let scene = UIApplication.shared.connectedScenes.first(where: {
-                $0.activationState == .foregroundActive
-            }) as? UIWindowScene {
+            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
                 SKStoreReviewController.requestReview(in: scene)
                 print("Requested app review using legacy API")
             } else {
-                if let url = URL(
-                    string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review")
-                {
+                if let url = URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review") {
                     UIApplication.shared.open(url)
                     print("Opening App Store URL for review")
                 }
@@ -438,7 +408,7 @@ struct AISettingsView: View {
     @EnvironmentObject var settings: SettingsManager
     let models = ["gpt-4o", "gpt-4o-mini"]
     @FocusState private var isApiKeyFieldFocused: Bool
-
+    
     var body: some View {
         Form {
             Section(header: Text("Model Settings")) {
@@ -457,13 +427,11 @@ struct AISettingsView: View {
                     }
                 }
             }
-
+            
             Section(
-                footer: Text(
-                    "High detail image analysis uses 2048x2048 resolution and may take up to 4 times longer and use 4 times more credits than standard detail analysis (512x512 resolution)."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                footer: Text("High detail image analysis uses 2048x2048 resolution and may take up to 4 times longer and use 4 times more credits than standard detail analysis (512x512 resolution).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             ) {
                 HStack(spacing: 0) {
                     Text("API Key")
@@ -485,7 +453,7 @@ struct AISettingsView: View {
                             .truncationMode(.middle)
                     }
                 }
-
+                
                 if isEditing {
                     Toggle("Use high detail image analysis", isOn: $settings.isHighDetail)
                 } else {
@@ -498,22 +466,22 @@ struct AISettingsView: View {
                 }
             }
         }
-        .navigationTitle("AI Settings")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if isEditing {
-                    Button("Save") {
-                        isEditing = false
+            .navigationTitle("AI Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isEditing {
+                            Button("Save") {
+                                isEditing = false
+                            }
+                            .bold()
+                        } else {
+                            Button("Edit") {
+                                isEditing = true
+                            }
+                        }
                     }
-                    .bold()
-                } else {
-                    Button("Edit") {
-                        isEditing = true
-                    }
-                }
             }
-        }
     }
 }
 
@@ -524,7 +492,24 @@ struct LocationSettingsView: View {
     @EnvironmentObject var settings: SettingsManager
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
-    ]) var locations: [InventoryLocation]
+    ]) var allLocations: [InventoryLocation]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+
+    private var activeHome: Home? {
+        guard let activeIdString = settings.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter locations by active home
+    private var locations: [InventoryLocation] {
+        guard let activeHome = activeHome else {
+            return allLocations
+        }
+        return allLocations.filter { $0.home?.id == activeHome.id }
+    }
 
     var body: some View {
         List {
@@ -557,11 +542,11 @@ struct LocationSettingsView: View {
             }
         }
     }
-
+    
     func addLocation() {
         router.navigate(to: .editLocationView(location: nil, isEditing: true))
     }
-
+    
     func deleteLocations(at offsets: IndexSet) {
         for index in offsets {
             let locationToDelete = locations[index]
@@ -575,9 +560,27 @@ struct LocationSettingsView: View {
 struct LabelSettingsView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
-    ]) var labels: [InventoryLabel]
+    ]) var allLabels: [InventoryLabel]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+
+    private var activeHome: Home? {
+        guard let activeIdString = settings.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter labels by active home
+    private var labels: [InventoryLabel] {
+        guard let activeHome = activeHome else {
+            return allLabels
+        }
+        return allLabels.filter { $0.home?.id == activeHome.id }
+    }
 
     var body: some View {
         if labels.isEmpty {
@@ -617,7 +620,7 @@ struct LabelSettingsView: View {
             }
         }
     }
-
+    
     func deleteLabel(at offsets: IndexSet) {
         for index in offsets {
             let labelToDelete = labels[index]
@@ -628,19 +631,21 @@ struct LabelSettingsView: View {
     }
 }
 
+
+
 #Preview {
     do {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: InventoryLocation.self, configurations: config)
-
+        
         let location1 = InventoryLocation(name: "Living Room")
         let location2 = InventoryLocation(name: "Kitchen")
         let location3 = InventoryLocation(name: "Master Bedroom")
-
+        
         container.mainContext.insert(location1)
         container.mainContext.insert(location2)
         container.mainContext.insert(location3)
-
+        
         return NavigationStack {
             SettingsView()
                 .modelContainer(container)

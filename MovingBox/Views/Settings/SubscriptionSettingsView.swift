@@ -48,7 +48,7 @@ struct SubscriptionSettingsView: View {
                     }) {
                         Label("Sync Purchases", systemImage: "arrow.triangle.2.circlepath")
                             .symbolEffect(.rotate, options: .nonRepeating, value: isSyncing)
-                            .foregroundStyle(isSyncing ? .secondary : Color.green)
+                            .foregroundStyle(isSyncing ? .secondary : .primary)
                     }
                     .disabled(isSyncing)
 
@@ -59,7 +59,7 @@ struct SubscriptionSettingsView: View {
                     }) {
                         Label("Restore Purchases", systemImage: "arrow.clockwise")
                             .symbolEffect(.rotate, options: .nonRepeating, value: isRestoring)
-                            .foregroundStyle(isRestoring ? .secondary : Color.green)
+                            .foregroundStyle(isRestoring ? .secondary : .primary)
                     }
                     .disabled(isRestoring)
 

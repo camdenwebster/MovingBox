@@ -9,59 +9,76 @@ import SwiftUI
 
 struct InventoryItemRow: View {
     var item: InventoryItem
-    @State private var thumbnail: UIImage?
+    var showHomeBadge: Bool = false
+    @State private var imageLoadTrigger = 0
     @State private var hasRetried = false
-    @State private var isDownloading = false
 
     var body: some View {
         HStack {
-            Group {
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
+            AsyncImage(url: item.thumbnailURL) { phase in
+                switch phase {
+                case .empty:
+                    ZStack {
+                        Color(.systemGray6)
+                        Image(systemName: "photo")
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 60, height: 60)
+                    .cornerRadius(8)
+                case .success(let image):
+                    image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 60, height: 60)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                } else {
+                case .failure:
                     ZStack {
                         Color(.systemGray6)
-                        if isDownloading {
-                            ProgressView()
-                                .tint(.gray)
-                        } else {
-                            Image(systemName: hasRetried ? "photo.trianglebadge.exclamationmark" : "photo")
-                                .foregroundColor(.gray)
+                        Image(systemName: "photo.trianglebadge.exclamationmark")
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 60, height: 60)
+                    .cornerRadius(8)
+                    .onAppear {
+                        // Retry loading once after a brief delay to handle race conditions
+                        // where thumbnail file isn't quite ready yet
+                        guard !hasRetried else { return }
+                        hasRetried = true
+                        Task {
+                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                            imageLoadTrigger += 1
                         }
+                    }
+                @unknown default:
+                    ZStack {
+                        Color(.systemGray6)
+                        Image(systemName: "photo")
+                            .foregroundColor(.gray)
                     }
                     .frame(width: 60, height: 60)
                     .cornerRadius(8)
                 }
             }
-            .task(id: item.imageURL) {
-                await loadThumbnail()
-            }
-            VStack(alignment: .leading) {
+            .id(imageLoadTrigger)
+            
+            VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                //                if item.make != "" {
-                //                    Text("Make: \(item.make)")
-                //                        .lineLimit(1)
-                //                        .truncationMode(.tail)
-                //                        .detailLabelStyle()
-                //                } else {
-                //                    EmptyView()
-                //                }
-                //                if item.model != "" {
-                //                    Text("Model: \(item.model)")
-                //                        .lineLimit(1)
-                //                        .truncationMode(.tail)
-                //                        .detailLabelStyle()
-                //                } else {
-                //                    EmptyView()
-                //                }
+
+                if showHomeBadge, let home = item.effectiveHome {
+                    Label(home.displayName, systemImage: "house.circle")
+                        .detailLabelStyle()
+                }
+                
+                if !item.make.isEmpty {
+                    Label("\(item.make) \(item.model)", systemImage: "info.circle")
+                        .detailLabelStyle()
+                }
             }
+            
             Spacer()
+            
             if let label = item.label {
                 Text(label.emoji)
                     .padding(7)
@@ -72,60 +89,17 @@ struct InventoryItemRow: View {
             }
         }
     }
-
-    @MainActor
-    private func loadThumbnail() async {
-        hasRetried = false
-        guard item.imageURL != nil else {
-            thumbnail = nil
-            isDownloading = false
-            return
-        }
-
-        do {
-            updateDownloadState()
-            thumbnail = try await item.thumbnail
-            isDownloading = false
-        } catch {
-            guard !hasRetried else {
-                thumbnail = nil
-                isDownloading = false
-                return
-            }
-
-            hasRetried = true
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            do {
-                updateDownloadState()
-                thumbnail = try await item.thumbnail
-                isDownloading = false
-            } catch {
-                thumbnail = nil
-                isDownloading = false
-            }
-        }
-    }
-
-    private func updateDownloadState() {
-        guard let imageURL = item.imageURL else {
-            isDownloading = false
-            return
-        }
-
-        let id = imageURL.deletingPathExtension().lastPathComponent
-        let thumbnailURL = OptimizedImageManager.shared.getThumbnailURL(for: id)
-        isDownloading =
-            OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
-            || OptimizedImageManager.shared.isUbiquitousItemDownloading(imageURL)
-    }
 }
+
+
 
 #Preview {
     do {
         let previewer = try Previewer()
-        return InventoryItemRow(item: previewer.inventoryItem)
+        return InventoryItemRow(item: previewer.inventoryItem, showHomeBadge: true)
             .modelContainer(previewer.container)
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }
 }
+

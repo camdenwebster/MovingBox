@@ -5,14 +5,15 @@
 //  Created by Camden Webster on 5/18/24.
 //
 
-import PhotosUI
 import SwiftData
 import SwiftUI
+import PhotosUI
 
 @MainActor
 struct EditLocationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settingsManager: SettingsManager
     var location: InventoryLocation?
     @State private var locationInstance = InventoryLocation()
     @State private var locationName: String
@@ -21,6 +22,7 @@ struct EditLocationView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) private var locations: [InventoryLocation]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
@@ -28,10 +30,16 @@ struct EditLocationView: View {
     @State private var cachedImageURL: URL?
     @State private var showPhotoSourceAlert = false
 
-    init(
-        location: InventoryLocation? = nil,
-        isEditing: Bool = false
-    ) {
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    init(location: InventoryLocation? = nil,
+         isEditing: Bool = false) {
         self.location = location
         if let location = location {
             self._locationInstance = State(initialValue: location)
@@ -44,11 +52,11 @@ struct EditLocationView: View {
     private var isNewLocation: Bool {
         location == nil
     }
-
+    
     private var isEditingEnabled: Bool {
         isNewLocation || isEditing
     }
-
+    
     var body: some View {
         Form {
             if isEditingEnabled || loadedImage != nil {
@@ -90,18 +98,16 @@ struct EditLocationView: View {
                     }
                 }
             }
-
-            FormTextFieldRow(
-                label: "Name",
-                text: $locationName,
-                isEditing: .constant(isEditingEnabled),
-                placeholder: "Kitchen"
-            )
-            .disabled(!isEditingEnabled)
-            .onChange(of: locationName) { _, newValue in
-                locationInstance.name = newValue
-            }
-
+            
+            FormTextFieldRow(label: "Name",
+                           text: $locationName,
+                           isEditing: .constant(isEditingEnabled),
+                           placeholder: "Kitchen")
+                .disabled(!isEditingEnabled)
+                .onChange(of: locationName) { _, newValue in
+                    locationInstance.name = newValue
+                }
+            
             if isEditingEnabled || !locationDesc.isEmpty {
                 Section(header: Text("Description")) {
                     TextEditor(text: $locationDesc)
@@ -141,9 +147,14 @@ struct EditLocationView: View {
                                 locationInstance.imageURL = imageURL
                             }
                         }
+
+                        // Assign active home to new location
+                        locationInstance.home = activeHome
+
                         modelContext.insert(locationInstance)
                         TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
                         print("EditLocationView: Created new location - \(locationInstance.name)")
+                        print("EditLocationView: Assigned to home - \(activeHome?.name ?? "nil")")
                         print("EditLocationView: Total number of locations after save: \(locations.count)")
                         router.navigateBack()
                     }
@@ -153,11 +164,10 @@ struct EditLocationView: View {
             }
         }
         .task(id: location?.imageURL) {
-            guard let location = location,
-                let imageURL = location.imageURL,
-                !isLoading
-            else { return }
-
+            guard let location = location, 
+                  let imageURL = location.imageURL, 
+                  !isLoading else { return }
+            
             // If the imageURL changed, clear the cached image
             if cachedImageURL != imageURL {
                 await MainActor.run {
@@ -165,20 +175,20 @@ struct EditLocationView: View {
                     cachedImageURL = imageURL
                 }
             }
-
+            
             // Only load if we don't have a cached image for this URL
             guard loadedImage == nil else { return }
-
+            
             await MainActor.run {
                 isLoading = true
             }
-
+            
             defer {
                 Task { @MainActor in
                     isLoading = false
                 }
             }
-
+            
             do {
                 let photo = try await location.photo
                 await MainActor.run {
@@ -200,6 +210,8 @@ struct EditLocationView: View {
 
         return EditLocationView(location: previewer.location)
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

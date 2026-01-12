@@ -428,7 +428,7 @@ struct TestData {
         ]
 
     // Helper method to load default data (labels only) into SwiftData
-    static func loadDefaultData(context: ModelContext) async {
+    static func loadDefaultData(context: ModelContext, home: Home? = nil) async {
         // Create only the labels
         for labelData in labels {
             let label = InventoryLabel(
@@ -437,6 +437,7 @@ struct TestData {
                 color: labelData.color,
                 emoji: labelData.emoji
             )
+            label.home = home
             context.insert(label)
         }
     }

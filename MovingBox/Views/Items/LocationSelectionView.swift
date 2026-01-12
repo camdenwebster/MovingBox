@@ -11,11 +11,29 @@ import SwiftUI
 struct LocationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
+    @EnvironmentObject var settingsManager: SettingsManager
+    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var allLocations: [InventoryLocation]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
 
     @Binding var selectedLocation: InventoryLocation?
     @State private var searchText = ""
 
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter locations by active home
+    private var locations: [InventoryLocation] {
+        guard let activeHome = activeHome else {
+            return allLocations
+        }
+        return allLocations.filter { $0.home?.id == activeHome.id }
+    }
+    
     private var filteredLocations: [InventoryLocation] {
         if searchText.isEmpty {
             return locations
@@ -24,7 +42,7 @@ struct LocationSelectionView: View {
             location.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-
+    
     var body: some View {
         NavigationStack {
             List {
@@ -44,7 +62,7 @@ struct LocationSelectionView: View {
                     }
                 }
                 .buttonStyle(.plain)
-
+                
                 if !filteredLocations.isEmpty {
                     Section {
                         ForEach(filteredLocations) { location in
@@ -74,7 +92,7 @@ struct LocationSelectionView: View {
                         }
                     }
                 }
-
+                
                 if filteredLocations.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView(
                         "No Locations Found",
@@ -92,7 +110,7 @@ struct LocationSelectionView: View {
                         dismiss()
                     }
                 }
-
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         addNewLocation()
@@ -103,9 +121,10 @@ struct LocationSelectionView: View {
             }
         }
     }
-
+    
     private func addNewLocation() {
         let newLocation = InventoryLocation(name: "New Location", desc: "")
+        newLocation.home = activeHome
         modelContext.insert(newLocation)
         selectedLocation = newLocation
         dismiss()
@@ -115,4 +134,5 @@ struct LocationSelectionView: View {
 #Preview {
     @Previewable @State var location: InventoryLocation? = nil
     return LocationSelectionView(selectedLocation: $location)
+        .environmentObject(SettingsManager())
 }

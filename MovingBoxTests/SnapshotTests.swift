@@ -210,7 +210,7 @@ extension SnapshotTests {
         let container = try await createTestContainer()
 
         let view = configureViewForSnapshot(
-            LocationsListView()
+            LocationsListView(showAllHomes: false)
                 .modelContainer(container)
         )
 
