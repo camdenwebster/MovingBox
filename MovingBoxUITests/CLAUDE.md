@@ -4,7 +4,7 @@ UI tests using XCTest with Page Object Model pattern.
 
 ## Test Command
 ```bash
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 ```
 
 ## Launch Arguments

@@ -12,10 +12,10 @@ struct LocationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
-    
+
     @Binding var selectedLocation: InventoryLocation?
     @State private var searchText = ""
-    
+
     private var filteredLocations: [InventoryLocation] {
         if searchText.isEmpty {
             return locations
@@ -24,7 +24,7 @@ struct LocationSelectionView: View {
             location.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -44,7 +44,7 @@ struct LocationSelectionView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                
+
                 if !filteredLocations.isEmpty {
                     Section {
                         ForEach(filteredLocations) { location in
@@ -74,7 +74,7 @@ struct LocationSelectionView: View {
                         }
                     }
                 }
-                
+
                 if filteredLocations.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView(
                         "No Locations Found",
@@ -92,7 +92,7 @@ struct LocationSelectionView: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         addNewLocation()
@@ -103,7 +103,7 @@ struct LocationSelectionView: View {
             }
         }
     }
-    
+
     private func addNewLocation() {
         let newLocation = InventoryLocation(name: "New Location", desc: "")
         modelContext.insert(newLocation)

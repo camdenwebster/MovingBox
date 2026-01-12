@@ -10,27 +10,27 @@ import SwiftUI
 struct SplashView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ModelContainerManager.self) private var containerManager
-    
+
     private let bottomStatusHeight: CGFloat = 140
-    
+
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
     }
-    
+
     private var textColor: Color {
         colorScheme == .dark ? .splashTextDark : .splashTextLight
     }
-    
+
     var body: some View {
         ZStack {
             Image(backgroundImage)
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 20) {
                 Spacer()
-                
+
                 if let appIcon = Bundle.main.icon {
                     Image(uiImage: appIcon)
                         .resizable()
@@ -38,7 +38,7 @@ struct SplashView: View {
                         .frame(width: 80, height: 80)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
-                
+
                 VStack {
                     Text("MovingBox")
                         .font(.largeTitle)
@@ -48,9 +48,9 @@ struct SplashView: View {
                         .fontWeight(.light)
                         .foregroundColor(textColor)
                 }
-                
+
                 Spacer()
-                
+
                 // Migration and CloudKit Sync Progress
                 Group {
                     if containerManager.isLoading || containerManager.isCloudKitSyncing {
@@ -72,7 +72,9 @@ struct SplashView: View {
                             }
                         }
                         .onAppear {
-                            print("🔄 SplashView - Progress UI appeared (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
+                            print(
+                                "🔄 SplashView - Progress UI appeared (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))"
+                            )
                         }
                         .onDisappear {
                             print("🔄 SplashView - Progress UI disappeared")
@@ -80,7 +82,9 @@ struct SplashView: View {
                     } else {
                         Color.clear
                             .onAppear {
-                                print("🔄 SplashView - No progress UI shown (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))")
+                                print(
+                                    "🔄 SplashView - No progress UI shown (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))"
+                                )
                             }
                     }
                 }
@@ -93,9 +97,10 @@ struct SplashView: View {
 extension Bundle {
     var icon: UIImage? {
         if let icons = infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
-           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
-           let lastIcon = iconFiles.last {
+            let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
+            let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
+            let lastIcon = iconFiles.last
+        {
             return UIImage(named: lastIcon)
         }
         return nil

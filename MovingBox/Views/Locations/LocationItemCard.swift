@@ -13,11 +13,11 @@ struct LocationItemCard: View {
     @State private var thumbnail: UIImage?
     @State private var loadingError: Error?
     @State private var isDownloading = false
-    
+
     private var totalReplacementCost: Decimal {
         location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Photo section
@@ -31,7 +31,8 @@ struct LocationItemCard: View {
                 } else if let sfSymbol = location.sfSymbolName {
                     // Show SF Symbol for default rooms
                     Rectangle()
-                        .fill(Color(.secondarySystemGroupedBackground)
+                        .fill(
+                            Color(.secondarySystemGroupedBackground)
                         )
                         .frame(width: 160, height: 100)
                         .overlay(
@@ -70,7 +71,7 @@ struct LocationItemCard: View {
                     isDownloading = false
                 }
             }
-            
+
             // Location details
             VStack(alignment: .leading) {
                 Text(location.name)
@@ -101,9 +102,11 @@ struct LocationItemCard: View {
             .padding(.vertical, 8)
         }
         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
-        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
-            .fill(Color(.secondarySystemGroupedBackground))
-            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+        .background(
+            RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
+                .fill(Color(.secondarySystemGroupedBackground))
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
         .padding(1)
     }
 
@@ -115,7 +118,8 @@ struct LocationItemCard: View {
 
         let id = imageURL.deletingPathExtension().lastPathComponent
         let thumbnailURL = OptimizedImageManager.shared.getThumbnailURL(for: id)
-        isDownloading = OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
+        isDownloading =
+            OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
             || OptimizedImageManager.shared.isUbiquitousItemDownloading(imageURL)
     }
 }

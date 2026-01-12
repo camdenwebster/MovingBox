@@ -1,7 +1,7 @@
-import Foundation
 import AVFoundation
-import UIKit
 import Combine
+import Foundation
+import UIKit
 
 // MARK: - UIDevice Extension
 
@@ -83,7 +83,7 @@ final class CameraDeviceManager: NSObject {
         let deviceTypes: [AVCaptureDevice.DeviceType] = [
             .builtInUltraWideCamera,
             .builtInWideAngleCamera,
-            .builtInTelephotoCamera
+            .builtInTelephotoCamera,
         ]
 
         let discoverySession = AVCaptureDevice.DiscoverySession(
@@ -100,7 +100,9 @@ final class CameraDeviceManager: NSObject {
             if let capability = createCapability(for: device) {
                 capabilities.append(capability)
                 discoveredDevices[device.deviceType] = device
-                print("✅ Found \(device.deviceType): zoom [\(capability.minZoomFactor)x-\(capability.maxZoomFactor)x], min focus: \(capability.minimumFocusDistance)mm, display: \(capability.displayLabel)")
+                print(
+                    "✅ Found \(device.deviceType): zoom [\(capability.minZoomFactor)x-\(capability.maxZoomFactor)x], min focus: \(capability.minimumFocusDistance)mm, display: \(capability.displayLabel)"
+                )
             }
         }
 
@@ -111,7 +113,9 @@ final class CameraDeviceManager: NSObject {
         self.optimalZoomLevels = calculateZoomLevels()
 
         print("📷 Camera discovery complete: \(self.availableCameras.count) cameras found")
-        print("📷 Discovered cameras: \(self.availableCameras.map { "\($0.deviceType)=\($0.displayLabel)" }.joined(separator: ", "))")
+        print(
+            "📷 Discovered cameras: \(self.availableCameras.map { "\($0.deviceType)=\($0.displayLabel)" }.joined(separator: ", "))"
+        )
         print("📷 Optimal zoom levels: \(self.optimalZoomLevels.map { String(format: "%.1fx", $0) })")
     }
 
@@ -204,12 +208,14 @@ final class CameraDeviceManager: NSObject {
         }
 
         // Then find best match that can achieve this zoom
-        let candidates = availableCameras
+        let candidates =
+            availableCameras
             .filter { $0.minZoomFactor <= zoom && zoom <= $0.maxZoomFactor }
 
         print("📷 Found \(candidates.count) candidates that can achieve this zoom")
 
-        return candidates
+        return
+            candidates
             .min { abs($0.displayZoomFactor - zoom) < abs($1.displayZoomFactor - zoom) }
     }
 
@@ -231,13 +237,15 @@ final class CameraDeviceManager: NSObject {
         currentDevice: AVCaptureDevice,
         currentZoom: CGFloat
     ) -> MacroRecommendation? {
-        guard let currentCapability = availableCameras.first(where: { $0.device == currentDevice }) else {
+        guard let currentCapability = availableCameras.first(where: { $0.device == currentDevice })
+        else {
             return nil
         }
 
         // Check if ultra-wide would be significantly better
         guard let bestMacro = bestCameraForMacro(),
-              bestMacro.device != currentDevice else {
+            bestMacro.device != currentDevice
+        else {
             return nil  // Already using best macro camera or no better option
         }
 
@@ -306,7 +314,7 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         @unknown default: return "bolt.slash.fill"
         }
     }
-    
+
     var flashModeText: String {
         switch flashMode {
         case .auto: return "Auto"
@@ -380,8 +388,11 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
 
             // Check if we need to switch cameras for this zoom level
             if let targetCamera = cameraDeviceManager?.camera(forZoomLevel: newZoom),
-               targetCamera.device != device {
-                print("📱 Zoom level \(String(format: "%.1fx", newZoom)) requires camera switch from \(device.deviceType) to \(targetCamera.deviceType)")
+                targetCamera.device != device
+            {
+                print(
+                    "📱 Zoom level \(String(format: "%.1fx", newZoom)) requires camera switch from \(device.deviceType) to \(targetCamera.deviceType)"
+                )
                 device.unlockForConfiguration()
 
                 // Update zoom index BEFORE switching cameras to ensure UI consistency
@@ -470,8 +481,10 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
             session.sessionPreset = .photo
         }
 
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-              let input = try? AVCaptureDeviceInput(device: device) else {
+        guard
+            let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+            let input = try? AVCaptureDeviceInput(device: device)
+        else {
             print("❌ Failed to get camera device or create input")
             return
         }
@@ -517,11 +530,12 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
                 }
 
                 device.unlockForConfiguration()
-                print("📹 Camera focus capabilities: focus POI supported: \(device.isFocusPointOfInterestSupported)")
+                print(
+                    "📹 Camera focus capabilities: focus POI supported: \(device.isFocusPointOfInterestSupported)"
+                )
             } catch {
                 print("❌ Error configuring initial focus settings: \(error)")
             }
-
 
             isConfigured = true
             print("📹 setupSession completed successfully")
@@ -566,8 +580,11 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
             let newManager = CameraDeviceManager(position: position)
 
             // Get the wide angle camera for the new position
-            guard let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
-                  let newInput = try? AVCaptureDeviceInput(device: newDevice) else {
+            guard
+                let newDevice = AVCaptureDevice.default(
+                    .builtInWideAngleCamera, for: .video, position: position),
+                let newInput = try? AVCaptureDeviceInput(device: newDevice)
+            else {
                 isBackCamera.toggle()  // Revert toggle
                 return
             }
@@ -628,8 +645,9 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
                     try targetDevice.lockForConfiguration()
 
                     // Clamp zoom to valid range for this camera
-                    let clampedZoom = max(targetDevice.minAvailableVideoZoomFactor,
-                                        min(targetDevice.maxAvailableVideoZoomFactor, zoomFactor))
+                    let clampedZoom = max(
+                        targetDevice.minAvailableVideoZoomFactor,
+                        min(targetDevice.maxAvailableVideoZoomFactor, zoomFactor))
 
                     targetDevice.videoZoomFactor = clampedZoom
                     targetDevice.unlockForConfiguration()
@@ -738,9 +756,12 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         }
     }
 
-    nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+    nonisolated func photoOutput(
+        _ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?
+    ) {
         guard let data = photo.fileDataRepresentation(),
-              let image = UIImage(data: data) else {
+            let image = UIImage(data: data)
+        else {
             print("Failed to capture photo: \(error?.localizedDescription ?? "Unknown error")")
             return
         }
@@ -757,7 +778,8 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
             } else {
                 // Flip front camera images
                 if let cgImage = optimizedImage.cgImage {
-                    let flippedImage = UIImage(cgImage: cgImage, scale: optimizedImage.scale, orientation: .leftMirrored)
+                    let flippedImage = UIImage(
+                        cgImage: cgImage, scale: optimizedImage.scale, orientation: .leftMirrored)
                     self.capturedImages.append(flippedImage)
                 } else {
                     self.capturedImages.append(optimizedImage)
@@ -777,7 +799,9 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
                 }
 
                 let originalSize = CGSize(width: cgImage.width, height: cgImage.height)
-                print("📐 CGImage size: \(originalSize) (UIImage size: \(image.size), orientation: \(image.imageOrientation.rawValue))")
+                print(
+                    "📐 CGImage size: \(originalSize) (UIImage size: \(image.size), orientation: \(image.imageOrientation.rawValue))"
+                )
 
                 let sideLength = min(originalSize.width, originalSize.height)
 
@@ -807,7 +831,9 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         }
     }
 
-    func handleCaptureModeChange(from oldMode: CaptureMode, to newMode: CaptureMode, isPro: Bool) -> Bool {
+    func handleCaptureModeChange(from oldMode: CaptureMode, to newMode: CaptureMode, isPro: Bool)
+        -> Bool
+    {
         guard !isHandlingModeChange else {
             print("⚠️ Already handling mode change, skipping")
             return false

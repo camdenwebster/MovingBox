@@ -5,8 +5,8 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 final class Router: ObservableObject {
 
@@ -38,7 +38,8 @@ final class Router: ObservableObject {
         case editLocationView(location: InventoryLocation?, isEditing: Bool = false)
         case locationsSettingsView
         case editLabelView(label: InventoryLabel?, isEditing: Bool = false)
-        case inventoryDetailView(item: InventoryItem, showSparklesButton: Bool = false, isEditing: Bool = false)
+        case inventoryDetailView(
+            item: InventoryItem, showSparklesButton: Bool = false, isEditing: Bool = false)
         case aISettingsView
         case subscriptionSettingsView
         case syncDataSettingsView
@@ -51,21 +52,21 @@ final class Router: ObservableObject {
 
     @Published var navigationPath = NavigationPath()
     @Published var sidebarSelection: SidebarDestination? = .dashboard
-    
+
     func navigate(to destination: Destination) {
         navigationPath.append(destination)
     }
-    
+
     func navigate(to destination: String) {
         navigationPath.append(destination)
     }
-    
+
     func navigateBack() {
         if !navigationPath.isEmpty {
             navigationPath.removeLast()
         }
     }
-    
+
     func navigateToRoot() {
         navigationPath = NavigationPath()
     }

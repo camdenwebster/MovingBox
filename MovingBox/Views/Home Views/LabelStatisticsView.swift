@@ -11,25 +11,25 @@ import SwiftUI
 struct LabelStatisticsView: View {
     @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var labels: [InventoryLabel]
     @EnvironmentObject var router: Router
-    
+
     private let row = GridItem(.fixed(160))
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             DashboardSectionLabel(text: "Labels", isButton: false)
-            
+
             if labels.isEmpty {
                 ContentUnavailableView {
-                        Label("No Labels", systemImage: "tag")
-                    } description: {
-                        Text("Add labels to categorize your items")
-                    } actions: {
-                        Button("Add a Label") {
-                            router.navigate(to: .editLabelView(label: nil, isEditing: true))
-                        }
-                        .buttonStyle(.borderedProminent)
+                    Label("No Labels", systemImage: "tag")
+                } description: {
+                    Text("Add labels to categorize your items")
+                } actions: {
+                    Button("Add a Label") {
+                        router.navigate(to: .editLabelView(label: nil, isEditing: true))
                     }
-                    .frame(height: 160)
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(height: 160)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {

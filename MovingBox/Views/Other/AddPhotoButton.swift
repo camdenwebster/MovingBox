@@ -10,7 +10,7 @@ import SwiftUI
 struct AddPhotoButton: View {
     let action: () -> Void
     @State private var isBouncing = false
-    
+
     var body: some View {
         Button {
             isBouncing = true

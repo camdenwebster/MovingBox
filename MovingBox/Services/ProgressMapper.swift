@@ -23,7 +23,7 @@ struct ProgressMapper {
         static let photoCopying: Double = 0.30
         static let archiving: Double = 0.20
     }
-    
+
     /// Progress weight configuration for import operations
     ///
     /// These weights determine how much of the total progress bar each phase occupies:
@@ -37,28 +37,30 @@ struct ProgressMapper {
         static let processingData: Double = 0.40
         static let copyingPhotos: Double = 0.20
     }
-    
+
     /// Maps export progress to 0-1 range with human-readable phase description
     ///
     /// - Parameter progress: The raw export progress event
     /// - Returns: A tuple containing normalized progress (0-1) and phase description
-    static func mapExportProgress(_ progress: DataManager.ExportProgress) -> (progress: Double, phase: String) {
+    static func mapExportProgress(_ progress: DataManager.ExportProgress) -> (
+        progress: Double, phase: String
+    ) {
         switch progress {
         case .preparing:
             return (0.0, "Preparing export...")
-            
+
         case .fetchingData(let phase, let progressValue):
             return (
                 progressValue * ExportWeights.dataFetching,
                 "Fetching \(phase)..."
             )
-            
+
         case .writingCSV(let progressValue):
             return (
                 ExportWeights.dataFetching + (progressValue * ExportWeights.csvWriting),
                 "Writing CSV files..."
             )
-            
+
         case .copyingPhotos(let current, let total):
             let photoProgress = total > 0 ? Double(current) / Double(total) : 0.0
             let baseProgress = ExportWeights.dataFetching + ExportWeights.csvWriting
@@ -66,36 +68,39 @@ struct ProgressMapper {
                 baseProgress + (photoProgress * ExportWeights.photoCopying),
                 "Copying photos (\(current)/\(total))..."
             )
-            
+
         case .creatingArchive(let progressValue):
-            let baseProgress = ExportWeights.dataFetching + ExportWeights.csvWriting + ExportWeights.photoCopying
+            let baseProgress =
+                ExportWeights.dataFetching + ExportWeights.csvWriting + ExportWeights.photoCopying
             return (
                 baseProgress + (progressValue * ExportWeights.archiving),
                 "Creating archive..."
             )
-            
+
         case .completed, .error:
             return (1.0, "")
         }
     }
-    
+
     /// Maps import progress to 0-1 range with human-readable phase description
     ///
     /// - Parameter progress: The raw import progress event
     /// - Returns: A tuple containing normalized progress (0-1) and phase description
-    static func mapImportProgress(_ progress: DataManager.ImportProgress) -> (progress: Double, phase: String) {
+    static func mapImportProgress(_ progress: DataManager.ImportProgress) -> (
+        progress: Double, phase: String
+    ) {
         switch progress {
         case .progress(let value):
             return (value, "Importing data...")
-            
+
         case .completed:
             return (1.0, "")
-            
+
         case .error:
             return (0.0, "")
         }
     }
-    
+
     /// Determines photo progress reporting threshold based on total count
     ///
     /// Adaptive thresholds provide optimal UX by reducing update frequency for large photo sets:

@@ -22,53 +22,52 @@ struct MovingBoxApp: App {
     @State private var containerManager = ModelContainerManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var appState: AppState = .splash
-    
-    
+
     private enum AppState {
         case splash
         case onboarding
         case main
     }
-    
+
     static func registerTransformers() {
         UIColorValueTransformer.register()
     }
-    
+
     init() {
         Self.registerTransformers()
-        
+
         // Configure TelemetryDeck
         let appId = AppConfig.telemetryDeckAppId
         let telemetryConfig = TelemetryDeck.Config(appID: appId)
         telemetryConfig.defaultSignalPrefix = "MovingBox."
         telemetryConfig.defaultParameterPrefix = "MovingBox."
         TelemetryDeck.initialize(config: telemetryConfig)
-        
+
         // Configure RevenueCat
         Purchases.configure(withAPIKey: AppConfig.revenueCatAPIKey)
-        
+
         #if DEBUG
-        Purchases.logLevel = .debug
+            Purchases.logLevel = .debug
         #endif
-        
+
         // Configure WishKit
         WishKit.configure(with: AppConfig.wishKitAPIKey)
-        
+
         let dsn = "https://\(AppConfig.sentryDsn)"
         guard dsn != "https://missing-sentry-dsn" else {
             #if DEBUG
-            print("⚠️ Error: Missing Sentry DSN configuration")
+                print("⚠️ Error: Missing Sentry DSN configuration")
             #endif
             return
         }
-        
+
         SentrySDK.start { options in
             options.dsn = dsn
 
             // Debug mode configuration
             let isDebug = AppConfig.shared.configuration == .debug
             options.debug = isDebug
-            
+
             // Detect if running in test environment
             let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
@@ -91,7 +90,7 @@ struct MovingBoxApp: App {
                 options.enableFileIOTracing = false
                 options.enableNetworkTracking = false
                 options.enableSwizzling = false
-                
+
                 // Disable app hang tracking in debug
                 options.enableAppHangTracking = false
 
@@ -120,7 +119,7 @@ struct MovingBoxApp: App {
                 options.enableNetworkTracking = true
                 options.enablePreWarmedAppStartTracing = true
                 options.enableTimeToFullDisplayTracing = true
-                
+
                 // Disable app hang tracking during test execution to prevent false positives
                 options.enableAppHangTracking = !isRunningTests
             }
@@ -129,18 +128,20 @@ struct MovingBoxApp: App {
             options.tracePropagationTargets = ["api.aiproxy.com"]
 
             #if DEBUG
-            options.environment = "debug"
+                options.environment = "debug"
             #else
-            options.environment = AppConfig.shared.buildType == .beta ? "beta" : "production"
+                options.environment = AppConfig.shared.buildType == .beta ? "beta" : "production"
             #endif
         }
     }
-    
+
     private var disableAnimations: Bool {
         ProcessInfo.processInfo.arguments.contains("Disable-Animations")
     }
-    
-    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> AnyView {
+
+    private func destinationView(
+        for destination: Router.Destination, navigationPath: Binding<NavigationPath>
+    ) -> AnyView {
         AnyView(
             Group {
                 switch destination {
@@ -159,7 +160,9 @@ struct MovingBoxApp: App {
                 case .editLabelView(let label, let isEditing):
                     EditLabelView(label: label, isEditing: isEditing)
                 case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-                    InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
+                    InventoryDetailView(
+                        inventoryItemToDisplay: item, navigationPath: navigationPath,
+                        showSparklesButton: showSparklesButton, isEditing: isEditing)
                 case .locationsSettingsView:
                     LocationSettingsView()
                 case .subscriptionSettingsView:
@@ -180,7 +183,7 @@ struct MovingBoxApp: App {
             }
         )
     }
-    
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -188,10 +191,12 @@ struct MovingBoxApp: App {
                 case .splash:
                     SplashView()
                 case .onboarding:
-                    OnboardingView(isPresented: .init(
-                        get: { appState == .onboarding },
-                        set: { _ in appState = .main }
-                    ))
+                    OnboardingView(
+                        isPresented: .init(
+                            get: { appState == .onboarding },
+                            set: { _ in appState = .main }
+                        )
+                    )
                     .environment(\.disableAnimations, disableAnimations)
                 case .main:
                     MainSplitView(navigationPath: $router.navigationPath)
@@ -199,7 +204,7 @@ struct MovingBoxApp: App {
                 }
             }
             #if os(macOS)
-            .toolbar(removing: .title)
+                .toolbar(removing: .title)
             #endif
             .task {
                 containerManager.setSettingsManager(settings)
@@ -243,4 +248,3 @@ struct MovingBoxApp: App {
         }
     }
 }
-

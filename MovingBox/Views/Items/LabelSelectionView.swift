@@ -12,10 +12,10 @@ struct LabelSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var labels: [InventoryLabel]
-    
+
     @Binding var selectedLabel: InventoryLabel?
     @State private var searchText = ""
-    
+
     private var filteredLabels: [InventoryLabel] {
         if searchText.isEmpty {
             return labels
@@ -24,7 +24,7 @@ struct LabelSelectionView: View {
             label.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -44,7 +44,7 @@ struct LabelSelectionView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                
+
                 if !filteredLabels.isEmpty {
                     Section {
                         ForEach(filteredLabels) { label in
@@ -66,7 +66,7 @@ struct LabelSelectionView: View {
                         }
                     }
                 }
-                
+
                 if filteredLabels.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView(
                         "No Labels Found",
@@ -84,7 +84,7 @@ struct LabelSelectionView: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         addNewLabel()
@@ -95,7 +95,7 @@ struct LabelSelectionView: View {
             }
         }
     }
-    
+
     private func addNewLabel() {
         let newLabel = InventoryLabel(name: "New Label", emoji: "📦")
         modelContext.insert(newLabel)

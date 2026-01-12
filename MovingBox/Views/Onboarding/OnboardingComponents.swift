@@ -1,20 +1,20 @@
-import SwiftUIBackports
 import SwiftUI
+import SwiftUIBackports
 
 struct OnboardingContinueButton: View {
     let action: () -> Void
     @ViewBuilder var content: () -> AnyView
-    
+
     init(action: @escaping () -> Void, @ViewBuilder content: @escaping () -> AnyView) {
         self.action = action
         self.content = content
     }
-    
+
     init(action: @escaping () -> Void, title: String = "Continue") {
         self.action = action
         self.content = { AnyView(Text(title)) }
     }
-    
+
     var body: some View {
         Button(action: action) {
             content()
@@ -33,7 +33,7 @@ struct OnboardingContinueButton: View {
 
 struct OnboardingHeaderText: View {
     let text: String
-    
+
     var body: some View {
         Text(text)
             .font(.title2)
@@ -49,18 +49,18 @@ struct OnboardingFeatureRow: View {
     var iconColor: Color = .green
     let title: String
     let description: String
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundStyle(iconColor)
                 .frame(width: 30)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
-                
+
                 Text(description)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -71,7 +71,7 @@ struct OnboardingFeatureRow: View {
 
 struct OnboardingDescriptionText: View {
     let text: String
-    
+
     var body: some View {
         Text(text)
             .font(.body)
@@ -83,18 +83,17 @@ struct OnboardingDescriptionText: View {
 
 struct OnboardingContainer<Content: View>: View {
     let content: Content
-    
+
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
-    
+
     var body: some View {
         VStack {
-//            Spacer()
+            //            Spacer()
             content
-//            Spacer()
+            //            Spacer()
         }
-        
 
     }
 
@@ -105,39 +104,43 @@ struct OnboardingContainer<Content: View>: View {
 struct AnimatedMeshGradient: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var phase = 0.0
-    
+
     private var colors: [Color] {
-        colorScheme == .dark ? [
-            Color(hex: 0x1A1B2E),  // Deep purple-blue
-            Color(hex: 0x2B2F4B),  // Rich navy
-            Color(hex: 0x393B63),  // Medium purple
-            Color(hex: 0x252B43)   // Dark slate purple
-        ] : [
-            Color(hex: 0xFFE4BC),  // Warm sand
-            Color(hex: 0xFFD4B8),  // Peach
-            Color(.white),         //  white
-            Color(hex: 0xE6F0C4)   // Sage
-        ]
+        colorScheme == .dark
+            ? [
+                Color(hex: 0x1A1B2E),  // Deep purple-blue
+                Color(hex: 0x2B2F4B),  // Rich navy
+                Color(hex: 0x393B63),  // Medium purple
+                Color(hex: 0x252B43),  // Dark slate purple
+            ]
+            : [
+                Color(hex: 0xFFE4BC),  // Warm sand
+                Color(hex: 0xFFD4B8),  // Peach
+                Color(.white),  //  white
+                Color(hex: 0xE6F0C4),  // Sage
+            ]
     }
-    
+
     var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
                 let timeNow = timeline.date.timeIntervalSinceReferenceDate
                 let animation = timeNow.remainder(dividingBy: 60)
                 let phase = animation / 60
-                
+
                 context.addFilter(.blur(radius: 45))  // Reduced blur for more definition
-                
+
                 for index in 0..<4 {
                     let offsetX = size.width * 0.8 * cos(phase * 2 * .pi + Double(index) * .pi / 2)
                     let offsetY = size.height * 0.8 * sin(phase * 2 * .pi + Double(index) * .pi / 2)
-                    
+
                     context.fill(
-                        Circle().path(in: CGRect(x: size.width / 2 + offsetX - 400,
-                                               y: size.height / 2 + offsetY - 400,
-                                               width: 1000,
-                                               height: 1000)),
+                        Circle().path(
+                            in: CGRect(
+                                x: size.width / 2 + offsetX - 400,
+                                y: size.height / 2 + offsetY - 400,
+                                width: 1000,
+                                height: 1000)),
                         with: .color(colors[index])
                     )
                 }
@@ -150,7 +153,7 @@ struct AnimatedMeshGradient: View {
 
 struct OnboardingBackgroundModifier: ViewModifier {
     @Environment(\.isSnapshotTesting) private var isSnapshotTesting
-    
+
     func body(content: Content) -> some View {
         content
             .background {

@@ -44,22 +44,22 @@ struct InventoryItemRow: View {
                 Text(item.title)
                     .lineLimit(1)
                     .truncationMode(.tail)
-//                if item.make != "" {
-//                    Text("Make: \(item.make)")
-//                        .lineLimit(1)
-//                        .truncationMode(.tail)
-//                        .detailLabelStyle()
-//                } else {
-//                    EmptyView()
-//                }
-//                if item.model != "" {
-//                    Text("Model: \(item.model)")
-//                        .lineLimit(1)
-//                        .truncationMode(.tail)
-//                        .detailLabelStyle()
-//                } else {
-//                    EmptyView()
-//                }
+                //                if item.make != "" {
+                //                    Text("Make: \(item.make)")
+                //                        .lineLimit(1)
+                //                        .truncationMode(.tail)
+                //                        .detailLabelStyle()
+                //                } else {
+                //                    EmptyView()
+                //                }
+                //                if item.model != "" {
+                //                    Text("Model: \(item.model)")
+                //                        .lineLimit(1)
+                //                        .truncationMode(.tail)
+                //                        .detailLabelStyle()
+                //                } else {
+                //                    EmptyView()
+                //                }
             }
             Spacer()
             if let label = item.label {
@@ -81,7 +81,7 @@ struct InventoryItemRow: View {
             isDownloading = false
             return
         }
-        
+
         do {
             updateDownloadState()
             thumbnail = try await item.thumbnail
@@ -92,7 +92,7 @@ struct InventoryItemRow: View {
                 isDownloading = false
                 return
             }
-            
+
             hasRetried = true
             try? await Task.sleep(nanoseconds: 200_000_000)
             do {
@@ -114,12 +114,11 @@ struct InventoryItemRow: View {
 
         let id = imageURL.deletingPathExtension().lastPathComponent
         let thumbnailURL = OptimizedImageManager.shared.getThumbnailURL(for: id)
-        isDownloading = OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
+        isDownloading =
+            OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
             || OptimizedImageManager.shared.isUbiquitousItemDownloading(imageURL)
     }
 }
-
-
 
 #Preview {
     do {

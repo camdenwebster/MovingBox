@@ -6,8 +6,8 @@
 //
 
 import RevenueCatUI
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct LocationsListView: View {
     @Environment(\.modelContext) var modelContext
@@ -20,18 +20,19 @@ struct LocationsListView: View {
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
     @State private var searchText = ""
-    
+
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
-    
+
     // Use @Query with sort descriptor for efficient loading
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
     ]) private var locations: [InventoryLocation]
 
     // Query for items without location
-    @Query(filter: #Predicate<InventoryItem> { item in
-        item.location == nil
-    }) private var unassignedItems: [InventoryItem]
+    @Query(
+        filter: #Predicate<InventoryItem> { item in
+            item.location == nil
+        }) private var unassignedItems: [InventoryItem]
 
     // Computed property for unassigned items count and total value
     private var unassignedItemsCount: Int {
@@ -51,7 +52,7 @@ struct LocationsListView: View {
             location.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     private var columns: [GridItem] {
         let minimumCardWidth: CGFloat = 160
         let maximumCardWidth: CGFloat = 220
@@ -101,9 +102,11 @@ struct LocationsListView: View {
             .padding(.vertical, 8)
         }
         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
-        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
-            .fill(Color(.secondarySystemGroupedBackground))
-            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+        .background(
+            RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
+                .fill(Color(.secondarySystemGroupedBackground))
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
         .padding(1)
     }
 
@@ -183,11 +186,11 @@ struct LocationsListView: View {
             print("LocationsListView: Total number of locations: \(locations.count)")
         }
     }
-    
+
     private func addLocation() {
         router.navigate(to: .editLocationView(location: nil))
     }
-    
+
     private func deleteLocations(at offsets: IndexSet) {
         Task {
             for index in offsets {

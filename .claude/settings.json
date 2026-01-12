@@ -30,18 +30,11 @@
       "mcp__ios-simulator__*",
       "mcp__sosumi__*",
       "mcp__context7__*",
-      "WebFetch(domain:developer.apple.com)",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebFetch(domain:www.anthropic.com)",
       "WebFetch(domain:docs.sentry.io)",
-      "WebFetch(domain:nilcoalescing.com)",
       "WebFetch(domain:www.aiproxy.com)",
       "WebFetch(domain:github.com)",
-      "WebSearch",
-      "Read(/Users/camden.webster/Downloads/**)",
-      "Read(/Users/camden.webster/dev/MovingBox-1.1.0/**)",
-      "Read(/Users/camden.webster/Library/Logs/snapshot/**)",
-      "Read(/Users/camden.webster/Library/Developer/Xcode/DerivedData/**)"
+      "WebSearch"
     ],
     "deny": [
       "Bash(rm:*)"

@@ -6,7 +6,7 @@ struct OnboardingWelcomeView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.disableAnimations) private var disableAnimations
     @Environment(\.modelContext) private var modelContext
-    
+
     @State private var imageOpacity = 0.0
     @State private var welcomeOpacity = 0.0
     @State private var titleOpacity = 0.0
@@ -14,9 +14,9 @@ struct OnboardingWelcomeView: View {
     @State private var buttonOpacity = 0.0
     @State private var isProcessing = false
     @State private var statusMessage = ""
-    
+
     private let minimumMessageDisplayTime: TimeInterval = 0.5
-    
+
     var body: some View {
         OnboardingContainer {
             VStack(spacing: 0) {
@@ -30,14 +30,14 @@ struct OnboardingWelcomeView: View {
                             .padding(.vertical)
                             .opacity(imageOpacity)
                             .offset(y: imageOpacity == 0 ? -20 : 0)
-                        
+
                         VStack {
                             Text("Welcome to")
                                 .fontWeight(.bold)
                                 .multilineTextAlignment(.center)
                                 .opacity(welcomeOpacity)
                                 .offset(y: welcomeOpacity == 0 ? -20 : 0)
-                            
+
                             Text("MovingBox")
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
@@ -46,15 +46,18 @@ struct OnboardingWelcomeView: View {
                                 .offset(y: titleOpacity == 0 ? -20 : 0)
                         }
                         .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                        
-                        OnboardingDescriptionText(text: "Your personal home inventory assistant. We'll help you catalog and protect your valuable possessions using the power of AI.")
-                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                            .opacity(descriptionOpacity)
-                            .offset(y: descriptionOpacity == 0 ? -20 : 0)
+
+                        OnboardingDescriptionText(
+                            text:
+                                "Your personal home inventory assistant. We'll help you catalog and protect your valuable possessions using the power of AI."
+                        )
+                        .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+                        .opacity(descriptionOpacity)
+                        .offset(y: descriptionOpacity == 0 ? -20 : 0)
                     }
                     .frame(maxWidth: .infinity)
                 }
-                
+
                 VStack(spacing: 16) {
                     if isProcessing {
                         Text(statusMessage)
@@ -64,7 +67,7 @@ struct OnboardingWelcomeView: View {
                             .transition(.opacity)
                             .frame(height: 20)
                     }
-                    
+
                     OnboardingContinueButton {
                         handleContinueButton()
                     } content: {
@@ -91,43 +94,43 @@ struct OnboardingWelcomeView: View {
         }
         .onAppear {
             let animation: Animation? = disableAnimations ? nil : .easeOut(duration: 0.6)
-            
+
             withAnimation(animation?.delay(0)) {
                 imageOpacity = 1
             }
-            
+
             withAnimation(animation?.delay(0.3)) {
                 welcomeOpacity = 1
             }
-            
+
             withAnimation(animation?.delay(0.6)) {
                 titleOpacity = 1
             }
-            
+
             withAnimation(animation?.delay(0.9)) {
                 descriptionOpacity = 1
             }
-            
+
             withAnimation(animation?.delay(1.2)) {
                 buttonOpacity = 1
             }
         }
     }
-    
+
     private func updateStatusMessage(_ message: String) async {
         await MainActor.run {
             statusMessage = message
         }
         try? await Task.sleep(for: .seconds(minimumMessageDisplayTime))
     }
-    
+
     private func handleContinueButton() {
         guard !isProcessing else { return }
         isProcessing = true
-        
+
         Task {
             let isUiTesting = ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
-            
+
             // Try RevenueCat sync
             if !isUiTesting {
                 await updateStatusMessage("Checking subscription status...")
@@ -138,11 +141,12 @@ struct OnboardingWelcomeView: View {
                     print("⚠️ RevenueCat sync failed: \(error)")
                 }
             }
-            
+
             // Try checking for existing data
             await updateStatusMessage("Checking for existing data...")
             do {
-                let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(modelContext: modelContext)
+                let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(
+                    modelContext: modelContext)
                 if shouldDismiss {
                     await updateStatusMessage("Complete! Redirecting...")
                     manager.markOnboardingComplete()
@@ -151,11 +155,11 @@ struct OnboardingWelcomeView: View {
             } catch {
                 print("⚠️ Onboarding state check failed: \(error)")
             }
-            
+
             // Try setting up default data
             await updateStatusMessage("Setting up default data...")
             await DefaultDataManager.populateDefaultData(modelContext: modelContext)
-            
+
             // Continue with onboarding
             await MainActor.run {
                 isProcessing = false

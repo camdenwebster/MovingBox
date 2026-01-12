@@ -5,11 +5,11 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
-import SwiftUIBackports
-import SwiftUI
-import SwiftData
 import PhotosUI
 import RevenueCatUI
+import SwiftData
+import SwiftUI
+import SwiftUIBackports
 import WhatsNewKit
 
 @MainActor
@@ -24,7 +24,7 @@ struct DashboardView: View {
     @Environment(ModelContainerManager.self) var containerManager
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
-    
+
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
@@ -37,18 +37,18 @@ struct DashboardView: View {
     private var home: Home? {
         return homes.last
     }
-    
+
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
     }
-    
+
     private var topRecentItems: [InventoryItem] {
         Array(recentItems.prefix(3))
     }
 
     private let columns = [
         GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible())
+        GridItem(.flexible()),
     ]
 
     var body: some View {
@@ -74,80 +74,52 @@ struct DashboardView: View {
                 }
                 .flexibleHeaderContent()
 
-                    // MARK: - Inventory Statistics
-                    VStack(alignment: .leading, spacing: 16) {
-                        Button {
-                            router.navigate(to: .inventoryListView(location: nil))
-                        } label: {
-                            DashboardSectionLabel(text: "All Inventory")
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("dashboard-all-inventory-button")
-                        
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            StatCard(label: "Number of Items", value: "\(items.count)")
-                            StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
-                        }
-                        .padding(.horizontal)
+                // MARK: - Inventory Statistics
+                VStack(alignment: .leading, spacing: 16) {
+                    Button {
+                        router.navigate(to: .inventoryListView(location: nil))
+                    } label: {
+                        DashboardSectionLabel(text: "All Inventory")
                     }
-                    .padding(.top, 24)
-                    
-                    // MARK: - Recently Added Items
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Recently Added")
-                            .sectionHeaderStyle()
-                            .padding(.horizontal)
-                        
-                        if topRecentItems.isEmpty {
-                            ContentUnavailableView {
-                                Label("No Items Yet", systemImage: "tray")
-                            } description: {
-                                Text("Add your first item to see it here")
-                            } actions: {
-                                Button("Add Item") {
-                                    createFromPhoto()
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .accessibilityIdentifier("dashboard-empty-state-add-item-button")
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("dashboard-all-inventory-button")
+
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        StatCard(label: "Number of Items", value: "\(items.count)")
+                        StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.top, 24)
+
+                // MARK: - Recently Added Items
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Recently Added")
+                        .sectionHeaderStyle()
+                        .padding(.horizontal)
+
+                    if topRecentItems.isEmpty {
+                        ContentUnavailableView {
+                            Label("No Items Yet", systemImage: "tray")
+                        } description: {
+                            Text("Add your first item to see it here")
+                        } actions: {
+                            Button("Add Item") {
+                                createFromPhoto()
                             }
-                            .frame(height: 120)
-                            .padding(.horizontal)
-                        } else {
-                            VStack(spacing: 0) {
-                                ForEach(topRecentItems, id: \.persistentModelID) { item in
-                                    Button {
-                                        router.navigate(to: .inventoryDetailView(item: item, showSparklesButton: true))
-                                    } label: {
-                                        HStack {
-                                            InventoryItemRow(item: item)
-                                            Spacer()
-                                            Image(systemName: "chevron.right")
-                                                .foregroundStyle(.tertiary)
-                                                .font(.footnote)
-                                                .fontWeight(.medium)
-                                        }
-                                        .padding(.horizontal)
-                                        .padding(.vertical, 8)
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityIdentifier("dashboard-recent-item-\(item.persistentModelID)")
-                                    
-                                    if item.persistentModelID != topRecentItems.last?.persistentModelID {
-                                        Divider()
-                                            .padding(.leading, 92)
-                                    }
-                                }
-                                
-                                Divider()
-                                    .padding(.leading, 16)
-                                
+                            .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("dashboard-empty-state-add-item-button")
+                        }
+                        .frame(height: 120)
+                        .padding(.horizontal)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(topRecentItems, id: \.persistentModelID) { item in
                                 Button {
-                                    router.navigate(to: .inventoryListView(location: nil))
+                                    router.navigate(to: .inventoryDetailView(item: item, showSparklesButton: true))
                                 } label: {
                                     HStack {
-                                        Text("View All Items")
-                                            
+                                        InventoryItemRow(item: item)
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .foregroundStyle(.tertiary)
@@ -155,32 +127,59 @@ struct DashboardView: View {
                                             .fontWeight(.medium)
                                     }
                                     .padding(.horizontal)
-                                    .padding(.vertical, 12)
+                                    .padding(.vertical, 8)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityIdentifier("dashboard-view-all-items-button")
+                                .accessibilityIdentifier("dashboard-recent-item-\(item.persistentModelID)")
+
+                                if item.persistentModelID != topRecentItems.last?.persistentModelID {
+                                    Divider()
+                                        .padding(.leading, 92)
+                                }
                             }
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
-                            .padding(.horizontal)
-                            
+
+                            Divider()
+                                .padding(.leading, 16)
+
+                            Button {
+                                router.navigate(to: .inventoryListView(location: nil))
+                            } label: {
+                                HStack {
+                                    Text("View All Items")
+
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.tertiary)
+                                        .font(.footnote)
+                                        .fontWeight(.medium)
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 12)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("dashboard-view-all-items-button")
                         }
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
+                        .padding(.horizontal)
+
                     }
-                    .padding(.top, 24)
-                    .scrollDisabled(true)
-
-                    // MARK: - Location Statistics
-                    LocationStatisticsView()
-                        .padding(.top, 24)
-                    
-                    // MARK: - Label Statistics
-                    LabelStatisticsView()
-                        .padding(.top, 24)
-                        .padding(.bottom, 24)
                 }
+                .padding(.top, 24)
+                .scrollDisabled(true)
 
-                
+                // MARK: - Location Statistics
+                LocationStatisticsView()
+                    .padding(.top, 24)
+
+                // MARK: - Label Statistics
+                LabelStatisticsView()
+                    .padding(.top, 24)
+                    .padding(.bottom, 24)
+            }
+
         }
         .flexibleHeaderScrollView()
         .refreshable {
@@ -217,7 +216,7 @@ struct DashboardView: View {
                 }
                 .accessibilityIdentifier("createFromCamera")
                 .buttonStyle(.borderedProminent)
-                
+
                 .backport.glassEffect(in: Circle())
             }
         }
@@ -234,9 +233,10 @@ struct DashboardView: View {
         .whatsNewSheet()
         .task(id: home?.imageURL) {
             guard let home = home,
-                  let imageURL = home.imageURL,
-                  !isLoading else { return }
-            
+                let imageURL = home.imageURL,
+                !isLoading
+            else { return }
+
             // If the imageURL changed, clear the cached image
             if cachedImageURL != imageURL {
                 await MainActor.run {
@@ -244,28 +244,29 @@ struct DashboardView: View {
                     cachedImageURL = imageURL
                 }
             }
-            
+
             // Only load if we don't have a cached image for this URL
             guard loadedImage == nil else { return }
-            
+
             await MainActor.run {
                 isLoading = true
                 loadingStartDate = Date()
             }
-            
+
             defer {
                 Task { @MainActor in
                     if let start = loadingStartDate {
                         let elapsed = Date().timeIntervalSince(start)
                         let minimumDuration: TimeInterval = 1.0
                         if elapsed < minimumDuration {
-                            try? await Task.sleep(nanoseconds: UInt64((minimumDuration - elapsed) * 1_000_000_000))
+                            try? await Task.sleep(
+                                nanoseconds: UInt64((minimumDuration - elapsed) * 1_000_000_000))
                         }
                     }
                     isLoading = false
                 }
             }
-            
+
             do {
                 let photo = try await home.photo
                 await MainActor.run {
@@ -279,7 +280,7 @@ struct DashboardView: View {
             }
         }
     }
-    
+
     private var headerContentView: some View {
         VStack {
             Spacer()
@@ -291,9 +292,9 @@ struct DashboardView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .padding(.horizontal)
-                
+
                 Spacer()
-                
+
                 if !isLoading {
                     PhotoPickerView(
                         model: Binding(
@@ -314,7 +315,7 @@ struct DashboardView: View {
                     )
                 }
             }
-//            .padding(.bottom)
+            //            .padding(.bottom)
         }
         .background(alignment: .bottom) {
             LinearGradient(
@@ -325,20 +326,24 @@ struct DashboardView: View {
             .frame(height: 150)
         }
     }
-    
+
     private func createFromPhoto() {
         let aiItemsCount = items.filter({ $0.hasUsedAI }).count
-        print("📱 DashboardView.createFromPhoto - Total items: \(items.count), AI items: \(aiItemsCount), isPro: \(settings.isPro)")
-        
+        print(
+            "📱 DashboardView.createFromPhoto - Total items: \(items.count), AI items: \(aiItemsCount), isPro: \(settings.isPro)"
+        )
+
         if settings.shouldShowPaywallForAiScan(currentCount: aiItemsCount) {
             print("📱 DashboardView.createFromPhoto - Should show paywall, setting showingPaywall = true")
             showingPaywall = true
         } else {
-            print("📱 DashboardView.createFromPhoto - Should show creation flow, setting showItemCreationFlow = true")
+            print(
+                "📱 DashboardView.createFromPhoto - Should show creation flow, setting showItemCreationFlow = true"
+            )
             showItemCreationFlow = true
         }
     }
-    
+
     @ViewBuilder
     private func paywallSheet() -> some View {
         revenueCatManager.presentPaywall(
@@ -355,7 +360,7 @@ struct DashboardView: View {
 struct StatCard: View {
     let label: String
     let value: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
@@ -373,9 +378,10 @@ struct StatCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
-            .fill(Color(.secondarySystemGroupedBackground))
-            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+        .background(
+            RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
+                .fill(Color(.secondarySystemGroupedBackground))
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
     }
 }
 

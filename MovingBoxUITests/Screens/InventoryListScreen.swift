@@ -22,12 +22,12 @@ class InventoryListScreen {
 
     // Menu
     let toolbarMenu: XCUIElement
-    
+
     // Alert elements
     let limitAlert: XCUIElement
     let upgradeButton: XCUIElement
     let cancelButton: XCUIElement
-    
+
     // Selection mode elements
     let optionsButton: XCUIElement
     let selectItemsButton: XCUIElement
@@ -37,7 +37,7 @@ class InventoryListScreen {
     let deleteConfirmationAlert: XCUIElement
     let deleteButton: XCUIElement
     let alertCancelButton: XCUIElement
-    
+
     init(app: XCUIApplication) {
         self.app = app
 
@@ -50,12 +50,12 @@ class InventoryListScreen {
 
         // Initialize menu
         self.toolbarMenu = app.buttons["toolbarMenu"]
-        
+
         // Initialize alert elements
         self.limitAlert = app.alerts["Upgrade to Pro"]
         self.upgradeButton = limitAlert.buttons["Upgrade"]
         self.cancelButton = limitAlert.buttons["Cancel"]
-        
+
         // Initialize selection mode elements
         self.optionsButton = app.buttons["Options"]
         self.selectItemsButton = app.buttons["Select Items"]
@@ -66,91 +66,91 @@ class InventoryListScreen {
         self.deleteButton = app.buttons["alertDelete"]
         self.alertCancelButton = app.buttons["Cancel"]
     }
-    
+
     func tapAddItem() {
         createFromCameraButton.tap()
     }
-    
+
     func tapCreateManually() {
         createManuallyButton.tap()
     }
-    
+
     func tapCreateFromCamera() {
         createFromCameraButton.tap()
     }
-    
+
     func waitForLimitAlert() -> Bool {
         limitAlert.waitForExistence(timeout: 5)
     }
-    
+
     func tapUpgradeInAlert() {
         upgradeButton.tap()
     }
-    
+
     func tapCancelInAlert() {
         cancelButton.tap()
     }
-    
+
     func waitForToolbarMenu() -> Bool {
         toolbarMenu.waitForExistence(timeout: 5)
     }
-    
+
     func openToolbarMenu() {
         toolbarMenu.tap()
     }
-    
+
     func tapFirstItem() {
         app.cells.firstMatch.tap()
     }
-    
+
     // MARK: - Selection Mode Methods
     func enterSelectionMode() {
         optionsButton.tap()
         selectItemsButton.tap()
     }
-    
+
     func exitSelectionMode() {
         selectionDoneButton.tap()
     }
-    
+
     func selectItem(at index: Int) {
         let items = app.cells
         if index < items.count {
             items.element(boundBy: index).tap()
         }
     }
-    
+
     func selectMultipleItems(indices: [Int]) {
         for index in indices {
             selectItem(at: index)
         }
     }
-    
+
     func deleteSelectedItems() {
         deleteSelectedButton.tap()
         deleteButton.tap()
     }
-    
+
     func confirmDeletion() {
         deleteButton.tap()
     }
-    
+
     func cancelDeletion() {
         alertCancelButton.tap()
     }
-    
+
     func waitForDeleteConfirmationAlert() -> Bool {
         deleteConfirmationAlert.waitForExistence(timeout: 5)
     }
-    
+
     func getItemCount() -> Int {
         return app.cells.count
     }
-    
+
     func waitForItemsToLoad() -> Bool {
         app.cells.firstMatch.waitForExistence(timeout: 10)
     }
-    
+
     func isSelectionModeActive() -> Bool {
         return selectionDoneButton.exists
     }

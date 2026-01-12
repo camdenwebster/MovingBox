@@ -1,16 +1,16 @@
+import AVFoundation
 import SwiftUI
 import UIKit
-import AVFoundation
 
 struct SimpleCameraView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var capturedImage: UIImage?
     @State private var showingPermissionDenied = false
-    
+
     private var isMockCamera: Bool {
         ProcessInfo.processInfo.arguments.contains("UI-Testing-Mock-Camera")
     }
-    
+
     var body: some View {
         if isMockCamera {
             MockSimpleCameraView(image: $capturedImage)
@@ -26,7 +26,7 @@ struct SimpleCameraView: View {
                     .onAppear {
                         checkCameraPermission()
                     }
-                
+
                 // Show camera if permissions are granted
                 if AVCaptureDevice.authorizationStatus(for: .video) == .authorized {
                     NativeCameraView(capturedImage: $capturedImage) {
@@ -42,7 +42,7 @@ struct SimpleCameraView: View {
             }
         }
     }
-    
+
     private func checkCameraPermission() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
@@ -63,7 +63,7 @@ struct SimpleCameraView: View {
             showingPermissionDenied = true
         }
     }
-    
+
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
@@ -76,7 +76,7 @@ struct SimpleCameraView: View {
 struct NativeCameraView: UIViewControllerRepresentable {
     @Binding var capturedImage: UIImage?
     let onDismiss: () -> Void
-    
+
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
@@ -84,23 +84,26 @@ struct NativeCameraView: UIViewControllerRepresentable {
         picker.delegate = context.coordinator
         return picker
     }
-    
+
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
         // No updates needed
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         let parent: NativeCameraView
-        
+
         init(_ parent: NativeCameraView) {
             self.parent = parent
         }
-        
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
             if let image = info[.originalImage] as? UIImage {
                 parent.capturedImage = image
                 // Give SwiftUI time to process the binding change before dismissing
@@ -111,7 +114,7 @@ struct NativeCameraView: UIViewControllerRepresentable {
                 parent.onDismiss()
             }
         }
-        
+
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.onDismiss()
         }
@@ -123,7 +126,7 @@ struct NativeCameraView: UIViewControllerRepresentable {
 struct MockSimpleCameraView: View {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         VStack {
             Spacer()
@@ -132,7 +135,7 @@ struct MockSimpleCameraView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 200, height: 200)
                 .padding()
-            
+
             Button("Take Photo") {
                 image = UIImage(named: "tablet")
             }

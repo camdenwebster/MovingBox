@@ -5,8 +5,8 @@
 //  Created by Claude Code
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct MainSplitView: View {
     @Environment(\.modelContext) private var modelContext
@@ -55,7 +55,9 @@ struct MainSplitView: View {
     }
 
     @ViewBuilder
-    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
+    private func destinationView(
+        for destination: Router.Destination, navigationPath: Binding<NavigationPath>
+    ) -> some View {
         switch destination {
         case .dashboardView:
             DashboardView()
@@ -72,7 +74,9 @@ struct MainSplitView: View {
         case .editLabelView(let label, let isEditing):
             EditLabelView(label: label, isEditing: isEditing)
         case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-            InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
+            InventoryDetailView(
+                inventoryItemToDisplay: item, navigationPath: navigationPath,
+                showSparklesButton: showSparklesButton, isEditing: isEditing)
         case .locationsSettingsView:
             LocationSettingsView()
         case .subscriptionSettingsView:

@@ -4,23 +4,23 @@ struct FullScreenPhotoView: View {
     let images: [UIImage]
     @State private var selectedIndex: Int
     @Binding var isPresented: Bool
-    
+
     @State private var showUI = true
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
-    
+
     init(images: [UIImage], initialIndex: Int = 0, isPresented: Binding<Bool>) {
         self.images = images
         self._selectedIndex = State(initialValue: initialIndex)
         self._isPresented = isPresented
     }
-    
+
     var body: some View {
         ZStack {
             // Black background
             Color.black
                 .ignoresSafeArea()
-            
+
             // Photo carousel using TabView for reliable swipe behavior
             TabView(selection: $selectedIndex) {
                 ForEach(Array(images.enumerated()), id: \.offset) { index, image in
@@ -61,8 +61,7 @@ struct FullScreenPhotoView: View {
             )
             .offset(y: dragOffset.height)
             .scaleEffect(isDragging ? 1 - abs(dragOffset.height) / 1000 : 1)
-            
-            
+
             // Top toolbar
             VStack {
                 HStack {
@@ -72,9 +71,9 @@ struct FullScreenPhotoView: View {
                     .font(.headline)
                     .foregroundColor(.white)
                     .padding()
-                    
+
                     Spacer()
-                    
+
                     // Photo counter
                     if images.count > 1 {
                         Text("\(selectedIndex + 1) of \(images.count)")
@@ -87,24 +86,24 @@ struct FullScreenPhotoView: View {
                     LinearGradient(
                         gradient: Gradient(colors: [
                             Color.black.opacity(0.7),
-                            Color.clear
+                            Color.clear,
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
                     )
                     .frame(height: 100)
                 )
-                
+
                 Spacer()
             }
             .opacity(showUI ? 1 : 0)
             .animation(.easeInOut(duration: 0.3), value: showUI)
-            
+
             // Bottom indicators
             if images.count > 1 {
                 VStack {
                     Spacer()
-                    
+
                     HStack(spacing: 8) {
                         ForEach(0..<images.count, id: \.self) { index in
                             Circle()
@@ -128,10 +127,10 @@ struct ZoomableImageView: View {
     @State private var lastScale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
-    
+
     private let minScale: CGFloat = 1.0
     private let maxScale: CGFloat = 4.0
-    
+
     var body: some View {
         GeometryReader { geometry in
             Image(uiImage: image)
@@ -149,7 +148,7 @@ struct ZoomableImageView: View {
                         }
                         .onEnded { _ in
                             lastScale = scale
-                            
+
                             // Reset if zoomed out too far
                             if scale <= minScale {
                                 withAnimation(.spring()) {
@@ -163,17 +162,18 @@ struct ZoomableImageView: View {
                 )
                 .simultaneousGesture(
                     // Drag gesture only when zoomed in - simultaneous with TabView swipe
-                    scale > minScale ? DragGesture()
-                        .onChanged { value in
-                            let newOffset = CGSize(
-                                width: lastOffset.width + value.translation.width,
-                                height: lastOffset.height + value.translation.height
-                            )
-                            offset = newOffset
-                        }
-                        .onEnded { _ in
-                            lastOffset = offset
-                        } : nil
+                    scale > minScale
+                        ? DragGesture()
+                            .onChanged { value in
+                                let newOffset = CGSize(
+                                    width: lastOffset.width + value.translation.width,
+                                    height: lastOffset.height + value.translation.height
+                                )
+                                offset = newOffset
+                            }
+                            .onEnded { _ in
+                                lastOffset = offset
+                            } : nil
                 )
                 .onTapGesture(count: 2) {
                     // Double tap to zoom
@@ -199,7 +199,7 @@ struct ZoomableImageView: View {
 #Preview {
     struct PreviewWrapper: View {
         @State private var isPresented = true
-        
+
         var body: some View {
             Button("Show Photos") {
                 isPresented = true
@@ -215,6 +215,6 @@ struct ZoomableImageView: View {
             }
         }
     }
-    
+
     return PreviewWrapper()
 }

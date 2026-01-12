@@ -5,28 +5,31 @@
 //  Created by Claude Code
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct SidebarView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Query(sort: \InventoryLabel.name) private var labels: [InventoryLabel]
     @Query(sort: \InventoryLocation.name) private var locations: [InventoryLocation]
-    
+
     @Binding var selection: Router.SidebarDestination?
-    
+
     private var home: Home? {
         return homes.last
     }
 
     var body: some View {
         List(selection: $selection) {
-            Section("Homes"){
+            Section("Homes") {
                 // Dashboard
                 NavigationLink(value: Router.SidebarDestination.dashboard) {
-                    Label((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard", systemImage: "house.fill")
-                        .tint(.green)
+                    Label(
+                        (home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard",
+                        systemImage: "house.fill"
+                    )
+                    .tint(.green)
                 }
             }
 
@@ -35,8 +38,6 @@ struct SidebarView: View {
                 Label("All Inventory", systemImage: "shippingbox.fill")
                     .tint(.green)
             }
-            
-
 
             // Locations Section
             Section("Locations") {
@@ -60,7 +61,7 @@ struct SidebarView: View {
                     }
                 }
             }
-            
+
             // Labels Section
             Section("Labels") {
                 if labels.isEmpty {

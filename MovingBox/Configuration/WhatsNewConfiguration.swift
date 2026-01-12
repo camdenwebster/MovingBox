@@ -38,7 +38,7 @@ extension WhatsNew {
                     ),
                     title: "iPad & Mac Experience",
                     subtitle: "Optimized interface for larger screens with improved navigation and layout"
-                )
+                ),
             ],
             primaryAction: WhatsNew.PrimaryAction(
                 title: "Continue",
@@ -48,14 +48,16 @@ extension WhatsNew {
             )
         )
     }
-    
+
     static var current: WhatsNew {
         version2_1_0
     }
 }
 
 extension WhatsNewEnvironment {
-    static func forMovingBox(versionStore: WhatsNewVersionStore = UserDefaultsWhatsNewVersionStore()) -> WhatsNewEnvironment {
+    static func forMovingBox(versionStore: WhatsNewVersionStore = UserDefaultsWhatsNewVersionStore())
+        -> WhatsNewEnvironment
+    {
         WhatsNewEnvironment(
             versionStore: versionStore,
             whatsNewCollection: [

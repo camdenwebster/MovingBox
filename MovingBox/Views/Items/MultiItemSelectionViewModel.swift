@@ -5,9 +5,9 @@
 //  Created by Claude Code on 9/19/25.
 //
 
-import SwiftUI
-import SwiftData
 import Foundation
+import SwiftData
+import SwiftUI
 
 // MARK: - Supporting Types
 
@@ -17,7 +17,7 @@ enum InventoryItemCreationError: Error {
     case imageProcessingFailed
     case contextSaveFailure
     case invalidItemData
-    
+
     var localizedDescription: String {
         switch self {
         case .noImagesProvided:
@@ -69,37 +69,37 @@ final class MultiItemSelectionViewModel {
 
     /// Error message if item creation fails
     var errorMessage: String?
-    
+
     // MARK: - Computed Properties
-    
+
     /// Whether there are no detected items
     var hasNoItems: Bool {
         detectedItems.isEmpty
     }
-    
+
     /// Number of selected items
     var selectedItemsCount: Int {
         selectedItems.count
     }
-    
+
     /// Whether user can go to previous card
     var canGoToPreviousCard: Bool {
         currentCardIndex > 0
     }
-    
+
     /// Whether user can go to next card
     var canGoToNextCard: Bool {
         currentCardIndex < detectedItems.count - 1
     }
-    
+
     /// Current card item (if valid index)
     var currentItem: DetectedInventoryItem? {
         guard currentCardIndex < detectedItems.count else { return nil }
         return detectedItems[currentCardIndex]
     }
-    
+
     // MARK: - Initialization
-    
+
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
@@ -111,7 +111,7 @@ final class MultiItemSelectionViewModel {
         self.location = location
         self.modelContext = modelContext
     }
-    
+
     // MARK: - Location Management
 
     /// Update the selected location for items
@@ -126,26 +126,26 @@ final class MultiItemSelectionViewModel {
         guard canGoToNextCard else { return }
         currentCardIndex += 1
     }
-    
+
     /// Navigate to the previous card
     func goToPreviousCard() {
         guard canGoToPreviousCard else { return }
         currentCardIndex -= 1
     }
-    
+
     /// Jump to a specific card index
     func goToCard(at index: Int) {
         guard index >= 0 && index < detectedItems.count else { return }
         currentCardIndex = index
     }
-    
+
     // MARK: - Item Selection
-    
+
     /// Check if an item is currently selected
     func isItemSelected(_ item: DetectedInventoryItem) -> Bool {
         selectedItems.contains(item.id)
     }
-    
+
     /// Toggle selection state of an item
     func toggleItemSelection(_ item: DetectedInventoryItem) {
         if selectedItems.contains(item.id) {
@@ -154,67 +154,67 @@ final class MultiItemSelectionViewModel {
             selectedItems.insert(item.id)
         }
     }
-    
+
     /// Select all detected items
     func selectAllItems() {
         selectedItems = Set(detectedItems.map { $0.id })
     }
-    
+
     /// Deselect all items
     func deselectAllItems() {
         selectedItems.removeAll()
     }
-    
+
     // MARK: - Item Creation
-    
+
     /// Create InventoryItems from selected detected items
     func createSelectedInventoryItems() async throws -> [InventoryItem] {
         guard !images.isEmpty else {
             throw InventoryItemCreationError.noImagesProvided
         }
-        
+
         guard !selectedItems.isEmpty else {
             return []
         }
-        
+
         isProcessingSelection = true
         creationProgress = 0.0
         errorMessage = nil
-        
+
         // Fetch existing labels to match against categories
         let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-        
+
         var createdItems: [InventoryItem] = []
         let selectedDetectedItems = detectedItems.filter { selectedItems.contains($0.id) }
         let totalItems = selectedDetectedItems.count
-        
+
         do {
             for (index, detectedItem) in selectedDetectedItems.enumerated() {
                 // Update progress
                 creationProgress = Double(index) / Double(totalItems)
-                
+
                 // Find matching label for this item's category
                 let matchingLabel = findMatchingLabel(for: detectedItem.category, in: existingLabels)
-                
+
                 // Create inventory item with matched label
                 let inventoryItem = try await createInventoryItem(from: detectedItem, label: matchingLabel)
                 createdItems.append(inventoryItem)
-                
+
                 // Small delay for UI feedback
-                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
             }
-            
+
             // Final progress update
             creationProgress = 1.0
-            
+
             // Save all items to context
             try modelContext.save()
-            
+
             // Reset processing flag on success
             isProcessingSelection = false
-            
+
             return createdItems
-            
+
         } catch {
             // Provide user-friendly error message
             let userMessage: String
@@ -225,7 +225,8 @@ final class MultiItemSelectionViewModel {
                 case .invalidImageData:
                     userMessage = "Invalid image data. Please use a different photo."
                 case .iCloudNotAvailable:
-                    userMessage = "iCloud is not available. Please check your iCloud settings or try again later."
+                    userMessage =
+                        "iCloud is not available. Please check your iCloud settings or try again later."
                 case .invalidBaseURL:
                     userMessage = "Storage configuration error. Please restart the app."
                 }
@@ -234,7 +235,8 @@ final class MultiItemSelectionViewModel {
                 if nsError.domain == NSCocoaErrorDomain {
                     switch nsError.code {
                     case NSFileWriteOutOfSpaceError:
-                        userMessage = "Not enough storage space available. Please free up some space and try again."
+                        userMessage =
+                            "Not enough storage space available. Please free up some space and try again."
                     case NSFileWriteNoPermissionError:
                         userMessage = "Permission denied. Please check app permissions in Settings."
                     case NSFileWriteVolumeReadOnlyError:
@@ -255,11 +257,13 @@ final class MultiItemSelectionViewModel {
             throw error
         }
     }
-    
+
     // MARK: - Private Methods
-    
+
     /// Create a single InventoryItem from a DetectedInventoryItem
-    private func createInventoryItem(from detectedItem: DetectedInventoryItem, label: InventoryLabel?) async throws -> InventoryItem {
+    private func createInventoryItem(from detectedItem: DetectedInventoryItem, label: InventoryLabel?)
+        async throws -> InventoryItem
+    {
         // Create new inventory item
         let inventoryItem = InventoryItem(
             title: detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title,
@@ -277,21 +281,23 @@ final class MultiItemSelectionViewModel {
             notes: "Detected via AI with \(formattedConfidence(detectedItem.confidence)) confidence",
             showInvalidQuantityAlert: false
         )
-        
+
         // Generate unique ID for this item
         let itemId = UUID().uuidString
-        
+
         do {
             // Save primary image
             if let primaryImage = images.first {
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(primaryImage, id: itemId)
+                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
+                    primaryImage, id: itemId)
                 inventoryItem.imageURL = primaryImageURL
             }
 
             // Save secondary images if available
             if images.count > 1 {
                 let secondaryImages = Array(images.dropFirst())
-                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: itemId)
+                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
+                    secondaryImages, itemId: itemId)
                 inventoryItem.secondaryPhotoURLs = secondaryURLs
             }
 
@@ -309,32 +315,35 @@ final class MultiItemSelectionViewModel {
             throw error
         }
     }
-    
+
     /// Parse price string to Decimal
     private func parsePrice(from priceString: String) -> Decimal {
         guard !priceString.isEmpty else { return Decimal.zero }
-        
+
         // Remove currency symbols and commas
-        let cleanedString = priceString
+        let cleanedString =
+            priceString
             .replacingOccurrences(of: "$", with: "")
             .replacingOccurrences(of: ",", with: "")
             .trimmingCharacters(in: .whitespaces)
-        
+
         return Decimal(string: cleanedString) ?? Decimal.zero
     }
-    
+
     /// Format confidence as percentage string
     private func formattedConfidence(_ confidence: Double) -> String {
         let percentage = Int(confidence * 100)
         return "\(percentage)%"
     }
-    
+
     /// Find matching label for a given category from existing labels
-    private func findMatchingLabel(for category: String, in labels: [InventoryLabel]) -> InventoryLabel? {
+    private func findMatchingLabel(for category: String, in labels: [InventoryLabel])
+        -> InventoryLabel?
+    {
         guard !category.isEmpty else { return nil }
         return labels.first { $0.name.lowercased() == category.lowercased() }
     }
-    
+
     /// Get the label that would be matched for a detected item (for preview in card)
     func getMatchingLabel(for item: DetectedInventoryItem) -> InventoryLabel? {
         let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
@@ -350,24 +359,25 @@ extension DetectedInventoryItem {
         let percentage = Int(confidence * 100)
         return "\(percentage)%"
     }
-    
+
     /// Parsed price as Decimal
     var parsedPrice: Decimal {
         guard !estimatedPrice.isEmpty else { return Decimal.zero }
-        
-        let cleanedString = estimatedPrice
+
+        let cleanedString =
+            estimatedPrice
             .replacingOccurrences(of: "$", with: "")
             .replacingOccurrences(of: ",", with: "")
             .trimmingCharacters(in: .whitespaces)
-        
+
         return Decimal(string: cleanedString) ?? Decimal.zero
     }
-    
+
     /// Whether this item has sufficient confidence for reliable data
     var hasHighConfidence: Bool {
         confidence >= 0.8
     }
-    
+
     /// Whether this item has basic required information
     var hasMinimumData: Bool {
         !title.isEmpty && !category.isEmpty

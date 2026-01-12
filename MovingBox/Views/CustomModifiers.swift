@@ -18,7 +18,7 @@ extension View {
     func detailLabelStyle() -> some View {
         modifier(DetailLabel())
     }
-    
+
     func recommendedClipShape() -> some View {
         if #available(iOS 26.0, *) {
             return self.clipShape(.rect(corners: .concentric, isUniform: true))

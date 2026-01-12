@@ -13,21 +13,21 @@ import XCTest
 class TabBar {
     let app: XCUIApplication
     private let navigationHelper: NavigationHelper
-    
+
     // Legacy tab bar items (kept for backward compatibility, but may not exist)
     let dashboardTab: XCUIElement
     let locationsTab: XCUIElement
     let addItemTab: XCUIElement
     let allItemsTab: XCUIElement
     let settingsTab: XCUIElement
-    
+
     init(app: XCUIApplication) {
         self.app = app
         self.navigationHelper = NavigationHelper(app: app)
-        
+
         // Check if device is iPad
         let isIPad = UIDevice.current.userInterfaceIdiom == .pad
-        
+
         // Initialize legacy tab bar items (these may not exist in the new design)
         if isIPad {
             self.dashboardTab = app.buttons["Dashboard"]
@@ -43,7 +43,7 @@ class TabBar {
             self.settingsTab = app.tabBars.buttons["Settings"]
         }
     }
-    
+
     func tapDashboard() {
         // Try legacy first, fallback to new navigation
         if dashboardTab.exists {
@@ -52,7 +52,7 @@ class TabBar {
             navigationHelper.navigateToDashboard()
         }
     }
-    
+
     func tapLocations() {
         // Try legacy first, fallback to new navigation
         if locationsTab.exists {
@@ -62,7 +62,7 @@ class TabBar {
             // TODO: Navigate to locations within settings if needed
         }
     }
-    
+
     func tapAddItem() {
         // Try legacy first, fallback to new navigation
         if addItemTab.exists {
@@ -71,7 +71,7 @@ class TabBar {
             navigationHelper.navigateToAddItem()
         }
     }
-    
+
     func tapAllItems() {
         // Try legacy first, fallback to new navigation
         if allItemsTab.exists {
@@ -80,7 +80,7 @@ class TabBar {
             navigationHelper.navigateToAllItems()
         }
     }
-    
+
     func tapSettings() {
         // Try legacy first, fallback to new navigation
         if settingsTab.exists {

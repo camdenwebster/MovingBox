@@ -1,5 +1,5 @@
-import SwiftUI
 import AVFoundation
+import SwiftUI
 import SwiftUIBackports
 
 // MARK: - Photo Thumbnail Scroll View
@@ -105,9 +105,12 @@ struct CaptureAnimationView: View {
                 .aspectRatio(contentMode: .fill)
                 .frame(
                     width: interpolate(from: startRect.width, to: endRect.width, progress: animationProgress),
-                    height: interpolate(from: startRect.height, to: endRect.height, progress: animationProgress)
+                    height: interpolate(
+                        from: startRect.height, to: endRect.height, progress: animationProgress)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: interpolate(from: 0, to: 8, progress: animationProgress)))
+                .clipShape(
+                    RoundedRectangle(cornerRadius: interpolate(from: 0, to: 8, progress: animationProgress))
+                )
                 .position(
                     x: interpolate(from: startRect.midX, to: endRect.midX, progress: animationProgress),
                     y: interpolate(from: startRect.midY, to: endRect.midY, progress: animationProgress)
@@ -137,7 +140,6 @@ struct ZoomControlView: View {
     let currentZoomIndex: Int
     let onZoomTap: (Int) -> Void
 
-
     var body: some View {
         let zoomButtons = HStack(spacing: 12) {
             ForEach(Array(zoomFactors.enumerated()), id: \.offset) { index, factor in
@@ -150,7 +152,7 @@ struct ZoomControlView: View {
                 )
             }
         }
-        
+
         zoomButtons
             .frame(maxWidth: .infinity)
     }
@@ -160,7 +162,7 @@ struct ZoomButtonView: View {
     let zoomFactor: CGFloat
     let isSelected: Bool
     let onTap: () -> Void
-    
+
     @Namespace private var glassEffectNamespace
 
     var body: some View {
@@ -172,7 +174,7 @@ struct ZoomButtonView: View {
                         .fill(.white.opacity(0.3))
                         .frame(width: 50, height: 50)
                 }
-                
+
                 Text(formatZoomText(zoomFactor))
                     .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
                     .foregroundColor(.white)
@@ -193,7 +195,6 @@ struct ZoomButtonView: View {
     }
 }
 
-
 // MARK: - Camera Control Button
 
 struct CameraControlButton: View {
@@ -202,7 +203,6 @@ struct CameraControlButton: View {
     let action: () -> Void
     var accessibilityLabel: String?
     var accessibilityIdentifier: String?
-
 
     init(
         icon: String,
@@ -316,7 +316,8 @@ struct SquareCameraPreviewView: UIViewRepresentable {
         }
 
         // Add tap gesture for focus
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        let tapGesture = UITapGestureRecognizer(
+            target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         view.addGestureRecognizer(tapGesture)
         view.isUserInteractionEnabled = true
 
@@ -350,7 +351,7 @@ struct SquareCameraPreviewView: UIViewRepresentable {
 struct FullScreenCameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
     let orientation: UIDeviceOrientation
-//    let onTapToFocus: ((CGPoint) -> Void)?
+    //    let onTapToFocus: ((CGPoint) -> Void)?
 
     class FullScreenPreviewView: UIView {
         override class var layerClass: AnyClass {
@@ -381,9 +382,9 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
         updateVideoOrientation(for: view.previewLayer)
 
         // Add tap gesture for focus
-//        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-//        view.addGestureRecognizer(tapGesture)
-//        view.isUserInteractionEnabled = true
+        //        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        //        view.addGestureRecognizer(tapGesture)
+        //        view.isUserInteractionEnabled = true
 
         return view
     }
@@ -467,10 +468,10 @@ struct FullScreenCameraPreviewView: UIViewRepresentable {
             self.parent = parent
         }
 
-//        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-//            let point = gesture.location(in: gesture.view)
-//            parent.onTapToFocus?(point)
-//        }
+        //        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+        //            let point = gesture.location(in: gesture.view)
+        //            parent.onTapToFocus?(point)
+        //        }
     }
 }
 
@@ -507,12 +508,13 @@ struct CaptureModePicker: View {
             // Customize segmented control appearance
             UISegmentedControl.appearance().backgroundColor = UIColor.black.withAlphaComponent(0.5)
             UISegmentedControl.appearance().selectedSegmentTintColor = UIColor.green
-            UISegmentedControl.appearance().setTitleTextAttributes([
-                .foregroundColor: UIColor.white
-            ], for: .normal)
-//            UISegmentedControl.appearance().setTitleTextAttributes([
-//                .foregroundColor: UIColor.black
-//            ], for: .selected)
+            UISegmentedControl.appearance().setTitleTextAttributes(
+                [
+                    .foregroundColor: UIColor.white
+                ], for: .normal)
+            //            UISegmentedControl.appearance().setTitleTextAttributes([
+            //                .foregroundColor: UIColor.black
+            //            ], for: .selected)
         }
         .accessibilityLabel("Camera mode selector")
         .accessibilityHint("Switch between single item and multi item capture modes")
@@ -762,14 +764,14 @@ struct CameraPreviewContainer: View {
                 FullScreenCameraPreviewView(
                     session: session,
                     orientation: orientation,
-//                    onTapToFocus: { point in
-//                        onFocusTap(point)
-//                        focusPoint = point
-//                        showingFocusIndicator = true
-//                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-//                            showingFocusIndicator = false
-//                        }
-//                    }
+                    //                    onTapToFocus: { point in
+                    //                        onFocusTap(point)
+                    //                        focusPoint = point
+                    //                        showingFocusIndicator = true
+                    //                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    //                            showingFocusIndicator = false
+                    //                        }
+                    //                    }
                 )
                 .onAppear {
                     Task {
@@ -786,7 +788,9 @@ struct CameraPreviewContainer: View {
         }
     }
 
-    private func setupOrientationMonitoring(onOrientationChange: @escaping (UIDeviceOrientation) -> Void) {
+    private func setupOrientationMonitoring(
+        onOrientationChange: @escaping (UIDeviceOrientation) -> Void
+    ) {
         guard UIDevice.current.userInterfaceIdiom == .pad else { return }
 
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
@@ -803,7 +807,9 @@ struct CameraPreviewContainer: View {
             default: mappedOrientation = .portrait
             }
             onOrientationChange(mappedOrientation)
-        } else if currentOrientation != .unknown && currentOrientation != .faceUp && currentOrientation != .faceDown {
+        } else if currentOrientation != .unknown && currentOrientation != .faceUp
+            && currentOrientation != .faceDown
+        {
             onOrientationChange(currentOrientation)
         } else {
             onOrientationChange(.portrait)
@@ -824,7 +830,8 @@ struct CameraPreviewContainer: View {
     private func cleanupOrientationMonitoring() {
         guard UIDevice.current.userInterfaceIdiom == .pad else { return }
         UIDevice.current.endGeneratingDeviceOrientationNotifications()
-        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+        NotificationCenter.default.removeObserver(
+            self, name: UIDevice.orientationDidChangeNotification, object: nil)
     }
 }
 
@@ -836,7 +843,7 @@ struct CameraPreviewContainer: View {
             images: [
                 UIImage(systemName: "photo")!,
                 UIImage(systemName: "camera")!,
-                UIImage(systemName: "square.and.arrow.up")!
+                UIImage(systemName: "square.and.arrow.up")!,
             ],
             onDelete: { _ in }
         )
@@ -923,8 +930,10 @@ private func createPreviewOverlayImage() -> UIImage {
     return renderer.image { context in
         // Create gradient background
         let colors = [UIColor.systemBlue.cgColor, UIColor.systemPurple.cgColor]
-        let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 1])!
-        context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
+        let gradient = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 1])!
+        context.cgContext.drawLinearGradient(
+            gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
 
         // Add text
         let paragraphStyle = NSMutableParagraphStyle()
@@ -933,7 +942,7 @@ private func createPreviewOverlayImage() -> UIImage {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 60, weight: .bold),
             .foregroundColor: UIColor.white,
-            .paragraphStyle: paragraphStyle
+            .paragraphStyle: paragraphStyle,
         ]
 
         let text = "Preview" as NSString

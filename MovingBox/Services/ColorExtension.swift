@@ -6,7 +6,7 @@ extension Color {
     static let onboardingBackgroundLight = Color(hex: 0xFBF1E5)
     static let splashTextLight = Color(hex: 0x333333)
     static let splashTextDark = Color(hex: 0xF2F2F2)
-    
+
     init(hex: UInt, alpha: Double = 1.0) {
         self.init(
             .sRGB,

@@ -5,8 +5,8 @@
 //  Created by Camden Webster on 5/1/25.
 //
 
-import UIKit
 import SwiftUI
+import UIKit
 
 struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
@@ -28,8 +28,9 @@ struct ShareSheet: UIViewControllerRepresentable {
             }
         }
 
-        let vc = UIActivityViewController(activityItems: activityItems,
-                                          applicationActivities: nil)
+        let vc = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil)
         return vc
     }
 

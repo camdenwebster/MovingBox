@@ -12,7 +12,7 @@ struct LocationStatisticsView: View {
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
     private let row = GridItem(.fixed(160))
     @EnvironmentObject var router: Router
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
@@ -25,16 +25,16 @@ struct LocationStatisticsView: View {
 
             if locations.isEmpty {
                 ContentUnavailableView {
-                        Label("No Locations", systemImage: "map")
-                    } description: {
-                        Text("Add locations to organize your items")
-                    } actions: {
-                        Button("Add a Location") {
-                            router.navigate(to: .editLocationView(location: nil))
-                        }
-                        .buttonStyle(.borderedProminent)
+                    Label("No Locations", systemImage: "map")
+                } description: {
+                    Text("Add locations to organize your items")
+                } actions: {
+                    Button("Add a Location") {
+                        router.navigate(to: .editLocationView(location: nil))
                     }
-                    .frame(height: 160)
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(height: 160)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {

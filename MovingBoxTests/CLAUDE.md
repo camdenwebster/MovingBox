@@ -5,10 +5,10 @@ Unit tests using Swift Testing framework.
 ## Test Commands
 ```bash
 # Run all unit tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # Run snapshot tests only
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -testPlan MovingBoxSnapshotTests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -testPlan MovingBoxSnapshotTests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 ```
 
 ## Test Structure (Swift Testing)

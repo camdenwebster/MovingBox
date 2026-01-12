@@ -6,19 +6,19 @@ iOS AI-powered home inventory app. SwiftUI + SwiftData, OpenAI Vision API, Reven
 - **Project**: MovingBox.xcodeproj
 - **Scheme**: MovingBox (Tests: MovingBoxTests, MovingBoxUITests)
 - **Bundle ID**: com.mothersound.movingbox
-- **DerivedData**: ./DerivedData (in-project, preserves cache)
+- **DerivedData**: ./.build/DerivedData (in-project, preserves cache)
 - **Simulator UDID**: 31D4A8DF-E68A-4884-BAAA-DFDF61090577 (iPhone 17 Pro, iOS 26)
 
 ## Build Commands
 ```bash
 # Build (pipe through xcsift for clean output)
-xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./DerivedData 2>&1 | xcsift
+xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # Unit tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # UI tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 ```
 
 ## Install & Launch
@@ -27,7 +27,7 @@ xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destinati
 xcrun simctl boot 31D4A8DF-E68A-4884-BAAA-DFDF61090577
 
 # Install app
-xcrun simctl install 31D4A8DF-E68A-4884-BAAA-DFDF61090577 ./DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
+xcrun simctl install 31D4A8DF-E68A-4884-BAAA-DFDF61090577 ./.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 
 # Launch app
 xcrun simctl launch 31D4A8DF-E68A-4884-BAAA-DFDF61090577 com.mothersound.movingbox
@@ -54,7 +54,7 @@ xcrun simctl spawn 31D4A8DF-E68A-4884-BAAA-DFDF61090577 log stream --predicate '
 ```
 
 ## Swift Package Documentation
-After building, package docs available at: `./DerivedData/SourcePackages/checkouts/`
+After building, package docs available at: `./.build/DerivedData/SourcePackages/checkouts/`
 
 ## Additional Context
 - **DEVELOPMENT.md** - Architecture, patterns, SDLC workflow with Claude Code subagents
