@@ -104,33 +104,12 @@ struct SettingsView: View {
             }
             
             Section("Home Settings") {
-                Group {
-                    NavigationLink(value: "home") {
-                        Label {
-                            Text("Home Details")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "house")
-                                
-                        }
-                    }
-                    NavigationLink(value: "locations") {
-                        Label {
-                            Text("Location Settings")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "location")
-                                
-                        }
-                    }
-                    NavigationLink(value: "labels") {
-                        Label {
-                            Text("Label Settings")
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "tag")
-                                
-                        }
+                NavigationLink(value: Router.Destination.homeListView) {
+                    Label {
+                        Text("Manage Homes")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "house")
                     }
                 }
             }
@@ -168,8 +147,8 @@ struct SettingsView: View {
                         Text("High Detail")
                             .foregroundStyle(settingsManager.isPro ? .primary : .secondary)
                     } icon: {
-                        Image(systemName: "brain")
-                            .foregroundStyle(settingsManager.isPro ? .green : .secondary)
+                        Image(systemName: "eye")
+//                            .foregroundStyle(settingsManager.isPro ? .primary : .secondary)
                     }
                     
                     Spacer()
@@ -347,6 +326,8 @@ struct SettingsView: View {
                 case .importDataView: ImportDataView()
                 case .exportDataView: ExportDataView()
                 case .deleteDataView: DataDeletionView()
+                case .homeListView: HomeListView()
+                case .addHomeView: AddHomeView()
                 case .aboutView: AboutView()
                 case .featureRequestView: FeatureRequestView()
                 default: EmptyView()
@@ -511,8 +492,25 @@ struct LocationSettingsView: View {
     @EnvironmentObject var settings: SettingsManager
     @Query(sort: [
         SortDescriptor(\InventoryLocation.name)
-    ]) var locations: [InventoryLocation]
-    
+    ]) var allLocations: [InventoryLocation]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+
+    private var activeHome: Home? {
+        guard let activeIdString = settings.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter locations by active home
+    private var locations: [InventoryLocation] {
+        guard let activeHome = activeHome else {
+            return allLocations
+        }
+        return allLocations.filter { $0.home?.id == activeHome.id }
+    }
+
     var body: some View {
         List {
             if locations.isEmpty {
@@ -562,10 +560,28 @@ struct LocationSettingsView: View {
 struct LabelSettingsView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject var settings: SettingsManager
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
-    ]) var labels: [InventoryLabel]
-    
+    ]) var allLabels: [InventoryLabel]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+
+    private var activeHome: Home? {
+        guard let activeIdString = settings.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter labels by active home
+    private var labels: [InventoryLabel] {
+        guard let activeHome = activeHome else {
+            return allLabels
+        }
+        return allLabels.filter { $0.home?.id == activeHome.id }
+    }
+
     var body: some View {
         if labels.isEmpty {
             ContentUnavailableView(

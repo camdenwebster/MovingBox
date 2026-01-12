@@ -19,6 +19,7 @@ class SettingsManager: ObservableObject {
         static let successfulAIAnalysisCount = "successfulAIAnalysisCount"
         static let firstLaunchDate = "firstLaunchDate"
         static let hasRequestedReviewAfter30Days = "hasRequestedReviewAfter30Days"
+        static let activeHomeId = "activeHomeId"
     }
     
     // Published properties that will update the UI
@@ -85,6 +86,16 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var activeHomeId: String? {
+        didSet {
+            if let id = activeHomeId {
+                UserDefaults.standard.set(id, forKey: Keys.activeHomeId)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Keys.activeHomeId)
+            }
+        }
+    }
+
     var firstLaunchDate: Date {
         get {
             if let date = UserDefaults.standard.object(forKey: Keys.firstLaunchDate) as? Date {
@@ -135,7 +146,8 @@ class SettingsManager: ObservableObject {
         self.isPro = ProcessInfo.processInfo.arguments.contains("Is-Pro")
         self.preferredCaptureMode = preferredCaptureModeDefault
         self.successfulAIAnalysisCount = UserDefaults.standard.integer(forKey: Keys.successfulAIAnalysisCount)
-        
+        self.activeHomeId = UserDefaults.standard.string(forKey: Keys.activeHomeId)
+
         print("📱 SettingsManager - Initial isPro value: \(self.isPro)")
         
         if ProcessInfo.processInfo.arguments.contains("Is-Pro") {

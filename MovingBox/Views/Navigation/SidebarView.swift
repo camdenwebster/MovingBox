@@ -10,25 +10,48 @@ import SwiftData
 
 struct SidebarView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var settingsManager: SettingsManager
+    @Query(sort: \InventoryLabel.name) private var allLabels: [InventoryLabel]
+    @Query(sort: \InventoryLocation.name) private var allLocations: [InventoryLocation]
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
-    @Query(sort: \InventoryLabel.name) private var labels: [InventoryLabel]
-    @Query(sort: \InventoryLocation.name) private var locations: [InventoryLocation]
-    
     @Binding var selection: Router.SidebarDestination?
-    
-    private var home: Home? {
-        return homes.last
+
+    // MARK: - Computed Properties
+
+    private var primaryHome: Home? {
+        homes.first { $0.isPrimary }
     }
+
+    private var secondaryHomes: [Home] {
+        homes.filter { !$0.isPrimary }.sorted { $0.name < $1.name }
+    }
+
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+              let activeId = UUID(uuidString: activeIdString) else {
+            return primaryHome
+        }
+        return homes.first { $0.id == activeId } ?? primaryHome
+    }
+
+    private var filteredLocations: [InventoryLocation] {
+        guard let activeHome = activeHome else {
+            return []
+        }
+        return allLocations.filter { $0.home?.id == activeHome.id }
+    }
+
+    private var filteredLabels: [InventoryLabel] {
+        guard let activeHome = activeHome else {
+            return []
+        }
+        return allLabels.filter { $0.home?.id == activeHome.id }
+    }
+
+    // MARK: - Body
 
     var body: some View {
         List(selection: $selection) {
-            Section("Homes"){
-                // Dashboard
-                NavigationLink(value: Router.SidebarDestination.dashboard) {
-                    Label((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard", systemImage: "house.fill")
-                        .tint(.green)
-                }
-            }
 
             // All Inventory
             NavigationLink(value: Router.SidebarDestination.allInventory) {
@@ -36,16 +59,23 @@ struct SidebarView: View {
                     .tint(.green)
             }
             
+            // Homes Section
+            Section("Homes") {
+                ForEach(homes, id: \.persistentModelID) { home in
+                    NavigationLink(value: Router.SidebarDestination.home(home.persistentModelID)) {
+                        SidebarHomeRow(home: home, isActive: home.id == activeHome?.id)
+                    }
+                }
+            }
 
-
-            // Locations Section
+            // Locations Section (filtered by active home)
             Section("Locations") {
-                if locations.isEmpty {
+                if filteredLocations.isEmpty {
                     Text("No locations")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(locations, id: \.persistentModelID) { location in
+                    ForEach(filteredLocations, id: \.persistentModelID) { location in
                         NavigationLink(value: Router.SidebarDestination.location(location.persistentModelID)) {
                             Label {
                                 Text(location.name)
@@ -60,20 +90,28 @@ struct SidebarView: View {
                     }
                 }
             }
-            
-            // Labels Section
+
+            // Labels Section (filtered by active home)
             Section("Labels") {
-                if labels.isEmpty {
+                if filteredLabels.isEmpty {
                     Text("No labels")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(labels, id: \.persistentModelID) { label in
+                    ForEach(filteredLabels, id: \.persistentModelID) { label in
                         NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
                             Label {
+                                let backgroundColor = Color(label.color ?? .blue)
                                 Text(label.name)
+                                    .fontDesign(.rounded)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(backgroundColor.idealTextColor())
+                                    .padding(7)
+                                    .background(in: Capsule())
+                                    .backgroundStyle(backgroundColor.gradient)
                             } icon: {
                                 Text(label.emoji)
+
                             }
                         }
                     }
@@ -81,19 +119,76 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .onChange(of: selection) { _, newValue in
+            updateActiveHome(for: newValue)
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private func updateActiveHome(for destination: Router.SidebarDestination?) {
+        guard let destination = destination else { return }
+
+        switch destination {
+        case .dashboard:
+            // Set active home to primary home
+            if let primaryHome = primaryHome {
+                settingsManager.activeHomeId = primaryHome.id.uuidString
+            }
+
+        case .home(let homeId):
+            // Set active home to selected home
+            if let home = homes.first(where: { $0.persistentModelID == homeId }) {
+                settingsManager.activeHomeId = home.id.uuidString
+            }
+
+        default:
+            // For other destinations (labels, locations, all inventory), don't change active home
+            break
+        }
     }
 }
-//
-//#Preview {
-//    do {
-//        let previewer = try Previewer()
-//        return NavigationSplitView {
-//            SidebarView(selection: .constant(.dashboard))
-//                .modelContainer(previewer.container)
-//        } detail: {
-//            Text("Select an item")
-//        }
-//    } catch {
-//        return Text("Failed to create preview: \(error.localizedDescription)")
-//    }
-//}
+
+// MARK: - Sidebar Row Views
+
+struct SidebarHomeRow: View {
+    let home: Home
+    let isActive: Bool
+    
+    var body: some View {
+        HStack {
+            Label(home.displayName, systemImage: "building.2")
+            
+            if home.isPrimary {
+                Text("PRIMARY")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green)
+                    .cornerRadius(4)
+            }
+            
+            Spacer()
+            
+            if isActive {
+                Image(systemName: "checkmark")
+            }
+        }
+    }
+}
+
+#Preview {
+    do {
+        let previewer = try Previewer()
+        return NavigationSplitView {
+            SidebarView(selection: .constant(.dashboard))
+                .modelContainer(previewer.container)
+        } detail: {
+            Text("Select an item")
+        }
+    } catch {
+        return Text("Failed to create preview: \(error.localizedDescription)")
+    }
+}

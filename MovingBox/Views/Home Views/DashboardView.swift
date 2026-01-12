@@ -14,16 +14,18 @@ import WhatsNewKit
 
 @MainActor
 struct DashboardView: View {
+    let specificHome: Home?
+
     @Environment(\.modelContext) var modelContext
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
-    @Query private var items: [InventoryItem]
-    @Query(sort: [SortDescriptor(\InventoryItem.createdAt, order: .reverse)]) private var recentItems: [InventoryItem]
+    @Query private var allItems: [InventoryItem]
+    @Query(sort: [SortDescriptor(\InventoryItem.createdAt, order: .reverse)]) private var allRecentItems: [InventoryItem]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
-    
+
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
@@ -33,14 +35,40 @@ struct DashboardView: View {
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
 
-    private var home: Home? {
-        return homes.last
+    // MARK: - Initializer
+
+    init(home: Home? = nil) {
+        self.specificHome = home
     }
-    
+
+    // MARK: - Computed Properties
+
+    private var displayHome: Home? {
+        specificHome ?? homes.first { $0.isPrimary } ?? homes.last
+    }
+
+    private var home: Home? {
+        return displayHome
+    }
+
+    private var items: [InventoryItem] {
+        guard let displayHome = displayHome else {
+            return allItems
+        }
+        return allItems.filter { $0.effectiveHome?.id == displayHome.id }
+    }
+
+    private var recentItems: [InventoryItem] {
+        guard let displayHome = displayHome else {
+            return allRecentItems
+        }
+        return allRecentItems.filter { $0.effectiveHome?.id == displayHome.id }
+    }
+
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
     }
-    
+
     private var topRecentItems: [InventoryItem] {
         Array(recentItems.prefix(3))
     }
@@ -76,7 +104,7 @@ struct DashboardView: View {
                     // MARK: - Inventory Statistics
                     VStack(alignment: .leading, spacing: 16) {
                         Button {
-                            router.navigate(to: .inventoryListView(location: nil))
+                            router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
                         } label: {
                             DashboardSectionLabel(text: "All Inventory")
                         }
@@ -130,9 +158,9 @@ struct DashboardView: View {
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityIdentifier("dashboard-recent-item-\(item.persistentModelID)")
+                                    .accessibilityIdentifier("dashboard-recent-item-\(item.id)")
                                     
-                                    if item.persistentModelID != topRecentItems.last?.persistentModelID {
+                                    if item.id != topRecentItems.last?.id {
                                         Divider()
                                             .padding(.leading, 92)
                                     }
@@ -140,9 +168,9 @@ struct DashboardView: View {
                                 
                                 Divider()
                                     .padding(.leading, 16)
-                                
+
                                 Button {
-                                    router.navigate(to: .inventoryListView(location: nil))
+                                    router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
                                 } label: {
                                     HStack {
                                         Text("View All Items")
@@ -280,7 +308,7 @@ struct DashboardView: View {
         VStack {
             Spacer()
             HStack {
-                Text((home?.name.isEmpty == false ? home?.name : nil) ?? "Dashboard")
+                Text((home?.displayName.isEmpty == false ? home?.displayName : nil) ?? "Dashboard")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundColor(.white)

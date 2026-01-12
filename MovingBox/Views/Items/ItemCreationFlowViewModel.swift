@@ -273,6 +273,30 @@ class ItemCreationFlowViewModel: ObservableObject {
             
             await MainActor.run {
                 if let context = modelContext {
+                    // Assign active home if item has no location or location has no home
+                    if newItem.location == nil || newItem.location?.home == nil {
+                        // Get active home from SettingsManager
+                        if let activeHomeIdString = settingsManager?.activeHomeId,
+                           let activeHomeId = UUID(uuidString: activeHomeIdString) {
+                            let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
+                            if let activeHome = try? context.fetch(homeDescriptor).first {
+                                newItem.home = activeHome
+                            } else {
+                                // Fallback to primary home
+                                let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+                                if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
+                                    newItem.home = primaryHome
+                                }
+                            }
+                        } else {
+                            // Fallback to primary home
+                            let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+                            if let primaryHome = try? context.fetch(homeDescriptor).first {
+                                newItem.home = primaryHome
+                            }
+                        }
+                    }
+                    
                     context.insert(newItem)
                     try? context.save()
                 }
@@ -509,6 +533,30 @@ class ItemCreationFlowViewModel: ObservableObject {
         
         // Insert all items in batch
         for item in items {
+            // Assign active home if item has no location or location has no home
+            if item.location == nil || item.location?.home == nil {
+                // Get active home from SettingsManager
+                if let activeHomeIdString = settingsManager?.activeHomeId,
+                   let activeHomeId = UUID(uuidString: activeHomeIdString) {
+                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
+                    if let activeHome = try? context.fetch(homeDescriptor).first {
+                        item.home = activeHome
+                    } else {
+                        // Fallback to primary home
+                        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+                        if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
+                            item.home = primaryHome
+                        }
+                    }
+                } else {
+                    // Fallback to primary home
+                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+                    if let primaryHome = try? context.fetch(homeDescriptor).first {
+                        item.home = primaryHome
+                    }
+                }
+            }
+            
             context.insert(item)
             // Track telemetry for each item
             TelemetryManager.shared.trackInventoryItemAdded(name: item.title)

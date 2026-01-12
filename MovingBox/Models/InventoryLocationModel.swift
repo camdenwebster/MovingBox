@@ -11,13 +11,15 @@ import SwiftUI
 
 @Model
 class InventoryLocation: PhotoManageable {
+    var id: UUID = UUID()
     var name: String = ""
     var desc: String = ""
     var sfSymbolName: String? = nil  // Optional SF Symbol for default room icons
     var imageURL: URL?
     var secondaryPhotoURLs: [String] = []
     var inventoryItems: [InventoryItem]? = [InventoryItem]()
-    
+    var home: Home?
+
     // ADD: Legacy Support
     @Attribute(.externalStorage) var data: Data?
     

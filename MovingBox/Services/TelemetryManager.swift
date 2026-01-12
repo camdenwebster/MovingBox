@@ -156,7 +156,29 @@ final class TelemetryManager: @unchecked Sendable {
     func trackLabelDeleted() {
         TelemetryManager.signal("Settings.Label.deleted")
     }
-    
+
+    func trackHomeCreated(name: String) {
+        TelemetryManager.signal("Settings.Home.created")
+    }
+
+    func trackHomeRenamed(oldName: String, newName: String) {
+        TelemetryManager.signal("Settings.Home.renamed")
+    }
+
+    func trackHomeDeleted() {
+        TelemetryManager.signal("Settings.Home.deleted")
+    }
+
+    func trackHomeSwitched(homeName: String) {
+        TelemetryManager.signal("Settings.Home.switched", with: [
+            "home_name": homeName
+        ])
+    }
+
+    func trackPrimaryHomeChanged() {
+        TelemetryManager.signal("Settings.Home.primaryChanged")
+    }
+
     // MARK: - Navigation
     
     func trackTabSelected(tab: String) {
