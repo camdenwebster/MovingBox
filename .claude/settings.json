@@ -55,6 +55,7 @@
     "pr-review-toolkit@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true
   },
+  
   "alwaysThinkingEnabled": true,
   "allowedTools": [
     "Edit",
@@ -161,7 +162,8 @@
     "/refactor": ".claude/commands/refactor-code.md",
     "/review": ".claude/commands/review-pr.md",
     "/boilerplate": ".claude/commands/generate-boilerplate.md",
-    "/unittest": ".claude/commands/write-unit-tests.md"
+    "/unittest": ".claude/commands/write-unit-tests.md",
+    "/add-secret": ".claude/commands/add-secret.md"
   },
   "environment": {
     "IOS_SIMULATOR_DEVICE": "iPhone 16 Pro",
@@ -216,5 +218,26 @@
       "preferXcodebuildOverGUI": true,
       "enableContinuousIntegration": true
     }
+  },
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "startup",
+      "hooks": [{
+        "type": "command",
+        "command": "source ~/.movingbox_env && bash ci_scripts/ci_post_clone.sh"
+      }]
+    }],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "xcrun swift-format -i -r -p .",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }
