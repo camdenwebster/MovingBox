@@ -147,7 +147,7 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         // Given: User has captured a photo in Multi mode
         openCamera()
         switchToMultiMode()
-        cameraScreen.captureButton.tap()
+        cameraScreen.takePhoto()
 
         XCTAssertTrue(
             cameraScreen.waitForPreviewOverlay(),

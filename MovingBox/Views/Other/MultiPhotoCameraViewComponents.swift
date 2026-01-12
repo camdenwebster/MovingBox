@@ -692,8 +692,8 @@ struct CameraBottomControls: View {
                             .strokeBorder(.white.opacity(0.5), lineWidth: 3)
                             .frame(width: 80, height: 80)
                     }
+                    .accessibilityIdentifier("cameraShutterButton")
                 }
-                .accessibilityIdentifier("cameraShutterButton")
             }
 
             HStack(spacing: 12) {

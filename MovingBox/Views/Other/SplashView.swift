@@ -67,7 +67,7 @@ struct SplashView: View {
                                     .foregroundColor(textColor.opacity(0.8))
                                     .multilineTextAlignment(.center)
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .secondary))
                                     .scaleEffect(1.2)
                             }
                         }

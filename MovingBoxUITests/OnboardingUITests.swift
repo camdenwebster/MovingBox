@@ -229,7 +229,7 @@ extension XCTestCase {
     }
 
     func handleOnboardingPaywallStep(app: XCUIApplication, paywall: PaywallScreen) {
-        XCTAssertTrue(paywall.okButton.waitForExistence(timeout: 5))
-        paywall.okButton.tap()
+        XCTAssertTrue(paywall.closeButton.waitForExistence(timeout: 5))
+        paywall.closeButton.tap()
     }
 }

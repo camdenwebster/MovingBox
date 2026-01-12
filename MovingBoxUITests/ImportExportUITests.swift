@@ -48,7 +48,7 @@ final class ImportExportUITests: XCTestCase {
         XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
 
         settingsScreen.tapSyncAndData()
-        let syncDataLabel = app.staticTexts["Sync & Data"]
+        let syncDataLabel = app.staticTexts["Sync and Data"]
         XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
     }
 
@@ -71,7 +71,7 @@ final class ImportExportUITests: XCTestCase {
         XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
 
         settingsScreen.tapSyncAndData()
-        let syncDataLabel = app.staticTexts["Sync & Data"]
+        let syncDataLabel = app.staticTexts["Sync and Data"]
         XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
 
         let importLink = app.buttons["importDataLink"]
@@ -84,7 +84,7 @@ final class ImportExportUITests: XCTestCase {
         XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
 
         settingsScreen.tapSyncAndData()
-        let syncDataLabel = app.staticTexts["Sync & Data"]
+        let syncDataLabel = app.staticTexts["Sync and Data"]
         XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
 
         let exportLink = app.buttons["exportDataLink"]
@@ -100,7 +100,7 @@ final class ImportExportUITests: XCTestCase {
         XCTAssertTrue(settingsScreen.waitForSettingsScreen(), "Settings screen should be displayed")
 
         settingsScreen.tapSyncAndData()
-        let syncDataLabel = app.staticTexts["Sync & Data"]
+        let syncDataLabel = app.staticTexts["Sync and Data"].firstMatch
         XCTAssertTrue(syncDataLabel.waitForExistence(timeout: 10), "Sync & Data screen should appear")
 
         let importLink = app.buttons["importDataLink"]
