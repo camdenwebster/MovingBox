@@ -97,6 +97,10 @@ class ModelContainerManager {
     ])
 
     private init() {
+        // CRITICAL: Register value transformers BEFORE creating ModelContainer
+        // SwiftData needs transformers registered before reading schema
+        UIColorValueTransformer.register()
+
         // Always start with CloudKit disabled during initialization/migration
         let configuration = ModelConfiguration(
             schema: schema,
