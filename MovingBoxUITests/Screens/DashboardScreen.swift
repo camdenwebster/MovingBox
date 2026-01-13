@@ -92,7 +92,7 @@ class DashboardScreen {
     func waitForRecentItems() -> Bool {
         return app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'dashboard-recent-item-'")
-        ).firstMatch.waitForExistence(timeout: 5)
+        ).firstMatch.waitForExistence(timeout: 30)
     }
 
     func hasRecentItems() -> Bool {

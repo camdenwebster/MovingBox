@@ -63,8 +63,8 @@ class InventoryListScreen {
         self.actionsButton = app.buttons["Actions"]
         self.deleteSelectedButton = app.buttons["deleteSelected"]
         self.deleteConfirmationAlert = app.alerts["Delete Items"]
-        self.deleteButton = app.buttons["alertDelete"]
-        self.alertCancelButton = app.buttons["Cancel"]
+        self.deleteButton = self.deleteConfirmationAlert.buttons["alertDelete"]
+        self.alertCancelButton = self.deleteConfirmationAlert.buttons["Cancel"]
     }
 
     func tapAddItem() {
@@ -128,7 +128,7 @@ class InventoryListScreen {
 
     func deleteSelectedItems() {
         deleteSelectedButton.tap()
-        deleteButton.tap()
+        // Alert appears after this - confirmDeletion() will tap the alert button
     }
 
     func confirmDeletion() {

@@ -72,6 +72,11 @@ class NavigationHelper {
     func navigateToAnExistingItem() {
         // Check if the Use-Test-Data launchargument is enabled
         if app.launchArguments.contains("Use-Test-Data") {
+            // Wait for recent items to load (multi-home architecture may take time)
+            guard dashboardScreen.waitForRecentItems() else {
+                XCTFail("Recent items did not load in time")
+                return
+            }
             dashboardScreen.tapFirstRecentItem()
         } else {
             XCTFail("Test data is not loaded, cannot test navigation to an existing item")

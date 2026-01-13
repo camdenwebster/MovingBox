@@ -296,8 +296,6 @@ final class DashboardNavigationUITests: XCTestCase {
     }
 
     func testDashboardDataRefreshAfterItemCreation() throws {
-        // TODO: Test that dashboard stats update after creating new items
-        // This should verify real-time data updates and UI refresh
         throw XCTSkip("Dashboard data refresh testing not implemented")
     }
 }
