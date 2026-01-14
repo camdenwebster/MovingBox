@@ -555,6 +555,15 @@ struct HomeDetailSettingsView: View {
             }
         }
 
+        // Clear direct home references from items
+        // Items can have home assigned directly (not through location)
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        if let items = try? modelContext.fetch(itemDescriptor) {
+            for item in items where item.home?.id == homeToDelete.id {
+                item.home = nil
+            }
+        }
+
         // Delete the home itself
         modelContext.delete(homeToDelete)
 

@@ -95,6 +95,12 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    /// Convenience property that converts activeHomeId string to UUID.
+    /// Returns nil if activeHomeId is nil or not a valid UUID string.
+    var activeHomeIdAsUUID: UUID? {
+        activeHomeId.flatMap { UUID(uuidString: $0) }
+    }
+
     var firstLaunchDate: Date {
         if let date = UserDefaults.standard.object(forKey: Keys.firstLaunchDate) as? Date {
             return date

@@ -433,4 +433,114 @@ import Testing
         let item4 = InventoryItem()
         #expect(item4.effectiveHome == nil, "Item should have no effective home when neither location nor home is set")
     }
+
+    @Test("Test effectiveHome with location that has nil home falls back to direct home")
+    func testEffectiveHomeLocationWithNilHome() async throws {
+        // Location exists but has no home assigned
+        let location = InventoryLocation(name: "Orphaned Location")
+        // location.home is nil by default
+
+        let directHome = Home(name: "Direct Home")
+
+        let item = InventoryItem()
+        item.location = location
+        item.home = directHome
+
+        // Since location.home is nil, effectiveHome should fall back to item.home
+        #expect(item.effectiveHome === directHome, "Item should fall back to direct home when location's home is nil")
+    }
+
+    @Test("Test item ID is set correctly on initialization")
+    func testItemIdInitialization() async throws {
+        // Test default init
+        let item1 = InventoryItem()
+        #expect(item1.id != UUID(), "Item should have a valid UUID")
+
+        // Test init with title
+        let item2 = InventoryItem(title: "Test Item")
+        #expect(item2.id != UUID(), "Item should have a valid UUID")
+
+        // Verify IDs are unique
+        #expect(item1.id != item2.id, "Different items should have different IDs")
+    }
+
+    @Test("Test item ID can be explicitly set")
+    func testItemIdExplicitSet() async throws {
+        let explicitId = UUID()
+        let item = InventoryItem(id: explicitId)
+
+        #expect(item.id == explicitId, "Item ID should match explicitly set UUID")
+    }
+
+    @Test("Test home ID is set correctly on initialization")
+    func testHomeIdInitialization() async throws {
+        let home = Home(name: "Test Home")
+        #expect(home.id != UUID(), "Home should have a valid UUID")
+
+        // Test with explicit ID
+        let explicitId = UUID()
+        let homeWithId = Home(id: explicitId, name: "Home With ID")
+        #expect(homeWithId.id == explicitId, "Home ID should match explicitly set UUID")
+    }
+
+    @Test("Test location ID is set correctly on initialization")
+    func testLocationIdInitialization() async throws {
+        let location = InventoryLocation(name: "Test Location")
+        #expect(location.id != UUID(), "Location should have a valid UUID")
+
+        // Test with explicit ID
+        let explicitId = UUID()
+        let locationWithId = InventoryLocation(id: explicitId, name: "Location With ID")
+        #expect(locationWithId.id == explicitId, "Location ID should match explicitly set UUID")
+    }
+
+    @Test("Test label ID is set correctly on initialization")
+    func testLabelIdInitialization() async throws {
+        let label = InventoryLabel(name: "Test Label")
+        #expect(label.id != UUID(), "Label should have a valid UUID")
+
+        // Test with explicit ID
+        let explicitId = UUID()
+        let labelWithId = InventoryLabel(id: explicitId, name: "Label With ID")
+        #expect(labelWithId.id == explicitId, "Label ID should match explicitly set UUID")
+    }
+
+    @Test("Test item home assignment does not affect location")
+    func testHomeAssignmentIndependentOfLocation() async throws {
+        let home1 = Home(name: "Home 1")
+        let home2 = Home(name: "Home 2")
+        let location = InventoryLocation(name: "Test Location")
+        location.home = home1
+
+        let item = InventoryItem()
+        item.location = location
+        item.home = home2
+
+        // Verify location's home is unchanged
+        #expect(location.home === home1, "Setting item.home should not affect location.home")
+
+        // Verify effectiveHome still uses location's home
+        #expect(item.effectiveHome === home1, "effectiveHome should still prefer location's home")
+    }
+
+    @Test("Test clearing location makes item use direct home")
+    func testClearingLocationUsesDirectHome() async throws {
+        let locationHome = Home(name: "Location Home")
+        let directHome = Home(name: "Direct Home")
+        let location = InventoryLocation(name: "Test Location")
+        location.home = locationHome
+
+        let item = InventoryItem()
+        item.location = location
+        item.home = directHome
+
+        // Initially uses location's home
+        #expect(item.effectiveHome === locationHome)
+
+        // Clear location
+        item.location = nil
+
+        // Now should use direct home
+        #expect(item.effectiveHome === directHome, "After clearing location, item should use direct home")
+    }
 }
