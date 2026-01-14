@@ -256,6 +256,17 @@ struct DashboardView: View {
             .tint(.green)
         }
         .whatsNewSheet()
+        .onAppear {
+            // Sync activeHomeId with the home being displayed
+            // This ensures items created from this dashboard are assigned to the correct home
+            if let displayHome = displayHome {
+                let homeIdString = displayHome.id.uuidString
+                if settings.activeHomeId != homeIdString {
+                    print("🏠 DashboardView - Syncing activeHomeId to: \(displayHome.displayName) (\(homeIdString))")
+                    settings.activeHomeId = homeIdString
+                }
+            }
+        }
         .task(id: home?.imageURL) {
             guard let home = home,
                 let imageURL = home.imageURL,

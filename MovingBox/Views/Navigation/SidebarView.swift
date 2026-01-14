@@ -120,6 +120,11 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .onAppear {
+            // Sync activeHomeId on initial load
+            // onChange only fires when selection changes, not for the initial value
+            updateActiveHome(for: selection)
+        }
         .onChange(of: selection) { _, newValue in
             updateActiveHome(for: newValue)
         }
