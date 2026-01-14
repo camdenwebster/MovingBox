@@ -15,37 +15,39 @@ import TelemetryDeck
 /// - Safe to access from any thread/actor
 final class TelemetryManager: @unchecked Sendable {
     static let shared = TelemetryManager()
-    
+
     private init() {}
-    
+
     // MARK: - Inventory Items
-    
+
     func trackInventoryItemAdded(name: String) {
         TelemetryManager.signal("Inventory.itemCreated")
     }
-    
+
     func trackInventoryItemDeleted() {
         TelemetryManager.signal("Inventory.itemDeleted")
     }
-    
+
     func trackCameraAnalysisUsed() {
         TelemetryManager.signal("Inventory.Analysis.cameraUsed")
     }
-    
+
     func trackPhotoAnalysisUsed() {
         TelemetryManager.signal("Inventory.Analysis.photoUsed")
     }
-    
+
     func trackCaptureModeSelected(mode: String, imageCount: Int, isProUser: Bool) {
-        TelemetryManager.signal("Inventory.Analysis.captureModeSelected", with: [
-            "mode": mode,
-            "image_count": String(imageCount),
-            "is_pro_user": isProUser ? "true" : "false"
-        ])
+        TelemetryManager.signal(
+            "Inventory.Analysis.captureModeSelected",
+            with: [
+                "mode": mode,
+                "image_count": String(imageCount),
+                "is_pro_user": isProUser ? "true" : "false",
+            ])
     }
-    
+
     // MARK: - AI Analysis Detailed Tracking
-    
+
     func trackAIAnalysisStarted(
         isProUser: Bool,
         useHighQuality: Bool,
@@ -55,17 +57,19 @@ final class TelemetryManager: @unchecked Sendable {
         imageCount: Int,
         itemId: String? = nil
     ) {
-        TelemetryManager.signal("AIAnalysis.started", with: [
-            "is_pro_user": isProUser ? "true" : "false",
-            "use_high_quality": useHighQuality ? "true" : "false",
-            "model": model,
-            "detail_level": detailLevel,
-            "image_resolution": String(Int(imageResolution)),
-            "image_count": String(imageCount),
-            "item_id": itemId ?? "unknown"
-        ])
+        TelemetryManager.signal(
+            "AIAnalysis.started",
+            with: [
+                "is_pro_user": isProUser ? "true" : "false",
+                "use_high_quality": useHighQuality ? "true" : "false",
+                "model": model,
+                "detail_level": detailLevel,
+                "image_resolution": String(Int(imageResolution)),
+                "image_count": String(imageCount),
+                "item_id": itemId ?? "unknown",
+            ])
     }
-    
+
     func trackAIAnalysisCompleted(
         isProUser: Bool,
         useHighQuality: Bool,
@@ -77,19 +81,21 @@ final class TelemetryManager: @unchecked Sendable {
         success: Bool,
         itemId: String? = nil
     ) {
-        TelemetryManager.signal("AIAnalysis.completed", with: [
-            "is_pro_user": isProUser ? "true" : "false",
-            "use_high_quality": useHighQuality ? "true" : "false",
-            "model": model,
-            "detail_level": detailLevel,
-            "image_resolution": String(Int(imageResolution)),
-            "image_count": String(imageCount),
-            "response_time_ms": String(responseTimeMs),
-            "success": success ? "true" : "false",
-            "item_id": itemId ?? "unknown"
-        ])
+        TelemetryManager.signal(
+            "AIAnalysis.completed",
+            with: [
+                "is_pro_user": isProUser ? "true" : "false",
+                "use_high_quality": useHighQuality ? "true" : "false",
+                "model": model,
+                "detail_level": detailLevel,
+                "image_resolution": String(Int(imageResolution)),
+                "image_count": String(imageCount),
+                "response_time_ms": String(responseTimeMs),
+                "success": success ? "true" : "false",
+                "item_id": itemId ?? "unknown",
+            ])
     }
-    
+
     func trackAITokenUsage(
         totalTokens: Int,
         promptTokens: Int,
@@ -99,40 +105,48 @@ final class TelemetryManager: @unchecked Sendable {
         isProUser: Bool,
         model: String
     ) {
-        TelemetryManager.signal("AIAnalysis.tokenUsage", with: [
-            "total_tokens": String(totalTokens),
-            "prompt_tokens": String(promptTokens),
-            "completion_tokens": String(completionTokens),
-            "request_time_seconds": String(format: "%.2f", requestTimeSeconds),
-            "image_count": String(imageCount),
-            "is_pro_user": isProUser ? "true" : "false",
-            "model": model,
-            "tokens_per_second": String(format: "%.1f", Double(totalTokens) / requestTimeSeconds),
-            "is_multi_image": imageCount > 1 ? "true" : "false"
-        ])
+        TelemetryManager.signal(
+            "AIAnalysis.tokenUsage",
+            with: [
+                "total_tokens": String(totalTokens),
+                "prompt_tokens": String(promptTokens),
+                "completion_tokens": String(completionTokens),
+                "request_time_seconds": String(format: "%.2f", requestTimeSeconds),
+                "image_count": String(imageCount),
+                "is_pro_user": isProUser ? "true" : "false",
+                "model": model,
+                "tokens_per_second": String(format: "%.1f", Double(totalTokens) / requestTimeSeconds),
+                "is_multi_image": imageCount > 1 ? "true" : "false",
+            ])
     }
-    
+
     func trackHighQualityToggleUsed(enabled: Bool, isProUser: Bool) {
-        TelemetryManager.signal("Settings.Analysis.highQualityToggled", with: [
-            "enabled": enabled ? "true" : "false",
-            "is_pro_user": isProUser ? "true" : "false"
-        ])
+        TelemetryManager.signal(
+            "Settings.Analysis.highQualityToggled",
+            with: [
+                "enabled": enabled ? "true" : "false",
+                "is_pro_user": isProUser ? "true" : "false",
+            ])
     }
-    
+
     func trackMultipleAnalysisAttempt(itemId: String, attemptNumber: Int) {
-        TelemetryManager.signal("AIAnalysis.retryAttempt", with: [
-            "item_id": itemId,
-            "attempt_number": String(attemptNumber)
-        ])
+        TelemetryManager.signal(
+            "AIAnalysis.retryAttempt",
+            with: [
+                "item_id": itemId,
+                "attempt_number": String(attemptNumber),
+            ])
     }
-    
+
     // MARK: - Onboarding
 
     func trackUsageSurveySelected(usages: String, count: Int) {
-        TelemetryManager.signal("Onboarding.Survey.usageSelected", with: [
-            "usages": usages,
-            "count": String(count)
-        ])
+        TelemetryManager.signal(
+            "Onboarding.Survey.usageSelected",
+            with: [
+                "usages": usages,
+                "count": String(count),
+            ])
     }
 
     func trackUsageSurveySkipped() {
@@ -144,15 +158,15 @@ final class TelemetryManager: @unchecked Sendable {
     func trackLocationCreated(name: String) {
         TelemetryManager.signal("Settings.Location.created")
     }
-    
+
     func trackLocationDeleted() {
         TelemetryManager.signal("Settings.Location.deleted")
     }
-    
+
     func trackLabelCreated(name: String) {
         TelemetryManager.signal("Settings.Label.created")
     }
-    
+
     func trackLabelDeleted() {
         TelemetryManager.signal("Settings.Label.deleted")
     }
@@ -170,9 +184,11 @@ final class TelemetryManager: @unchecked Sendable {
     }
 
     func trackHomeSwitched(homeName: String) {
-        TelemetryManager.signal("Settings.Home.switched", with: [
-            "home_name": homeName
-        ])
+        TelemetryManager.signal(
+            "Settings.Home.switched",
+            with: [
+                "home_name": homeName
+            ])
     }
 
     func trackPrimaryHomeChanged() {
@@ -180,11 +196,13 @@ final class TelemetryManager: @unchecked Sendable {
     }
 
     // MARK: - Navigation
-    
+
     func trackTabSelected(tab: String) {
-        TelemetryManager.signal("Navigation.tabSelected", with: [
-            "tab": tab
-        ])
+        TelemetryManager.signal(
+            "Navigation.tabSelected",
+            with: [
+                "tab": tab
+            ])
     }
 
     // MARK: - App Store Review
@@ -192,23 +210,27 @@ final class TelemetryManager: @unchecked Sendable {
     func trackAppReviewRequested() {
         TelemetryManager.signal("AppStore.reviewRequested")
     }
-    
+
     // MARK: - Data Export/Import
-    
+
     func trackPhotoCopyFailures(failureCount: Int, totalPhotos: Int, failureRate: Double) {
-        TelemetryManager.signal("photo-copy-failures", with: [
-            "failure_count": String(failureCount),
-            "total_photos": String(totalPhotos),
-            "failure_rate": String(format: "%.2f", failureRate)
-        ])
+        TelemetryManager.signal(
+            "photo-copy-failures",
+            with: [
+                "failure_count": String(failureCount),
+                "total_photos": String(totalPhotos),
+                "failure_rate": String(format: "%.2f", failureRate),
+            ])
     }
-    
+
     func trackExportBatchSize(batchSize: Int, deviceMemoryGB: Double, itemCount: Int) {
-        TelemetryManager.signal("export-batch-size-used", with: [
-            "batch_size": String(batchSize),
-            "device_memory_gb": String(format: "%.1f", deviceMemoryGB),
-            "item_count": String(itemCount)
-        ])
+        TelemetryManager.signal(
+            "export-batch-size-used",
+            with: [
+                "batch_size": String(batchSize),
+                "device_memory_gb": String(format: "%.1f", deviceMemoryGB),
+                "item_count": String(itemCount),
+            ])
     }
 
     // MARK: - Helper

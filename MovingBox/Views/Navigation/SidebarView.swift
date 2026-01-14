@@ -5,8 +5,8 @@
 //  Created by Claude Code
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct SidebarView: View {
     @Environment(\.modelContext) private var modelContext
@@ -28,7 +28,8 @@ struct SidebarView: View {
 
     private var activeHome: Home? {
         guard let activeIdString = settingsManager.activeHomeId,
-              let activeId = UUID(uuidString: activeIdString) else {
+            let activeId = UUID(uuidString: activeIdString)
+        else {
             return primaryHome
         }
         return homes.first { $0.id == activeId } ?? primaryHome
@@ -58,7 +59,7 @@ struct SidebarView: View {
                 Label("All Inventory", systemImage: "shippingbox.fill")
                     .tint(.green)
             }
-            
+
             // Homes Section
             Section("Homes") {
                 ForEach(homes, id: \.persistentModelID) { home in
@@ -154,11 +155,11 @@ struct SidebarView: View {
 struct SidebarHomeRow: View {
     let home: Home
     let isActive: Bool
-    
+
     var body: some View {
         HStack {
             Label(home.displayName, systemImage: "building.2")
-            
+
             if home.isPrimary {
                 Text("PRIMARY")
                     .font(.caption2)
@@ -169,9 +170,9 @@ struct SidebarHomeRow: View {
                     .background(.green)
                     .cornerRadius(4)
             }
-            
+
             Spacer()
-            
+
             if isActive {
                 Image(systemName: "checkmark")
             }

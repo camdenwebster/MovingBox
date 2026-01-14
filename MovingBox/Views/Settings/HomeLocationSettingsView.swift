@@ -5,8 +5,8 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct HomeLocationSettingsView: View {
     @Environment(\.modelContext) var modelContext

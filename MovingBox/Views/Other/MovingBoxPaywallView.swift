@@ -8,12 +8,12 @@ struct MovingBoxPaywallView: View {
     @EnvironmentObject private var onboardingManager: OnboardingManager
     @Binding var isPresented: Bool
     @EnvironmentObject var router: Router
-    
+
     // New initializer to handle both onboarding and standard cases
     init(isPresented: Binding<Bool> = .constant(true)) {
         _isPresented = isPresented
     }
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 24) {
@@ -21,11 +21,11 @@ struct MovingBoxPaywallView: View {
                     .font(.system(size: 60))
                     .foregroundColor(.accentColor)
                     .padding(.top, 32)
-                
+
                 Text("Upgrade to MovingBox Pro")
                     .font(.title)
                     .bold()
-                
+
                 VStack(alignment: .leading, spacing: 16) {
                     FeatureRow(icon: "photo", text: "AI Image Analysis")
                     FeatureRow(icon: "infinity", text: "Unlimited Items")
@@ -33,7 +33,7 @@ struct MovingBoxPaywallView: View {
                     FeatureRow(icon: "icloud", text: "iCloud Sync")
                 }
                 .padding(.horizontal)
-                
+
                 Button(action: {
                     // TODO: Implement purchase flow
                     settingsManager.isPro = true
@@ -49,9 +49,9 @@ struct MovingBoxPaywallView: View {
                 }
                 .accessibilityIdentifier("upgradeButton")
                 .padding(.horizontal)
-                
+
                 Spacer()
-                
+
                 Text("All features • One-time purchase")
                     .foregroundColor(.secondary)
                     .font(.caption)
@@ -70,9 +70,9 @@ struct MovingBoxPaywallView: View {
         }
         .accessibilityIdentifier("paywallView")
     }
-    
+
     private func handleDismiss() {
-        if OnboardingManager.hasCompletedOnboarding() {  
+        if OnboardingManager.hasCompletedOnboarding() {
             // Standard presentation - use dismiss()
             dismiss()
         } else {
@@ -86,7 +86,7 @@ struct MovingBoxPaywallView: View {
 private struct FeatureRow: View {
     let icon: String
     let text: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)

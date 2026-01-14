@@ -14,11 +14,11 @@ extension Distribution {
     /// Gets the current distribution based on compilation conditions
     static var current: Self {
         #if BETA
-        return .beta
+            return .beta
         #elseif DEBUG
-        return .debug
+            return .debug
         #else
-        return .appstore
+            return .appstore
         #endif
     }
 }

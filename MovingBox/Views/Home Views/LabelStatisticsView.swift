@@ -18,7 +18,8 @@ struct LabelStatisticsView: View {
 
     private var activeHome: Home? {
         guard let activeIdString = settingsManager.activeHomeId,
-              let activeId = UUID(uuidString: activeIdString) else {
+            let activeId = UUID(uuidString: activeIdString)
+        else {
             return homes.first { $0.isPrimary }
         }
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
@@ -31,23 +32,23 @@ struct LabelStatisticsView: View {
         }
         return allLabels.filter { $0.home?.id == activeHome.id }
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             DashboardSectionLabel(text: "Labels", isButton: false)
-            
+
             if labels.isEmpty {
                 ContentUnavailableView {
-                        Label("No Labels", systemImage: "tag")
-                    } description: {
-                        Text("Add labels to categorize your items")
-                    } actions: {
-                        Button("Add a Label") {
-                            router.navigate(to: .editLabelView(label: nil, isEditing: true))
-                        }
-                        .buttonStyle(.borderedProminent)
+                    Label("No Labels", systemImage: "tag")
+                } description: {
+                    Text("Add labels to categorize your items")
+                } actions: {
+                    Button("Add a Label") {
+                        router.navigate(to: .editLabelView(label: nil, isEditing: true))
                     }
-                    .frame(height: 160)
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(height: 160)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {

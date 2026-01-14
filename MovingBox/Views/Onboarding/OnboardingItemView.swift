@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct OnboardingItemView: View {
     @EnvironmentObject private var manager: OnboardingManager
@@ -7,11 +7,11 @@ struct OnboardingItemView: View {
     @EnvironmentObject private var settings: SettingsManager
     @Environment(\.modelContext) var modelContext
     @Query private var locations: [InventoryLocation]
-    
+
     @State private var showPrivacyAlert = false
     @State private var showItemCreationFlow = false
     @State private var isProcessingImage = false
-    
+
     var body: some View {
         OnboardingContainer {
             VStack(spacing: 0) {
@@ -24,12 +24,15 @@ struct OnboardingItemView: View {
                                 .foregroundStyle(.secondary)
                                 .padding()
                                 .symbolEffect(.bounce.up.byLayer, options: .nonRepeating)
-                            
+
                             OnboardingHeaderText(text: "Add Your First Item")
-                            
+
                             VStack(spacing: 16) {
-                                OnboardingDescriptionText(text: "MovingBox uses artificial intelligence to automatically identify and catalog your items.")
-                                
+                                OnboardingDescriptionText(
+                                    text:
+                                        "MovingBox uses artificial intelligence to automatically identify and catalog your items."
+                                )
+
                                 VStack(alignment: .leading, spacing: 12) {
                                     OnboardingFeatureRow(
                                         icon: "checkmark.shield",
@@ -37,14 +40,14 @@ struct OnboardingItemView: View {
                                         title: "Instant Analysis",
                                         description: "Your photos are analyzed instantly"
                                     )
-                                    
+
                                     OnboardingFeatureRow(
                                         icon: "xmark.shield",
                                         iconColor: .red,
                                         title: "Privacy First",
                                         description: "We do not store your photos"
                                     )
-                                    
+
                                     OnboardingFeatureRow(
                                         icon: "exclamationmark.triangle",
                                         iconColor: .orange,
@@ -57,7 +60,7 @@ struct OnboardingItemView: View {
                                     RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
                                         .fill(.ultraThinMaterial)
                                 }
-                                
+
                                 Button("Read OpenAI's Privacy Policy") {
                                     if let url = URL(string: "https://openai.com/policies/privacy-policy") {
                                         UIApplication.shared.open(url)
@@ -69,16 +72,18 @@ struct OnboardingItemView: View {
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
                         .frame(maxWidth: .infinity)
-                        
+
                         Spacer()
                             .frame(height: 100)
                     }
                 }
-                
+
                 VStack {
-                    OnboardingContinueButton(action: {
-                        showPrivacyAlert = true
-                    }, title: "Take a Photo")
+                    OnboardingContinueButton(
+                        action: {
+                            showPrivacyAlert = true
+                        }, title: "Take a Photo"
+                    )
                     .accessibilityIdentifier("onboarding-item-take-photo-button")
                     .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                 }
@@ -97,12 +102,14 @@ struct OnboardingItemView: View {
             .tint(.green)
         }
         .alert("Privacy Notice", isPresented: $showPrivacyAlert) {
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {}
             Button("Continue") {
                 showItemCreationFlow = true
             }
         } message: {
-            Text("Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\n\nAI can make mistakes and may not always accurately identify items.")
+            Text(
+                "Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\n\nAI can make mistakes and may not always accurately identify items."
+            )
         }
     }
 }

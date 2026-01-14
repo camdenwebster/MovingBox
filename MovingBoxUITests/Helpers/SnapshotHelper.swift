@@ -44,7 +44,8 @@ enum SnapshotError: Error, CustomDebugStringConvertible {
     var debugDescription: String {
         switch self {
         case .cannotFindSimulatorHomeDirectory:
-            return "Couldn't find simulator home location. Please, check SIMULATOR_HOST_HOME env variable."
+            return
+                "Couldn't find simulator home location. Please, check SIMULATOR_HOST_HOME env variable."
         case .cannotRunOnPhysicalDevice:
             return "Can't use Snapshot on a physical device."
         }
@@ -89,7 +90,8 @@ open class Snapshot: NSObject {
 
         do {
             let trimCharacterSet = CharacterSet.whitespacesAndNewlines
-            deviceLanguage = try String(contentsOf: path, encoding: .utf8).trimmingCharacters(in: trimCharacterSet)
+            deviceLanguage = try String(contentsOf: path, encoding: .utf8).trimmingCharacters(
+                in: trimCharacterSet)
             app.launchArguments += ["-AppleLanguages", "(\(deviceLanguage))"]
         } catch {
             NSLog("Couldn't detect/set language...")
@@ -106,7 +108,8 @@ open class Snapshot: NSObject {
 
         do {
             let trimCharacterSet = CharacterSet.whitespacesAndNewlines
-            currentLocale = try String(contentsOf: path, encoding: .utf8).trimmingCharacters(in: trimCharacterSet)
+            currentLocale = try String(contentsOf: path, encoding: .utf8).trimmingCharacters(
+                in: trimCharacterSet)
         } catch {
             NSLog("Couldn't detect/set locale...")
         }
@@ -132,7 +135,9 @@ open class Snapshot: NSObject {
         do {
             let launchArguments = try String(contentsOf: path, encoding: String.Encoding.utf8)
             let regex = try NSRegularExpression(pattern: "(\\\".+?\\\"|\\S+)", options: [])
-            let matches = regex.matches(in: launchArguments, options: [], range: NSRange(location: 0, length: launchArguments.count))
+            let matches = regex.matches(
+                in: launchArguments, options: [], range: NSRange(location: 0, length: launchArguments.count)
+            )
             let results = matches.map { result -> String in
                 (launchArguments as NSString).substring(with: result.range)
             }
@@ -147,10 +152,10 @@ open class Snapshot: NSObject {
             waitForLoadingIndicatorToDisappear(within: timeout)
         }
 
-        NSLog("snapshot: \(name)") // more information about this, check out https://docs.fastlane.tools/actions/snapshot/#how-does-it-work
+        NSLog("snapshot: \(name)")  // more information about this, check out https://docs.fastlane.tools/actions/snapshot/#how-does-it-work
 
         if Snapshot.waitForAnimations {
-            sleep(1) // Waiting for the animation to be finished (kind of)
+            sleep(1)  // Waiting for the animation to be finished (kind of)
         }
 
         #if os(OSX)
@@ -169,12 +174,16 @@ open class Snapshot: NSObject {
 
             let screenshot = XCUIScreen.main.screenshot()
             #if os(iOS) && !targetEnvironment(macCatalyst)
-            let image = XCUIDevice.shared.orientation.isLandscape ?  fixLandscapeOrientation(image: screenshot.image) : screenshot.image
+                let image =
+                    XCUIDevice.shared.orientation.isLandscape
+                    ? fixLandscapeOrientation(image: screenshot.image) : screenshot.image
             #else
-            let image = screenshot.image
+                let image = screenshot.image
             #endif
 
-            guard var simulator = ProcessInfo().environment["SIMULATOR_DEVICE_NAME"], let screenshotsDir = screenshotsDirectory else { return }
+            guard var simulator = ProcessInfo().environment["SIMULATOR_DEVICE_NAME"],
+                let screenshotsDir = screenshotsDirectory
+            else { return }
 
             do {
                 // The simulator name contains "Clone X of " inside the screenshot file when running parallelized UI Tests on concurrent devices
@@ -222,8 +231,10 @@ open class Snapshot: NSObject {
             return
         }
 
-        let networkLoadingIndicator = app.otherElements.deviceStatusBars.networkLoadingIndicators.element
-        let networkLoadingIndicatorDisappeared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: networkLoadingIndicator)
+        let networkLoadingIndicator = app.otherElements.deviceStatusBars.networkLoadingIndicators
+            .element
+        let networkLoadingIndicatorDisappeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: networkLoadingIndicator)
         _ = XCTWaiter.wait(for: [networkLoadingIndicatorDisappeared], timeout: timeout)
     }
 
@@ -246,23 +257,24 @@ open class Snapshot: NSObject {
     }
 }
 
-private extension XCUIElementAttributes {
-    var isNetworkLoadingIndicator: Bool {
+extension XCUIElementAttributes {
+    fileprivate var isNetworkLoadingIndicator: Bool {
         if hasAllowListedIdentifier { return false }
 
         let hasOldLoadingIndicatorSize = frame.size == CGSize(width: 10, height: 20)
-        let hasNewLoadingIndicatorSize = frame.size.width.isBetween(46, and: 47) && frame.size.height.isBetween(2, and: 3)
+        let hasNewLoadingIndicatorSize =
+            frame.size.width.isBetween(46, and: 47) && frame.size.height.isBetween(2, and: 3)
 
         return hasOldLoadingIndicatorSize || hasNewLoadingIndicatorSize
     }
 
-    var hasAllowListedIdentifier: Bool {
+    fileprivate var hasAllowListedIdentifier: Bool {
         let allowListedIdentifiers = ["GeofenceLocationTrackingOn", "StandardLocationTrackingOn"]
 
         return allowListedIdentifiers.contains(identifier)
     }
 
-    func isStatusBar(_ deviceWidth: CGFloat) -> Bool {
+    fileprivate func isStatusBar(_ deviceWidth: CGFloat) -> Bool {
         if elementType == .statusBar { return true }
         guard frame.origin == .zero else { return false }
 
@@ -273,8 +285,8 @@ private extension XCUIElementAttributes {
     }
 }
 
-private extension XCUIElementQuery {
-    var networkLoadingIndicators: XCUIElementQuery {
+extension XCUIElementQuery {
+    fileprivate var networkLoadingIndicators: XCUIElementQuery {
         let isNetworkLoadingIndicator = NSPredicate { (evaluatedObject, _) in
             guard let element = evaluatedObject as? XCUIElementAttributes else { return false }
 
@@ -285,7 +297,7 @@ private extension XCUIElementQuery {
     }
 
     @MainActor
-    var deviceStatusBars: XCUIElementQuery {
+    fileprivate var deviceStatusBars: XCUIElementQuery {
         guard let app = Snapshot.app else {
             fatalError("XCUIApplication is not set. Please call setupSnapshot(app) before snapshot().")
         }
@@ -302,8 +314,8 @@ private extension XCUIElementQuery {
     }
 }
 
-private extension CGFloat {
-    func isBetween(_ numberA: CGFloat, and numberB: CGFloat) -> Bool {
+extension CGFloat {
+    fileprivate func isBetween(_ numberA: CGFloat, and numberB: CGFloat) -> Bool {
         return numberA...numberB ~= self
     }
 }

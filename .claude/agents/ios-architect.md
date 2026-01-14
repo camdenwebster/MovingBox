@@ -34,7 +34,7 @@ You are an elite iOS/Swift architect specializing in translating product require
 
 ## Implementation Phases
 [Logical breakdown for incremental delivery]
-
+/Users/camden.webster/dev/MovingBox/MovingBox/MovingBoxStoreKit.storekit
 ## Scaling Considerations
 [Growth handling without major rewrites]
 

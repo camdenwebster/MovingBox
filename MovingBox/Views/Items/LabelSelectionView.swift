@@ -20,7 +20,8 @@ struct LabelSelectionView: View {
 
     private var activeHome: Home? {
         guard let activeIdString = settingsManager.activeHomeId,
-              let activeId = UUID(uuidString: activeIdString) else {
+            let activeId = UUID(uuidString: activeIdString)
+        else {
             return homes.first { $0.isPrimary }
         }
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
@@ -33,7 +34,7 @@ struct LabelSelectionView: View {
         }
         return allLabels.filter { $0.home?.id == activeHome.id }
     }
-    
+
     private var filteredLabels: [InventoryLabel] {
         if searchText.isEmpty {
             return labels
@@ -42,7 +43,7 @@ struct LabelSelectionView: View {
             label.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -62,7 +63,7 @@ struct LabelSelectionView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                
+
                 if !filteredLabels.isEmpty {
                     Section {
                         ForEach(filteredLabels) { label in
@@ -84,7 +85,7 @@ struct LabelSelectionView: View {
                         }
                     }
                 }
-                
+
                 if filteredLabels.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView(
                         "No Labels Found",
@@ -102,7 +103,7 @@ struct LabelSelectionView: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         addNewLabel()
@@ -113,7 +114,7 @@ struct LabelSelectionView: View {
             }
         }
     }
-    
+
     private func addNewLabel() {
         let newLabel = InventoryLabel(name: "New Label", emoji: "📦")
         newLabel.home = activeHome

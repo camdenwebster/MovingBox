@@ -20,7 +20,8 @@ struct LocationSelectionView: View {
 
     private var activeHome: Home? {
         guard let activeIdString = settingsManager.activeHomeId,
-              let activeId = UUID(uuidString: activeIdString) else {
+            let activeId = UUID(uuidString: activeIdString)
+        else {
             return homes.first { $0.isPrimary }
         }
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
@@ -33,7 +34,7 @@ struct LocationSelectionView: View {
         }
         return allLocations.filter { $0.home?.id == activeHome.id }
     }
-    
+
     private var filteredLocations: [InventoryLocation] {
         if searchText.isEmpty {
             return locations
@@ -42,7 +43,7 @@ struct LocationSelectionView: View {
             location.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -62,7 +63,7 @@ struct LocationSelectionView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                
+
                 if !filteredLocations.isEmpty {
                     Section {
                         ForEach(filteredLocations) { location in
@@ -92,7 +93,7 @@ struct LocationSelectionView: View {
                         }
                     }
                 }
-                
+
                 if filteredLocations.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView(
                         "No Locations Found",
@@ -110,7 +111,7 @@ struct LocationSelectionView: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         addNewLocation()
@@ -121,7 +122,7 @@ struct LocationSelectionView: View {
             }
         }
     }
-    
+
     private func addNewLocation() {
         let newLocation = InventoryLocation(name: "New Location", desc: "")
         newLocation.home = activeHome

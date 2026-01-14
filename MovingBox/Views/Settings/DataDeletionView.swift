@@ -1,6 +1,6 @@
-import SwiftUIBackports
-import SwiftUI
 import SwiftData
+import SwiftUI
+import SwiftUIBackports
 
 /// Protocol for data deletion operations - enables dependency injection and testing
 @MainActor
@@ -8,7 +8,7 @@ protocol DataDeletionServiceProtocol {
     var isDeleting: Bool { get }
     var lastError: Error? { get }
     var deletionCompleted: Bool { get }
-    
+
     func deleteAllData(scope: DeletionScope) async
     func resetState()
 }
@@ -20,13 +20,13 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     private(set) var isDeleting = false
     private(set) var lastError: Error?
     private(set) var deletionCompleted = false
-    
+
     private let modelContext: ModelContext
-    
+
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
     }
-    
+
     func deleteAllData(scope: DeletionScope) async {
         guard !isDeleting else { return }
 
@@ -42,7 +42,7 @@ final class DataDeletionService: DataDeletionServiceProtocol {
             // Give SwiftData time to process all deletions and refresh queries
             // This is critical to prevent crashes from stale @Query results
             // Views like DashboardView, LabelStatisticsView, LocationStatisticsView all have @Query
-            try await Task.sleep(nanoseconds: 1_000_000_000) // 1.0 second
+            try await Task.sleep(nanoseconds: 1_000_000_000)  // 1.0 second
 
             deletionCompleted = true
         } catch {
@@ -50,12 +50,12 @@ final class DataDeletionService: DataDeletionServiceProtocol {
             print("❌ Error deleting data: \(error)")
         }
     }
-    
+
     func resetState() {
         lastError = nil
         deletionCompleted = false
     }
-    
+
     private func performDeletion(scope: DeletionScope) async throws {
         try await deleteSwiftDataContent()
         await clearImageCache()
@@ -71,55 +71,59 @@ final class DataDeletionService: DataDeletionServiceProtocol {
             print("🗑️ Deleted local data only")
         }
     }
-    
+
     private func createInitialHome() async throws {
         let newHome = Home(name: "My Home")
         newHome.isPrimary = true
         modelContext.insert(newHome)
         try modelContext.save()
-        
+
         UserDefaults.standard.set(newHome.id.uuidString, forKey: "activeHomeId")
-        
+
         print("🏠 Created initial home after data deletion")
     }
-    
+
     private func deleteSwiftDataContent() async throws {
         let itemDescriptor = FetchDescriptor<InventoryItem>()
         let items = try modelContext.fetch(itemDescriptor)
         for item in items {
             modelContext.delete(item)
         }
-        
+
         let locationDescriptor = FetchDescriptor<InventoryLocation>()
         let locations = try modelContext.fetch(locationDescriptor)
         for location in locations {
             modelContext.delete(location)
         }
-        
+
         let labelDescriptor = FetchDescriptor<InventoryLabel>()
         let labels = try modelContext.fetch(labelDescriptor)
         for label in labels {
             modelContext.delete(label)
         }
-        
+
         let homeDescriptor = FetchDescriptor<Home>()
         let homes = try modelContext.fetch(homeDescriptor)
         for home in homes {
             modelContext.delete(home)
         }
-        
+
         let policyDescriptor = FetchDescriptor<InsurancePolicy>()
         let policies = try modelContext.fetch(policyDescriptor)
         for policy in policies {
             modelContext.delete(policy)
         }
-        
+
         try modelContext.save()
     }
-    
+
     private func clearImageCache() async {
         do {
-            guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            guard
+                let documentsDirectory = FileManager.default.urls(
+                    for: .documentDirectory, in: .userDomainMask
+                ).first
+            else {
                 print("❌ DataDeletionView - Cannot access documents directory")
                 return
             }
@@ -136,16 +140,18 @@ final class DataDeletionService: DataDeletionServiceProtocol {
 enum DeletionScope: String, CaseIterable {
     case localOnly = "Local Only"
     case localAndICloud = "Local and iCloud"
-    
+
     var description: String {
         switch self {
         case .localOnly:
-            return "Delete data only from this device. Your data will remain in iCloud and on other devices."
+            return
+                "Delete data only from this device. Your data will remain in iCloud and on other devices."
         case .localAndICloud:
-            return "Delete all data from this device and iCloud. This will remove data from all your devices."
+            return
+                "Delete all data from this device and iCloud. This will remove data from all your devices."
         }
     }
-    
+
     var icon: String {
         switch self {
         case .localOnly:
@@ -167,28 +173,28 @@ struct DataDeletionView: View {
     @State private var deletionService: DataDeletionServiceProtocol?
 
     private let requiredConfirmationText = "DELETE"
-    
+
     // Dependency injection initializer for testing
     init(deletionService: DataDeletionServiceProtocol? = nil) {
         self._deletionService = State(initialValue: deletionService)
     }
-    
+
     private var isConfirmationValid: Bool {
         confirmationText.uppercased() == requiredConfirmationText
     }
-    
+
     private var isDeleting: Bool {
         deletionService?.isDeleting ?? false
     }
-    
+
     private var errorMessage: String {
         deletionService?.lastError?.localizedDescription ?? ""
     }
-    
+
     private var hasError: Bool {
         deletionService?.lastError != nil
     }
-    
+
     var body: some View {
         List {
             warningSection
@@ -203,7 +209,7 @@ struct DataDeletionView: View {
             }
         }
         .alert("Final Confirmation", isPresented: $showFinalConfirmation) {
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {}
             Button("Delete All Data", role: .destructive) {
                 Task {
                     await handleDeleteAllData()
@@ -213,7 +219,7 @@ struct DataDeletionView: View {
             Text("This action cannot be undone. Are you sure you want to delete all your inventory data?")
         }
         .alert("Error", isPresented: $showErrorAlert) {
-            Button("OK") { 
+            Button("OK") {
                 deletionService?.resetState()
             }
         } message: {
@@ -234,7 +240,7 @@ struct DataDeletionView: View {
 
                     // Give time for dismiss animation and SwiftData to process changes
                     // The 1s delay in the service + 500ms here = 1.5s total
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
 
                     // Clear navigation to go back to top-level settings view
                     // User can manually navigate to Dashboard when ready
@@ -245,7 +251,7 @@ struct DataDeletionView: View {
             }
         }
     }
-    
+
     private var warningSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 16) {
@@ -257,10 +263,10 @@ struct DataDeletionView: View {
                         .font(.headline)
                         .foregroundColor(.red)
                 }
-                
+
                 Text("This will permanently delete all your inventory data including:")
                     .font(.subheadline)
-                
+
                 VStack(alignment: .leading, spacing: 8) {
                     Label("All inventory items and photos", systemImage: "cube.box")
                     Label("All locations and room data", systemImage: "location")
@@ -273,7 +279,7 @@ struct DataDeletionView: View {
             .padding(.vertical, 8)
         }
     }
-    
+
     private var scopeSelectionSection: some View {
         Section("Deletion Scope") {
             ForEach(DeletionScope.allCases, id: \.self) { scope in
@@ -295,28 +301,30 @@ struct DataDeletionView: View {
                         }
                         Spacer()
                         Image(systemName: selectedScope == scope ? "checkmark.circle.fill" : "circle")
-                            
+
                             .font(.title)
-                            .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.wholeSymbol), options: .nonRepeating))
+                            .contentTransition(
+                                .symbolEffect(.replace.magic(fallback: .downUp.wholeSymbol), options: .nonRepeating)
+                            )
                     }
                 }
                 .buttonStyle(.plain)
             }
         }
     }
-    
+
     private var confirmationSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 16) {
                 Text("To confirm deletion, type \"\(requiredConfirmationText)\" below:")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                
+
                 TextField("Type \(requiredConfirmationText)", text: $confirmationText)
                     .textFieldStyle(.roundedBorder)
                     .autocapitalization(.allCharacters)
                     .disableAutocorrection(true)
-                
+
                 Button {
                     if isConfirmationValid {
                         showFinalConfirmation = true
@@ -344,12 +352,14 @@ struct DataDeletionView: View {
             }
             .padding(.vertical, 8)
         } footer: {
-            Text("This action is irreversible. Make sure you have exported your data if you want to keep a backup.")
-                .font(.footnote)
-                .foregroundColor(.red)
+            Text(
+                "This action is irreversible. Make sure you have exported your data if you want to keep a backup."
+            )
+            .font(.footnote)
+            .foregroundColor(.red)
         }
     }
-    
+
     @MainActor
     private func handleDeleteAllData() async {
         guard let deletionService = deletionService else { return }

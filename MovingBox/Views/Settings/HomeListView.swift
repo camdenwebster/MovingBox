@@ -5,8 +5,8 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct HomeListView: View {
     @Environment(\.modelContext) var modelContext
@@ -103,7 +103,8 @@ struct HomeListView: View {
         let home1 = Home(name: "Main House", address1: "123 Main St", city: "San Francisco", state: "CA", zip: "94102")
         home1.isPrimary = true
 
-        let home2 = Home(name: "Beach House", address1: "456 Ocean Ave", city: "Santa Monica", state: "CA", zip: "90401")
+        let home2 = Home(
+            name: "Beach House", address1: "456 Ocean Ave", city: "Santa Monica", state: "CA", zip: "90401")
 
         container.mainContext.insert(home1)
         container.mainContext.insert(home2)

@@ -17,7 +17,7 @@ struct BackgroundExtensionModifier: ViewModifier {
 private struct FlexibleHeaderContentModifier: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(FlexibleHeaderGeometry.self) private var geometry
-    
+
     func body(content: Content) -> some View {
         let baseHeight = UIScreen.main.bounds.height / 3
         let height = baseHeight - geometry.offset
@@ -36,7 +36,7 @@ extension ScrollView {
 
 private struct FlexibleHeaderScrollViewModifier: ViewModifier {
     @State private var geometry = FlexibleHeaderGeometry()
-    
+
     func body(content: Content) -> some View {
         content
             .onScrollGeometryChange(for: CGFloat.self) { geometry in

@@ -12,7 +12,7 @@ struct FormTextFieldRow: View {
     @Binding var text: String
     @Binding var isEditing: Bool
     var placeholder: String = ""
-    
+
     var body: some View {
         HStack {
             Text(label)
@@ -31,37 +31,37 @@ struct PriceFieldRow: View {
     @Binding var priceDecimal: Decimal
     @Binding var isEditing: Bool
     @FocusState private var isPriceFieldFocused: Bool
-    
+
     @State private var localPriceString: String = ""
-    
+
     private var currencySymbol: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = .current
         return formatter.currencySymbol
     }
-    
+
     private func formattedPriceString(_ input: String) -> String {
         let numericString = input.filter { $0.isNumber }
-        
+
         if numericString.isEmpty {
             return ""
         }
-        
+
         guard let amountValue = Decimal(string: numericString) else {
             return ""
         }
-        
+
         let amount = amountValue / 100
-        
+
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
-        
+
         return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? ""
     }
-    
+
     var body: some View {
         HStack {
             Text(label)
@@ -80,16 +80,16 @@ struct PriceFieldRow: View {
                     .foregroundColor(isEditing ? .primary : .secondary)
                     .onChange(of: localPriceString) { _, newValue in
                         let filteredValue = newValue.filter { $0.isNumber }
-                        
+
                         if newValue != filteredValue {
                             localPriceString = filteredValue
                         }
-                        
+
                         let formattedValue = formattedPriceString(filteredValue)
-                        
+
                         if !formattedValue.isEmpty {
                             localPriceString = formattedValue
-                            
+
                             if let decimalValue = Decimal(string: filteredValue) {
                                 let finalValue = decimalValue / 100
                                 if finalValue != priceDecimal {
@@ -97,7 +97,7 @@ struct PriceFieldRow: View {
                                 }
                             }
                         }
-                        
+
                         priceString = localPriceString
                     }
                     .overlay(
@@ -115,7 +115,8 @@ struct PriceFieldRow: View {
         }
         .onAppear {
             let scaledValue = priceDecimal * 100
-            let intValue = Int(NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
+            let intValue = Int(
+                NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
             localPriceString = formattedPriceString(String(intValue))
             priceString = localPriceString
         }
@@ -129,9 +130,9 @@ struct DimensionsFieldRow: View {
     @Binding var height: String
     @Binding var unit: String
     @Binding var isEditing: Bool
-    
+
     private let units = ["inches", "feet", "cm", "m"]
-    
+
     var body: some View {
         VStack(spacing: 12) {
             HStack {
@@ -146,7 +147,7 @@ struct DimensionsFieldRow: View {
                 .pickerStyle(.menu)
                 .disabled(!isEditing)
             }
-            
+
             HStack(spacing: 8) {
                 VStack(spacing: 4) {
                     Text("L")
@@ -158,11 +159,11 @@ struct DimensionsFieldRow: View {
                         .multilineTextAlignment(.center)
                         .disabled(!isEditing)
                 }
-                
+
                 Text("×")
                     .foregroundColor(.secondary)
                     .padding(.top, 20)
-                
+
                 VStack(spacing: 4) {
                     Text("W")
                         .font(.caption)
@@ -173,11 +174,11 @@ struct DimensionsFieldRow: View {
                         .multilineTextAlignment(.center)
                         .disabled(!isEditing)
                 }
-                
+
                 Text("×")
                     .foregroundColor(.secondary)
                     .padding(.top, 20)
-                
+
                 VStack(spacing: 4) {
                     Text("H")
                         .font(.caption)
@@ -188,7 +189,7 @@ struct DimensionsFieldRow: View {
                         .multilineTextAlignment(.center)
                         .disabled(!isEditing)
                 }
-                
+
                 Text(unit)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -203,9 +204,9 @@ struct WeightFieldRow: View {
     @Binding var value: String
     @Binding var unit: String
     @Binding var isEditing: Bool
-    
+
     private let units = ["lbs", "kg", "oz", "g"]
-    
+
     var body: some View {
         HStack {
             Text("Weight")
@@ -218,7 +219,7 @@ struct WeightFieldRow: View {
                     .frame(maxWidth: 80)
                     .disabled(!isEditing)
                     .foregroundColor(isEditing ? .primary : .secondary)
-                
+
                 Picker("Unit", selection: $unit) {
                     ForEach(units, id: \.self) { unit in
                         Text(unit).tag(unit)
@@ -236,9 +237,9 @@ struct PercentageFieldRow: View {
     let label: String
     @Binding var value: Double?
     @Binding var isEditing: Bool
-    
+
     @State private var localStringValue: String = ""
-    
+
     var body: some View {
         HStack {
             Text(label)
@@ -257,22 +258,22 @@ struct PercentageFieldRow: View {
                         if filtered != newValue {
                             localStringValue = filtered
                         }
-                        
+
                         // Update the bound value
                         if let doubleValue = Double(filtered) {
-                            value = doubleValue / 100.0 // Convert percentage to decimal
+                            value = doubleValue / 100.0  // Convert percentage to decimal
                         } else if filtered.isEmpty {
                             value = nil
                         }
                     }
-                
+
                 Text("%")
                     .foregroundColor(.secondary)
             }
         }
         .onAppear {
             if let value = value {
-                localStringValue = String(format: "%.1f", value * 100) // Convert decimal to percentage
+                localStringValue = String(format: "%.1f", value * 100)  // Convert decimal to percentage
             } else {
                 localStringValue = ""
             }
@@ -291,15 +292,15 @@ struct PercentageFieldRow: View {
 struct ConditionPickerRow: View {
     @Binding var condition: String
     @Binding var isEditing: Bool
-    
+
     private let conditions = ["New", "Like New", "Good", "Fair", "Poor"]
-    
+
     var body: some View {
         HStack {
             Text("Condition")
                 .foregroundColor(.primary)
             Spacer()
-            
+
             if isEditing {
                 Picker("Condition", selection: $condition) {
                     Text("Select...").tag("")
@@ -322,37 +323,37 @@ struct CurrencyFieldRow: View {
     @Binding var value: Decimal?
     @Binding var isEditing: Bool
     @FocusState private var isFocused: Bool
-    
+
     @State private var localStringValue: String = ""
-    
+
     private var currencySymbol: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = .current
         return formatter.currencySymbol
     }
-    
+
     private func formattedPriceString(_ input: String) -> String {
         let numericString = input.filter { $0.isNumber }
-        
+
         if numericString.isEmpty {
             return ""
         }
-        
+
         guard let amountValue = Decimal(string: numericString) else {
             return ""
         }
-        
+
         let amount = amountValue / 100
-        
+
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
-        
+
         return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? ""
     }
-    
+
     var body: some View {
         HStack {
             Text(label)
@@ -372,16 +373,16 @@ struct CurrencyFieldRow: View {
                     .disabled(!isEditing)
                     .onChange(of: localStringValue) { _, newValue in
                         let filteredValue = newValue.filter { $0.isNumber }
-                        
+
                         if newValue != filteredValue {
                             localStringValue = filteredValue
                         }
-                        
+
                         let formattedValue = formattedPriceString(filteredValue)
-                        
+
                         if !formattedValue.isEmpty {
                             localStringValue = formattedValue
-                            
+
                             if let decimalValue = Decimal(string: filteredValue) {
                                 let finalValue = decimalValue / 100
                                 if finalValue != value {
@@ -408,7 +409,8 @@ struct CurrencyFieldRow: View {
         .onAppear {
             if let value = value {
                 let scaledValue = value * 100
-                let intValue = Int(NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
+                let intValue = Int(
+                    NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
                 localStringValue = formattedPriceString(String(intValue))
             } else {
                 localStringValue = ""
@@ -417,7 +419,8 @@ struct CurrencyFieldRow: View {
         .onChange(of: value) { _, newValue in
             if let newValue = newValue {
                 let scaledValue = newValue * 100
-                let intValue = Int(NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
+                let intValue = Int(
+                    NSDecimalNumber(decimal: scaledValue).rounding(accordingToBehavior: nil).intValue)
                 localStringValue = formattedPriceString(String(intValue))
             } else {
                 localStringValue = ""

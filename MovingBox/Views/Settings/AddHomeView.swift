@@ -5,8 +5,8 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct AddHomeView: View {
     @Environment(\.modelContext) var modelContext
@@ -110,7 +110,8 @@ struct AddHomeView: View {
 #Preview {
     do {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Home.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
+        let container = try ModelContainer(
+            for: Home.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
 
         return AddHomeView()
             .modelContainer(container)
