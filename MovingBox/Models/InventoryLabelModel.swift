@@ -62,9 +62,11 @@ class InventoryLabel {
     var home: Home?
 
     init(
+        id: UUID = UUID(),
         name: String = "", desc: String = "", color: UIColor? = nil, inventoryItems: [InventoryItem]? = nil,
         emoji: String = "🏷️"
     ) {
+        self.id = id
         self.name = name
         self.desc = desc
         self.color = color

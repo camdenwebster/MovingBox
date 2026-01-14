@@ -31,6 +31,7 @@ class ModelContainerManager {
     private let multiHomeMigrationKey = "MovingBox_MultiHomeMigration_v1"
     private let orphanedItemsMigrationKey = "MovingBox_OrphanedItemsMigration_v1"
     private let schemaRecoveryPerformedKey = "MovingBox_SchemaRecoveryPerformed"
+    private let idStabilizationMigrationKey = "MovingBox_IDStabilization_v1"
 
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -184,6 +185,11 @@ class ModelContainerManager {
             // Check if migration was already completed
             if isMigrationAlreadyCompleted {
                 print("📦 ModelContainerManager - Migration already completed, skipping")
+
+                // CRITICAL: Run ID stabilization for existing users who migrated before this fix
+                // This ensures IDs are persisted even if multi-home migration already ran
+                try? await performIDStabilizationMigration()
+
                 // Skip migration and go straight to CloudKit setup - no UI needed
                 try await enableCloudKitSync()
 
@@ -392,6 +398,11 @@ class ModelContainerManager {
         await updateMigrationStatus("Checking data compatibility...", progress: 0.1)
         try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
 
+        // CRITICAL: Stabilize IDs first, before any other migration
+        // This ensures all model objects have their IDs persisted to prevent regeneration
+        await updateMigrationStatus("Stabilizing data identifiers...", progress: 0.15)
+        try? await performIDStabilizationMigration()
+
         // Migrate all models before enabling CloudKit
         await updateMigrationStatus("Migrating home data...", progress: 0.2)
         try? await migrateHomes()
@@ -552,6 +563,71 @@ class ModelContainerManager {
         } catch {
             print("📦 ModelContainerManager - Error ensuring home exists: \(error)")
         }
+    }
+
+    // MARK: - ID Stabilization Migration
+
+    /// Ensures all model objects have their IDs persisted to the database.
+    /// This prevents UUID regeneration issues when SwiftData loads objects that were
+    /// created before the `id` property was explicitly set in initializers.
+    private var isIDStabilizationCompleted: Bool {
+        UserDefaults.standard.bool(forKey: idStabilizationMigrationKey)
+    }
+
+    internal func performIDStabilizationMigration() async throws {
+        guard !isIDStabilizationCompleted else {
+            print("📦 ModelContainerManager - ID stabilization already completed, skipping")
+            return
+        }
+
+        let context = container.mainContext
+        print("📦 ModelContainerManager - Starting ID stabilization migration")
+
+        // Fetch all objects to ensure their IDs are loaded/generated
+        // The act of fetching and saving will persist any newly generated IDs
+
+        // 1. Stabilize Home IDs
+        let homeDescriptor = FetchDescriptor<Home>()
+        let homes = try context.fetch(homeDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(homes.count) home IDs")
+        for home in homes {
+            // Access the id to ensure it's generated if not already persisted
+            _ = home.id
+        }
+
+        // 2. Stabilize Location IDs
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let locations = try context.fetch(locationDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(locations.count) location IDs")
+        for location in locations {
+            _ = location.id
+        }
+
+        // 3. Stabilize Label IDs
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let labels = try context.fetch(labelDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(labels.count) label IDs")
+        for label in labels {
+            _ = label.id
+        }
+
+        // 4. Stabilize Item IDs
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try context.fetch(itemDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(items.count) item IDs")
+        for item in items {
+            _ = item.id
+        }
+
+        // 5. Save context to persist all IDs
+        try context.save()
+
+        // Mark as complete
+        UserDefaults.standard.set(true, forKey: idStabilizationMigrationKey)
+        print("📦 ModelContainerManager - ID stabilization migration completed")
+        print(
+            "📦 ModelContainerManager - Stabilized: \(homes.count) homes, \(locations.count) locations, \(labels.count) labels, \(items.count) items"
+        )
     }
 
     // MARK: - Multi-Home Migration

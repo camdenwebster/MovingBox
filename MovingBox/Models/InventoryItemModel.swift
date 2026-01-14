@@ -199,7 +199,8 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         return false
     }
 
-    init() {
+    init(id: UUID = UUID()) {
+        self.id = id
         self.createdAt = Date()
         migrateSecondaryPhotosIfNeeded()
 
@@ -208,7 +209,8 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     }
 
     // MARK: - Core Initializer (for required properties only)
-    init(title: String) {
+    init(id: UUID = UUID(), title: String) {
+        self.id = id
         self.title = title
         self.createdAt = Date()
         migrateSecondaryPhotosIfNeeded()
@@ -219,6 +221,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
 
     // MARK: - Legacy Initializer (for backwards compatibility)
     init(
+        id: UUID = UUID(),
         title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String,
         make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool,
         assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false,
@@ -229,6 +232,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         weightValue: String = "", weightUnit: String = "lbs", color: String = "", storageRequirements: String = "",
         isFragile: Bool = false, movingPriority: Int = 3, roomDestination: String = ""
     ) {
+        self.id = id
         self.title = title
         self.quantityString = quantityString
         self.quantityInt = quantityInt

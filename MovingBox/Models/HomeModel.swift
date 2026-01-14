@@ -121,6 +121,7 @@ class Home: PhotoManageable {
     ///   - purchasePrice: Purchase price (defaults to 0.00)
     ///   - insurancePolicy: Associated insurance policy (optional)
     init(
+        id: UUID = UUID(),
         name: String = "",
         address1: String = "",
         address2: String = "",
@@ -132,6 +133,7 @@ class Home: PhotoManageable {
         purchasePrice: Decimal = 0.00,
         insurancePolicy: InsurancePolicy? = nil
     ) {
+        self.id = id
         self.name = name
         self.address1 = address1
         self.address2 = address2
