@@ -11,6 +11,9 @@ struct DetailLabel: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
     }
 }
 
@@ -18,7 +21,7 @@ extension View {
     func detailLabelStyle() -> some View {
         modifier(DetailLabel())
     }
-    
+
     func recommendedClipShape() -> some View {
         if #available(iOS 26.0, *) {
             return self.clipShape(.rect(corners: .concentric, isUniform: true))

@@ -5,13 +5,29 @@
 //  Created by Claude Code
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct MainSplitView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
+    @EnvironmentObject private var settingsManager: SettingsManager
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Binding var navigationPath: NavigationPath
+    @State private var currentTintColor: Color = .green
+
+    private var primaryHome: Home? {
+        homes.first { $0.isPrimary }
+    }
+
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+            let activeId = UUID(uuidString: activeIdString)
+        else {
+            return primaryHome
+        }
+        return homes.first { $0.id == activeId } ?? primaryHome
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -27,7 +43,24 @@ struct MainSplitView: View {
                     }
             }
         }
-        .tint(.green)
+        .tint(currentTintColor)
+        .onAppear {
+            updateTintColor()
+        }
+        .onChange(of: settingsManager.activeHomeId) { oldValue, newValue in
+            print("🎨 MainSplitView - activeHomeId changed from \(oldValue ?? "nil") to \(newValue ?? "nil")")
+            updateTintColor()
+        }
+        .onChange(of: homes) { oldValue, newValue in
+            print("🎨 MainSplitView - Homes changed, updating tint color")
+            updateTintColor()
+        }
+    }
+
+    private func updateTintColor() {
+        let newColor = activeHome?.color ?? .green
+        print("🎨 MainSplitView - Updating tint color to: \(activeHome?.colorName ?? "green")")
+        currentTintColor = newColor
     }
 
     @ViewBuilder
@@ -35,8 +68,14 @@ struct MainSplitView: View {
         switch sidebarDestination {
         case .dashboard:
             DashboardView()
+        case .home(let homeId):
+            if let home = modelContext.model(for: homeId) as? Home {
+                DashboardView(home: home)
+            } else {
+                ContentUnavailableView("Home Not Found", systemImage: "house.slash")
+            }
         case .allInventory:
-            InventoryListView(location: nil)
+            InventoryListView(location: nil, showAllHomes: true)
         case .label(let labelId):
             if let label = modelContext.model(for: labelId) as? InventoryLabel {
                 InventoryListView(location: nil, filterLabel: label)
@@ -55,24 +94,28 @@ struct MainSplitView: View {
     }
 
     @ViewBuilder
-    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>) -> some View {
+    private func destinationView(for destination: Router.Destination, navigationPath: Binding<NavigationPath>)
+        -> some View
+    {
         switch destination {
         case .dashboardView:
             DashboardView()
-        case .locationsListView:
-            LocationsListView()
+        case .locationsListView(let showAllHomes):
+            LocationsListView(showAllHomes: showAllHomes)
         case .settingsView:
             SettingsView()
         case .aISettingsView:
             AISettingsView()
-        case .inventoryListView(let location):
-            InventoryListView(location: location)
+        case .inventoryListView(let location, let showAllHomes):
+            InventoryListView(location: location, showAllHomes: showAllHomes)
         case .editLocationView(let location, let isEditing):
             EditLocationView(location: location, isEditing: isEditing)
         case .editLabelView(let label, let isEditing):
             EditLabelView(label: label, isEditing: isEditing)
         case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-            InventoryDetailView(inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton, isEditing: isEditing)
+            InventoryDetailView(
+                inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton,
+                isEditing: isEditing)
         case .locationsSettingsView:
             LocationSettingsView()
         case .subscriptionSettingsView:
@@ -85,6 +128,10 @@ struct MainSplitView: View {
             ExportDataView()
         case .deleteDataView:
             DataDeletionView()
+        case .homeListView:
+            HomeListView()
+        case .addHomeView:
+            AddHomeView()
         case .aboutView:
             AboutView()
         case .featureRequestView:
@@ -121,6 +168,7 @@ struct MainSplitView: View {
         return PreviewWrapper()
             .modelContainer(previewer.container)
             .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

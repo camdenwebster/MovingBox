@@ -14,7 +14,10 @@ struct GradientTestView: View {
                 .resizable()
                 .scaledToFit()
                 .overlay {
-                    LinearGradient(stops: [.init(color: .clear, location: 0.5), .init(color: .black.opacity(0.6), location: 0.8)], startPoint: .top, endPoint: .bottom)
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.5), .init(color: .black.opacity(0.6), location: 0.8),
+                        ], startPoint: .top, endPoint: .bottom)
                 }
             Rectangle()
                 .frame(height: 200)

@@ -11,11 +11,30 @@ import SwiftUI
 struct LabelSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var labels: [InventoryLabel]
-    
+    @EnvironmentObject var settingsManager: SettingsManager
+    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var allLabels: [InventoryLabel]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+
     @Binding var selectedLabel: InventoryLabel?
     @State private var searchText = ""
-    
+
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+            let activeId = UUID(uuidString: activeIdString)
+        else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter labels by active home
+    private var labels: [InventoryLabel] {
+        guard let activeHome = activeHome else {
+            return allLabels
+        }
+        return allLabels.filter { $0.home?.id == activeHome.id }
+    }
+
     private var filteredLabels: [InventoryLabel] {
         if searchText.isEmpty {
             return labels
@@ -24,7 +43,7 @@ struct LabelSelectionView: View {
             label.name.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -44,7 +63,7 @@ struct LabelSelectionView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                
+
                 if !filteredLabels.isEmpty {
                     Section {
                         ForEach(filteredLabels) { label in
@@ -66,7 +85,7 @@ struct LabelSelectionView: View {
                         }
                     }
                 }
-                
+
                 if filteredLabels.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView(
                         "No Labels Found",
@@ -84,7 +103,7 @@ struct LabelSelectionView: View {
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         addNewLabel()
@@ -95,9 +114,10 @@ struct LabelSelectionView: View {
             }
         }
     }
-    
+
     private func addNewLabel() {
         let newLabel = InventoryLabel(name: "New Label", emoji: "📦")
+        newLabel.home = activeHome
         modelContext.insert(newLabel)
         selectedLabel = newLabel
         dismiss()
@@ -107,4 +127,5 @@ struct LabelSelectionView: View {
 #Preview {
     @Previewable @State var label: InventoryLabel? = nil
     return LabelSelectionView(selectedLabel: $label)
+        .environmentObject(SettingsManager())
 }

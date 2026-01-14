@@ -1,11 +1,69 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild:*)",
+      "Bash(xcrun:*)",
+      "Bash(xcsift:*)",
+      "Bash(git:*)",
+      "Bash(swift:*)",
+      "Bash(swiftc:*)",
+      "Bash(xcode-select:*)",
+      "Bash(fastlane:*)",
+      "Bash(gh:*)",
+      "Bash(ps:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(awk:*)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(mkdir:*)",
+      "Bash(open:*)",
+      "Bash(pkill:*)",
+      "Bash(timeout:*)",
+      "Bash(chmod:*)",
+      "Bash(tee:*)",
+      "Bash(bundle:*)",
+      "Bash(gem:*)",
+      "mcp__ios-simulator__*",
+      "mcp__sosumi__*",
+      "mcp__context7__*",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:docs.sentry.io)",
+      "WebFetch(domain:www.aiproxy.com)",
+      "WebFetch(domain:github.com)",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(rm:*)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "enabledMcpjsonServers": [
+    "sosumi",
+    "sentry",
+    "ios-simulator"
+  ],
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true
+  },
+  
+  "alwaysThinkingEnabled": true,
   "allowedTools": [
     "Edit",
-    "MultiEdit", 
+    "MultiEdit",
     "Read",
     "Write",
     "Glob",
-    "Grep", 
+    "Grep",
     "LS",
     "NotebookEdit",
     "WebFetch",
@@ -13,43 +71,72 @@
     "TodoWrite",
     "ExitPlanMode",
     "Task",
-    "Bash(xcodebuild build:*)",
-    "Bash(xcodebuild test:*)",
-    "Bash(xcodebuild clean:*)",
-    "Bash(xcodebuild archive:*)",
-    "Bash(git add:*)",
-    "Bash(git commit:*)",
-    "Bash(git push:*)",
-    "Bash(git pull:*)",
-    "Bash(git checkout:*)",
-    "Bash(git branch:*)",
-    "Bash(git status:*)",
-    "Bash(git diff:*)",
-    "Bash(git log:*)",
-    "Bash(git merge:*)",
-    "Bash(swift build:*)",
-    "Bash(swift test:*)",
-    "Bash(swift package:*)",
+    "Bash(xcodebuild:*)",
+    "Bash(git:*)",
+    "Bash(swift:*)",
     "Bash(swiftc:*)",
     "Bash(xcrun:*)",
     "Bash(xcode-select:*)",
+    "Bash(xcsift:*)",
     "Bash(fastlane:*)",
     "Bash(gh:*)",
-    "Bash(mkdir:*)",
-    "Bash(cp:*)",
-    "Bash(mv:*)",
-    "Bash(find:*)",
+    "Bash(ps:*)",
     "Bash(grep:*)",
-    "Bash(rg:*)",
+    "Bash(ls:*)",
     "Bash(cat:*)",
     "Bash(head:*)",
     "Bash(tail:*)",
-    "Bash(ls:*)",
+    "Bash(awk:*)",
+    "Bash(sed:*)",
+    "Bash(cut:*)",
+    "Bash(tr:*)",
+    "Bash(echo:*)",
+    "Bash(printf:*)",
+    "Bash(which:*)",
+    "Bash(type:*)",
+    "Bash(find:*)",
+    "Bash(rg:*)",
+    "Bash(mkdir:*)",
+    "Bash(touch:*)",
+    "Bash(cp:*)",
+    "Bash(mv:*)",
+    "Bash(open:*)",
+    "Bash(killall:*)",
+    "Bash(pkill:*)",
+    "Bash(kill:*)",
+    "Bash(defaults:*)",
+    "Bash(plutil:*)",
+    "Bash(sw_vers:*)",
+    "Bash(uname:*)",
+    "Bash(date:*)",
+    "Bash(whoami:*)",
     "Bash(pwd:*)",
     "Bash(cd:*)",
-    "Bash(echo:*)",
-    "Bash(open:*)",
-    "mcp__ios-simulator__*"
+    "Bash(basename:*)",
+    "Bash(dirname:*)",
+    "Bash(sort:*)",
+    "Bash(uniq:*)",
+    "Bash(wc:*)",
+    "Bash(diff:*)",
+    "Bash(patch:*)",
+    "Bash(tar:*)",
+    "Bash(zip:*)",
+    "Bash(unzip:*)",
+    "Bash(curl:*)",
+    "Bash(wget:*)",
+    "Bash(npm:*)",
+    "Bash(yarn:*)",
+    "Bash(brew:*)",
+    "Bash(python:*)",
+    "Bash(python3:*)",
+    "Bash(bundle:*)",
+    "Bash(gem:*)",
+    "Bash(timeout:*)",
+    "Bash(chmod:*)",
+    "Bash(tee:*)",
+    "mcp__ios-simulator__*",
+    "mcp__sosumi__*",
+    "mcp__context7__*"
   ],
   "tools": {
     "iOS Simulator": {
@@ -69,13 +156,14 @@
   },
   "shortcuts": {
     "/build": ".claude/commands/build-project.md",
-    "/test": ".claude/commands/run-tests.md", 
+    "/test": ".claude/commands/run-tests.md",
     "/feature": ".claude/commands/new-feature.md",
     "/fix": ".claude/commands/fix-bug.md",
     "/refactor": ".claude/commands/refactor-code.md",
     "/review": ".claude/commands/review-pr.md",
     "/boilerplate": ".claude/commands/generate-boilerplate.md",
-    "/unittest": ".claude/commands/write-unit-tests.md"
+    "/unittest": ".claude/commands/write-unit-tests.md",
+    "/add-secret": ".claude/commands/add-secret.md"
   },
   "environment": {
     "IOS_SIMULATOR_DEVICE": "iPhone 16 Pro",
@@ -130,5 +218,26 @@
       "preferXcodebuildOverGUI": true,
       "enableContinuousIntegration": true
     }
+  },
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "startup",
+      "hooks": [{
+        "type": "command",
+        "command": "source ~/.movingbox_env && bash ci_scripts/ci_post_clone.sh"
+      }]
+    }],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "xcrun swift-format -i -r -p .",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }

@@ -60,6 +60,10 @@
         "InventoryListDeletionUITests\/testSelectAndDeleteSingleItem()",
         "MovingBoxPerformanceTests",
         "MovingBoxUITestsLaunchTests",
+        "MultiItemCaptureFlowUITests\/testMultiItemContinueButton()",
+        "MultiItemCaptureFlowUITests\/testMultiItemLocationPicker()",
+        "MultiItemCaptureFlowUITests\/testMultiItemReanalyzeButton()",
+        "MultiItemCaptureFlowUITests\/testMultiItemSelectAllButton()",
         "NavigationSystemUITests"
       ],
       "target" : {

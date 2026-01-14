@@ -1,6 +1,6 @@
-import SwiftUI
 import PhotosUI
 import SwiftData
+import SwiftUI
 
 @MainActor
 struct OnboardingHomeView: View {
@@ -13,11 +13,11 @@ struct OnboardingHomeView: View {
     @State private var loadingError: Error?
     @State private var isLoading = false
     @State private var tempHome = Home()
-    
+
     private var activeHome: Home? {
         homes.last
     }
-    
+
     @MainActor
     private func loadExistingData() async {
         if let existingHome = activeHome {
@@ -30,7 +30,7 @@ struct OnboardingHomeView: View {
             }
         }
     }
-    
+
     var body: some View {
         OnboardingContainer {
             VStack(spacing: 0) {
@@ -38,9 +38,10 @@ struct OnboardingHomeView: View {
                     VStack(spacing: 20) {
                         VStack(spacing: 20) {
                             OnboardingHeaderText(text: "Add Home Details")
-                            
-                            OnboardingDescriptionText(text: "Add some details about your home to customize your experience")
-                            
+
+                            OnboardingDescriptionText(
+                                text: "Add some details about your home to customize your experience")
+
                             Group {
                                 if let uiImage = loadedImage {
                                     Image(uiImage: uiImage)
@@ -90,19 +91,19 @@ struct OnboardingHomeView: View {
                                     }
                                 }
                             }
-                            
+
                             TextField("Home Name", text: $homeName)
                                 .accessibilityIdentifier("onboarding-home-name-field")
                                 .textFieldStyle(.roundedBorder)
                                 .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
                         .frame(maxWidth: .infinity)
-                        
+
                         Spacer()
                             .frame(height: 100)
                     }
                 }
-                
+
                 VStack {
                     OnboardingContinueButton {
                         if homeName.isEmpty {
@@ -128,13 +129,13 @@ struct OnboardingHomeView: View {
             await loadExistingData()
         }
     }
-    
+
     @MainActor
     private func handleContinueButton() async throws {
         try await saveHomeAndContinue()
         manager.moveToNext()
     }
-    
+
     @MainActor
     private func saveHomeAndContinue() async throws {
         if let existingHome = activeHome {
@@ -152,7 +153,7 @@ struct OnboardingHomeView: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        
+
         return OnboardingHomeView()
             .environmentObject(OnboardingManager())
             .modelContainer(previewer.container)

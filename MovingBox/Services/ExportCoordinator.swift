@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 @MainActor
 @Observable
@@ -12,16 +12,16 @@ final class ExportCoordinator {
     var exportError: DataManager.SendableError?
     var showExportError = false
     var isExporting = false
-    
+
     private var exportTask: Task<Void, Never>?
-    
+
     func cancelExport() {
         exportTask?.cancel()
         exportTask = nil
         showExportProgress = false
         isExporting = false
     }
-    
+
     func exportWithProgress(
         modelContainer: ModelContainer,
         fileName: String,
@@ -47,37 +47,37 @@ final class ExportCoordinator {
                             userInfo: [NSLocalizedDescriptionKey: "Export cancelled by user"]
                         )
                     }
-                    
+
                     switch progress {
                     case .preparing:
                         exportPhase = "Preparing export..."
                         exportProgress = 0.0
-                        
+
                     case .fetchingData(let phase, let progressValue):
                         exportPhase = "Fetching \(phase)..."
                         exportProgress = progressValue * 0.3
-                        
+
                     case .writingCSV(let progressValue):
                         exportPhase = "Writing CSV files..."
                         exportProgress = 0.3 + (progressValue * 0.2)
-                        
+
                     case .copyingPhotos(let current, let total):
                         exportPhase = "Copying photos (\(current)/\(total))..."
                         let photoProgress = Double(current) / Double(total)
                         exportProgress = 0.5 + (photoProgress * 0.3)
-                        
+
                     case .creatingArchive(let progressValue):
                         exportPhase = "Creating archive..."
                         exportProgress = 0.8 + (progressValue * 0.2)
-                        
+
                     case .completed(let result):
                         archiveURL = result.archiveURL
                         showShareSheet = true
-                        
+
                     case .error(let sendableError):
-                         exportError = sendableError
-                         showExportProgress = false
-                         showExportError = true
+                        exportError = sendableError
+                        showExportProgress = false
+                        showExportError = true
                     }
                 }
             } catch {
@@ -86,11 +86,11 @@ final class ExportCoordinator {
                 showExportProgress = false
                 showExportError = true
             }
-            
+
             isExporting = false
         }
     }
-    
+
     func exportSpecificItems(
         items: [InventoryItem],
         modelContainer: ModelContainer
@@ -105,16 +105,16 @@ final class ExportCoordinator {
                     items: items,
                     modelContainer: modelContainer
                 )
-                
+
                 archiveURL = url
                 showShareSheet = true
-                
+
             } catch {
                 showExportProgress = false
                 exportError = DataManager.SendableError(error)
                 showExportError = true
             }
-            
+
             isExporting = false
         }
     }

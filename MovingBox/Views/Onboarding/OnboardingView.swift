@@ -8,7 +8,7 @@ struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var settings: SettingsManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -31,10 +31,12 @@ struct OnboardingView: View {
                         OnboardingCompletionView(isPresented: $isPresented)
                             .transition(manager.transition)
                     }
-                    
+
                     if OnboardingManager.OnboardingStep.navigationSteps.contains(manager.currentStep) {
-                        StepIndicator(totalSteps: OnboardingManager.OnboardingStep.navigationSteps.count,
-                                    currentStep: OnboardingManager.OnboardingStep.navigationSteps.firstIndex(of: manager.currentStep) ?? 0)
+                        StepIndicator(
+                            totalSteps: OnboardingManager.OnboardingStep.navigationSteps.count,
+                            currentStep: OnboardingManager.OnboardingStep.navigationSteps.firstIndex(
+                                of: manager.currentStep) ?? 0)
                     }
                 }
             }
@@ -48,7 +50,7 @@ struct OnboardingView: View {
                         }
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if shouldShowSkipButton {
                         Button("Skip") {
@@ -60,9 +62,9 @@ struct OnboardingView: View {
         }
         .environmentObject(manager)
         .environmentObject(settings)
-        
+
         .alert(manager.alertMessage, isPresented: $manager.showAlert) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) {}
         }
         .onChange(of: manager.hasCompleted) { _, completed in
             if completed {
@@ -71,7 +73,7 @@ struct OnboardingView: View {
             }
         }
     }
-    
+
     private var shouldShowSkipButton: Bool {
         switch manager.currentStep {
         case .welcome, .completion:
@@ -100,7 +102,7 @@ struct OnboardingView: View {
 struct StepIndicator: View {
     let totalSteps: Int
     let currentStep: Int
-    
+
     var body: some View {
         HStack(spacing: 8) {
             ForEach(0..<totalSteps, id: \.self) { index in

@@ -7,12 +7,12 @@ struct HorizontalPhotoScrollView: View {
     let onDeletePhoto: (String) -> Void
     let showOnlyThumbnails: Bool
     let onThumbnailTap: ((Int) -> Void)?
-    
+
     @State private var loadedImages: [UIImage] = []
     @State private var primaryImage: UIImage?
     @State private var isLoadingImages = false
     @State private var selectedImageIndex: Int = 0
-    
+
     init(
         item: InventoryItem,
         isEditing: Bool,
@@ -28,11 +28,11 @@ struct HorizontalPhotoScrollView: View {
         self.showOnlyThumbnails = showOnlyThumbnails
         self.onThumbnailTap = onThumbnailTap
     }
-    
+
     // Image dimensions
     private let primaryImageHeight: CGFloat = 300
     private let thumbnailSize: CGFloat = 80
-    
+
     var allImages: [UIImage] {
         var images: [UIImage] = []
         if let primaryImage = primaryImage {
@@ -41,7 +41,7 @@ struct HorizontalPhotoScrollView: View {
         images.append(contentsOf: loadedImages)
         return images
     }
-    
+
     var body: some View {
         Group {
             if showOnlyThumbnails {
@@ -76,7 +76,7 @@ struct HorizontalPhotoScrollView: View {
                                 }
                             )
                         }
-                        
+
                         // Add photo button (only in editing mode)
                         if isEditing {
                             AddPhotoThumbnailButton(onTap: onAddPhoto)
@@ -94,7 +94,7 @@ struct HorizontalPhotoScrollView: View {
                         .frame(maxHeight: primaryImageHeight)
                         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                 }
-                
+
                 // Thumbnail scroll view
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -125,7 +125,7 @@ struct HorizontalPhotoScrollView: View {
                                 }
                             )
                         }
-                        
+
                         // Add photo button (only in editing mode)
                         if isEditing {
                             AddPhotoThumbnailButton(onTap: onAddPhoto)
@@ -150,7 +150,7 @@ struct HorizontalPhotoScrollView: View {
                                     .foregroundColor(.secondary)
                             }
                         )
-                    
+
                     HStack {
                         AddPhotoThumbnailButton(onTap: onAddPhoto)
                         Spacer()
@@ -173,17 +173,17 @@ struct HorizontalPhotoScrollView: View {
             }
         }
     }
-    
+
     private var hasPhotos: Bool {
         item.imageURL != nil || !item.secondaryPhotoURLs.isEmpty
     }
-    
+
     private func loadImages() {
         Task {
             await MainActor.run {
                 isLoadingImages = true
             }
-            
+
             // Load primary image
             if let imageURL = item.imageURL {
                 do {
@@ -195,20 +195,21 @@ struct HorizontalPhotoScrollView: View {
                     print("Failed to load primary image: \(error)")
                 }
             }
-            
+
             // Load secondary images
             await loadSecondaryImages()
-            
+
             await MainActor.run {
                 isLoadingImages = false
             }
         }
     }
-    
+
     private func loadSecondaryImages() async {
         if !item.secondaryPhotoURLs.isEmpty {
             do {
-                let images = try await OptimizedImageManager.shared.loadSecondaryImages(from: item.secondaryPhotoURLs)
+                let images = try await OptimizedImageManager.shared.loadSecondaryImages(
+                    from: item.secondaryPhotoURLs)
                 await MainActor.run {
                     loadedImages = images
                 }
@@ -230,9 +231,9 @@ struct ThumbnailView: View {
     let isEditing: Bool
     let onTap: () -> Void
     let onDelete: () -> Void
-    
+
     private let imageSize: CGFloat = 80
-    
+
     var body: some View {
         ZStack {
             Button(action: onTap) {
@@ -247,8 +248,7 @@ struct ThumbnailView: View {
                     )
             }
             .buttonStyle(.plain)
-            
-            
+
             // Delete button (only show in edit mode)
             if isEditing {
                 VStack {
@@ -267,7 +267,7 @@ struct ThumbnailView: View {
             }
         }
     }
-    
+
     private var strokeColor: Color {
         if isSelected {
             return .blue
@@ -277,7 +277,7 @@ struct ThumbnailView: View {
             return .gray.opacity(0.3)
         }
     }
-    
+
     private var strokeWidth: CGFloat {
         isSelected ? 3 : (isPrimary ? 2 : 1)
     }
@@ -332,7 +332,7 @@ struct AddPhotoThumbnailButton: View {
         notes: "",
         showInvalidQuantityAlert: false
     )
-    
+
     HorizontalPhotoScrollView(
         item: sampleItem,
         isEditing: true,

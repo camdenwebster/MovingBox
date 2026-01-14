@@ -43,9 +43,9 @@ struct ImageAnalysisView: View {
         "Teaching AI the difference between 'vintage' and 'old'...",
         "Recognizing items that spark joy (or don't)...",
         "Documenting proof that yes, you own that many cables...",
-        "Scanning for things that should've been donated years ago..."
+        "Scanning for things that should've been donated years ago...",
     ]
-    
+
     var body: some View {
         ZStack {
             // Mesh gradient background
@@ -69,10 +69,11 @@ struct ImageAnalysisView: View {
                                         .frame(maxHeight: 250)
                                         .clipShape(RoundedRectangle(cornerRadius: 16))
                                         .shadow(color: .black.opacity(0.2), radius: 10)
-                                        .transition(.asymmetric(
-                                            insertion: .scale.combined(with: .opacity),
-                                            removal: .scale.combined(with: .opacity)
-                                        ))
+                                        .transition(
+                                            .asymmetric(
+                                                insertion: .scale.combined(with: .opacity),
+                                                removal: .scale.combined(with: .opacity)
+                                            ))
                                 } else if let fallbackImage = images[safe: currentImageIndex] {
                                     Image(uiImage: fallbackImage)
                                         .resizable()
@@ -80,10 +81,11 @@ struct ImageAnalysisView: View {
                                         .frame(maxHeight: 250)
                                         .clipShape(RoundedRectangle(cornerRadius: 16))
                                         .shadow(color: .black.opacity(0.2), radius: 10)
-                                        .transition(.asymmetric(
-                                            insertion: .scale.combined(with: .opacity),
-                                            removal: .scale.combined(with: .opacity)
-                                        ))
+                                        .transition(
+                                            .asymmetric(
+                                                insertion: .scale.combined(with: .opacity),
+                                                removal: .scale.combined(with: .opacity)
+                                            ))
                                 }
 
                                 // Photo indicator dots
@@ -135,7 +137,7 @@ struct ImageAnalysisView: View {
                             )
                         )
                         .symbolEffect(.pulse)
-                    
+
                     // Photo count
                     if images.count > 1 {
                         Text("Analyzing \(images.count) \(images.count == 1 ? "photo" : "photos")")
@@ -150,11 +152,12 @@ struct ImageAnalysisView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .italic()
-                            .id(currentQuoteIndex) // Force re-render on quote change
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .bottom).combined(with: .opacity),
-                                removal: .move(edge: .top).combined(with: .opacity)
-                            ))
+                            .id(currentQuoteIndex)  // Force re-render on quote change
+                            .transition(
+                                .asymmetric(
+                                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                                    removal: .move(edge: .top).combined(with: .opacity)
+                                ))
                     }
                     .frame(minHeight: 60)
                     .padding(.horizontal)
@@ -208,7 +211,7 @@ struct ImageAnalysisView: View {
         }
         .sentryTrace("ImageAnalysisView")
     }
-    
+
     // Function to start cycling through quotes
     private func startQuoteCycling() {
         quoteTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [self] timer in

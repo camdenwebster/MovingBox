@@ -1,5 +1,5 @@
-import SwiftUI
 import RevenueCat
+import SwiftUI
 
 struct SubscriptionSettingsView: View {
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
@@ -8,7 +8,7 @@ struct SubscriptionSettingsView: View {
     @State private var isSyncing = false
     @State private var isRestoring = false
     @State private var lastSyncDate: Date?
-    
+
     var body: some View {
         List {
             if isLoading {
@@ -23,9 +23,14 @@ struct SubscriptionSettingsView: View {
                 Section {
                     subscriptionRow(title: "Status", value: info.status, systemImage: "checkmark.circle.fill")
                         .foregroundColor(info.status == "Active" ? .green : .red)
-                    
+
                     subscriptionRow(title: "Plan", value: "\(info.planType) Pro", systemImage: "creditcard")
-                    
+
+                    subscriptionRow(
+                        title: "Customer ID", value: info.customerId, systemImage: "person.text.rectangle"
+                    )
+                    .textSelection(.enabled)
+
                     if let expirationDate = info.expirationDate {
                         subscriptionRow(
                             title: info.willRenew ? "Next Billing Date" : "Expires",
@@ -34,7 +39,7 @@ struct SubscriptionSettingsView: View {
                         )
                     }
                 }
-                
+
                 Section {
                     Button(action: {
                         Task {
@@ -43,10 +48,10 @@ struct SubscriptionSettingsView: View {
                     }) {
                         Label("Sync Purchases", systemImage: "arrow.triangle.2.circlepath")
                             .symbolEffect(.rotate, options: .nonRepeating, value: isSyncing)
-                            .foregroundStyle(isSyncing ? .secondary : Color.green)
+                            .foregroundStyle(isSyncing ? .secondary : .primary)
                     }
                     .disabled(isSyncing)
-                    
+
                     Button(action: {
                         Task {
                             await restorePurchases()
@@ -54,10 +59,10 @@ struct SubscriptionSettingsView: View {
                     }) {
                         Label("Restore Purchases", systemImage: "arrow.clockwise")
                             .symbolEffect(.rotate, options: .nonRepeating, value: isRestoring)
-                            .foregroundStyle(isRestoring ? .secondary : Color.green)
+                            .foregroundStyle(isRestoring ? .secondary : .primary)
                     }
                     .disabled(isRestoring)
-                    
+
                     if let managementURL = info.managementURL {
                         Link(destination: managementURL) {
                             Label("Manage Subscription", systemImage: "gear")
@@ -80,7 +85,7 @@ struct SubscriptionSettingsView: View {
             await loadSubscriptionInfo()
         }
     }
-    
+
     private func loadSubscriptionInfo() async {
         do {
             // First sync with RevenueCat
@@ -93,7 +98,7 @@ struct SubscriptionSettingsView: View {
             isLoading = false
         }
     }
-    
+
     private func syncPurchases() async {
         isSyncing = true
         do {
@@ -104,7 +109,7 @@ struct SubscriptionSettingsView: View {
         }
         isSyncing = false
     }
-    
+
     private func restorePurchases() async {
         isRestoring = true
         do {
@@ -117,7 +122,7 @@ struct SubscriptionSettingsView: View {
         }
         isRestoring = false
     }
-    
+
     private func subscriptionRow(title: String, value: String, systemImage: String) -> some View {
         HStack {
             Label(title, systemImage: systemImage)

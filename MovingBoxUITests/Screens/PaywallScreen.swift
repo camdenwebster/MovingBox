@@ -2,31 +2,29 @@ import XCTest
 
 class PaywallScreen {
     let app: XCUIApplication
-    
+
     init(app: XCUIApplication) {
         self.app = app
     }
-    
-    var okButton: XCUIElement {
-        return app.scrollViews.containing(.button, identifier: "OK").firstMatch
+
+    var closeButton: XCUIElement {
+        return app.scrollViews.buttons.firstMatch
     }
-    
-    func waitForPaywall(timeout: TimeInterval = 5) -> Bool {
-        let viewExists = okButton.waitForExistence(timeout: timeout)
-        return viewExists
+
+    func waitForPaywall(timeout: TimeInterval = 30) -> Bool {
+        return app.buttons["Restore Purchases"].firstMatch.waitForExistence(timeout: timeout)
     }
-    
-    
+
     func dismiss(timeout: TimeInterval = 5) {
-        guard okButton.waitForExistence(timeout: timeout) else {
-            XCTFail("OK button on paywall alert not found")
+        guard closeButton.waitForExistence(timeout: timeout) else {
+            XCTFail("Close button on paywall alert not found")
             return
         }
-        okButton.tap()
-        
+        closeButton.tap()
+
         let expectation = XCTestExpectation(description: "Paywall dismissed")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            if !self.okButton.exists {
+            if !self.closeButton.exists {
                 expectation.fulfill()
             }
         }

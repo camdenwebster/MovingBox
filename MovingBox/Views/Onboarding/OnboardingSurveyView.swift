@@ -9,7 +9,7 @@ struct OnboardingSurveyView: View {
     var isContinueDisabled: Bool {
         selectedUsages.isEmpty
     }
-    
+
     private var maxFrameWidth: CGFloat {
         min(UIScreen.main.bounds.width - 32, 600)
     }
@@ -21,7 +21,7 @@ struct OnboardingSurveyView: View {
                     VStack(spacing: 24) {
                         Spacer()
                         VStack(spacing: 16) {
-                            VStack(spacing: 0){
+                            VStack(spacing: 0) {
                                 OnboardingHeaderText(text: "What brings you to MovingBox?")
 
                                 OnboardingDescriptionText(text: "Select all that apply")
@@ -73,7 +73,8 @@ struct OnboardingSurveyView: View {
 
     private func handleContinue() {
         let selectedCount = selectedUsages.count
-        let selectedUsagesString = selectedUsages
+        let selectedUsagesString =
+            selectedUsages
             .sorted { $0.rawValue < $1.rawValue }
             .map { $0.rawValue }
             .joined(separator: ",")

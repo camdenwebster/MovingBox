@@ -9,14 +9,34 @@ import SwiftData
 import SwiftUI
 
 struct LocationStatisticsView: View {
-    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var locations: [InventoryLocation]
-    private let row = GridItem(.fixed(160))
+    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var allLocations: [InventoryLocation]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @EnvironmentObject var router: Router
-    
+    @EnvironmentObject var settingsManager: SettingsManager
+
+    private let row = GridItem(.fixed(160))
+
+    private var activeHome: Home? {
+        guard let activeIdString = settingsManager.activeHomeId,
+            let activeId = UUID(uuidString: activeIdString)
+        else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
+    // Filter locations by active home
+    private var locations: [InventoryLocation] {
+        guard let activeHome = activeHome else {
+            return allLocations
+        }
+        return allLocations.filter { $0.home?.id == activeHome.id }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                router.navigate(to: .locationsListView)
+                router.navigate(to: .locationsListView(showAllHomes: false))
             } label: {
                 DashboardSectionLabel(text: "Locations")
             }
@@ -25,21 +45,23 @@ struct LocationStatisticsView: View {
 
             if locations.isEmpty {
                 ContentUnavailableView {
-                        Label("No Locations", systemImage: "map")
-                    } description: {
-                        Text("Add locations to organize your items")
-                    } actions: {
-                        Button("Add a Location") {
-                            router.navigate(to: .editLocationView(location: nil))
-                        }
-                        .buttonStyle(.borderedProminent)
+                    Label("No Locations", systemImage: "map")
+                } description: {
+                    Text("Add locations to organize your items")
+                } actions: {
+                    Button("Add a Location") {
+                        router.navigate(to: .editLocationView(location: nil))
                     }
-                    .frame(height: 160)
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(height: 160)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {
                         ForEach(locations) { location in
-                            NavigationLink(value: Router.Destination.inventoryListView(location: location)) {
+                            NavigationLink(
+                                value: Router.Destination.inventoryListView(location: location, showAllHomes: false)
+                            ) {
                                 LocationItemCard(location: location)
                                     .frame(width: 180)
                             }
@@ -60,6 +82,8 @@ struct LocationStatisticsView: View {
         let previewer = try Previewer()
         return LocationStatisticsView()
             .modelContainer(previewer.container)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

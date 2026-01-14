@@ -1,5 +1,5 @@
-import SwiftUI
 import PhotosUI
+import SwiftUI
 
 struct PhotoPickerView<T: PhotoManageable>: View {
     @Environment(\.modelContext) private var modelContext
@@ -13,7 +13,7 @@ struct PhotoPickerView<T: PhotoManageable>: View {
     @State private var cameraImage: UIImage? = nil
     let showRemoveButton: Bool
     private let contentProvider: ((Binding<Bool>) -> AnyView)?
-    
+
     init(
         model: Binding<T>,
         loadedImage: Binding<UIImage?>,
@@ -26,7 +26,7 @@ struct PhotoPickerView<T: PhotoManageable>: View {
         self.showRemoveButton = showRemoveButton
         self.contentProvider = nil
     }
-    
+
     init(
         model: Binding<T>,
         loadedImage: Binding<UIImage?>,
@@ -40,7 +40,7 @@ struct PhotoPickerView<T: PhotoManageable>: View {
         self.showRemoveButton = showRemoveButton
         self.contentProvider = { AnyView(content($0)) }
     }
-    
+
     var body: some View {
         Group {
             if let provider = contentProvider {
@@ -63,12 +63,12 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                 showCamera = true
             }
             .accessibilityIdentifier("takePhoto")
-            
+
             Button("Choose from Library") {
                 showPhotoPicker = true
             }
             .accessibilityIdentifier("chooseFromLibrary")
-            
+
             if showRemoveButton && (model.imageURL != nil) {
                 Button("Remove Photo", role: .destructive) {
                     model.imageURL = nil
@@ -100,9 +100,9 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                     await MainActor.run {
                         isLoading = true
                     }
-                    
+
                     await handleNewImage(image)
-                    
+
                     await MainActor.run {
                         isLoading = false
                         cameraImage = nil
@@ -112,12 +112,12 @@ struct PhotoPickerView<T: PhotoManageable>: View {
             }
         }
     }
-    
+
     private func handleNewImage(_ image: UIImage) async {
         do {
             let id = UUID().uuidString
             let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-            
+
             await MainActor.run {
                 // Update the loaded image first to ensure immediate UI feedback
                 loadedImage = image
@@ -131,32 +131,32 @@ struct PhotoPickerView<T: PhotoManageable>: View {
             }
         }
     }
-    
+
     private func loadPhoto(from item: PhotosPickerItem) async {
         await MainActor.run {
             isLoading = true
         }
-        
+
         defer {
             Task { @MainActor in
                 isLoading = false
             }
         }
-        
+
         do {
             // Load the photo data (this may take time for iCloud downloads)
             let data = try await item.loadTransferable(type: Data.self)
-            
+
             guard let data = data, let uiImage = UIImage(data: data) else {
                 await MainActor.run {
                     print("Failed to create UIImage from photo data")
                 }
                 return
             }
-            
+
             // Process the image
             await handleNewImage(uiImage)
-            
+
         } catch {
             await MainActor.run {
                 print("Failed to load photo: \(error)")

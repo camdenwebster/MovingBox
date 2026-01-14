@@ -5,8 +5,8 @@
 //  Created by Claude Code on 9/19/25.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 import SwiftUIBackports
 
 struct MultiItemSelectionView: View {
@@ -15,6 +15,7 @@ struct MultiItemSelectionView: View {
 
     @State private var viewModel: MultiItemSelectionViewModel
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var settingsManager: SettingsManager
 
     let onItemsSelected: ([InventoryItem]) -> Void
     let onCancel: () -> Void
@@ -54,9 +55,9 @@ struct MultiItemSelectionView: View {
         // Use passed location as default
         self._selectedLocation = State(initialValue: location)
     }
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -67,9 +68,10 @@ struct MultiItemSelectionView: View {
                         .ignoresSafeArea(edges: .top)
                 }
 
-
             }
-            .navigationTitle("We found \(viewModel.detectedItems.count) item\(viewModel.detectedItems.count == 1 ? "" : "s")")
+            .navigationTitle(
+                "We found \(viewModel.detectedItems.count) item\(viewModel.detectedItems.count == 1 ? "" : "s")"
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
@@ -96,9 +98,12 @@ struct MultiItemSelectionView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
+            .onAppear {
+                viewModel.settingsManager = settingsManager
+            }
         }
     }
-    
+
     // MARK: - View Components
     private var mainContentView: some View {
         GeometryReader { geometry in
@@ -115,7 +120,7 @@ struct MultiItemSelectionView: View {
 
                     // Card and controls section
                     cardCarouselView
-                    
+
                     VStack {
                         selectionSummaryView
                             .padding(.horizontal, 16)
@@ -129,23 +134,25 @@ struct MultiItemSelectionView: View {
             }
         }
     }
-    
+
     private var noItemsView: some View {
         VStack(spacing: 24) {
             Image(systemName: "photo.stack")
                 .font(.system(size: 64))
                 .foregroundColor(.secondary)
-            
+
             VStack(spacing: 8) {
                 Text("No Items Detected")
                     .font(.headline)
-                
-                Text("We weren't able to identify any items in this photo. You can try taking another photo or add an item manually.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+
+                Text(
+                    "We weren't able to identify any items in this photo. You can try taking another photo or add an item manually."
+                )
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
             }
-            
+
             Button("Try Again") {
                 onCancel()
             }
@@ -153,7 +160,7 @@ struct MultiItemSelectionView: View {
         }
         .padding(.horizontal, 32)
     }
-    
+
     private var imageView: some View {
         ZStack(alignment: .bottom) {
             // Photo image - extends to edges
@@ -176,7 +183,7 @@ struct MultiItemSelectionView: View {
                     Color(.systemBackground).opacity(0.3),
                     Color(.systemBackground).opacity(0.6),
                     Color(.systemBackground).opacity(0.9),
-                    Color(.systemBackground)
+                    Color(.systemBackground),
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
@@ -185,7 +192,7 @@ struct MultiItemSelectionView: View {
         }
         .ignoresSafeArea(edges: [.top, .leading, .trailing])
     }
-    
+
     private var cardCarouselView: some View {
         GeometryReader { geometry in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -219,7 +226,7 @@ struct MultiItemSelectionView: View {
             .scrollClipDisabled()
         }
     }
-    
+
     private var navigationControlsView: some View {
         HStack(spacing: 20) {
             // Previous button
@@ -229,18 +236,20 @@ struct MultiItemSelectionView: View {
                     .foregroundColor(viewModel.canGoToPreviousCard ? .primary : .secondary)
             }
             .disabled(!viewModel.canGoToPreviousCard)
-            
+
             // Page indicator
             HStack(spacing: 8) {
                 ForEach(0..<viewModel.detectedItems.count, id: \.self) { index in
                     Circle()
-                        .fill(index == viewModel.currentCardIndex ? Color.primary : Color.secondary.opacity(0.3))
+                        .fill(
+                            index == viewModel.currentCardIndex ? Color.primary : Color.secondary.opacity(0.3)
+                        )
                         .frame(width: 8, height: 8)
                         .scaleEffect(index == viewModel.currentCardIndex ? 1.2 : 1.0)
                         .animation(.easeInOut(duration: 0.2), value: viewModel.currentCardIndex)
                 }
             }
-            
+
             // Next button
             Button(action: viewModel.goToNextCard) {
                 Image(systemName: "chevron.right")
@@ -251,7 +260,7 @@ struct MultiItemSelectionView: View {
         }
         .padding(.vertical, 8)
     }
-    
+
     private var selectionSummaryView: some View {
         VStack(spacing: 16) {
             // Selection count and controls
@@ -321,7 +330,7 @@ struct MultiItemSelectionView: View {
             LocationSelectionView(selectedLocation: $selectedLocation)
         }
     }
-    
+
     private var continueButton: some View {
         Button(action: handleContinue) {
             HStack {
@@ -329,8 +338,10 @@ struct MultiItemSelectionView: View {
                 if viewModel.isProcessingSelection {
                     ProgressView()
                 } else {
-                    Text("Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")")
-                        .font(.headline)
+                    Text(
+                        "Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")"
+                    )
+                    .font(.headline)
                 }
                 Spacer()
             }
@@ -338,9 +349,9 @@ struct MultiItemSelectionView: View {
         }
         .accessibilityIdentifier("multiItemContinueButton")
     }
-    
+
     // MARK: - Actions
-    
+
     private func handleContinue() {
         guard viewModel.selectedItemsCount > 0 else { return }
 
@@ -383,7 +394,10 @@ struct DetectedItemCard: View {
                 }
 
                 // Label (if matched) and make/model
-                if matchedLabel != nil || ((!item.make.isEmpty || item.make != "Unknown") && (!item.model.isEmpty || item.model != "Unknown")) {
+                if matchedLabel != nil
+                    || ((!item.make.isEmpty || item.make != "Unknown")
+                        && (!item.model.isEmpty || item.model != "Unknown"))
+                {
                     VStack(alignment: .leading, spacing: 8) {
                         if let label = matchedLabel {
                             HStack(spacing: 4) {
@@ -409,7 +423,6 @@ struct DetectedItemCard: View {
                         .multilineTextAlignment(.leading)
                         .lineLimit(3)
                 }
-
 
                 // Price
                 if !item.estimatedPrice.isEmpty {
@@ -452,12 +465,12 @@ struct DetectedItemCard: View {
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
-    
+
     private var confidenceBadge: some View {
         HStack(spacing: 4) {
             Image(systemName: "brain")
                 .font(.caption)
-            
+
             Text(item.formattedConfidence)
                 .font(.caption)
                 .fontWeight(.medium)
@@ -468,7 +481,7 @@ struct DetectedItemCard: View {
         .background(confidenceColor.opacity(0.1))
         .cornerRadius(8)
     }
-    
+
     private var confidenceColor: Color {
         if item.confidence >= 0.9 {
             return .green
@@ -483,9 +496,10 @@ struct DetectedItemCard: View {
 // MARK: - Preview
 
 #Preview {
-    let container = try! ModelContainer(for: InventoryItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container = try! ModelContainer(
+        for: InventoryItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = ModelContext(container)
-    
+
     let mockResponse = MultiItemAnalysisResponse(
         items: [
             DetectedInventoryItem(
@@ -517,13 +531,13 @@ struct DetectedItemCard: View {
                 model: "",
                 estimatedPrice: "$15.00",
                 confidence: 0.65
-            )
+            ),
         ],
         detectedCount: 3,
         analysisType: "multi_item",
         confidence: 0.82
     )
-    
+
     return MultiItemSelectionView(
         analysisResponse: mockResponse,
         images: [UIImage()],

@@ -1,21 +1,21 @@
-import SwiftUI
 import PhotosUI
 import SwiftData
+import SwiftUI
 
 @MainActor
 struct OnboardingLocationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
-    
+
     @Query private var locations: [InventoryLocation]
-    
+
     @State private var locationInstance = InventoryLocation()
     @State private var locationName = ""
     @State private var locationDesc = ""
     @State private var tempUIImage: UIImage?
     @State private var isLoading = false
-    
+
     private func loadExistingData() async {
         if let existingLocation = locations.first {
             locationName = existingLocation.name
@@ -30,7 +30,7 @@ struct OnboardingLocationView: View {
             }
         }
     }
-    
+
     var body: some View {
         OnboardingContainer {
             VStack(spacing: 0) {
@@ -38,10 +38,13 @@ struct OnboardingLocationView: View {
                     VStack(spacing: 24) {
                         VStack(spacing: 20) {
                             OnboardingHeaderText(text: "Add Your First Location")
-                            
-                            OnboardingDescriptionText(text: "A Location is a room in your home. If you're at home, start with the room you're currently in. Otherwise, start with any room that has valuable possessions.")
-                                .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                            
+
+                            OnboardingDescriptionText(
+                                text:
+                                    "A Location is a room in your home. If you're at home, start with the room you're currently in. Otherwise, start with any room that has valuable possessions."
+                            )
+                            .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
+
                             // Photo Section
                             Group {
                                 if let uiImage = tempUIImage {
@@ -82,7 +85,7 @@ struct OnboardingLocationView: View {
                                     }
                                 }
                             }
-                            
+
                             // Text Fields
                             VStack(spacing: 16) {
                                 TextField("Location Name", text: $locationName)
@@ -91,7 +94,7 @@ struct OnboardingLocationView: View {
                                     .onChange(of: locationName) { _, newValue in
                                         locationInstance.name = newValue
                                     }
-                                
+
                                 TextField("Description", text: $locationDesc, axis: .vertical)
                                     .accessibilityIdentifier("onboarding-location-description-field")
                                     .textFieldStyle(.roundedBorder)
@@ -103,12 +106,12 @@ struct OnboardingLocationView: View {
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
                         .frame(maxWidth: .infinity)
-                        
+
                         Spacer()
                             .frame(height: 100)
                     }
                 }
-                
+
                 VStack {
                     OnboardingContinueButton {
                         if locationName.isEmpty {
@@ -119,7 +122,8 @@ struct OnboardingLocationView: View {
                                     try await saveLocationAndContinue()
                                     manager.moveToNext()
                                 } catch {
-                                    manager.showError(message: "Failed to save location: \(error.localizedDescription)")
+                                    manager.showError(
+                                        message: "Failed to save location: \(error.localizedDescription)")
                                 }
                             }
                         }
@@ -134,7 +138,7 @@ struct OnboardingLocationView: View {
             await loadExistingData()
         }
     }
-    
+
     private func saveLocationAndContinue() async throws {
         if let existingLocation = locations.first {
             existingLocation.name = locationInstance.name
@@ -152,7 +156,7 @@ struct OnboardingLocationView: View {
 #Preview {
     do {
         let previewer = try Previewer()
-        
+
         return OnboardingLocationView()
             .environmentObject(OnboardingManager())
             .modelContainer(previewer.container)

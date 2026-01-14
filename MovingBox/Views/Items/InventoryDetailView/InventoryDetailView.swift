@@ -5,10 +5,10 @@
 //  Created by Camden Webster on 5/16/24.
 //
 
-import RevenueCatUI
-import PhotosUI
 import PDFKit
+import PhotosUI
 import QuickLook
+import RevenueCatUI
 import SentrySwiftUI
 import SwiftData
 import SwiftUI
@@ -28,7 +28,7 @@ struct InventoryDetailView: View {
     // Photo section frame height constants
     private static let photoSectionHeight: CGFloat = 300
     private static let photoSectionHeightWithPhotos: CGFloat = 350
-    
+
     @State private var displayPriceString: String = ""
     @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails.empty()
     @FocusState private var inputIsFocused: Bool
@@ -45,7 +45,7 @@ struct InventoryDetailView: View {
     @State private var hasUserMadeChanges = false
     @State private var originalValues: InventoryItemSnapshot?
     @State private var originalDisplayPriceString: String = ""
-    
+
     // Computed property to create a hash of key field values for change detection
     private var currentFieldsHash: String {
         let fields = [
@@ -73,7 +73,7 @@ struct InventoryDetailView: View {
             String(describing: inventoryItemToDisplay.replacementCost),
             String(describing: inventoryItemToDisplay.depreciationRate),
             String(describing: inventoryItemToDisplay.purchaseDate),
-            String(describing: inventoryItemToDisplay.warrantyExpirationDate)
+            String(describing: inventoryItemToDisplay.warrantyExpirationDate),
         ]
         return fields.joined(separator: "|")
     }
@@ -109,14 +109,15 @@ struct InventoryDetailView: View {
 
     var onSave: (() -> Void)?
     var onCancel: (() -> Void)?
-    
 
-    init(inventoryItemToDisplay: InventoryItem,
-         navigationPath: Binding<NavigationPath>,
-         showSparklesButton: Bool = false,
-         isEditing: Bool = false,
-         onSave: (() -> Void)? = nil,
-         onCancel: (() -> Void)? = nil) {
+    init(
+        inventoryItemToDisplay: InventoryItem,
+        navigationPath: Binding<NavigationPath>,
+        showSparklesButton: Bool = false,
+        isEditing: Bool = false,
+        onSave: (() -> Void)? = nil,
+        onCancel: (() -> Void)? = nil
+    ) {
         self.inventoryItemToDisplay = inventoryItemToDisplay
         self._navigationPath = navigationPath
         self.showSparklesButton = showSparklesButton
@@ -127,7 +128,7 @@ struct InventoryDetailView: View {
     }
 
     @FocusState private var focusedField: Field?
-    
+
     private enum Field {
         case title
         case serial
@@ -136,41 +137,37 @@ struct InventoryDetailView: View {
         case description
         case notes
     }
-    
+
     // MARK: - Progressive Disclosure Helpers
-    
+
     private var hasAnyPurchaseTrackingData: Bool {
-        inventoryItemToDisplay.purchaseDate != nil ||
-        !inventoryItemToDisplay.purchaseLocation.isEmpty ||
-        !inventoryItemToDisplay.condition.isEmpty
+        inventoryItemToDisplay.purchaseDate != nil || !inventoryItemToDisplay.purchaseLocation.isEmpty
+            || !inventoryItemToDisplay.condition.isEmpty
     }
-    
+
     private var hasAnyFinancialData: Bool {
-        inventoryItemToDisplay.replacementCost != nil ||
-        inventoryItemToDisplay.depreciationRate != nil
+        inventoryItemToDisplay.replacementCost != nil || inventoryItemToDisplay.depreciationRate != nil
     }
-    
+
     private var hasAnyPhysicalPropertiesData: Bool {
-        !inventoryItemToDisplay.dimensionLength.isEmpty ||
-        !inventoryItemToDisplay.dimensionWidth.isEmpty ||
-        !inventoryItemToDisplay.dimensionHeight.isEmpty ||
-        !inventoryItemToDisplay.weightValue.isEmpty ||
-        !inventoryItemToDisplay.color.isEmpty ||
-        !inventoryItemToDisplay.storageRequirements.isEmpty
+        !inventoryItemToDisplay.dimensionLength.isEmpty
+            || !inventoryItemToDisplay.dimensionWidth.isEmpty
+            || !inventoryItemToDisplay.dimensionHeight.isEmpty
+            || !inventoryItemToDisplay.weightValue.isEmpty || !inventoryItemToDisplay.color.isEmpty
+            || !inventoryItemToDisplay.storageRequirements.isEmpty
     }
-    
+
     private var hasAnyMovingOptimizationData: Bool {
-        inventoryItemToDisplay.isFragile ||
-        inventoryItemToDisplay.movingPriority != 3 ||
-        !inventoryItemToDisplay.roomDestination.isEmpty
+        inventoryItemToDisplay.isFragile || inventoryItemToDisplay.movingPriority != 3
+            || !inventoryItemToDisplay.roomDestination.isEmpty
     }
-    
+
     private var hasAnyAttachments: Bool {
         inventoryItemToDisplay.hasAttachments()
     }
-    
+
     // MARK: - Toolbar Components
-    
+
     @ViewBuilder
     private var leadingToolbarButton: some View {
         if isEditing {
@@ -195,7 +192,6 @@ struct InventoryDetailView: View {
         }
     }
 
-    
     @ViewBuilder
     private var trailingToolbarButton: some View {
         if isEditing {
@@ -204,8 +200,8 @@ struct InventoryDetailView: View {
                     modelContext.insert(inventoryItemToDisplay)
                 }
                 try? modelContext.save()
-                hasUserMadeChanges = false // Reset after successful save
-                originalValues = nil // Clear original values after successful save
+                hasUserMadeChanges = false  // Reset after successful save
+                originalValues = nil  // Clear original values after successful save
                 isEditing = false
 
                 // Regenerate thumbnails if missing
@@ -232,9 +228,8 @@ struct InventoryDetailView: View {
         }
     }
 
-
     // MARK: - View Components
-    
+
     @ViewBuilder
     private var photoSection: some View {
         // Photo banner section with progressive loading states
@@ -254,7 +249,9 @@ struct InventoryDetailView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                .frame(width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0))
+                .frame(
+                    width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0)
+                )
                 .offset(y: scrollY > 0 ? -scrollY : 0)
             }
             .frame(height: Self.photoSectionHeight)
@@ -296,7 +293,9 @@ struct InventoryDetailView: View {
                         }
                     }
                 }
-                .frame(width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0))
+                .frame(
+                    width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0)
+                )
                 .offset(y: scrollY > 0 ? -scrollY : 0)
             }
             .frame(height: Self.photoSectionHeight)
@@ -312,7 +311,9 @@ struct InventoryDetailView: View {
                         screenWidth: UIScreen.main.bounds.width,
                         isEditing: isEditing,
                         onAddPhoto: {
-                            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+                            let currentPhotoCount =
+                                (inventoryItemToDisplay.imageURL != nil ? 1 : 0)
+                                + inventoryItemToDisplay.secondaryPhotoURLs.count
                             if currentPhotoCount < (settings.isPro ? 5 : 1) {
                                 showPhotoSourceAlert = true
                             }
@@ -346,12 +347,15 @@ struct InventoryDetailView: View {
                             }
                         }
                     )
-                    .frame(width: proxy.size.width, height: Self.photoSectionHeightWithPhotos + (scrollY > 0 ? scrollY : 0))
+                    .frame(
+                        width: proxy.size.width,
+                        height: Self.photoSectionHeightWithPhotos + (scrollY > 0 ? scrollY : 0)
+                    )
                     .offset(y: scrollY > 0 ? -scrollY : 0)
                     .modifier(BackgroundExtensionModifier())
                 }
                 .frame(height: Self.photoSectionHeightWithPhotos)
-                
+
                 // Edit mode controls overlay - positioned at container bottom
                 if isEditing {
                     VStack {
@@ -389,11 +393,13 @@ struct InventoryDetailView: View {
                                         .clipShape(Circle())
                                 }
                             }
-                            
+
                             Spacer()
-                            
+
                             // Add photo button
-                            let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+                            let currentPhotoCount =
+                                (inventoryItemToDisplay.imageURL != nil ? 1 : 0)
+                                + inventoryItemToDisplay.secondaryPhotoURLs.count
                             if currentPhotoCount < (settings.isPro ? 5 : 1) {
                                 Button(action: {
                                     showPhotoSourceAlert = true
@@ -419,13 +425,15 @@ struct InventoryDetailView: View {
                 let scrollY = proxy.frame(in: .global).minY
 
                 photoPlaceHolder
-                    .frame(width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0))
+                    .frame(
+                        width: proxy.size.width, height: Self.photoSectionHeight + (scrollY > 0 ? scrollY : 0)
+                    )
                     .offset(y: scrollY > 0 ? -scrollY : 0)
             }
             .frame(height: Self.photoSectionHeight)
         }
     }
-    
+
     @ViewBuilder
     private var formContent: some View {
         VStack(spacing: 0) {
@@ -440,28 +448,28 @@ struct InventoryDetailView: View {
                     .padding(.bottom, 8)
                 }
             }
-            
+
             // Form sections
             VStack(spacing: 24) {
                 detailsSection
-                
+
                 if isEditing || inventoryItemToDisplay.quantityInt > 1 {
                     quantitySection
                 }
-                
+
                 if isEditing || !inventoryItemToDisplay.desc.isEmpty {
                     descriptionSection
                 }
-                
+
                 priceSection
                 locationsAndLabelsSection
-                
+
                 purchaseTrackingSection
                 financialSection
                 physicalPropertiesSection
                 movingOptimizationSection
                 attachmentsSection
-                
+
                 if isEditing || !inventoryItemToDisplay.notes.isEmpty {
                     notesSection
                 }
@@ -475,12 +483,12 @@ struct InventoryDetailView: View {
             .padding(.bottom, 32)
         }
     }
-    
+
     @ViewBuilder
     private var aiButtonView: some View {
         Button {
             guard !isLoadingOpenAiResults else { return }
-            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI}).count) {
+            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI }).count) {
                 showingPaywall = true
             } else {
                 performAIAnalysis()
@@ -505,7 +513,7 @@ struct InventoryDetailView: View {
         .disabled(isLoadingOpenAiResults)
         .accessibilityIdentifier("analyzeWithAi")
     }
-    
+
     @ViewBuilder
     private var attachmentButtonView: some View {
         HStack {
@@ -518,95 +526,112 @@ struct InventoryDetailView: View {
             Spacer()
         }
     }
-    
+
     @ViewBuilder
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Details")
                 .sectionHeaderStyle()
                 .padding(.horizontal, 16)
-            
+
             VStack(spacing: 0) {
                 if isEditing || !inventoryItemToDisplay.title.isEmpty {
-                    FormTextFieldRow(label: "Title", text: $inventoryItemToDisplay.title, isEditing: $isEditing, placeholder: "Desktop Computer")
-                        .focused($focusedField, equals: .title)
-                        .accessibilityIdentifier("titleField")
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    
-                    if (isEditing || !inventoryItemToDisplay.serial.isEmpty) || 
-                       (isEditing || !inventoryItemToDisplay.make.isEmpty) || 
-                       (isEditing || !inventoryItemToDisplay.model.isEmpty) {
+                    FormTextFieldRow(
+                        label: "Title", text: $inventoryItemToDisplay.title, isEditing: $isEditing,
+                        placeholder: "Desktop Computer"
+                    )
+                    .focused($focusedField, equals: .title)
+                    .accessibilityIdentifier("titleField")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    if (isEditing || !inventoryItemToDisplay.serial.isEmpty)
+                        || (isEditing || !inventoryItemToDisplay.make.isEmpty)
+                        || (isEditing || !inventoryItemToDisplay.model.isEmpty)
+                    {
                         Divider()
                             .padding(.leading, 16)
                     }
                 }
-                
+
                 if isEditing || !inventoryItemToDisplay.serial.isEmpty {
-                    FormTextFieldRow(label: "Serial Number", text: $inventoryItemToDisplay.serial, isEditing: $isEditing, placeholder: "SN-12345")
-                        .focused($focusedField, equals: .serial)
-                        .accessibilityIdentifier("serialField")
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    
-                    if (isEditing || !inventoryItemToDisplay.make.isEmpty) || 
-                       (isEditing || !inventoryItemToDisplay.model.isEmpty) {
+                    FormTextFieldRow(
+                        label: "Serial Number", text: $inventoryItemToDisplay.serial, isEditing: $isEditing,
+                        placeholder: "SN-12345"
+                    )
+                    .focused($focusedField, equals: .serial)
+                    .accessibilityIdentifier("serialField")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    if (isEditing || !inventoryItemToDisplay.make.isEmpty)
+                        || (isEditing || !inventoryItemToDisplay.model.isEmpty)
+                    {
                         Divider()
                             .padding(.leading, 16)
                     }
                 }
-                
+
                 if isEditing || !inventoryItemToDisplay.make.isEmpty {
-                    FormTextFieldRow(label: "Make", text: $inventoryItemToDisplay.make, isEditing: $isEditing, placeholder: "Apple")
-                        .focused($focusedField, equals: .make)
-                        .accessibilityIdentifier("makeField")
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    
+                    FormTextFieldRow(
+                        label: "Make", text: $inventoryItemToDisplay.make, isEditing: $isEditing,
+                        placeholder: "Apple"
+                    )
+                    .focused($focusedField, equals: .make)
+                    .accessibilityIdentifier("makeField")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
                     if isEditing || !inventoryItemToDisplay.model.isEmpty {
                         Divider()
                             .padding(.leading, 16)
                     }
                 }
-                
+
                 if isEditing || !inventoryItemToDisplay.model.isEmpty {
-                    FormTextFieldRow(label: "Model", text: $inventoryItemToDisplay.model, isEditing: $isEditing, placeholder: "Mac Mini")
-                        .focused($focusedField, equals: .model)
-                        .accessibilityIdentifier("modelField")
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                    FormTextFieldRow(
+                        label: "Model", text: $inventoryItemToDisplay.model, isEditing: $isEditing,
+                        placeholder: "Mac Mini"
+                    )
+                    .focused($focusedField, equals: .model)
+                    .accessibilityIdentifier("modelField")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
             }
             .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(UIConstants.cornerRadius)
         }
     }
-    
+
     @ViewBuilder
     private var quantitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Quantity")
                 .sectionHeaderStyle()
                 .padding(.horizontal, 16)
-            
+
             VStack(spacing: 0) {
-                Stepper("\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt, in: 1...1000, step: 1)
-                    .disabled(!isEditing)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                Stepper(
+                    "\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt,
+                    in: 1...1000, step: 1
+                )
+                .disabled(!isEditing)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
             .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(UIConstants.cornerRadius)
         }
     }
-    
+
     @ViewBuilder
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Description")
                 .sectionHeaderStyle()
                 .padding(.horizontal, 16)
-            
+
             VStack(spacing: 0) {
                 TextEditor(text: $inventoryItemToDisplay.desc)
                     .focused($focusedField, equals: .description)
@@ -623,14 +648,14 @@ struct InventoryDetailView: View {
             .cornerRadius(UIConstants.cornerRadius)
         }
     }
-    
+
     @ViewBuilder
     private var priceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Purchase Price")
                 .sectionHeaderStyle()
                 .padding(.horizontal, 16)
-            
+
             VStack(spacing: 0) {
                 PriceFieldRow(
                     priceString: $displayPriceString,
@@ -642,39 +667,44 @@ struct InventoryDetailView: View {
                 .foregroundColor(isEditing ? .primary : .secondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                
+
                 Divider()
                     .padding(.leading, 16)
-                
-                Toggle(isOn: $inventoryItemToDisplay.hasWarranty, label: {
-                    Text("Warranty")
-                })
+
+                Toggle(
+                    isOn: $inventoryItemToDisplay.hasWarranty,
+                    label: {
+                        Text("Warranty")
+                    }
+                )
                 .disabled(!isEditing)
                 .accessibilityIdentifier("warrantyToggle")
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                
+
                 if inventoryItemToDisplay.hasWarranty {
                     Divider()
                         .padding(.leading, 16)
-                    
-                    DatePicker("Warranty Expires", 
-                               selection: Binding(
-                                   get: { inventoryItemToDisplay.warrantyExpirationDate ?? Date() },
-                                   set: { inventoryItemToDisplay.warrantyExpirationDate = $0 }
-                               ),
-                               displayedComponents: .date)
-                        .disabled(!isEditing)
-                        .accessibilityIdentifier("warrantyDatePicker")
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+
+                    DatePicker(
+                        "Warranty Expires",
+                        selection: Binding(
+                            get: { inventoryItemToDisplay.warrantyExpirationDate ?? Date() },
+                            set: { inventoryItemToDisplay.warrantyExpirationDate = $0 }
+                        ),
+                        displayedComponents: .date
+                    )
+                    .disabled(!isEditing)
+                    .accessibilityIdentifier("warrantyDatePicker")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
             }
             .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(UIConstants.cornerRadius)
         }
     }
-    
+
     @ViewBuilder
     private var locationsAndLabelsSection: some View {
         if isEditing || inventoryItemToDisplay.location != nil || inventoryItemToDisplay.label != nil {
@@ -682,7 +712,7 @@ struct InventoryDetailView: View {
                 Text("Locations & Labels")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
-                
+
                 VStack(spacing: 0) {
                     if isEditing || inventoryItemToDisplay.location != nil {
                         Button(action: {
@@ -707,13 +737,13 @@ struct InventoryDetailView: View {
                         .accessibilityIdentifier("locationPicker")
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
+
                         if isEditing || inventoryItemToDisplay.label != nil {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || inventoryItemToDisplay.label != nil {
                         Button(action: {
                             if isEditing {
@@ -749,7 +779,7 @@ struct InventoryDetailView: View {
             }
         }
     }
-    
+
     @ViewBuilder
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -793,7 +823,7 @@ struct InventoryDetailView: View {
     }
 
     // MARK: - New Attribute Sections
-    
+
     @ViewBuilder
     private var purchaseTrackingSection: some View {
         if isEditing || hasAnyPurchaseTrackingData {
@@ -801,36 +831,41 @@ struct InventoryDetailView: View {
                 Text("Purchase & Ownership")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
-                
+
                 VStack(spacing: 0) {
                     if isEditing || inventoryItemToDisplay.purchaseDate != nil {
-                        DatePicker("Purchase Date", 
-                                   selection: Binding(
-                                       get: { inventoryItemToDisplay.purchaseDate ?? Date() },
-                                       set: { inventoryItemToDisplay.purchaseDate = $0 }
-                                   ),
-                                   displayedComponents: .date)
-                            .disabled(!isEditing)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                        
-                        if (isEditing || !inventoryItemToDisplay.purchaseLocation.isEmpty) {
+                        DatePicker(
+                            "Purchase Date",
+                            selection: Binding(
+                                get: { inventoryItemToDisplay.purchaseDate ?? Date() },
+                                set: { inventoryItemToDisplay.purchaseDate = $0 }
+                            ),
+                            displayedComponents: .date
+                        )
+                        .disabled(!isEditing)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        if isEditing || !inventoryItemToDisplay.purchaseLocation.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || !inventoryItemToDisplay.purchaseLocation.isEmpty {
-                        FormTextFieldRow(label: "Purchase Location", text: $inventoryItemToDisplay.purchaseLocation, isEditing: $isEditing, placeholder: "Apple Store")
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                        
+                        FormTextFieldRow(
+                            label: "Purchase Location", text: $inventoryItemToDisplay.purchaseLocation,
+                            isEditing: $isEditing, placeholder: "Apple Store"
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
                         if isEditing || !inventoryItemToDisplay.condition.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || !inventoryItemToDisplay.condition.isEmpty {
                         ConditionPickerRow(condition: $inventoryItemToDisplay.condition, isEditing: $isEditing)
                             .padding(.horizontal, 16)
@@ -842,7 +877,7 @@ struct InventoryDetailView: View {
             }
         }
     }
-    
+
     @ViewBuilder
     private var financialSection: some View {
         if isEditing || hasAnyFinancialData {
@@ -850,24 +885,30 @@ struct InventoryDetailView: View {
                 Text("Financial Information")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
-                
+
                 VStack(spacing: 0) {
                     if isEditing || inventoryItemToDisplay.replacementCost != nil {
-                        CurrencyFieldRow(label: "Replacement Cost", value: $inventoryItemToDisplay.replacementCost, isEditing: $isEditing)
+                        CurrencyFieldRow(
+                            label: "Replacement Cost", value: $inventoryItemToDisplay.replacementCost,
+                            isEditing: $isEditing
+                        )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
+
                         if isEditing || inventoryItemToDisplay.depreciationRate != nil {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || inventoryItemToDisplay.depreciationRate != nil {
-                        PercentageFieldRow(label: "Depreciation Rate", value: $inventoryItemToDisplay.depreciationRate, isEditing: $isEditing)
+                        PercentageFieldRow(
+                            label: "Depreciation Rate", value: $inventoryItemToDisplay.depreciationRate,
+                            isEditing: $isEditing
+                        )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
+
                     }
                 }
                 .background(Color(.secondarySystemGroupedBackground))
@@ -875,7 +916,7 @@ struct InventoryDetailView: View {
             }
         }
     }
-    
+
     @ViewBuilder
     private var physicalPropertiesSection: some View {
         if isEditing || hasAnyPhysicalPropertiesData {
@@ -883,9 +924,12 @@ struct InventoryDetailView: View {
                 Text("Physical Properties")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
-                
+
                 VStack(spacing: 0) {
-                    if isEditing || !inventoryItemToDisplay.dimensionLength.isEmpty || !inventoryItemToDisplay.dimensionWidth.isEmpty || !inventoryItemToDisplay.dimensionHeight.isEmpty {
+                    if isEditing || !inventoryItemToDisplay.dimensionLength.isEmpty
+                        || !inventoryItemToDisplay.dimensionWidth.isEmpty
+                        || !inventoryItemToDisplay.dimensionHeight.isEmpty
+                    {
                         DimensionsFieldRow(
                             length: $inventoryItemToDisplay.dimensionLength,
                             width: $inventoryItemToDisplay.dimensionWidth,
@@ -895,16 +939,17 @@ struct InventoryDetailView: View {
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
-                        if (isEditing || !inventoryItemToDisplay.weightValue.isEmpty) ||
-                           (isEditing || !inventoryItemToDisplay.condition.isEmpty) ||
-                           (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
-                           (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
+
+                        if (isEditing || !inventoryItemToDisplay.weightValue.isEmpty)
+                            || (isEditing || !inventoryItemToDisplay.condition.isEmpty)
+                            || (isEditing || !inventoryItemToDisplay.color.isEmpty)
+                            || (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty)
+                        {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || !inventoryItemToDisplay.weightValue.isEmpty {
                         WeightFieldRow(
                             value: $inventoryItemToDisplay.weightValue,
@@ -913,29 +958,36 @@ struct InventoryDetailView: View {
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
-                        if (isEditing || !inventoryItemToDisplay.color.isEmpty) ||
-                           (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty) {
+
+                        if (isEditing || !inventoryItemToDisplay.color.isEmpty)
+                            || (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty)
+                        {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || !inventoryItemToDisplay.color.isEmpty {
-                        FormTextFieldRow(label: "Color", text: $inventoryItemToDisplay.color, isEditing: $isEditing, placeholder: "Space Gray")
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                        
+                        FormTextFieldRow(
+                            label: "Color", text: $inventoryItemToDisplay.color, isEditing: $isEditing,
+                            placeholder: "Space Gray"
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
                         if isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty {
-                        FormTextFieldRow(label: "Storage Requirements", text: $inventoryItemToDisplay.storageRequirements, isEditing: $isEditing, placeholder: "Keep upright, dry environment")
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                        FormTextFieldRow(
+                            label: "Storage Requirements", text: $inventoryItemToDisplay.storageRequirements,
+                            isEditing: $isEditing, placeholder: "Keep upright, dry environment"
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
                 }
                 .background(Color(.secondarySystemGroupedBackground))
@@ -943,7 +995,7 @@ struct InventoryDetailView: View {
             }
         }
     }
-    
+
     @ViewBuilder
     private var movingOptimizationSection: some View {
         if isEditing || hasAnyMovingOptimizationData {
@@ -951,21 +1003,25 @@ struct InventoryDetailView: View {
                 Text("Moving & Storage")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
-                
+
                 VStack(spacing: 0) {
-                    Toggle(isOn: $inventoryItemToDisplay.isFragile, label: {
-                        Text("Fragile Item")
-                    })
+                    Toggle(
+                        isOn: $inventoryItemToDisplay.isFragile,
+                        label: {
+                            Text("Fragile Item")
+                        }
+                    )
                     .disabled(!isEditing)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    
-                    if (isEditing || inventoryItemToDisplay.movingPriority != 3) ||
-                       (isEditing || !inventoryItemToDisplay.roomDestination.isEmpty) {
+
+                    if (isEditing || inventoryItemToDisplay.movingPriority != 3)
+                        || (isEditing || !inventoryItemToDisplay.roomDestination.isEmpty)
+                    {
                         Divider()
                             .padding(.leading, 16)
                     }
-                    
+
                     if isEditing || inventoryItemToDisplay.movingPriority != 3 {
                         HStack {
                             Text("Moving Priority")
@@ -983,17 +1039,20 @@ struct InventoryDetailView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
+
                         if isEditing || !inventoryItemToDisplay.roomDestination.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
-                    
+
                     if isEditing || !inventoryItemToDisplay.roomDestination.isEmpty {
-                        FormTextFieldRow(label: "Room Destination", text: $inventoryItemToDisplay.roomDestination, isEditing: $isEditing, placeholder: "Living Room")
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                        FormTextFieldRow(
+                            label: "Room Destination", text: $inventoryItemToDisplay.roomDestination,
+                            isEditing: $isEditing, placeholder: "Living Room"
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
                 }
                 .background(Color(.secondarySystemGroupedBackground))
@@ -1001,7 +1060,7 @@ struct InventoryDetailView: View {
             }
         }
     }
-    
+
     @ViewBuilder
     private var attachmentsSection: some View {
         if isEditing || hasAnyAttachments {
@@ -1009,10 +1068,11 @@ struct InventoryDetailView: View {
                 Text("Attachments")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
-                
+
                 VStack(spacing: 0) {
                     // Attachments
-                    ForEach(Array(inventoryItemToDisplay.attachments.enumerated()), id: \.offset) { index, attachment in
+                    ForEach(Array(inventoryItemToDisplay.attachments.enumerated()), id: \.offset) {
+                        index, attachment in
                         AttachmentRowView(
                             url: attachment.url,
                             fileName: attachment.originalName,
@@ -1020,27 +1080,29 @@ struct InventoryDetailView: View {
                             onDelete: {
                                 confirmDeleteAttachment(url: attachment.url)
                             },
-                            onTap: isEditing ? nil : {
-                                openFileViewer(url: attachment.url, fileName: attachment.originalName)
-                            }
+                            onTap: isEditing
+                                ? nil
+                                : {
+                                    openFileViewer(url: attachment.url, fileName: attachment.originalName)
+                                }
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        
+
                         if index < inventoryItemToDisplay.attachments.count - 1 {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
                     attachmentButtonView
-                       .padding()
+                        .padding()
                 }
                 .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(UIConstants.cornerRadius)
             }
         }
     }
-    
+
     @ViewBuilder
     private var photoPlaceHolder: some View {
         ZStack {
@@ -1104,10 +1166,10 @@ struct InventoryDetailView: View {
             .background(Color(.systemGroupedBackground))
         }
     }
-    
+
     var body: some View {
         mainContent
-            
+
             .applyNavigationSettings(
                 title: inventoryItemToDisplay.title,
                 isEditing: isEditing,
@@ -1144,7 +1206,10 @@ struct InventoryDetailView: View {
             .sheet(isPresented: $showingLabelSelection) {
                 LabelSelectionView(selectedLabel: $inventoryItemToDisplay.label)
             }
-            .fileImporter(isPresented: $showDocumentPicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: false) { result in
+            .fileImporter(
+                isPresented: $showDocumentPicker, allowedContentTypes: [.pdf, .image],
+                allowsMultipleSelection: false
+            ) { result in
                 Task {
                     await handleAttachmentFileImport(result)
                 }
@@ -1162,7 +1227,10 @@ struct InventoryDetailView: View {
                         showingSimpleCamera = false
                     }
             }
-            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotosPickerItems, maxSelectionCount: calculateRemainingPhotoCount(), matching: .images)
+            .photosPicker(
+                isPresented: $showPhotoPicker, selection: $selectedPhotosPickerItems,
+                maxSelectionCount: calculateRemainingPhotoCount(), matching: .images
+            )
             .onChange(of: selectedPhotosPickerItems) { _, newItems in
                 if !newItems.isEmpty {
                     Task {
@@ -1201,7 +1269,7 @@ struct InventoryDetailView: View {
                     .accessibilityIdentifier("chooseFromLibrary")
             }
             .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
-                Button("OK", role: .cancel) { }
+                Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage)
             }
@@ -1209,7 +1277,7 @@ struct InventoryDetailView: View {
                 Button("Delete", role: .destructive) {
                     executeDeleteAttachment()
                 }
-                Button("Cancel", role: .cancel) { }
+                Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Are you sure you want to delete this attachment? This action cannot be undone.")
             }
@@ -1230,7 +1298,7 @@ struct InventoryDetailView: View {
                         isEditing = false
                     }
                 }
-                Button("Keep Editing", role: .cancel) { }
+                Button("Keep Editing", role: .cancel) {}
             } message: {
                 Text("You have unsaved changes. Are you sure you want to discard them?")
             }
@@ -1240,7 +1308,7 @@ struct InventoryDetailView: View {
                         await deleteItem()
                     }
                 }
-                Button("Cancel", role: .cancel) { }
+                Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Are you sure you want to delete this item? This action cannot be undone.")
             }
@@ -1255,7 +1323,7 @@ struct InventoryDetailView: View {
             await MainActor.run {
                 isLoadingOpenAiResults = true
             }
-            
+
             do {
                 let imageDetails = try await callOpenAI()
                 await MainActor.run {
@@ -1263,19 +1331,20 @@ struct InventoryDetailView: View {
                     if inventoryItemToDisplay.modelContext == nil {
                         modelContext.insert(inventoryItemToDisplay)
                     }
-                    
+
                     // Get all labels and locations for the unified update
                     let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                     let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-                    
-                    inventoryItemToDisplay.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
-                    
+
+                    inventoryItemToDisplay.updateFromImageDetails(
+                        imageDetails, labels: labels, locations: locations)
+
                     // Update display price string to reflect any price changes
                     displayPriceString = formatInitialPrice(inventoryItemToDisplay.price)
-                    
+
                     // Save the context
                     try? modelContext.save()
-                    
+
                     isLoadingOpenAiResults = false
                 }
             } catch OpenAIError.invalidURL {
@@ -1305,13 +1374,13 @@ struct InventoryDetailView: View {
             }
         }
     }
-    
+
     private func callOpenAI() async throws -> ImageDetails {
         // Use all loaded images for AI analysis
         guard !loadedImages.isEmpty else {
             throw OpenAIError.invalidData
         }
-        
+
         // Prepare all images for AI analysis
         var imageBase64Array: [String] = []
         for image in loadedImages {
@@ -1319,35 +1388,34 @@ struct InventoryDetailView: View {
                 imageBase64Array.append(base64)
             }
         }
-        
+
         guard !imageBase64Array.isEmpty else {
             throw OpenAIError.invalidData
         }
-        
+
         let openAi = OpenAIServiceFactory.create()
-        
+
         TelemetryManager.shared.trackCameraAnalysisUsed()
-        
+
         return try await openAi.getImageDetails(
             from: loadedImages,
             settings: settings,
             modelContext: modelContext
         )
     }
-    
-    
+
     private func openFileViewer(url: String, fileName: String? = nil) {
         guard let fileURL = URL(string: url) else { return }
         fileViewerURL = fileURL
         fileViewerName = fileName
         showingFileViewer = true
     }
-    
+
     private func confirmDeleteAttachment(url: String) {
         attachmentToDelete = url
         showingDeleteAttachmentAlert = true
     }
-    
+
     private func executeDeleteAttachment() {
         guard let urlToDelete = attachmentToDelete else { return }
         Task {
@@ -1355,19 +1423,19 @@ struct InventoryDetailView: View {
         }
         attachmentToDelete = nil
     }
-    
-//    private func clearFields() {
-//        print("Clear fields button tapped")
-//        inventoryItemToDisplay.title = ""
-//        inventoryItemToDisplay.label = nil
-//        inventoryItemToDisplay.desc = ""
-//        inventoryItemToDisplay.make = ""
-//        inventoryItemToDisplay.model = ""
-//        inventoryItemToDisplay.location = nil
-//        inventoryItemToDisplay.price = 0
-//        inventoryItemToDisplay.notes = ""
-//    }
-    
+
+    //    private func clearFields() {
+    //        print("Clear fields button tapped")
+    //        inventoryItemToDisplay.title = ""
+    //        inventoryItemToDisplay.label = nil
+    //        inventoryItemToDisplay.desc = ""
+    //        inventoryItemToDisplay.make = ""
+    //        inventoryItemToDisplay.model = ""
+    //        inventoryItemToDisplay.location = nil
+    //        inventoryItemToDisplay.price = 0
+    //        inventoryItemToDisplay.notes = ""
+    //    }
+
     private func addLocation() {
         let location = InventoryLocation()
         modelContext.insert(location)
@@ -1375,80 +1443,87 @@ struct InventoryDetailView: View {
         inventoryItemToDisplay.location = location
         router.navigate(to: .editLocationView(location: location, isEditing: true))
     }
-    
+
     private func addLabel() {
         let label = InventoryLabel()
         modelContext.insert(label)
         inventoryItemToDisplay.label = label
         router.navigate(to: .editLabelView(label: label, isEditing: true))
     }
-    
+
     private func handleNewPhotos(_ images: [UIImage]) async {
         guard !images.isEmpty else { return }
-        
+
         do {
             // Ensure we have a consistent itemId for all operations
-            let itemId = inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId
-            
+            let itemId =
+                inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId
+
             if inventoryItemToDisplay.imageURL == nil {
                 // No primary image yet, save the first image as primary
                 guard let firstImage = images.first else {
-                    throw NSError(domain: "InventoryDetailView", code: 1, userInfo: [NSLocalizedDescriptionKey: "No images provided"])
+                    throw NSError(
+                        domain: "InventoryDetailView", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "No images provided"])
                 }
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(firstImage, id: itemId)
-                
+                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
+                    firstImage, id: itemId)
+
                 await MainActor.run {
                     inventoryItemToDisplay.imageURL = primaryImageURL
                     inventoryItemToDisplay.assetId = itemId
                 }
-                
+
                 // Save remaining images as secondary photos
                 if images.count > 1 {
                     let secondaryImages = Array(images.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: itemId)
-                    
+                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
+                        secondaryImages, itemId: itemId)
+
                     await MainActor.run {
                         inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
                     }
                 }
             } else {
                 // Primary image exists, add all new images as secondary photos
-                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(images, itemId: itemId)
-                
+                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
+                    images, itemId: itemId)
+
                 await MainActor.run {
                     inventoryItemToDisplay.assetId = itemId
                     inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
                 }
             }
-            
+
             await MainActor.run {
                 try? modelContext.save()
                 TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
             }
-            
+
             // Reload images after adding new photos
             await loadAllImages()
         } catch {
             print("Error saving new photos: \(error)")
         }
     }
-    
+
     private func deletePhoto(urlString: String) async {
         guard URL(string: urlString) != nil else { return }
-        
+
         do {
             // Delete from storage
             try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: urlString)
-            
+
             await MainActor.run {
                 if inventoryItemToDisplay.imageURL?.absoluteString == urlString {
                     // Deleting primary image
                     inventoryItemToDisplay.imageURL = nil
-                    
+
                     // If there are secondary photos, promote the first one to primary
                     if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
                         if let firstSecondaryURLString = inventoryItemToDisplay.secondaryPhotoURLs.first,
-                           let firstSecondaryURL = URL(string: firstSecondaryURLString) {
+                            let firstSecondaryURL = URL(string: firstSecondaryURLString)
+                        {
                             inventoryItemToDisplay.imageURL = firstSecondaryURL
                             inventoryItemToDisplay.secondaryPhotoURLs.removeFirst()
                         }
@@ -1457,9 +1532,9 @@ struct InventoryDetailView: View {
                     // Deleting secondary image
                     inventoryItemToDisplay.secondaryPhotoURLs.removeAll { $0 == urlString }
                 }
-                
+
                 try? modelContext.save()
-                
+
                 // Reload images after deletion
                 Task {
                     await loadAllImages()
@@ -1469,7 +1544,7 @@ struct InventoryDetailView: View {
             print("Error deleting photo: \(error)")
         }
     }
-    
+
     private func loadAllImages() async {
         await MainActor.run {
             isLoading = true
@@ -1480,41 +1555,42 @@ struct InventoryDetailView: View {
                 isLoading = false
             }
         }
-        
+
         var images: [UIImage] = []
         var encounteredError: Error?
-        
+
         do {
             // Use PhotoManageable protocol which handles URL migration automatically
             images = try await inventoryItemToDisplay.allPhotos
         } catch {
             print("Failed to load images using PhotoManageable protocol: \(error)")
             encounteredError = error
-            
+
             // Fallback to direct loading if PhotoManageable fails
             // Load primary image
             if let imageURL = inventoryItemToDisplay.imageURL {
                 do {
                     let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
                     images.append(image)
-                    encounteredError = nil // Clear error if we successfully load at least one image
+                    encounteredError = nil  // Clear error if we successfully load at least one image
                 } catch {
                     print("Failed to load primary image: \(error)")
                 }
             }
-            
+
             // Load secondary images
             if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
                 do {
-                    let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(from: inventoryItemToDisplay.secondaryPhotoURLs)
+                    let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(
+                        from: inventoryItemToDisplay.secondaryPhotoURLs)
                     images.append(contentsOf: secondaryImages)
-                    encounteredError = nil // Clear error if we successfully load at least one image
+                    encounteredError = nil  // Clear error if we successfully load at least one image
                 } catch {
                     print("Failed to load secondary images: \(error)")
                 }
             }
         }
-        
+
         await MainActor.run {
             loadedImages = images
             loadingError = images.isEmpty ? encounteredError : nil
@@ -1523,13 +1599,15 @@ struct InventoryDetailView: View {
             }
         }
     }
-    
+
     private func calculateRemainingPhotoCount() -> Int {
-        let currentPhotoCount = (inventoryItemToDisplay.imageURL != nil ? 1 : 0) + inventoryItemToDisplay.secondaryPhotoURLs.count
+        let currentPhotoCount =
+            (inventoryItemToDisplay.imageURL != nil ? 1 : 0)
+            + inventoryItemToDisplay.secondaryPhotoURLs.count
         let maxPhotos = settings.isPro ? 5 : 1
         return max(0, maxPhotos - currentPhotoCount)
     }
-    
+
     private func formatInitialPrice(_ price: Decimal) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -1537,35 +1615,37 @@ struct InventoryDetailView: View {
         formatter.maximumFractionDigits = 2
         return formatter.string(from: NSDecimalNumber(decimal: price)) ?? "0.00"
     }
-    
+
     private func processSelectedPhotos(_ items: [PhotosPickerItem]) async {
         guard !items.isEmpty else { return }
-        
+
         var images: [UIImage] = []
-        
+
         for item in items {
             if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
+                let image = UIImage(data: data)
+            {
                 images.append(image)
             }
         }
-        
+
         if !images.isEmpty {
             await handleNewPhotos(images)
         }
-        
+
         // Clear selected items after processing
         await MainActor.run {
             selectedPhotosPickerItems = []
         }
     }
-    
+
     private func deleteItemAndCloseSheet() {
         // Delete any saved images for this item
         Task {
             do {
                 if let imageURL = inventoryItemToDisplay.imageURL {
-                    try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: imageURL.absoluteString)
+                    try await OptimizedImageManager.shared.deleteSecondaryImage(
+                        urlString: imageURL.absoluteString)
                 }
 
                 for photoURL in inventoryItemToDisplay.secondaryPhotoURLs {
@@ -1590,7 +1670,8 @@ struct InventoryDetailView: View {
         do {
             // Delete all associated images
             if let imageURL = inventoryItemToDisplay.imageURL {
-                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: imageURL.absoluteString)
+                try await OptimizedImageManager.shared.deleteSecondaryImage(
+                    urlString: imageURL.absoluteString)
             }
 
             for photoURL in inventoryItemToDisplay.secondaryPhotoURLs {
@@ -1647,7 +1728,7 @@ struct FullScreenPhotoCarouselView: View {
     let onAddPhoto: () -> Void
     let onDeletePhoto: (Int) -> Void
     let onImageTap: (Int) -> Void
-    
+
     var body: some View {
         ZStack {
             // Photo carousel with swipe navigation
@@ -1665,11 +1746,11 @@ struct FullScreenPhotoCarouselView: View {
                 }
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-            
+
             // Overlay container for indicators - aligned to frame bottom
             VStack {
                 Spacer()
-                
+
                 // Bottom overlay area
                 ZStack {
                     // Dot indicators (only show if multiple photos)
@@ -1682,7 +1763,7 @@ struct FullScreenPhotoCarouselView: View {
                             }
                         }
                     }
-                    
+
                     // Photo count badge (like Vrbo) - positioned at frame bottom
                     if images.count > 1 {
                         HStack {
@@ -1716,29 +1797,31 @@ struct FullScreenPhotoCarouselView: View {
 struct DocumentCameraView: UIViewControllerRepresentable {
     let onComplete: ([UIImage]) -> Void
     let onCancel: () -> Void
-    
+
     func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
         let scannerViewController = VNDocumentCameraViewController()
         scannerViewController.delegate = context.coordinator
         return scannerViewController
     }
-    
+
     func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {
         // No updates needed
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
         let parent: DocumentCameraView
-        
+
         init(_ parent: DocumentCameraView) {
             self.parent = parent
         }
-        
-        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
+
+        func documentCameraViewController(
+            _ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan
+        ) {
             var scannedImages: [UIImage] = []
             // Limit to 1 image per session for simplicity
             let maxImages = min(1, scan.pageCount)
@@ -1748,12 +1831,14 @@ struct DocumentCameraView: UIViewControllerRepresentable {
             }
             parent.onComplete(scannedImages)
         }
-        
+
         func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
             parent.onCancel()
         }
-        
-        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
+
+        func documentCameraViewController(
+            _ controller: VNDocumentCameraViewController, didFailWithError error: Error
+        ) {
             print("Document camera failed with error: \(error)")
             parent.onCancel()
         }
@@ -1768,9 +1853,9 @@ struct AttachmentRowView: View {
     let isEditing: Bool
     let onDelete: () -> Void
     let onTap: (() -> Void)?
-    
+
     @State private var thumbnail: UIImage?
-    
+
     var body: some View {
         HStack(spacing: 12) {
             // Thumbnail
@@ -1791,23 +1876,23 @@ struct AttachmentRowView: View {
                         }
                 }
             }
-            
+
             // File info
             VStack(alignment: .leading, spacing: 2) {
                 Text(fileName)
                     .font(.body)
                     .foregroundColor(.primary)
                     .lineLimit(1)
-                
+
                 if let url = URL(string: url) {
                     Text(url.pathExtension.uppercased())
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            
+
             Spacer()
-            
+
             // Delete button (edit mode only)
             if isEditing {
                 Button(action: onDelete) {
@@ -1828,10 +1913,10 @@ struct AttachmentRowView: View {
             await loadThumbnail()
         }
     }
-    
+
     private func loadThumbnail() async {
         guard let fileURL = URL(string: url) else { return }
-        
+
         do {
             // Try to load as image first
             let image = try await OptimizedImageManager.shared.loadImage(url: fileURL)
@@ -1850,51 +1935,51 @@ struct AttachmentRowView: View {
             // For other document types, use the default document icon
         }
     }
-    
+
     private func generatePDFThumbnail(from url: URL) async -> UIImage? {
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .background).async {
                 guard let document = PDFDocument(url: url),
-                      let page = document.page(at: 0) else {
+                    let page = document.page(at: 0)
+                else {
                     continuation.resume(returning: nil)
                     return
                 }
-                
+
                 let pageRect = page.bounds(for: .mediaBox)
                 let thumbnailSize = CGSize(width: 44, height: 44)
-                
+
                 // Calculate scale to fit within thumbnail size while maintaining aspect ratio
                 let widthScale = thumbnailSize.width / pageRect.width
                 let heightScale = thumbnailSize.height / pageRect.height
                 let scale = min(widthScale, heightScale)
-                
+
                 let scaledSize = CGSize(
                     width: pageRect.width * scale,
                     height: pageRect.height * scale
                 )
-                
+
                 let renderer = UIGraphicsImageRenderer(size: scaledSize)
                 let image = renderer.image { context in
                     // Fill with white background
                     UIColor.white.set()
                     context.fill(CGRect(origin: .zero, size: scaledSize))
-                    
+
                     // Scale and draw the PDF page
                     context.cgContext.scaleBy(x: scale, y: scale)
                     page.draw(with: .mediaBox, to: context.cgContext)
                 }
-                
+
                 continuation.resume(returning: image)
             }
         }
     }
 }
 
-
 #Preview {
     struct PreviewWrapper: View {
         @State private var previewItem: InventoryItem
-        
+
         init() {
             let location = InventoryLocation(name: "Office", desc: "My office")
             let item = InventoryItem(
@@ -1910,13 +1995,14 @@ struct AttachmentRowView: View {
                 price: Decimal(2499.99),
                 insured: false,
                 assetId: "macbook-preview",
-                notes: "Purchased for work and personal projects. Excellent condition with original box and charger.",
+                notes:
+                    "Purchased for work and personal projects. Excellent condition with original box and charger.",
                 showInvalidQuantityAlert: false,
                 hasUsedAI: true
             )
             self._previewItem = State(initialValue: item)
         }
-        
+
         var body: some View {
             InventoryDetailView(
                 inventoryItemToDisplay: previewItem,
@@ -1932,9 +2018,10 @@ struct AttachmentRowView: View {
                     print("❌ Could not load image: macbook")
                     return
                 }
-                
+
                 do {
-                    let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: "macbook-preview")
+                    let imageURL = try await OptimizedImageManager.shared.saveImage(
+                        image, id: "macbook-preview")
                     previewItem.imageURL = imageURL
                     print("✅ Successfully loaded preview image: macbook")
                 } catch {
@@ -1943,7 +2030,7 @@ struct AttachmentRowView: View {
             }
         }
     }
-    
+
     return PreviewWrapper()
 }
 
@@ -1952,11 +2039,11 @@ struct AttachmentRowView: View {
 extension InventoryDetailView {
     private func deleteAttachment(_ urlString: String) async {
         guard URL(string: urlString) != nil else { return }
-        
+
         do {
             // Delete from storage
             try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: urlString)
-            
+
             await MainActor.run {
                 inventoryItemToDisplay.removeAttachment(url: urlString)
                 try? modelContext.save()
@@ -1965,12 +2052,12 @@ extension InventoryDetailView {
             print("Error deleting attachment: \(error)")
         }
     }
-    
+
     private func handleAttachmentFileImport(_ result: Result<[URL], Error>) async {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            
+
             do {
                 // Start accessing the security-scoped resource
                 let startedAccessing = url.startAccessingSecurityScopedResource()
@@ -1979,27 +2066,35 @@ extension InventoryDetailView {
                         url.stopAccessingSecurityScopedResource()
                     }
                 }
-                
+
                 // Copy the file to our app's storage
                 let attachmentId = UUID().uuidString
                 let data = try Data(contentsOf: url)
                 let originalName = url.lastPathComponent
-                
+
                 // For images, use OptimizedImageManager; for other files, copy to Documents directory
                 let destinationURL: URL
                 if let image = UIImage(data: data) {
                     destinationURL = try await OptimizedImageManager.shared.saveImage(image, id: attachmentId)
                 } else {
                     // Copy to Documents directory for non-image files
-                    guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-                        throw NSError(domain: "InventoryDetailView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Cannot access documents directory"])
+                    guard
+                        let documentsURL = FileManager.default.urls(
+                            for: .documentDirectory, in: .userDomainMask
+                        ).first
+                    else {
+                        throw NSError(
+                            domain: "InventoryDetailView", code: 2,
+                            userInfo: [NSLocalizedDescriptionKey: "Cannot access documents directory"])
                     }
-                    destinationURL = documentsURL.appendingPathComponent(attachmentId + "." + url.pathExtension)
+                    destinationURL = documentsURL.appendingPathComponent(
+                        attachmentId + "." + url.pathExtension)
                     try data.write(to: destinationURL)
                 }
-                
+
                 await MainActor.run {
-                    inventoryItemToDisplay.addAttachment(url: destinationURL.absoluteString, originalName: originalName)
+                    inventoryItemToDisplay.addAttachment(
+                        url: destinationURL.absoluteString, originalName: originalName)
                     do {
                         try modelContext.save()
                         print("✅ Successfully saved attachment: \(originalName)")
@@ -2010,7 +2105,7 @@ extension InventoryDetailView {
             } catch {
                 print("Failed to save attachment file: \(error)")
             }
-            
+
         case .failure(let error):
             print("File import failed: \(error)")
         }
@@ -2049,7 +2144,7 @@ struct InventoryItemSnapshot {
     let isFragile: Bool
     let movingPriority: Int
     let roomDestination: String
-    
+
     init(from item: InventoryItem) {
         self.title = item.title
         self.quantityString = item.quantityString
@@ -2080,7 +2175,7 @@ struct InventoryItemSnapshot {
         self.movingPriority = item.movingPriority
         self.roomDestination = item.roomDestination
     }
-    
+
     func restore(to item: InventoryItem) {
         item.title = title
         item.quantityString = quantityString
@@ -2116,13 +2211,15 @@ struct InventoryItemSnapshot {
 // MARK: - View Extensions
 
 extension View {
-    func applyNavigationSettings(title: String, isEditing: Bool, colorScheme: ColorScheme) -> some View {
+    func applyNavigationSettings(title: String, isEditing: Bool, colorScheme: ColorScheme)
+        -> some View
+    {
         self
             .navigationTitle(getNavigationTitle(title: title))
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isEditing)
     }
-    
+
     private func getNavigationTitle(title: String) -> String {
         if #available(iOS 26.0, *) {
             return title
@@ -2136,7 +2233,7 @@ extension View {
 
 struct ConditionalToolbarBackgroundModifier: ViewModifier {
     let colorScheme: ColorScheme
-    
+
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             // For iOS 26 and above, hide the toolbar background
@@ -2158,7 +2255,7 @@ struct FileViewer: View {
     let fileName: String?
     @Environment(\.dismiss) private var dismiss
     @State private var showShareSheet = false
-    
+
     var body: some View {
         NavigationView {
             QuickLookPreview(url: url)
@@ -2171,7 +2268,7 @@ struct FileViewer: View {
                             dismiss()
                         }
                     }
-                    
+
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(action: { showShareSheet = true }) {
                             Image(systemName: "square.and.arrow.up")
@@ -2183,31 +2280,33 @@ struct FileViewer: View {
             ShareSheet(activityItems: [createSharableItem()])
         }
     }
-    
+
     private func createSharableItem() -> URL {
         // If we have an original filename, create a temporary copy with that name
         guard let originalFileName = fileName,
-              originalFileName != url.lastPathComponent else {
+            originalFileName != url.lastPathComponent
+        else {
             // No original filename or it's the same, just return the original URL
             return url
         }
-        
+
         // Create a temporary directory for sharing
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("MovingBoxShare", isDirectory: true)
-        
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "MovingBoxShare", isDirectory: true)
+
         do {
             // Ensure temp directory exists
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            
+
             // Create temp file with original filename
             let tempFile = tempDir.appendingPathComponent(originalFileName)
-            
+
             // Remove any existing temp file
             try? FileManager.default.removeItem(at: tempFile)
-            
+
             // Copy the file to temp location with original filename
             try FileManager.default.copyItem(at: url, to: tempFile)
-            
+
             return tempFile
         } catch {
             print("Failed to create temporary file for sharing: \(error)")
@@ -2219,35 +2318,36 @@ struct FileViewer: View {
 
 struct QuickLookPreview: UIViewControllerRepresentable {
     let url: URL
-    
+
     func makeUIViewController(context: Context) -> QLPreviewController {
         let controller = QLPreviewController()
         controller.dataSource = context.coordinator
         return controller
     }
-    
+
     func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
         // No updates needed
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(url: url)
     }
-    
+
     class Coordinator: QLPreviewControllerDataSource {
         let url: URL
-        
+
         init(url: URL) {
             self.url = url
         }
-        
+
         func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
             return 1
         }
-        
-        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int)
+            -> QLPreviewItem
+        {
             return url as QLPreviewItem
         }
     }
 }
-

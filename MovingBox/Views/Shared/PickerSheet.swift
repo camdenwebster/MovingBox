@@ -5,8 +5,8 @@
 //  Created by Claude on 8/19/25.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct PickerSheet<T: Hashable & Identifiable>: View {
     let title: String
@@ -16,7 +16,7 @@ struct PickerSheet<T: Hashable & Identifiable>: View {
     let onCancel: () -> Void
     let showNoSelectionOption: Bool
     let noSelectionLabel: String
-    
+
     init(
         title: String,
         items: [T],
@@ -34,7 +34,7 @@ struct PickerSheet<T: Hashable & Identifiable>: View {
         self.onCancel = onCancel
         self.itemContent = itemContent
     }
-    
+
     var body: some View {
         NavigationView {
             List {
@@ -51,7 +51,7 @@ struct PickerSheet<T: Hashable & Identifiable>: View {
                     }
                     .buttonStyle(.plain)
                 }
-                
+
                 ForEach(items) { item in
                     Button(action: {
                         onSelect(item)
