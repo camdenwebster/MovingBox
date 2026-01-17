@@ -32,7 +32,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var model: String = ""
     var make: String = ""
     var location: InventoryLocation?
-    var label: InventoryLabel?
+    var labels: [InventoryLabel] = []
     var price: Decimal = Decimal.zero
     var insured: Bool = false
     var assetId: String = ""
@@ -223,7 +223,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     init(
         id: UUID = UUID(),
         title: String, quantityString: String, quantityInt: Int, desc: String, serial: String, model: String,
-        make: String, location: InventoryLocation?, label: InventoryLabel?, price: Decimal, insured: Bool,
+        make: String, location: InventoryLocation?, labels: [InventoryLabel] = [], price: Decimal, insured: Bool,
         assetId: String, notes: String, showInvalidQuantityAlert: Bool, hasUsedAI: Bool = false,
         secondaryPhotoURLs: [String] = [], purchaseDate: Date? = nil, warrantyExpirationDate: Date? = nil,
         purchaseLocation: String = "", condition: String = "", hasWarranty: Bool = false,
@@ -241,7 +241,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
         self.model = model
         self.make = make
         self.location = location
-        self.label = label
+        self.labels = labels
         self.price = price
         self.insured = insured
         self.assetId = assetId
@@ -331,8 +331,16 @@ extension InventoryItem {
         }
 
         @discardableResult
-        func label(_ label: InventoryLabel?) -> Builder {
-            item.label = label
+        func labels(_ labels: [InventoryLabel]) -> Builder {
+            item.labels = labels
+            return self
+        }
+
+        @discardableResult
+        func addLabel(_ label: InventoryLabel) -> Builder {
+            if !item.labels.contains(where: { $0.id == label.id }) && item.labels.count < 5 {
+                item.labels.append(label)
+            }
             return self
         }
 
@@ -575,8 +583,13 @@ extension InventoryItem {
             self.location = locations.first { $0.name == imageDetails.location }
         }
 
-        // Label handling - can be overwritten
-        self.label = labels.first { $0.name == imageDetails.category }
+        // Label handling - match categories to labels (case-insensitive)
+        // Supports multiple categories from AI (up to 3, limited to 5 labels total)
+        let categoriesToMatch = imageDetails.categories.isEmpty ? [imageDetails.category] : imageDetails.categories
+        let matchedLabels = categoriesToMatch.compactMap { categoryName in
+            labels.first { $0.name.lowercased() == categoryName.lowercased() }
+        }
+        self.labels = Array(matchedLabels.prefix(5))
 
         // Extended properties - only update if provided by AI
         if let condition = imageDetails.condition, !condition.isEmpty {

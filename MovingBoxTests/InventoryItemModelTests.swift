@@ -74,7 +74,7 @@ import Testing
             model: "",
             make: "",
             location: nil,
-            label: nil,
+            labels: [],
             price: 0,
             insured: false,
             assetId: "",
@@ -280,7 +280,7 @@ import Testing
             model: "",
             make: "",
             location: nil,
-            label: nil,
+            labels: [],
             price: 0,
             insured: false,
             assetId: "",
@@ -542,5 +542,254 @@ import Testing
 
         // Now should use direct home
         #expect(item.effectiveHome === directHome, "After clearing location, item should use direct home")
+    }
+
+    // MARK: - Multi-Label Tests
+
+    @Test("Test labels array initialization is empty by default")
+    func testLabelsArrayDefaultInitialization() async throws {
+        let item = InventoryItem()
+
+        #expect(item.labels.isEmpty, "Labels array should be empty by default")
+        #expect(item.labels.count == 0)
+    }
+
+    @Test("Test item initialization with single label")
+    func testItemInitializationWithSingleLabel() async throws {
+        let label = InventoryLabel(name: "Electronics", emoji: "📱")
+        let item = InventoryItem(
+            title: "Test Item",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: nil,
+            labels: [label],
+            price: 0,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false
+        )
+
+        #expect(item.labels.count == 1)
+        #expect(item.labels.first?.name == "Electronics")
+        #expect(item.labels.first?.emoji == "📱")
+    }
+
+    @Test("Test item initialization with multiple labels")
+    func testItemInitializationWithMultipleLabels() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+        let label3 = InventoryLabel(name: "Expensive", emoji: "💰")
+
+        let item = InventoryItem(
+            title: "Test Item",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: nil,
+            labels: [label1, label2, label3],
+            price: 0,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false
+        )
+
+        #expect(item.labels.count == 3)
+        #expect(item.labels.contains { $0.name == "Electronics" })
+        #expect(item.labels.contains { $0.name == "Office" })
+        #expect(item.labels.contains { $0.name == "Expensive" })
+    }
+
+    @Test("Test adding labels to item")
+    func testAddingLabelsToItem() async throws {
+        let item = InventoryItem()
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+
+        // Initially empty
+        #expect(item.labels.isEmpty)
+
+        // Add first label
+        item.labels.append(label1)
+        #expect(item.labels.count == 1)
+
+        // Add second label
+        item.labels.append(label2)
+        #expect(item.labels.count == 2)
+    }
+
+    @Test("Test removing labels from item")
+    func testRemovingLabelsFromItem() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+        let label3 = InventoryLabel(name: "Expensive", emoji: "💰")
+
+        let item = InventoryItem()
+        item.labels = [label1, label2, label3]
+        #expect(item.labels.count == 3)
+
+        // Remove by ID
+        item.labels.removeAll { $0.id == label2.id }
+        #expect(item.labels.count == 2)
+        #expect(!item.labels.contains { $0.name == "Office" })
+        #expect(item.labels.contains { $0.name == "Electronics" })
+        #expect(item.labels.contains { $0.name == "Expensive" })
+    }
+
+    @Test("Test clearing all labels")
+    func testClearingAllLabels() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+
+        let item = InventoryItem()
+        item.labels = [label1, label2]
+        #expect(item.labels.count == 2)
+
+        // Clear all labels
+        item.labels.removeAll()
+        #expect(item.labels.isEmpty)
+    }
+
+    @Test("Test maximum 5 labels enforcement in Builder pattern")
+    func testBuilderMaxLabelsEnforcement() async throws {
+        let labels = (1...10).map { InventoryLabel(name: "Label \($0)", emoji: "🏷️") }
+
+        let item = InventoryItem.Builder(title: "Test Item")
+            .addLabel(labels[0])
+            .addLabel(labels[1])
+            .addLabel(labels[2])
+            .addLabel(labels[3])
+            .addLabel(labels[4])
+            .addLabel(labels[5])  // Should be ignored (6th label)
+            .addLabel(labels[6])  // Should be ignored (7th label)
+            .build()
+
+        #expect(item.labels.count == 5, "Builder should enforce maximum of 5 labels")
+    }
+
+    @Test("Test Builder addLabel prevents duplicates")
+    func testBuilderAddLabelPreventsDuplicates() async throws {
+        let label = InventoryLabel(name: "Electronics", emoji: "📱")
+
+        let item = InventoryItem.Builder(title: "Test Item")
+            .addLabel(label)
+            .addLabel(label)  // Same label again
+            .addLabel(label)  // Same label again
+            .build()
+
+        #expect(item.labels.count == 1, "Builder should prevent duplicate labels")
+    }
+
+    @Test("Test Builder labels method sets array directly")
+    func testBuilderLabelsMethod() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+
+        let item = InventoryItem.Builder(title: "Test Item")
+            .labels([label1, label2])
+            .build()
+
+        #expect(item.labels.count == 2)
+        #expect(item.labels.contains { $0.name == "Electronics" })
+        #expect(item.labels.contains { $0.name == "Office" })
+    }
+
+    @Test("Test replacing labels array")
+    func testReplacingLabelsArray() async throws {
+        let label1 = InventoryLabel(name: "Old Label", emoji: "📦")
+        let label2 = InventoryLabel(name: "New Label 1", emoji: "🏷️")
+        let label3 = InventoryLabel(name: "New Label 2", emoji: "✨")
+
+        let item = InventoryItem()
+        item.labels = [label1]
+        #expect(item.labels.count == 1)
+
+        // Replace with new labels (batch operation behavior)
+        item.labels = [label2, label3]
+        #expect(item.labels.count == 2)
+        #expect(!item.labels.contains { $0.name == "Old Label" })
+        #expect(item.labels.contains { $0.name == "New Label 1" })
+        #expect(item.labels.contains { $0.name == "New Label 2" })
+    }
+}
+
+// MARK: - ImageDetails Multi-Category Tests
+
+@MainActor
+@Suite struct ImageDetailsMultiCategoryTests {
+
+    @Test("Test ImageDetails with single category backwards compatibility")
+    func testImageDetailsSingleCategory() async throws {
+        let details = ImageDetails(
+            title: "Test Item",
+            quantity: "1",
+            description: "Test description",
+            make: "Test Make",
+            model: "Test Model",
+            category: "Electronics",
+            location: "Office",
+            price: "$99.99",
+            serialNumber: "123ABC"
+        )
+
+        #expect(details.category == "Electronics")
+        #expect(details.categories.count == 1)
+        #expect(details.categories.first == "Electronics")
+    }
+
+    @Test("Test ImageDetails with multiple categories")
+    func testImageDetailsMultipleCategories() async throws {
+        let details = ImageDetails(
+            title: "Test Item",
+            quantity: "1",
+            description: "Test description",
+            make: "Test Make",
+            model: "Test Model",
+            category: "Electronics",
+            categories: ["Electronics", "Office", "Expensive"],
+            location: "Office",
+            price: "$99.99",
+            serialNumber: "123ABC"
+        )
+
+        #expect(details.categories.count == 3)
+        #expect(details.categories.contains("Electronics"))
+        #expect(details.categories.contains("Office"))
+        #expect(details.categories.contains("Expensive"))
+    }
+
+    @Test("Test ImageDetails empty categories uses single category")
+    func testImageDetailsEmptyCategoriesUsesSingleCategory() async throws {
+        let details = ImageDetails(
+            title: "Test Item",
+            quantity: "1",
+            description: "Test description",
+            make: "Test Make",
+            model: "Test Model",
+            category: "Furniture",
+            categories: [],
+            location: "Living Room",
+            price: "$199.99",
+            serialNumber: ""
+        )
+
+        #expect(details.categories.count == 1)
+        #expect(details.categories.first == "Furniture")
+    }
+
+    @Test("Test ImageDetails empty() has empty categories")
+    func testImageDetailsEmptyHasEmptyCategories() async throws {
+        let details = ImageDetails.empty()
+
+        #expect(details.categories.isEmpty)
+        #expect(details.category == "None")
     }
 }

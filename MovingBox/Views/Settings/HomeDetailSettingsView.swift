@@ -548,7 +548,7 @@ struct HomeDetailSettingsView: View {
                 // Unassign items from this label
                 if let items = label.inventoryItems {
                     for item in items {
-                        item.label = nil
+                        item.labels = []
                     }
                 }
                 modelContext.delete(label)

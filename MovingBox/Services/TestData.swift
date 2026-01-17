@@ -764,7 +764,7 @@ struct TestData {
                 model: itemData.model,
                 make: itemData.make,
                 location: location,
-                label: label,
+                labels: [label],
                 price: itemData.price,
                 insured: false,
                 assetId: "",

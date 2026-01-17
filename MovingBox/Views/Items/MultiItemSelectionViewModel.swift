@@ -277,7 +277,7 @@ final class MultiItemSelectionViewModel {
             model: detectedItem.model,
             make: detectedItem.make,
             location: location,
-            label: label,
+            labels: label.map { [$0] } ?? [],
             price: parsePrice(from: detectedItem.estimatedPrice),
             insured: false,
             assetId: "",

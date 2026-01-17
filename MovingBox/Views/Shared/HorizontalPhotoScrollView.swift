@@ -325,7 +325,7 @@ struct AddPhotoThumbnailButton: View {
         model: "",
         make: "",
         location: nil,
-        label: nil,
+        labels: [],
         price: Decimal.zero,
         insured: false,
         assetId: "",

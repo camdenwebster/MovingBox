@@ -262,7 +262,7 @@ struct ItemCreationFlowView: View {
             model: "",
             make: "",
             location: location,
-            label: nil,
+            labels: [],
             price: Decimal.zero,
             insured: false,
             assetId: "",

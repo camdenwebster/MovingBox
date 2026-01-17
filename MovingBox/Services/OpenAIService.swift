@@ -2066,6 +2066,7 @@ struct ImageDetails: Decodable {
     let make: String
     let model: String
     let category: String
+    let categories: [String]  // Multiple categories support (1-3 categories)
     let location: String
     let price: String
     let serialNumber: String
@@ -2095,7 +2096,20 @@ struct ImageDetails: Decodable {
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? "Item details not available"
         make = try container.decodeIfPresent(String.self, forKey: .make) ?? ""
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
-        category = try container.decodeIfPresent(String.self, forKey: .category) ?? "Uncategorized"
+
+        // Handle both single category and multiple categories formats
+        let decodedCategory = try container.decodeIfPresent(String.self, forKey: .category) ?? "Uncategorized"
+        let decodedCategories = try container.decodeIfPresent([String].self, forKey: .categories)
+
+        // If categories array is provided, use it; otherwise fall back to single category
+        if let cats = decodedCategories, !cats.isEmpty {
+            categories = Array(cats.prefix(3))  // Limit to 3 categories
+            category = cats.first ?? decodedCategory
+        } else {
+            category = decodedCategory
+            categories = decodedCategory.isEmpty || decodedCategory == "Uncategorized" ? [] : [decodedCategory]
+        }
+
         location = try container.decodeIfPresent(String.self, forKey: .location) ?? "Unknown"
         price = try container.decodeIfPresent(String.self, forKey: .price) ?? "$0.00"
         serialNumber = try container.decodeIfPresent(String.self, forKey: .serialNumber) ?? ""
@@ -2118,7 +2132,7 @@ struct ImageDetails: Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case title, quantity, description, make, model, category, location, price, serialNumber
+        case title, quantity, description, make, model, category, categories, location, price, serialNumber
         case condition, color, dimensions, dimensionLength, dimensionWidth, dimensionHeight, dimensionUnit
         case weightValue, weightUnit, purchaseLocation, replacementCost, depreciationRate, storageRequirements,
             isFragile
@@ -2133,6 +2147,7 @@ struct ImageDetails: Decodable {
             make: "",
             model: "",
             category: "None",
+            categories: [],
             location: "None",
             price: "",
             serialNumber: "",
@@ -2156,7 +2171,7 @@ struct ImageDetails: Decodable {
     // Memberwise initializer for manual construction
     init(
         title: String, quantity: String, description: String, make: String, model: String,
-        category: String, location: String, price: String, serialNumber: String,
+        category: String, categories: [String] = [], location: String, price: String, serialNumber: String,
         condition: String? = nil, color: String? = nil, dimensions: String? = nil,
         dimensionLength: String? = nil, dimensionWidth: String? = nil, dimensionHeight: String? = nil,
         dimensionUnit: String? = nil, weightValue: String? = nil,
@@ -2170,6 +2185,8 @@ struct ImageDetails: Decodable {
         self.make = make
         self.model = model
         self.category = category
+        // If categories not provided, default to single category
+        self.categories = categories.isEmpty ? (category.isEmpty || category == "None" ? [] : [category]) : categories
         self.location = location
         self.price = price
         self.serialNumber = serialNumber

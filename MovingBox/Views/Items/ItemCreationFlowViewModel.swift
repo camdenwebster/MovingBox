@@ -285,7 +285,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             model: "",
             make: "",
             location: location,
-            label: nil,
+            labels: [],
             price: Decimal.zero,
             insured: false,
             assetId: "",
@@ -497,7 +497,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                 model: detectedItem.model,
                 make: detectedItem.make,
                 location: location,
-                label: nil,
+                labels: [],
                 price: parsePrice(from: detectedItem.estimatedPrice),
                 insured: false,
                 assetId: "",
@@ -540,7 +540,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                 if let existingLabel = existingLabels.first(where: {
                     $0.name.lowercased() == detectedCategory.lowercased()
                 }) {
-                    item.label = existingLabel
+                    item.labels = [existingLabel]
                 } else if !detectedCategory.isEmpty && detectedCategory.lowercased() != "unknown" {
                     // Create new label for this category
                     let colorString = assignColorForCategory(detectedCategory)
@@ -551,7 +551,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                     let uiColor = UIColor(color)
                     let newLabel = InventoryLabel(name: detectedCategory, color: uiColor)
                     context.insert(newLabel)
-                    item.label = newLabel
+                    item.labels = [newLabel]
                 }
             }
         }

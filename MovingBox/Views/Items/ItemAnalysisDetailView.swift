@@ -107,7 +107,9 @@ struct ItemAnalysisDetailView: View {
         // Core properties
         item.title = imageDetails.title
         item.quantityString = imageDetails.quantity
-        item.label = labels.first { $0.name == imageDetails.category }
+        if let matchedLabel = labels.first(where: { $0.name.lowercased() == imageDetails.category.lowercased() }) {
+            item.labels = [matchedLabel]
+        }
         item.desc = imageDetails.description
         item.make = imageDetails.make
         item.model = imageDetails.model

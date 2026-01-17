@@ -1033,14 +1033,22 @@ actor DataManager {
                                             }
 
                                             if config.includeLabels && !data.labelName.isEmpty {
-                                                if let cachedLabel = labelCache[data.labelName] {
-                                                    item.label = cachedLabel
-                                                } else {
-                                                    let label = self.createAndConfigureLabel(
-                                                        name: data.labelName, desc: "", colorHex: "", emoji: "")
-                                                    modelContext.insert(label)
-                                                    labelCache[data.labelName] = label
-                                                    item.label = label
+                                                // Support comma-separated label names
+                                                let labelNames = data.labelName.split(separator: ",").map {
+                                                    $0.trimmingCharacters(in: .whitespaces)
+                                                }
+                                                for labelName in labelNames.prefix(5) {
+                                                    if let cachedLabel = labelCache[labelName] {
+                                                        if !item.labels.contains(where: { $0.id == cachedLabel.id }) {
+                                                            item.labels.append(cachedLabel)
+                                                        }
+                                                    } else {
+                                                        let label = self.createAndConfigureLabel(
+                                                            name: labelName, desc: "", colorHex: "", emoji: "")
+                                                        modelContext.insert(label)
+                                                        labelCache[labelName] = label
+                                                        item.labels.append(label)
+                                                    }
                                                 }
                                             }
 
@@ -1088,14 +1096,22 @@ actor DataManager {
                                         }
 
                                         if config.includeLabels && !data.labelName.isEmpty {
-                                            if let cachedLabel = labelCache[data.labelName] {
-                                                item.label = cachedLabel
-                                            } else {
-                                                let label = self.createAndConfigureLabel(
-                                                    name: data.labelName, desc: "", colorHex: "", emoji: "")
-                                                modelContext.insert(label)
-                                                labelCache[data.labelName] = label
-                                                item.label = label
+                                            // Support comma-separated label names
+                                            let labelNames = data.labelName.split(separator: ",").map {
+                                                $0.trimmingCharacters(in: .whitespaces)
+                                            }
+                                            for labelName in labelNames.prefix(5) {
+                                                if let cachedLabel = labelCache[labelName] {
+                                                    if !item.labels.contains(where: { $0.id == cachedLabel.id }) {
+                                                        item.labels.append(cachedLabel)
+                                                    }
+                                                } else {
+                                                    let label = self.createAndConfigureLabel(
+                                                        name: labelName, desc: "", colorHex: "", emoji: "")
+                                                    modelContext.insert(label)
+                                                    labelCache[labelName] = label
+                                                    item.labels.append(label)
+                                                }
                                             }
                                         }
 
@@ -1329,7 +1345,7 @@ actor DataManager {
                         title: item.title,
                         desc: item.desc,
                         locationName: item.location?.name ?? "",
-                        labelName: item.label?.name ?? "",
+                        labelName: item.labels.first?.name ?? "",
                         homeName: item.location?.home?.name ?? "",
                         quantity: item.quantityInt,
                         serial: item.serial,
@@ -1893,7 +1909,7 @@ actor DataManager {
                     title: item.title,
                     desc: item.desc,
                     locationName: item.location?.name ?? "",
-                    labelName: item.label?.name ?? "",
+                    labelName: item.labels.first?.name ?? "",
                     homeName: item.location?.home?.name ?? "",
                     quantity: item.quantityInt,
                     serial: item.serial,

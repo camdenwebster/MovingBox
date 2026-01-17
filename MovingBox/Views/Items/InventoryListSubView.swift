@@ -61,6 +61,13 @@ struct InventoryListSubView: View {
             }
         }
 
+        // Apply label filtering if needed (can't do in predicate with array.contains)
+        if let filterLabel = filterLabel {
+            result = result.filter { item in
+                item.labels.contains { $0.id == filterLabel.id }
+            }
+        }
+
         // Apply search filtering if needed
         if !searchString.isEmpty {
             let lowercasedTerm = searchString.lowercased()
@@ -139,10 +146,10 @@ struct InventoryListSubView: View {
             }
         } else if let filterLabel = filterLabel {
             // Show items with specific label
-            let labelID = filterLabel.persistentModelID
-            predicate = #Predicate<InventoryItem> { item in
-                item.label?.persistentModelID == labelID
-            }
+            // Note: SwiftData predicates don't support array.contains well with persistentModelID,
+            // so we filter in-memory via filteredItems computed property instead
+            let labelID = filterLabel.id
+            predicate = nil
         } else {
             // No predicate-level filtering needed
             // Home filtering happens in-memory via filteredItems

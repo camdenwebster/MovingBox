@@ -428,7 +428,7 @@ struct InventoryListView: View {
                     model: "",
                     make: "",
                     location: location,
-                    label: nil,
+                    labels: [],
                     price: Decimal.zero,
                     insured: false,
                     assetId: "",
@@ -507,7 +507,7 @@ struct InventoryListView: View {
             model: "",
             make: "",
             location: location,
-            label: nil,
+            labels: [],
             price: Decimal.zero,
             insured: false,
             assetId: "",
@@ -579,7 +579,7 @@ struct InventoryListView: View {
 
     func updateSelectedItemsLabel(to label: InventoryLabel?) {
         for item in selectedItems {
-            item.label = label
+            item.labels = label.map { [$0] } ?? []
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
@@ -691,7 +691,7 @@ struct InventoryListView: View {
 
     func changeSelectedItemsLabel(to label: InventoryLabel?) {
         for item in selectedItems {
-            item.label = label
+            item.labels = label.map { [$0] } ?? []
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
