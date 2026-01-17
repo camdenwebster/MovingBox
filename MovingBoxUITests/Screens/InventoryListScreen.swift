@@ -154,4 +154,14 @@ class InventoryListScreen {
     func isSelectionModeActive() -> Bool {
         return selectionDoneButton.exists
     }
+
+    func isDisplayed() -> Bool {
+        return allItemsNavigationTitle.waitForExistence(timeout: 10)
+            || app.navigationBars["All Items"].waitForExistence(timeout: 10)
+            || app.cells.firstMatch.waitForExistence(timeout: 10)
+    }
+
+    func hasItems() -> Bool {
+        return app.cells.count > 0
+    }
 }

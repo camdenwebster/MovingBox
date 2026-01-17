@@ -101,6 +101,27 @@ class DashboardScreen {
         ).count > 0
     }
 
+    func getRecentItemsCount() -> Int {
+        return app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'dashboard-recent-item-'")
+        ).count
+    }
+
+    func recentItemExists(named name: String) -> Bool {
+        // Look for item name as static text or label within the dashboard
+        return app.staticTexts[name].exists
+            || app.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", name)
+            ).count > 0
+    }
+
+    func getStatCardValue() -> String? {
+        if statCardValue.exists {
+            return statCardValue.label
+        }
+        return nil
+    }
+
     func isEmptyState() -> Bool {
         return emptyStateAddItemButton.exists
     }

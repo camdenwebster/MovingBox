@@ -11,51 +11,51 @@ class HomeManagementScreen {
     let app: XCUIApplication
 
     // Home List Screen Elements
-    let homeListTitle: XCUIElement
+    let homeListNavigationBar: XCUIElement
     let addHomeButton: XCUIElement
 
     // Add Home Screen Elements
     let homeNameTextField: XCUIElement
+    let streetAddressTextField: XCUIElement
     let saveButton: XCUIElement
     let cancelButton: XCUIElement
+    let addHomeNavigationBar: XCUIElement
 
     // Home Detail Screen Elements
     let editButton: XCUIElement
+    let doneButton: XCUIElement
     let deleteButton: XCUIElement
     let primaryHomeToggle: XCUIElement
-    let colorPicker: XCUIElement
 
     init(app: XCUIApplication) {
         self.app = app
 
-        // Home List Screen
-        self.homeListTitle = app.navigationBars["Homes"]
+        // Home List Screen - navigation bar title is "Homes"
+        self.homeListNavigationBar = app.navigationBars["Homes"]
         self.addHomeButton = app.buttons["Add Home"]
 
-        // Add Home Screen
-        self.homeNameTextField = app.textFields["Home Name"]
+        // Add Home Screen - navigation bar title is "Add Home"
+        self.addHomeNavigationBar = app.navigationBars["Add Home"]
+        self.homeNameTextField = app.textFields["Home Name (Optional)"]
+        self.streetAddressTextField = app.textFields["Street Address"]
         self.saveButton = app.buttons["Save"]
         self.cancelButton = app.buttons["Cancel"]
 
         // Home Detail Screen
         self.editButton = app.buttons["Edit"]
+        self.doneButton = app.buttons["Done"]
         self.deleteButton = app.buttons["Delete Home"]
         self.primaryHomeToggle = app.switches["Set as Primary"]
-        self.colorPicker = app.otherElements["Color"]
     }
 
     // MARK: - Navigation Actions
-
-    func navigateToHomeList(from settingsScreen: SettingsScreen) {
-        // Navigate from Settings to Home List
-        // Implementation depends on settings structure
-    }
 
     func tapAddHome() {
         addHomeButton.tap()
     }
 
     func selectHome(named name: String) {
+        // Homes are displayed as buttons with the home name
         app.buttons[name].tap()
     }
 
@@ -63,6 +63,22 @@ class HomeManagementScreen {
 
     func enterHomeName(_ name: String) {
         homeNameTextField.tap()
+        homeNameTextField.typeText(name)
+    }
+
+    func enterStreetAddress(_ address: String) {
+        streetAddressTextField.tap()
+        streetAddressTextField.typeText(address)
+    }
+
+    func clearAndEnterHomeName(_ name: String) {
+        homeNameTextField.tap()
+        // Select all and delete
+        homeNameTextField.press(forDuration: 1.0)
+        if app.menuItems["Select All"].waitForExistence(timeout: 2) {
+            app.menuItems["Select All"].tap()
+            app.keys["delete"].tap()
+        }
         homeNameTextField.typeText(name)
     }
 
@@ -74,10 +90,13 @@ class HomeManagementScreen {
         cancelButton.tap()
     }
 
-    func createHome(named name: String) {
+    func createHome(name: String, address: String) {
         tapAddHome()
         XCTAssertTrue(waitForAddHomeScreen(), "Add home screen should be displayed")
-        enterHomeName(name)
+        if !name.isEmpty {
+            enterHomeName(name)
+        }
+        enterStreetAddress(address)
         tapSave()
     }
 
@@ -85,6 +104,10 @@ class HomeManagementScreen {
 
     func tapEdit() {
         editButton.tap()
+    }
+
+    func tapDone() {
+        doneButton.tap()
     }
 
     func tapDelete() {
@@ -99,15 +122,10 @@ class HomeManagementScreen {
         primaryHomeToggle.tap()
     }
 
-    func selectColor(_ colorName: String) {
-        // Tap the color picker circle for the specified color
-        // Implementation will depend on actual UI structure
-    }
-
     // MARK: - Verification Methods
 
     func isHomeListDisplayed() -> Bool {
-        return homeListTitle.exists || addHomeButton.waitForExistence(timeout: 5)
+        return homeListNavigationBar.waitForExistence(timeout: 5)
     }
 
     func waitForHomeList() -> Bool {
@@ -115,19 +133,26 @@ class HomeManagementScreen {
     }
 
     func isAddHomeScreenDisplayed() -> Bool {
-        return homeNameTextField.waitForExistence(timeout: 5) && saveButton.exists
+        return addHomeNavigationBar.waitForExistence(timeout: 5)
     }
 
     func waitForAddHomeScreen() -> Bool {
         return isAddHomeScreenDisplayed()
     }
 
-    func isHomeDetailDisplayed() -> Bool {
-        return editButton.exists || deleteButton.exists
+    func isHomeDetailDisplayed(homeName: String) -> Bool {
+        return app.navigationBars[homeName].waitForExistence(timeout: 5)
     }
 
     func homeExists(named name: String) -> Bool {
+        // Look for the home name in the list - could be a button or static text
         return app.buttons[name].exists || app.staticTexts[name].exists
+    }
+
+    func waitForHomeToExist(named name: String, timeout: TimeInterval = 5) -> Bool {
+        let button = app.buttons[name]
+        let staticText = app.staticTexts[name]
+        return button.waitForExistence(timeout: timeout) || staticText.waitForExistence(timeout: timeout)
     }
 
     func isSaveButtonEnabled() -> Bool {
@@ -135,15 +160,29 @@ class HomeManagementScreen {
     }
 
     func getHomeCount() -> Int {
-        // Count the number of home cells in the list
-        // This will need to be adjusted based on actual cell structure
-        let homeCells = app.cells.matching(identifier: "home-cell")
-        return homeCells.count
+        // Count homes by looking at the cells in the list
+        // Each home appears as a NavigationLink which renders as a button
+        let homeCells = app.cells.count
+        return homeCells
     }
 
     func isPrimaryHome(named name: String) -> Bool {
-        // Check if home has primary badge/indicator
-        let homeCell = app.buttons[name]
-        return homeCell.staticTexts["PRIMARY"].exists
+        // Check if home row contains PRIMARY badge
+        // The PRIMARY text appears as a static text within the home's row
+        let homeRow = app.buttons[name]
+        return homeRow.staticTexts["PRIMARY"].exists
+    }
+
+    func getHomeNames() -> [String] {
+        var names: [String] = []
+        let cells = app.cells.allElementsBoundByIndex
+        for cell in cells {
+            // Get the first static text which should be the home name
+            let labels = cell.staticTexts.allElementsBoundByIndex
+            if let firstLabel = labels.first {
+                names.append(firstLabel.label)
+            }
+        }
+        return names
     }
 }
