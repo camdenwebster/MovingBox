@@ -36,8 +36,10 @@ final class Router: ObservableObject {
     enum Destination: Hashable {
         case dashboardView
         case locationsListView(showAllHomes: Bool = false)
+        case labelsListView(showAllHomes: Bool = false)
         case settingsView
         case inventoryListView(location: InventoryLocation?, showAllHomes: Bool = false)
+        case inventoryListViewForLabel(label: InventoryLabel)
         case editLocationView(location: InventoryLocation?, isEditing: Bool = false)
         case locationsSettingsView
         case editLabelView(label: InventoryLabel?, isEditing: Bool = false)

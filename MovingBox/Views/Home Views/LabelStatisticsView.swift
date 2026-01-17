@@ -34,8 +34,14 @@ struct LabelStatisticsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            DashboardSectionLabel(text: "Labels", isButton: false)
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                router.navigate(to: .labelsListView(showAllHomes: false))
+            } label: {
+                DashboardSectionLabel(text: "Labels")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("dashboard-labels-button")
 
             if labels.isEmpty {
                 ContentUnavailableView {
@@ -53,8 +59,12 @@ struct LabelStatisticsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {
                         ForEach(labels) { label in
-                            LabelItemCard(label: label)
-                                .frame(width: 180)
+                            NavigationLink(
+                                value: Router.Destination.inventoryListViewForLabel(label: label)
+                            ) {
+                                LabelItemCard(label: label)
+                                    .frame(width: 180)
+                            }
                         }
                     }
                     .scrollTargetLayout()
