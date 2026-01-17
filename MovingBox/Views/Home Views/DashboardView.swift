@@ -257,12 +257,13 @@ struct DashboardView: View {
         }
         .whatsNewSheet()
         .onAppear {
-            // Sync activeHomeId with the home being displayed
-            // This ensures items created from this dashboard are assigned to the correct home
-            if let displayHome = displayHome {
-                let homeIdString = displayHome.id.uuidString
+            // Only sync activeHomeId when a specific home was explicitly passed to this view.
+            // This prevents the default dashboard (showing primary home) from overwriting
+            // the active home selection, which caused issues on iPhone navigation.
+            if let specificHome = specificHome {
+                let homeIdString = specificHome.id.uuidString
                 if settings.activeHomeId != homeIdString {
-                    print("🏠 DashboardView - Syncing activeHomeId to: \(displayHome.displayName) (\(homeIdString))")
+                    print("🏠 DashboardView - Syncing activeHomeId to: \(specificHome.displayName) (\(homeIdString))")
                     settings.activeHomeId = homeIdString
                 }
             }
