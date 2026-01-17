@@ -7,33 +7,33 @@ iOS AI-powered home inventory app. SwiftUI + SwiftData, OpenAI Vision API, Reven
 - **Scheme**: MovingBox (Tests: MovingBoxTests, MovingBoxUITests)
 - **Bundle ID**: com.mothersound.movingbox
 - **DerivedData**: ./.build/DerivedData (in-project, preserves cache)
-- **Simulator UDID**: 31D4A8DF-E68A-4884-BAAA-DFDF61090577 (iPhone 17 Pro, iOS 26)
+- **Simulator UDID**: F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 (iPhone 17 Pro, iOS 26.1)
 
 ## Build Commands
 ```bash
 # Build (pipe through xcsift for clean output)
-xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # Unit tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # UI tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 ```
 
 ## Install & Launch
 ```bash
 # Boot simulator
-xcrun simctl boot 31D4A8DF-E68A-4884-BAAA-DFDF61090577
+xcrun simctl boot F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0
 
 # Install app
-xcrun simctl install 31D4A8DF-E68A-4884-BAAA-DFDF61090577 ./.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
+xcrun simctl install F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 ./.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 
 # Launch app
-xcrun simctl launch 31D4A8DF-E68A-4884-BAAA-DFDF61090577 com.mothersound.movingbox
+xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox
 
 # Launch with arguments (for exploratory testing - UI tests already use the necessary arguments)
-xcrun simctl launch 31D4A8DF-E68A-4884-BAAA-DFDF61090577 com.mothersound.movingbox --args -Mock-OpenAI -Use-Test-Data
+xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox --args -Mock-OpenAI -Use-Test-Data
 ```
 
 ## Test Launch Arguments
@@ -48,7 +48,7 @@ xcrun simctl launch 31D4A8DF-E68A-4884-BAAA-DFDF61090577 com.mothersound.movingb
 ## Logging
 ```bash
 # Stream logs (filter by app)
-xcrun simctl spawn 31D4A8DF-E68A-4884-BAAA-DFDF61090577 log stream --predicate 'subsystem == "com.mothersound.movingbox"'
+xcrun simctl spawn F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 log stream --predicate 'subsystem == "com.mothersound.movingbox"'
 
 # Or use print statements (appear in Xcode console and simctl output)
 ```
