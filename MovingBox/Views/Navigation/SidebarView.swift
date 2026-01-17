@@ -16,6 +16,9 @@ struct SidebarView: View {
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Binding var selection: Router.SidebarDestination?
 
+    // State to force re-render when active home changes
+    @State private var activeHomeIdTrigger: String?
+
     // MARK: - Computed Properties
 
     private var primaryHome: Home? {
@@ -27,8 +30,10 @@ struct SidebarView: View {
     }
 
     private var activeHome: Home? {
-        guard let activeIdString = settingsManager.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
+        // Use activeHomeIdTrigger to ensure SwiftUI tracks this dependency
+        let activeIdString = activeHomeIdTrigger ?? settingsManager.activeHomeId
+        guard let idString = activeIdString,
+            let activeId = UUID(uuidString: idString)
         else {
             return primaryHome
         }
@@ -122,11 +127,18 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .onAppear {
             // Sync activeHomeId on initial load
-            // onChange only fires when selection changes, not for the initial value
+            activeHomeIdTrigger = settingsManager.activeHomeId
             updateActiveHome(for: selection)
         }
         .onChange(of: selection) { _, newValue in
             updateActiveHome(for: newValue)
+        }
+        .onChange(of: settingsManager.activeHomeId) { _, newValue in
+            // Sync local trigger to force re-render when active home changes
+            activeHomeIdTrigger = newValue
+            print(
+                "📍 SidebarView - activeHomeId changed to: \(newValue ?? "nil"), filtered locations: \(filteredLocations.count), labels: \(filteredLabels.count)"
+            )
         }
     }
 
