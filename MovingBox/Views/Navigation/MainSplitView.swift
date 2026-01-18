@@ -140,6 +140,8 @@ struct MainSplitView: View {
             AboutView()
         case .featureRequestView:
             FeatureRequestView()
+        case .globalLabelSettingsView:
+            GlobalLabelSettingsView()
         }
     }
 

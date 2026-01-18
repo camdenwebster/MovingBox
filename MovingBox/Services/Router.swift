@@ -55,6 +55,7 @@ final class Router: ObservableObject {
         case addHomeView
         case aboutView
         case featureRequestView
+        case globalLabelSettingsView
     }
 
     @Published var navigationPath = NavigationPath()

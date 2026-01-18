@@ -111,6 +111,15 @@ struct SettingsView: View {
                         Image(systemName: "house")
                     }
                 }
+                NavigationLink(value: Router.Destination.globalLabelSettingsView) {
+                    Label {
+                        Text("Labels")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "tag")
+                    }
+                }
+                .accessibilityIdentifier("settings-labels-button")
             }
 
             if revenueCatManager.isProSubscriptionActive {
@@ -334,6 +343,7 @@ struct SettingsView: View {
             case .addHomeView: AddHomeView()
             case .aboutView: AboutView()
             case .featureRequestView: FeatureRequestView()
+            case .globalLabelSettingsView: GlobalLabelSettingsView()
             default: EmptyView()
             }
         }
@@ -584,12 +594,9 @@ struct LabelSettingsView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    // Filter labels by active home
+    // Labels are global (not filtered by home)
     private var labels: [InventoryLabel] {
-        guard let activeHome = activeHome else {
-            return allLabels
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
+        allLabels
     }
 
     var body: some View {

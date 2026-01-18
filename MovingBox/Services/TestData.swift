@@ -664,8 +664,9 @@ struct TestData {
         ]
 
     // Helper method to load default data (labels only) into SwiftData
-    static func loadDefaultData(context: ModelContext, home: Home? = nil) async {
-        // Create only the labels
+    // Labels are global (not per-home)
+    static func loadDefaultData(context: ModelContext) async {
+        // Create only the labels (global, not tied to any home)
         for labelData in labels {
             let label = InventoryLabel(
                 name: labelData.name,
@@ -673,7 +674,6 @@ struct TestData {
                 color: labelData.color,
                 emoji: labelData.emoji
             )
-            label.home = home
             context.insert(label)
         }
     }
@@ -701,22 +701,19 @@ struct TestData {
             print("✅ TestData - Created home \(index): \(homeData.name)")
         }
 
-        // Create labels for each home (each home gets its own set of labels)
-        var inventoryLabels = [(label: InventoryLabel, homeIndex: Int)]()
-        for (homeIndex, home) in createdHomes.enumerated() {
-            for labelData in labels {
-                let label = InventoryLabel(
-                    name: labelData.name,
-                    desc: labelData.desc,
-                    color: labelData.color,
-                    emoji: labelData.emoji
-                )
-                label.home = home
-                modelContext.insert(label)
-                inventoryLabels.append((label: label, homeIndex: homeIndex))
-            }
+        // Create global labels (shared across all homes)
+        var inventoryLabels = [InventoryLabel]()
+        for labelData in labels {
+            let label = InventoryLabel(
+                name: labelData.name,
+                desc: labelData.desc,
+                color: labelData.color,
+                emoji: labelData.emoji
+            )
+            modelContext.insert(label)
+            inventoryLabels.append(label)
         }
-        print("✅ TestData - Created \(inventoryLabels.count) labels across \(createdHomes.count) homes")
+        print("✅ TestData - Created \(inventoryLabels.count) global labels")
 
         // Create locations for each home based on homeIndex
         var inventoryLocations = [(location: InventoryLocation, homeIndex: Int)]()
@@ -749,11 +746,8 @@ struct TestData {
             }?.location
 
             let location = matchingLocation ?? inventoryLocations[0].location
-            // Find label matching name AND homeIndex
-            let label =
-                inventoryLabels.first {
-                    $0.label.name == itemData.label && $0.homeIndex == itemData.homeIndex
-                }?.label ?? inventoryLabels[0].label
+            // Find label matching name (labels are global now)
+            let label = inventoryLabels.first { $0.name == itemData.label } ?? inventoryLabels[0]
 
             let item = InventoryItem(
                 title: itemData.title,

@@ -333,12 +333,6 @@ struct HomeDetailSettingsView: View {
                     } label: {
                         Label("Locations", systemImage: "map")
                     }
-
-                    NavigationLink {
-                        HomeLabelSettingsView(home: existingHome)
-                    } label: {
-                        Label("Labels", systemImage: "tag")
-                    }
                 }
             }
 
@@ -354,7 +348,7 @@ struct HomeDetailSettingsView: View {
                     }
                 } footer: {
                     Text(
-                        "Deleting this home will also delete all associated locations and labels. Items will remain but will be unassigned."
+                        "Deleting this home will also delete all associated locations. Items will remain but will be unassigned."
                     )
                 }
             }
@@ -412,7 +406,7 @@ struct HomeDetailSettingsView: View {
             }
         } message: {
             Text(
-                "Are you sure you want to delete \(displayHome.displayName)? This will also delete all locations and labels associated with this home. Items will remain but will be unassigned."
+                "Are you sure you want to delete \(displayHome.displayName)? This will also delete all locations associated with this home. Items will remain but will be unassigned."
             )
         }
         .alert(
@@ -538,20 +532,6 @@ struct HomeDetailSettingsView: View {
                     }
                 }
                 modelContext.delete(location)
-            }
-        }
-
-        // Delete all labels associated with this home
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        if let labels = try? modelContext.fetch(labelDescriptor) {
-            for label in labels where label.home?.id == homeToDelete.id {
-                // Unassign items from this label
-                if let items = label.inventoryItems {
-                    for item in items {
-                        item.labels = []
-                    }
-                }
-                modelContext.delete(label)
             }
         }
 

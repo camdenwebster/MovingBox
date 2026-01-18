@@ -259,18 +259,15 @@ struct OpenAIRequestBuilder {
         let locationDescriptor = FetchDescriptor<InventoryLocation>()
         let allLocationObjects = (try? modelContext.fetch(locationDescriptor)) ?? []
 
-        // Filter labels and locations by active home
-        let filteredLabelObjects =
-            activeHome != nil
-            ? allLabelObjects.filter { $0.home?.id == activeHome?.id }
-            : allLabelObjects
+        // Filter locations by active home (labels are global)
         let filteredLocationObjects =
             activeHome != nil
             ? allLocationObjects.filter { $0.home?.id == activeHome?.id }
             : allLocationObjects
 
         // Convert to name arrays, including "None" as first option
-        let categories = ["None"] + filteredLabelObjects.map { $0.name }
+        // Labels are global (not filtered by home)
+        let categories = ["None"] + allLabelObjects.map { $0.name }
         let locations = ["None"] + filteredLocationObjects.map { $0.name }
 
         let imagePrompt = createImagePrompt(for: images.count, isMultiItem: isMultiItem)

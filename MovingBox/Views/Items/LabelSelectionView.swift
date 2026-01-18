@@ -11,9 +11,7 @@ import SwiftUI
 struct LabelSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var settingsManager: SettingsManager
     @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var allLabels: [InventoryLabel]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
 
     // Support both single and multi-select modes
     @Binding var selectedLabels: [InventoryLabel]
@@ -41,28 +39,11 @@ struct LabelSelectionView: View {
         self._selectedLabels = selectedLabels
     }
 
-    private var activeHome: Home? {
-        guard let activeIdString = settingsManager.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
-        else {
-            return homes.first { $0.isPrimary }
-        }
-        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
-    }
-
-    // Filter labels by active home
-    private var labels: [InventoryLabel] {
-        guard let activeHome = activeHome else {
-            return allLabels
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
-    }
-
     private var filteredLabels: [InventoryLabel] {
         if searchText.isEmpty {
-            return labels
+            return allLabels
         }
-        return labels.filter { label in
+        return allLabels.filter { label in
             label.name.localizedCaseInsensitiveContains(searchText)
         }
     }
@@ -216,7 +197,6 @@ struct LabelSelectionView: View {
 
     private func addNewLabel() {
         let newLabel = InventoryLabel(name: "New Label", emoji: "📦")
-        newLabel.home = activeHome
         modelContext.insert(newLabel)
         if selectedLabels.count < maxLabels {
             selectedLabels.append(newLabel)
@@ -271,5 +251,4 @@ struct FlowLayout: Layout {
 #Preview {
     @Previewable @State var labels: [InventoryLabel] = []
     return LabelSelectionView(selectedLabels: $labels)
-        .environmentObject(SettingsManager())
 }

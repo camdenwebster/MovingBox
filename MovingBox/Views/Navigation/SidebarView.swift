@@ -47,13 +47,6 @@ struct SidebarView: View {
         return allLocations.filter { $0.home?.id == activeHome.id }
     }
 
-    private var filteredLabels: [InventoryLabel] {
-        guard let activeHome = activeHome else {
-            return []
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -97,14 +90,14 @@ struct SidebarView: View {
                 }
             }
 
-            // Labels Section (filtered by active home)
+            // Labels Section (global across all homes)
             Section("Labels") {
-                if filteredLabels.isEmpty {
+                if allLabels.isEmpty {
                     Text("No labels")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(filteredLabels, id: \.persistentModelID) { label in
+                    ForEach(allLabels, id: \.persistentModelID) { label in
                         NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
                             Label {
                                 let backgroundColor = Color(label.color ?? .blue)
@@ -137,7 +130,7 @@ struct SidebarView: View {
             // Sync local trigger to force re-render when active home changes
             activeHomeIdTrigger = newValue
             print(
-                "📍 SidebarView - activeHomeId changed to: \(newValue ?? "nil"), filtered locations: \(filteredLocations.count), labels: \(filteredLabels.count)"
+                "📍 SidebarView - activeHomeId changed to: \(newValue ?? "nil"), filtered locations: \(filteredLocations.count)"
             )
         }
     }

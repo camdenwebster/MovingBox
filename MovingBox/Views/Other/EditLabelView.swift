@@ -11,7 +11,6 @@ import SwiftUI
 struct EditLabelView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
-    @EnvironmentObject var settingsManager: SettingsManager
     var label: InventoryLabel?
     @State private var labelName = ""
     @State private var labelDesc = ""
@@ -22,16 +21,6 @@ struct EditLabelView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-
-    private var activeHome: Home? {
-        guard let activeIdString = settingsManager.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
-        else {
-            return homes.first { $0.isPrimary }
-        }
-        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
-    }
 
     // MARK: - Add initializer to accept isEditing parameter
     init(label: InventoryLabel? = nil, isEditing: Bool = false) {
@@ -53,6 +42,7 @@ struct EditLabelView: View {
             Section("Details") {
                 FormTextFieldRow(label: "Name", text: $labelName, isEditing: $isEditing, placeholder: "Electronics")
                     .disabled(!isEditingEnabled)
+                    .accessibilityIdentifier("label-name-field")
                 ColorPicker("Color", selection: $labelColor, supportsOpacity: false)
                     .disabled(!isEditingEnabled)
                 HStack {
@@ -102,24 +92,22 @@ struct EditLabelView: View {
                         isEditing = true
                     }
                 }
+                .accessibilityIdentifier("label-edit-save-button")
             } else {
                 Button("Save") {
                     let newLabel = InventoryLabel(
                         name: labelName, desc: labelDesc, color: UIColor(labelColor), emoji: labelEmoji)
 
-                    // Assign active home to new label
-                    newLabel.home = activeHome
-
                     modelContext.insert(newLabel)
                     TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
                     print("EditLabelView: Created new label - \(newLabel.name)")
-                    print("EditLabelView: Assigned to home - \(activeHome?.name ?? "nil")")
                     print("EditLabelView: Total number of labels after save: \(labels.count)")
                     isEditing = false
                     router.navigateBack()
                 }
                 .disabled(labelName.isEmpty)
                 .bold()
+                .accessibilityIdentifier("label-save-button")
             }
         }
         .onAppear {
@@ -259,7 +247,6 @@ struct EmojiPickerView: View {
         return EditLabelView(label: previewer.label)
             .modelContainer(previewer.container)
             .environmentObject(Router())
-            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

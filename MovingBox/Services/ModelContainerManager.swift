@@ -671,18 +671,9 @@ class ModelContainerManager {
         }
         print("📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations to primary home")
 
-        // 3. Assign all orphaned labels to primary home
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let labels = try context.fetch(labelDescriptor)
-        var migratedLabelsCount = 0
+        // Note: Labels are now global and don't need home assignment
 
-        for label in labels where label.home == nil {
-            label.home = primaryHome
-            migratedLabelsCount += 1
-        }
-        print("📦 ModelContainerManager - Migrated \(migratedLabelsCount) labels to primary home")
-
-        // 4. Assign all items without an effective home to primary home
+        // 3. Assign all items without an effective home to primary home
         let itemDescriptor = FetchDescriptor<InventoryItem>()
         let items = try context.fetch(itemDescriptor)
         var migratedItemsCount = 0
@@ -711,7 +702,7 @@ class ModelContainerManager {
 
         print("📦 ModelContainerManager - Multi-home migration completed successfully")
         print(
-            "📦 ModelContainerManager - Summary: \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items"
+            "📦 ModelContainerManager - Summary: \(migratedLocationsCount) locations, \(migratedItemsCount) items"
         )
     }
 
@@ -737,9 +728,7 @@ class ModelContainerManager {
         let locations = try context.fetch(locationDescriptor)
         let orphanedLocations = locations.filter { $0.home == nil }
 
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let labels = try context.fetch(labelDescriptor)
-        let orphanedLabels = labels.filter { $0.home == nil }
+        // Note: Labels are now global and don't need home assignment
 
         let itemDescriptor = FetchDescriptor<InventoryItem>()
         let items = try context.fetch(itemDescriptor)
@@ -747,7 +736,7 @@ class ModelContainerManager {
             (item.location?.home == nil) && (item.home == nil)
         }
 
-        let hasOrphans = !orphanedLocations.isEmpty || !orphanedLabels.isEmpty || !orphanedItems.isEmpty
+        let hasOrphans = !orphanedLocations.isEmpty || !orphanedItems.isEmpty
 
         // Skip if already completed AND no orphans found
         guard force || hasOrphans || !isOrphanedItemsMigrationCompleted else {
@@ -757,7 +746,7 @@ class ModelContainerManager {
 
         if hasOrphans {
             print(
-                "📦 ModelContainerManager - Found \(orphanedLocations.count) orphaned locations, \(orphanedLabels.count) orphaned labels, \(orphanedItems.count) orphaned items - running migration"
+                "📦 ModelContainerManager - Found \(orphanedLocations.count) orphaned locations, \(orphanedItems.count) orphaned items - running migration"
             )
         } else {
             print("📦 ModelContainerManager - No orphaned items found, but force=\(force), running migration anyway")
@@ -771,13 +760,7 @@ class ModelContainerManager {
             print("📦 ModelContainerManager - Assigned location '\(location.name)' to primary home")
         }
 
-        // Migrate orphaned labels
-        var migratedLabelsCount = 0
-        for label in orphanedLabels {
-            label.home = primaryHome
-            migratedLabelsCount += 1
-            print("📦 ModelContainerManager - Assigned label '\(label.name)' to primary home")
-        }
+        // Note: Labels are now global and don't need home assignment
 
         // Migrate orphaned items
         var migratedItemsCount = 0
@@ -797,7 +780,7 @@ class ModelContainerManager {
 
         print("📦 ModelContainerManager - Orphaned items migration completed successfully\(force ? " (forced)" : "")")
         print(
-            "📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items to primary home '\(primaryHome.name)'"
+            "📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations, \(migratedItemsCount) items to primary home '\(primaryHome.name)'"
         )
     }
 

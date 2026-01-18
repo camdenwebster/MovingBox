@@ -187,6 +187,8 @@ struct MovingBoxApp: App {
                     HomeListView()
                 case .addHomeView:
                     AddHomeView()
+                case .globalLabelSettingsView:
+                    GlobalLabelSettingsView()
                 }
             }
         )

@@ -9,42 +9,22 @@ import SwiftData
 import SwiftUI
 
 struct LabelsListView: View {
-    let showAllHomes: Bool
+    let showAllHomes: Bool  // Kept for API compatibility but no longer affects filtering
 
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
-    @EnvironmentObject var settings: SettingsManager
     @State private var searchText = ""
 
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
     ]) private var allLabels: [InventoryLabel]
 
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-
-    private var activeHome: Home? {
-        guard let activeIdString = settings.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
-        else {
-            return homes.first { $0.isPrimary }
-        }
-        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
-    }
-
-    // Filter labels by active home
-    private var labels: [InventoryLabel] {
-        guard !showAllHomes, let activeHome = activeHome else {
-            return allLabels
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
-    }
-
     // Filtered labels based on search
     private var filteredLabels: [InventoryLabel] {
         if searchText.isEmpty {
-            return labels
+            return allLabels
         }
-        return labels.filter { label in
+        return allLabels.filter { label in
             label.name.localizedCaseInsensitiveContains(searchText)
         }
     }
@@ -108,7 +88,7 @@ struct LabelsListView: View {
         .searchable(text: $searchText, prompt: "Search labels")
         .background(Color(.systemGroupedBackground))
         .onAppear {
-            print("LabelsListView: Total number of labels: \(labels.count)")
+            print("LabelsListView: Total number of labels: \(allLabels.count)")
         }
     }
 }
@@ -119,7 +99,6 @@ struct LabelsListView: View {
         return LabelsListView(showAllHomes: false)
             .modelContainer(previewer.container)
             .environmentObject(Router())
-            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

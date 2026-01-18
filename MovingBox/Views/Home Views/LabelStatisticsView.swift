@@ -25,12 +25,9 @@ struct LabelStatisticsView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    // Filter labels by active home
+    // Labels are global (not filtered by home)
     private var labels: [InventoryLabel] {
-        guard let activeHome = activeHome else {
-            return allLabels
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
+        allLabels
     }
 
     var body: some View {

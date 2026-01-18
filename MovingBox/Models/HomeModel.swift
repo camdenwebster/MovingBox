@@ -30,7 +30,6 @@ class Home: PhotoManageable {
     // Inverse relationships for CloudKit compatibility
     @Relationship(inverse: \InventoryItem.home) var items: [InventoryItem]?
     @Relationship(inverse: \InventoryLocation.home) var locations: [InventoryLocation]?
-    @Relationship(inverse: \InventoryLabel.home) var labels: [InventoryLabel]?
 
     /// Display name for the home - uses name if provided, otherwise falls back to address1, then "Unnamed Home"
     var displayName: String {

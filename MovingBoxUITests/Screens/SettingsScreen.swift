@@ -19,6 +19,7 @@ class SettingsScreen {
     let subscriptionButton: XCUIElement
     let syncAndDataButton: XCUIElement
     let manageHomesButton: XCUIElement
+    let labelsButton: XCUIElement
 
     init(app: XCUIApplication) {
         self.app = app
@@ -32,6 +33,7 @@ class SettingsScreen {
         self.subscriptionButton = app.buttons["settings-subscription-button"]
         self.syncAndDataButton = app.buttons["syncDataLink"]
         self.manageHomesButton = app.buttons["Manage Homes"]
+        self.labelsButton = app.buttons["settings-labels-button"]
     }
 
     // MARK: - Actions
@@ -66,6 +68,10 @@ class SettingsScreen {
 
     func tapManageHomes() {
         manageHomesButton.tap()
+    }
+
+    func tapLabels() {
+        labelsButton.tap()
     }
 
     // MARK: - Verification
