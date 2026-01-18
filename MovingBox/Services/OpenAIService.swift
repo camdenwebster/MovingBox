@@ -541,6 +541,121 @@ struct OpenAIRequestBuilder {
     }
 }
 
+// MARK: - OpenAI to OpenRouter Conversion Helpers
+
+/// Convert OpenAI messages to OpenRouter messages
+private func convertToOpenRouterMessages(_ messages: [OpenAIChatCompletionRequestBody.Message])
+    -> [OpenRouterChatCompletionRequestBody.Message]
+{
+    var result: [OpenRouterChatCompletionRequestBody.Message] = []
+
+    for message in messages {
+        switch message {
+        case .system(let content, let name):
+            switch content {
+            case .text(let text):
+                result.append(OpenRouterChatCompletionRequestBody.Message.system(content: .text(text), name: name))
+            case .parts(let parts):
+                // Combine array of strings into a single string
+                let combinedText = parts.joined(separator: "\n")
+                result.append(
+                    OpenRouterChatCompletionRequestBody.Message.system(content: .text(combinedText), name: name))
+            }
+        case .developer(let content, let name):
+            // OpenRouter doesn't have a developer message type, use system instead
+            switch content {
+            case .text(let text):
+                result.append(OpenRouterChatCompletionRequestBody.Message.system(content: .text(text), name: name))
+            case .parts(let parts):
+                let combinedText = parts.joined(separator: "\n")
+                result.append(
+                    OpenRouterChatCompletionRequestBody.Message.system(content: .text(combinedText), name: name))
+            }
+        case .user(let content, let name):
+            switch content {
+            case .text(let text):
+                result.append(OpenRouterChatCompletionRequestBody.Message.user(content: .text(text), name: name))
+            case .parts(let parts):
+                var openRouterParts: [OpenRouterChatCompletionRequestBody.Message.UserContent.Part] = []
+                for part in parts {
+                    switch part {
+                    case .text(let text):
+                        openRouterParts.append(OpenRouterChatCompletionRequestBody.Message.UserContent.Part.text(text))
+                    case .imageURL(let url, let detail):
+                        let openRouterDetail: OpenRouterChatCompletionRequestBody.Message.UserContent.Part.ImageDetail?
+                        if let detail = detail {
+                            switch detail {
+                            case .auto:
+                                openRouterDetail = .auto
+                            case .low:
+                                openRouterDetail = .low
+                            case .high:
+                                openRouterDetail = .high
+                            }
+                        } else {
+                            openRouterDetail = nil
+                        }
+                        openRouterParts.append(
+                            OpenRouterChatCompletionRequestBody.Message.UserContent.Part.imageURL(
+                                url, detail: openRouterDetail))
+                    }
+                }
+                result.append(
+                    OpenRouterChatCompletionRequestBody.Message.user(content: .parts(openRouterParts), name: name))
+            }
+        case .assistant(let content, let name, _, _):
+            // Note: Assistant messages in OpenRouter don't support tool calls in the same way
+            // For our use case (single-turn requests), we just need the content
+            if let content = content {
+                switch content {
+                case .text(let text):
+                    result.append(
+                        OpenRouterChatCompletionRequestBody.Message.assistant(content: .text(text), name: name))
+                case .parts(let parts):
+                    // Combine array of strings into a single string
+                    let combinedText = parts.joined(separator: "\n")
+                    result.append(
+                        OpenRouterChatCompletionRequestBody.Message.assistant(content: .text(combinedText), name: name))
+                }
+            }
+        case .tool(let content, let toolCallID):
+            // OpenRouter doesn't have a direct tool message type in the same way
+            // For our use case, we don't use tool messages in requests
+            switch content {
+            case .text(let text):
+                result.append(
+                    OpenRouterChatCompletionRequestBody.Message.user(
+                        content: .text("Tool result for \(toolCallID): \(text)"), name: nil))
+            case .parts(let parts):
+                let combinedText = parts.joined(separator: "\n")
+                result.append(
+                    OpenRouterChatCompletionRequestBody.Message.user(
+                        content: .text("Tool result for \(toolCallID): \(combinedText)"), name: nil))
+            }
+        }
+    }
+
+    return result
+}
+
+/// Convert OpenAI tool choice to OpenRouter tool choice
+private func convertToOpenRouterToolChoice(_ toolChoice: OpenAIChatCompletionRequestBody.ToolChoice?)
+    -> OpenRouterChatCompletionRequestBody.ToolChoice?
+{
+    guard let toolChoice = toolChoice else { return nil }
+
+    switch toolChoice {
+    case .none:
+        return .none
+    case .auto:
+        return .auto
+    case .required:
+        return .required
+    case .specific(let functionName):
+        return .specific(functionName: functionName)
+    }
+}
+
 // MARK: - OpenAI Response Parser
 
 struct OpenAIResponseParser {
@@ -575,7 +690,7 @@ struct OpenAIResponseParser {
         settings: SettingsManager
     ) throws -> ParseResult {
         print("✅ Processing OpenRouter response with \(response.choices.count) choices")
-        
+
         // Token usage logging is handled by the calling service
         if response.usage == nil {
             print("⚠️ No token usage information in response")
@@ -594,10 +709,14 @@ struct OpenAIResponseParser {
         }
 
         let toolCall = toolCalls[0]
-        print("🎯 Tool call received: \(toolCall.function.name)")
+        guard let function = toolCall.function else {
+            print("❌ No function in tool call")
+            throw OpenAIError.invalidData
+        }
+        print("🎯 Tool call received: \(function.name)")
 
         // Get arguments as string - AIProxy provides argumentsRaw for JSON string
-        let argumentsString = toolCall.function.argumentsRaw ?? ""
+        let argumentsString = function.argumentsRaw ?? ""
         print("📄 Arguments length: \(argumentsString.count) characters")
 
         guard let responseData = argumentsString.data(using: String.Encoding.utf8) else {
@@ -607,15 +726,14 @@ struct OpenAIResponseParser {
         }
 
         let result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
-        
+
         // Convert OpenRouter usage to our TokenUsage type for compatibility
         let tokenUsage = response.usage != nil ? convertOpenRouterUsage(response.usage!) : nil
 
         return ParseResult(imageDetails: result, usage: tokenUsage)
     }
 
-
-    private func convertOpenRouterUsage(_ usage: OpenRouterChatUsage) -> TokenUsage {
+    private func convertOpenRouterUsage(_ usage: OpenRouterChatCompletionResponseBody.Usage) -> TokenUsage {
         return TokenUsage(
             prompt_tokens: usage.promptTokens ?? 0,
             completion_tokens: usage.completionTokens ?? 0,
@@ -1111,7 +1229,9 @@ class OpenAIService: OpenAIServiceProtocol {
                                 throw OpenAIError.serverError("Server error \(statusCode)")
                             }
                         default:
-                            print("🔄 Multi-item other OpenRouter error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
+                            print(
+                                "🔄 Multi-item other OpenRouter error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)"
+                            )
                             if attempt < maxAttempts {
                                 let delay = min(pow(2.0, Double(attempt)), 8.0)
                                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -1232,34 +1352,35 @@ class OpenAIService: OpenAIServiceProtocol {
         // Calculate token limit
         let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-        
+
         print("🚀 Sending multi-item structured response request via OpenRouter")
         print("📊 Images: \(imageCount)")
         print("⚙️ Quality: \(isHighQuality ? "High" : "Standard")")
         print("📝 Max tokens: \(adjustedMaxTokens)")
 
         // Make the request using structured responses instead of function calling
-        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService.chatCompletionRequest(
-            body: .init(
-                messages: baseRequestBody.messages,
-                models: [baseRequestBody.model], // Convert single model to array
-                route: .fallback,
-                maxCompletionTokens: adjustedMaxTokens,
-                responseFormat: .jsonSchema(
-                    name: "multi_item_analysis",
-                    description: "Analysis of multiple inventory items in the image",
-                    schema: multiItemSchema,
-                    strict: true
-                )
-            ),
-            secondsToWait: 60
-        )
+        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService
+            .chatCompletionRequest(
+                body: .init(
+                    messages: convertToOpenRouterMessages(baseRequestBody.messages),
+                    maxTokens: adjustedMaxTokens,
+                    models: [baseRequestBody.model],  // Convert single model to array
+                    responseFormat: .jsonSchema(
+                        name: "multi_item_analysis",
+                        description: "Analysis of multiple inventory items in the image",
+                        schema: multiItemSchema,
+                        strict: true
+                    ),
+                    route: .fallback
+                ),
+                secondsToWait: 60
+            )
 
         print("✅ Received multi-item structured response with \(response.choices.count) choices")
         if let provider = response.provider {
             print("   Provider: \(provider)")
         }
-        
+
         // Parse the structured response
         guard let choice = response.choices.first,
             let content = choice.message.content
@@ -1387,13 +1508,13 @@ class OpenAIService: OpenAIServiceProtocol {
                 if let openAIError = error as? OpenAIError, !openAIError.isRetryable {
                     throw error
                 }
-                
+    
                 // Handle OpenRouter/AIProxy specific errors
                 if let aiProxyError = error as? AIProxyError {
                     switch aiProxyError {
                     case .unsuccessfulRequest(let statusCode, let responseBody):
                         print("🌐 OpenRouter error \(statusCode): \(responseBody)")
-                        
+    
                         // Handle specific HTTP status codes
                         switch statusCode {
                         case 429: // Rate limited
@@ -1543,30 +1664,33 @@ class OpenAIService: OpenAIServiceProtocol {
         }
     
         let startTime = Date()
-
+    
         // Convert to OpenRouter request format (model -> models array)
         let openRouterBody = OpenRouterChatCompletionRequestBody(
-            messages: requestBody.messages,
+            messages: convertToOpenRouterMessages(requestBody.messages),
+            maxTokens: requestBody.maxCompletionTokens,
             models: [requestBody.model], // Convert single model to array
             route: .fallback,
-            maxCompletionTokens: requestBody.maxCompletionTokens,
-            tools: requestBody.tools?.map { tool in
+            tools: requestBody.tools?.compactMap { tool -> OpenRouterChatCompletionRequestBody.Tool? in
                 // Convert OpenAI tool format to OpenRouter tool format
                 switch tool {
                 case .function(let name, let description, let parameters, let strict):
                     return .function(name: name, description: description, parameters: parameters, strict: strict)
+                case .webSearch, .mcp:
+                    // OpenRouter doesn't support webSearch or mcp tools directly
+                    return nil
                 }
             },
-            toolChoice: requestBody.toolChoice
+            toolChoice: convertToOpenRouterToolChoice(requestBody.toolChoice)
         )
-
+    
         let response = try await requestBuilder.openRouterService.chatCompletionRequest(body: openRouterBody, secondsToWait: 60)
-
+    
         print("✅ Received OpenRouter response with \(response.choices.count) choices")
         if let provider = response.provider {
             print("   Provider: \(provider)")
         }
-        
+    
         do {
             // Parse AIProxy response directly
             let parseResult = try await responseParser.parseAIProxyResponse(
@@ -1861,13 +1985,13 @@ class OpenAIService: OpenAIServiceProtocol {
                 if error is CancellationError {
                     throw error
                 }
-                
+
                 // Handle OpenRouter/AIProxy specific errors
                 if let aiProxyError = error as? AIProxyError {
                     switch aiProxyError {
                     case .unsuccessfulRequest(let statusCode, let responseBody):
                         print("🌐 OpenRouter error \(statusCode): \(responseBody)")
-                        
+
                         // Handle specific HTTP status codes
                         switch statusCode {
                         case 429:  // Rate limited
@@ -1896,7 +2020,9 @@ class OpenAIService: OpenAIServiceProtocol {
                             throw OpenAIError.invalidResponse(statusCode: statusCode, responseData: responseBody)
                         default:
                             if attempt < maxAttempts {
-                                print("🔄 Unknown OpenRouter error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
+                                print(
+                                    "🔄 Unknown OpenRouter error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)"
+                                )
                                 let delay = min(pow(2.0, Double(attempt)), 8.0)
                                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                                 try Task.checkCancellation()
@@ -1986,30 +2112,34 @@ class OpenAIService: OpenAIServiceProtocol {
         } else {
             print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
         }
-        
+
         // Convert to OpenRouter request format (model -> models array)
         let openRouterBody = OpenRouterChatCompletionRequestBody(
-            messages: requestBody.messages,
-            models: [requestBody.model], // Convert single model to array
+            messages: convertToOpenRouterMessages(requestBody.messages),
+            maxTokens: requestBody.maxCompletionTokens,
+            models: [requestBody.model],  // Convert single model to array
             route: .fallback,
-            maxCompletionTokens: requestBody.maxCompletionTokens,
-            tools: requestBody.tools?.map { tool in
+            tools: requestBody.tools?.compactMap { tool -> OpenRouterChatCompletionRequestBody.Tool? in
                 // Convert OpenAI tool format to OpenRouter tool format
                 switch tool {
                 case .function(let name, let description, let parameters, let strict):
                     return .function(name: name, description: description, parameters: parameters, strict: strict)
+                case .webSearch, .mcp:
+                    // OpenRouter doesn't support webSearch or mcp tools directly
+                    return nil
                 }
             },
-            toolChoice: requestBody.toolChoice
+            toolChoice: convertToOpenRouterToolChoice(requestBody.toolChoice)
         )
 
-        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService.chatCompletionRequest(body: openRouterBody, secondsToWait: 60)
-        
+        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService
+            .chatCompletionRequest(body: openRouterBody, secondsToWait: 60)
+
         print("✅ Received OpenRouter response with \(response.choices.count) choices")
         if let provider = response.provider {
             print("   Provider: \(provider)")
         }
-        
+
         do {
             // Parse OpenRouter response directly
             let parseResult = try await responseParser.parseAIProxyResponse(
@@ -2028,7 +2158,7 @@ class OpenAIService: OpenAIServiceProtocol {
 
     @MainActor
     private func logOpenRouterTokenUsage(
-        usage: OpenRouterChatUsage,
+        usage: OpenRouterChatCompletionResponseBody.Usage,
         elapsedTime: TimeInterval,
         imageCount: Int,
         settings: SettingsManager
