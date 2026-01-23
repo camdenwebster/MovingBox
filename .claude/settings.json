@@ -36,7 +36,8 @@
       "WebFetch(domain:docs.sentry.io)",
       "WebFetch(domain:www.aiproxy.com)",
       "WebFetch(domain:github.com)",
-      "WebSearch"
+      "WebSearch",
+      "Skill(commit-commands:commit)"
     ],
     "deny": [
       "Bash(rm:*)"
