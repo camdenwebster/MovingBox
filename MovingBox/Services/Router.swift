@@ -56,6 +56,8 @@ final class Router: ObservableObject {
         case aboutView
         case featureRequestView
         case globalLabelSettingsView
+        case insurancePolicyListView
+        case insurancePolicyDetailView(policy: InsurancePolicy?)
     }
 
     @Published var navigationPath = NavigationPath()

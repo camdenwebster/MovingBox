@@ -120,6 +120,15 @@ struct SettingsView: View {
                     }
                 }
                 .accessibilityIdentifier("settings-labels-button")
+                NavigationLink(value: Router.Destination.insurancePolicyListView) {
+                    Label {
+                        Text("Insurance Policies")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "shield")
+                    }
+                }
+                .accessibilityIdentifier("settings-insurance-button")
             }
 
             if revenueCatManager.isProSubscriptionActive {
@@ -344,6 +353,8 @@ struct SettingsView: View {
             case .aboutView: AboutView()
             case .featureRequestView: FeatureRequestView()
             case .globalLabelSettingsView: GlobalLabelSettingsView()
+            case .insurancePolicyListView: InsurancePolicyListView()
+            case .insurancePolicyDetailView(let policy): InsurancePolicyDetailView(policy: policy)
             default: EmptyView()
             }
         }

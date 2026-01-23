@@ -16,6 +16,7 @@ struct LabelSelectionView: View {
     // Support both single and multi-select modes
     @Binding var selectedLabels: [InventoryLabel]
     @State private var searchText = ""
+    @State private var showAddLabelSheet = false
 
     private let maxLabels = 5
 
@@ -53,10 +54,12 @@ struct LabelSelectionView: View {
     }
 
     private func toggleLabel(_ label: InventoryLabel) {
-        if isSelected(label) {
-            selectedLabels.removeAll { $0.id == label.id }
-        } else if selectedLabels.count < maxLabels {
-            selectedLabels.append(label)
+        withAnimation(.snappy(duration: 0.25)) {
+            if isSelected(label) {
+                selectedLabels.removeAll { $0.id == label.id }
+            } else if selectedLabels.count < maxLabels {
+                selectedLabels.append(label)
+            }
         }
     }
 
@@ -70,7 +73,9 @@ struct LabelSelectionView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("Clear All") {
-                        selectedLabels.removeAll()
+                        withAnimation(.snappy(duration: 0.25)) {
+                            selectedLabels.removeAll()
+                        }
                     }
                     .font(.subheadline)
                 }
@@ -79,8 +84,14 @@ struct LabelSelectionView: View {
                 FlowLayout(spacing: 8) {
                     ForEach(selectedLabels) { label in
                         selectedLabelCapsule(for: label)
+                            .transition(
+                                .asymmetric(
+                                    insertion: .scale.combined(with: .opacity),
+                                    removal: .scale.combined(with: .opacity)
+                                ))
                     }
                 }
+                .animation(.snappy(duration: 0.25), value: selectedLabels.count)
             }
         }
     }
@@ -91,7 +102,9 @@ struct LabelSelectionView: View {
             Text(label.emoji)
             Text(label.name)
             Button(action: {
-                selectedLabels.removeAll { $0.id == label.id }
+                withAnimation(.snappy(duration: 0.25)) {
+                    selectedLabels.removeAll { $0.id == label.id }
+                }
             }) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption)
@@ -112,6 +125,24 @@ struct LabelSelectionView: View {
                 .navigationTitle("Select Labels")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
+        }
+        .sheet(isPresented: $showAddLabelSheet) {
+            NavigationStack {
+                EditLabelView(
+                    label: nil,
+                    isEditing: true,
+                    presentedInSheet: true,
+                    onLabelCreated: { newLabel in
+                        if selectedLabels.count < maxLabels {
+                            withAnimation(.snappy(duration: 0.25)) {
+                                selectedLabels.append(newLabel)
+                            }
+                        }
+                    }
+                )
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -150,19 +181,28 @@ struct LabelSelectionView: View {
             Spacer()
             labelCheckmark(for: label)
         }
+        .contentShape(Rectangle())  // Makes the whole row tappable
     }
 
     @ViewBuilder
     private func labelCheckmark(for label: InventoryLabel) -> some View {
-        if isSelected(label) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.tint)
-        } else if selectedLabels.count >= maxLabels {
-            Image(systemName: "circle")
-                .foregroundStyle(.secondary.opacity(0.5))
+        let selected = isSelected(label)
+        let atMaxCapacity = selectedLabels.count >= maxLabels
+
+        if selected {
+            Image(systemName: "checkmark")
+                .foregroundStyle(checkmarkColor(selected: selected, atMaxCapacity: atMaxCapacity))
+                .bold()
+        }
+    }
+
+    private func checkmarkColor(selected: Bool, atMaxCapacity: Bool) -> some ShapeStyle {
+        if selected {
+            return AnyShapeStyle(.tint)
+        } else if atMaxCapacity {
+            return AnyShapeStyle(Color.secondary.opacity(0.5))
         } else {
-            Image(systemName: "circle")
-                .foregroundStyle(.secondary)
+            return AnyShapeStyle(Color.secondary)
         }
     }
 
@@ -179,27 +219,21 @@ struct LabelSelectionView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            Button("Cancel") { dismiss() }
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel", systemImage: "xmark") {
+                dismiss()
+            }
         }
 
         ToolbarItem(placement: .navigationBarTrailing) {
-            HStack(spacing: 16) {
-                Button(action: addNewLabel) {
-                    Image(systemName: "plus")
-                }
-
-                Button("Done") { dismiss() }
-                    .fontWeight(.semibold)
+            Button("Add Label", systemImage: "plus") {
+                showAddLabelSheet = true
             }
         }
-    }
 
-    private func addNewLabel() {
-        let newLabel = InventoryLabel(name: "New Label", emoji: "📦")
-        modelContext.insert(newLabel)
-        if selectedLabels.count < maxLabels {
-            selectedLabels.append(newLabel)
+        ToolbarItem(placement: .confirmationAction) {
+            Button("Done", systemImage: "checkmark") { dismiss() }
+                .backport.glassProminentButtonStyle()
         }
     }
 }

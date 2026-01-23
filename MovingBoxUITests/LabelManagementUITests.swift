@@ -23,7 +23,7 @@ final class LabelManagementUITests: XCTestCase {
         labelScreen = LabelScreen(app: app)
         navigationHelper = NavigationHelper(app: app)
 
-        app.launchArguments = ["Use-Test-Data", "Disable-Animations", "Skip-Onboarding"]
+        app.launchArguments = ["Use-Test-Data", "Disable-Animations", "Skip-Onboarding", "Disable-Persistence"]
         app.launch()
 
         // Make sure user is on dashboard

@@ -25,9 +25,9 @@ class DashboardScreen {
     init(app: XCUIApplication) {
         self.app = app
 
-        // Stats cards
-        self.statCardLabel = app.staticTexts["statCardLabel"]
-        self.statCardValue = app.staticTexts["statCardValue"]
+        // Stats cards (using items stat card as default)
+        self.statCardLabel = app.staticTexts["stat-items-label"]
+        self.statCardValue = app.staticTexts["stat-items-value"]
 
         // Navigation buttons
         self.allInventoryButton = app.buttons["dashboard-all-inventory-button"]

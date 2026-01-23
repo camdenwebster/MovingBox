@@ -12,9 +12,13 @@ import SwiftUI
 @MainActor
 struct EditLocationView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settingsManager: SettingsManager
     var location: InventoryLocation?
+    var presentedInSheet: Bool
+    var onDismiss: (() -> Void)?
+    var home: Home?
     @State private var locationInstance = InventoryLocation()
     @State private var locationName: String
     @State private var locationDesc: String
@@ -31,6 +35,10 @@ struct EditLocationView: View {
     @State private var showPhotoSourceAlert = false
 
     private var activeHome: Home? {
+        // Use explicitly provided home if available
+        if let home = home {
+            return home
+        }
         guard let activeIdString = settingsManager.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         else {
@@ -41,9 +49,15 @@ struct EditLocationView: View {
 
     init(
         location: InventoryLocation? = nil,
-        isEditing: Bool = false
+        isEditing: Bool = false,
+        presentedInSheet: Bool = false,
+        home: Home? = nil,
+        onDismiss: (() -> Void)? = nil
     ) {
         self.location = location
+        self.presentedInSheet = presentedInSheet
+        self.home = home
+        self.onDismiss = onDismiss
         if let location = location {
             self._locationInstance = State(initialValue: location)
         }
@@ -125,47 +139,64 @@ struct EditLocationView: View {
                 }
             }
         }
-        .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "") Details")
+        .navigationTitle(isNewLocation ? "New Location" : "Edit \(location?.name ?? "Location")")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !isNewLocation {
-                Button(isEditing ? "Save" : "Edit") {
-                    if isEditing {
-                        if let existingLocation = location {
-                            existingLocation.name = locationInstance.name
-                            existingLocation.desc = locationInstance.desc
-                            existingLocation.imageURL = locationInstance.imageURL
-                            try? modelContext.save()
-                        }
-                        isEditing = false
-                    } else {
-                        isEditing = true
+            if presentedInSheet {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismissView()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .font(isEditing ? .body.bold() : .body)
-            } else {
-                Button("Save") {
-                    Task {
-                        if let uiImage = tempUIImage {
-                            let id = UUID().uuidString
-                            if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                                locationInstance.imageURL = imageURL
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                if !isNewLocation {
+                    Button(isEditing ? "Save" : "Edit") {
+                        if isEditing {
+                            if let existingLocation = location {
+                                existingLocation.name = locationInstance.name
+                                existingLocation.desc = locationInstance.desc
+                                existingLocation.imageURL = locationInstance.imageURL
+                                try? modelContext.save()
                             }
+                            isEditing = false
+                            if presentedInSheet {
+                                dismissView()
+                            }
+                        } else {
+                            isEditing = true
                         }
-
-                        // Assign active home to new location
-                        locationInstance.home = activeHome
-
-                        modelContext.insert(locationInstance)
-                        TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
-                        print("EditLocationView: Created new location - \(locationInstance.name)")
-                        print("EditLocationView: Assigned to home - \(activeHome?.name ?? "nil")")
-                        print("EditLocationView: Total number of locations after save: \(locations.count)")
-                        router.navigateBack()
                     }
+                    .font(isEditing ? .body.bold() : .body)
+                } else {
+                    Button("Save") {
+                        Task {
+                            if let uiImage = tempUIImage {
+                                let id = UUID().uuidString
+                                if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
+                                    locationInstance.imageURL = imageURL
+                                }
+                            }
+
+                            // Assign active home to new location
+                            locationInstance.home = activeHome
+
+                            modelContext.insert(locationInstance)
+                            TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
+                            print("EditLocationView: Created new location - \(locationInstance.name)")
+                            print("EditLocationView: Assigned to home - \(activeHome?.name ?? "nil")")
+                            print("EditLocationView: Total number of locations after save: \(locations.count)")
+                            dismissView()
+                        }
+                    }
+                    .disabled(locationName.isEmpty)
+                    .bold()
                 }
-                .disabled(locationName.isEmpty)
-                .bold()
             }
         }
         .task(id: location?.imageURL) {
@@ -206,6 +237,15 @@ struct EditLocationView: View {
                     print("Failed to load image: \(error)")
                 }
             }
+        }
+    }
+
+    private func dismissView() {
+        if presentedInSheet {
+            onDismiss?()
+            dismiss()
+        } else {
+            router.navigateBack()
         }
     }
 }

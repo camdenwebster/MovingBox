@@ -10,8 +10,12 @@ import SwiftUI
 
 struct EditLabelView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     var label: InventoryLabel?
+    var presentedInSheet: Bool
+    var onDismiss: (() -> Void)?
+    var onLabelCreated: ((InventoryLabel) -> Void)?
     @State private var labelName = ""
     @State private var labelDesc = ""
     @State private var labelColor = Color.red
@@ -23,9 +27,16 @@ struct EditLabelView: View {
     ]) var labels: [InventoryLabel]
 
     // MARK: - Add initializer to accept isEditing parameter
-    init(label: InventoryLabel? = nil, isEditing: Bool = false) {
+    init(
+        label: InventoryLabel? = nil, isEditing: Bool = false, presentedInSheet: Bool = false,
+        onDismiss: (() -> Void)? = nil,
+        onLabelCreated: ((InventoryLabel) -> Void)? = nil
+    ) {
         self.label = label
         self._isEditing = State(initialValue: isEditing)
+        self.presentedInSheet = presentedInSheet
+        self.onDismiss = onDismiss
+        self.onLabelCreated = onLabelCreated
     }
 
     // Computed properties
@@ -76,38 +87,57 @@ struct EditLabelView: View {
                 }
             }
         }
-        .navigationTitle(isNewLabel ? "New Label" : "\(label?.name ?? "") Details")
+        .navigationTitle(isNewLabel ? "New Label" : "Edit \(label?.name ?? "Label")")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: labelColor, setColor)
         .toolbar {
-            if !isNewLabel {
-                Button(isEditing ? "Save" : "Edit") {
-                    if isEditing {
-                        label?.name = labelName
-                        label?.desc = labelDesc
-                        label?.color = UIColor(labelColor)
-                        label?.emoji = labelEmoji
-                        isEditing = false
-                    } else {
-                        isEditing = true
+            if presentedInSheet {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismissView()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.secondary)
                     }
+                    .accessibilityIdentifier("label-dismiss-button")
                 }
-                .accessibilityIdentifier("label-edit-save-button")
-            } else {
-                Button("Save") {
-                    let newLabel = InventoryLabel(
-                        name: labelName, desc: labelDesc, color: UIColor(labelColor), emoji: labelEmoji)
+            }
 
-                    modelContext.insert(newLabel)
-                    TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
-                    print("EditLabelView: Created new label - \(newLabel.name)")
-                    print("EditLabelView: Total number of labels after save: \(labels.count)")
-                    isEditing = false
-                    router.navigateBack()
+            ToolbarItem(placement: .confirmationAction) {
+                if !isNewLabel {
+                    Button(isEditing ? "Save" : "Edit") {
+                        if isEditing {
+                            label?.name = labelName
+                            label?.desc = labelDesc
+                            label?.color = UIColor(labelColor)
+                            label?.emoji = labelEmoji
+                            isEditing = false
+                            if presentedInSheet {
+                                dismissView()
+                            }
+                        } else {
+                            isEditing = true
+                        }
+                    }
+                    .accessibilityIdentifier("label-edit-save-button")
+                } else {
+                    Button("Save") {
+                        let newLabel = InventoryLabel(
+                            name: labelName, desc: labelDesc, color: UIColor(labelColor), emoji: labelEmoji)
+
+                        modelContext.insert(newLabel)
+                        TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
+                        print("EditLabelView: Created new label - \(newLabel.name)")
+                        print("EditLabelView: Total number of labels after save: \(labels.count)")
+                        onLabelCreated?(newLabel)
+                        isEditing = false
+                        dismissView()
+                    }
+                    .disabled(labelName.isEmpty)
+                    .bold()
+                    .accessibilityIdentifier("label-save-button")
                 }
-                .disabled(labelName.isEmpty)
-                .bold()
-                .accessibilityIdentifier("label-save-button")
             }
         }
         .onAppear {
@@ -118,6 +148,15 @@ struct EditLabelView: View {
                 labelColor = Color(existingLabel.color ?? .red)
                 labelEmoji = existingLabel.emoji
             }
+        }
+    }
+
+    private func dismissView() {
+        if presentedInSheet {
+            onDismiss?()
+            dismiss()
+        } else {
+            router.navigateBack()
         }
     }
 

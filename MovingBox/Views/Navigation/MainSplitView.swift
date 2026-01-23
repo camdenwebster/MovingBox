@@ -142,6 +142,10 @@ struct MainSplitView: View {
             FeatureRequestView()
         case .globalLabelSettingsView:
             GlobalLabelSettingsView()
+        case .insurancePolicyListView:
+            InsurancePolicyListView()
+        case .insurancePolicyDetailView(let policy):
+            InsurancePolicyDetailView(policy: policy)
         }
     }
 

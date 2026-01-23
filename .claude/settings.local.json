@@ -1,3 +1,22 @@
 {
-
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.pexels.com)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "WebFetch(domain:www.hackingwithswift.com)",
+      "WebFetch(domain:forums.swift.org)",
+      "Bash(for i in {1..30})",
+      "Bash(do)",
+      "Bash(if [ -s /tmp/claude/-Users-camden-webster-dev-MovingBox/tasks/b7af65f.output ])",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(exit 0)",
+      "Bash(fi)",
+      "Bash(if ! pgrep -f \"xcodebuild test\")",
+      "Bash(done)",
+      "Bash(osascript:*)",
+      "Skill(commit-commands:commit)"
+    ]
+  }
 }

@@ -9,27 +9,6 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
-private struct CurrencyField: View {
-    let title: String
-    @Binding var value: Decimal
-    let isEnabled: Bool
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            if isEnabled {
-                TextField("Amount", value: $value, format: .currency(code: "USD"))
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-            } else {
-                Text(value, format: .currency(code: "USD"))
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-}
-
 @MainActor
 struct EditHomeView: View {
     @Environment(\.modelContext) var modelContext
@@ -46,7 +25,6 @@ struct EditHomeView: View {
         home.country = Locale.current.region?.identifier ?? "US"
         return home
     }()
-    @State private var tempPolicy = InsurancePolicy()
 
     private var isNewHome: Bool {
         homes.isEmpty
@@ -191,73 +169,6 @@ struct EditHomeView: View {
                     }
                 }
             }
-
-            Section("Insurance Policy") {
-                FormTextFieldRow(
-                    label: "Insurance Provider", text: $tempPolicy.providerName, isEditing: $isEditing,
-                    placeholder: "Name")
-                FormTextFieldRow(
-                    label: "Policy Number", text: $tempPolicy.policyNumber, isEditing: $isEditing,
-                    placeholder: "Number")
-
-                if isEditingEnabled {
-                    DatePicker("Start Date", selection: $tempPolicy.startDate, displayedComponents: .date)
-                    DatePicker(
-                        "End Date", selection: $tempPolicy.endDate, in: tempPolicy.startDate...,
-                        displayedComponents: .date)
-                } else {
-                    HStack {
-                        Text("Start Date")
-                        Spacer()
-                        Text(tempPolicy.startDate.formatted(date: .abbreviated, time: .omitted))
-                            .foregroundColor(.secondary)
-                    }
-                    HStack {
-                        Text("End Date")
-                        Spacer()
-                        Text(tempPolicy.endDate.formatted(date: .abbreviated, time: .omitted))
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-
-            Section("Coverage Details") {
-                CurrencyField(
-                    title: "Deductible",
-                    value: $tempPolicy.deductibleAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Dwelling Coverage",
-                    value: $tempPolicy.dwellingCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Personal Property",
-                    value: $tempPolicy.personalPropertyCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Loss of Use",
-                    value: $tempPolicy.lossOfUseCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Liability",
-                    value: $tempPolicy.liabilityCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Medical Payments",
-                    value: $tempPolicy.medicalPaymentsCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-            }
         }
         .task(id: activeHome?.imageURL) {
             guard let home = activeHome,
@@ -301,9 +212,6 @@ struct EditHomeView: View {
         .onAppear {
             if let existingHome = activeHome {
                 tempHome = existingHome
-                if let policy = existingHome.insurancePolicy {
-                    tempPolicy = policy
-                }
             } else {
                 // Set default country for new homes
                 tempHome.country = Locale.current.region?.identifier ?? "US"
@@ -321,11 +229,6 @@ struct EditHomeView: View {
                             home.state = tempHome.state
                             home.zip = tempHome.zip
                             home.country = tempHome.country
-
-                            if home.insurancePolicy == nil {
-                                tempPolicy.insuredHome = home
-                                home.insurancePolicy = tempPolicy
-                            }
                         }
                         isEditing = false
                     } else {
@@ -349,11 +252,6 @@ struct EditHomeView: View {
                                 home.country = tempHome.country
                                 home.purchaseDate = Date()
                                 home.imageURL = tempHome.imageURL
-
-                                if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
-                                    tempPolicy.insuredHome = home
-                                    home.insurancePolicy = tempPolicy
-                                }
 
                                 TelemetryManager.shared.trackLocationCreated(name: home.address1)
                                 print("EditHomeView: Updated home - \(home.name)")

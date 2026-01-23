@@ -23,7 +23,8 @@ class Home: PhotoManageable {
     var purchasePrice: Decimal = 0.00
     var imageURL: URL?
     var secondaryPhotoURLs: [String] = []
-    var insurancePolicy: InsurancePolicy?
+    // Many-to-many relationship with insurance policies
+    @Relationship var insurancePolicies: [InsurancePolicy] = []
     var isPrimary: Bool = false
     var colorName: String = "green"
 
@@ -118,7 +119,6 @@ class Home: PhotoManageable {
     ///   - country: Country name
     ///   - purchaseDate: Date of purchase (defaults to current date)
     ///   - purchasePrice: Purchase price (defaults to 0.00)
-    ///   - insurancePolicy: Associated insurance policy (optional)
     init(
         id: UUID = UUID(),
         name: String = "",
@@ -129,8 +129,7 @@ class Home: PhotoManageable {
         zip: String = "",
         country: String = "",
         purchaseDate: Date = Date(),
-        purchasePrice: Decimal = 0.00,
-        insurancePolicy: InsurancePolicy? = nil
+        purchasePrice: Decimal = 0.00
     ) {
         self.id = id
         self.name = name
@@ -142,7 +141,6 @@ class Home: PhotoManageable {
         self.country = country
         self.purchaseDate = purchaseDate
         self.purchasePrice = purchasePrice
-        self.insurancePolicy = insurancePolicy
 
         // Attempt migration on init
         Task {

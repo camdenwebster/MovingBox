@@ -312,6 +312,8 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         XCTAssertTrue(
             summaryView.waitForExistence(timeout: 10),
             "Multi-item summary view should appear")
+
+        // And the items should be visible on the Dashboard under "Recently added"
     }
 
     func testMultiItemCancelButton() throws {

@@ -98,20 +98,11 @@ struct SidebarView: View {
                         .font(.subheadline)
                 } else {
                     ForEach(allLabels, id: \.persistentModelID) { label in
-                        NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
-                            Label {
-                                let backgroundColor = Color(label.color ?? .blue)
-                                Text(label.name)
-                                    .fontDesign(.rounded)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(backgroundColor.idealTextColor())
-                                    .padding(7)
-                                    .background(in: Capsule())
-                                    .backgroundStyle(backgroundColor.gradient)
-                            } icon: {
-                                Text(label.emoji)
-
-                            }
+                        NavigationLink(
+                            value:
+                                Router.SidebarDestination.label(label.persistentModelID)
+                        ) {
+                            LabelCapsuleView(label: label)
                         }
                     }
                 }

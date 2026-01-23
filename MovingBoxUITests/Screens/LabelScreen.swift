@@ -45,7 +45,14 @@ class LabelScreen {
     }
 
     func selectLabel(named name: String) {
-        app.buttons["label-row-\(name)"].tap()
+        // Find the cell containing a staticText with this name and tap it
+        let cell = app.cells.containing(.staticText, identifier: name).firstMatch
+        if cell.exists {
+            cell.tap()
+        } else {
+            // Fallback to tapping the static text directly
+            app.staticTexts[name].firstMatch.tap()
+        }
     }
 
     // MARK: - Edit Label Actions
@@ -86,8 +93,8 @@ class LabelScreen {
     func deleteLabel(named name: String) {
         // Enter edit mode
         tapEdit()
-        // Find the delete button for this label
-        let labelRow = app.buttons["label-row-\(name)"]
+        // Find the cell containing this label name
+        let labelRow = app.cells.containing(.staticText, identifier: name).firstMatch
         // Swipe to reveal delete
         labelRow.swipeLeft()
         // Tap delete button
@@ -95,7 +102,8 @@ class LabelScreen {
     }
 
     func swipeToDeleteLabel(named name: String) {
-        let labelRow = app.buttons["label-row-\(name)"]
+        // Find the cell containing this label name
+        let labelRow = app.cells.containing(.staticText, identifier: name).firstMatch
         labelRow.swipeLeft()
         app.buttons["Delete"].tap()
     }
@@ -120,27 +128,26 @@ class LabelScreen {
     }
 
     func labelExists(named name: String) -> Bool {
-        return app.buttons["label-row-\(name)"].exists
-            || app.staticTexts[name].exists
+        return app.staticTexts[name].exists
+            || app.cells.containing(.staticText, identifier: name).firstMatch.exists
     }
 
     func waitForLabelToExist(named name: String, timeout: TimeInterval = 5) -> Bool {
-        let labelRow = app.buttons["label-row-\(name)"]
         let staticText = app.staticTexts[name]
-        return labelRow.waitForExistence(timeout: timeout) || staticText.waitForExistence(timeout: timeout)
+        return staticText.waitForExistence(timeout: timeout)
     }
 
     func waitForLabelToDisappear(named name: String, timeout: TimeInterval = 5) -> Bool {
-        let labelRow = app.buttons["label-row-\(name)"]
+        let staticText = app.staticTexts[name]
         // Wait for the element to no longer exist
         let startTime = Date()
         while Date().timeIntervalSince(startTime) < timeout {
-            if !labelRow.exists {
+            if !staticText.exists {
                 return true
             }
             Thread.sleep(forTimeInterval: 0.1)
         }
-        return !labelRow.exists
+        return !staticText.exists
     }
 
     func isSaveButtonEnabled() -> Bool {

@@ -10,10 +10,12 @@ import SwiftUI
 
 struct HomeLocationSettingsView: View {
     @Environment(\.modelContext) var modelContext
-    @EnvironmentObject var router: Router
     @Query private var allLocations: [InventoryLocation]
 
     let home: Home
+
+    @State private var selectedLocation: InventoryLocation?
+    @State private var showAddLocationSheet = false
 
     private var filteredLocations: [InventoryLocation] {
         allLocations.filter { location in
@@ -30,21 +32,25 @@ struct HomeLocationSettingsView: View {
                     description: Text("Add locations to organize items in this home.")
                 )
             } else {
-                ForEach(filteredLocations) { location in
-                    NavigationLink {
-                        EditLocationView(location: location)
-                    } label: {
-                        HStack {
-                            if let symbolName = location.sfSymbolName {
-                                Image(systemName: symbolName)
-                                    .foregroundColor(.accentColor)
-                                    .frame(width: 24)
+                Section {
+                    ForEach(filteredLocations) { location in
+                        Button {
+                            selectedLocation = location
+                        } label: {
+                            HStack {
+                                if let symbolName = location.sfSymbolName {
+                                    Image(systemName: symbolName)
+                                        .foregroundStyle(.accentColor)
+                                        .frame(width: 24)
+                                }
+                                Text(location.name)
+                                    .foregroundStyle(.primary)
+                                Spacer()
                             }
-                            Text(location.name)
                         }
                     }
+                    .onDelete(perform: deleteLocations)
                 }
-                .onDelete(perform: deleteLocations)
             }
         }
         .navigationTitle("Locations")
@@ -53,16 +59,24 @@ struct HomeLocationSettingsView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 EditButton()
                 Button("Add Location", systemImage: "plus") {
-                    addLocation()
+                    showAddLocationSheet = true
                 }
             }
         }
-    }
-
-    func addLocation() {
-        let newLocation = InventoryLocation(name: "", desc: "")
-        newLocation.home = home
-        router.navigate(to: .editLocationView(location: newLocation, isEditing: true))
+        .sheet(item: $selectedLocation) { location in
+            NavigationStack {
+                EditLocationView(location: location, isEditing: true, presentedInSheet: true, home: home)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showAddLocationSheet) {
+            NavigationStack {
+                EditLocationView(location: nil, isEditing: true, presentedInSheet: true, home: home)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     func deleteLocations(at offsets: IndexSet) {
@@ -98,10 +112,10 @@ struct HomeLocationSettingsView: View {
         return NavigationStack {
             HomeLocationSettingsView(home: home)
                 .modelContainer(container)
-                .environmentObject(Router())
+                .environmentObject(SettingsManager())
         }
     } catch {
         return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
     }
 }

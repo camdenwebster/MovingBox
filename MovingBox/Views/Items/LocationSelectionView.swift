@@ -88,6 +88,7 @@ struct LocationSelectionView: View {
                                             .foregroundColor(.accentColor)
                                     }
                                 }
+                                .contentShape(Rectangle())  // Makes the whole row tappable
                             }
                             .buttonStyle(.plain)
                         }

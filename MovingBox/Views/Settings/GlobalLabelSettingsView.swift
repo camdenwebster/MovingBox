@@ -10,8 +10,10 @@ import SwiftUI
 
 struct GlobalLabelSettingsView: View {
     @Environment(\.modelContext) var modelContext
-    @EnvironmentObject var router: Router
     @Query(sort: \InventoryLabel.name) private var allLabels: [InventoryLabel]
+
+    @State private var selectedLabel: InventoryLabel?
+    @State private var showAddLabelSheet = false
 
     var body: some View {
         List {
@@ -23,8 +25,8 @@ struct GlobalLabelSettingsView: View {
                 )
             } else {
                 ForEach(allLabels) { label in
-                    NavigationLink {
-                        EditLabelView(label: label)
+                    Button {
+                        selectedLabel = label
                     } label: {
                         HStack {
                             Text(label.emoji)
@@ -32,9 +34,10 @@ struct GlobalLabelSettingsView: View {
                                 .background(in: Circle())
                                 .backgroundStyle(Color(label.color ?? .blue))
                             Text(label.name)
+                            Spacer()
                         }
                     }
-                    .accessibilityIdentifier("label-row-\(label.name)")
+                    .accessibilityIdentifier("label-row-\(label.id.uuidString)")
                 }
                 .onDelete(perform: deleteLabel)
             }
@@ -49,18 +52,27 @@ struct GlobalLabelSettingsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    addLabel()
+                    showAddLabelSheet = true
                 } label: {
                     Label("Add Label", systemImage: "plus")
                 }
                 .accessibilityIdentifier("labels-add-button")
             }
         }
-    }
-
-    func addLabel() {
-        let newLabel = InventoryLabel(name: "", desc: "")
-        router.navigate(to: .editLabelView(label: newLabel, isEditing: true))
+        .sheet(item: $selectedLabel) { label in
+            NavigationStack {
+                EditLabelView(label: label, isEditing: true, presentedInSheet: true)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showAddLabelSheet) {
+            NavigationStack {
+                EditLabelView(label: nil, isEditing: true, presentedInSheet: true)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     func deleteLabel(at offsets: IndexSet) {

@@ -709,7 +709,7 @@ struct InventoryDetailView: View {
     private var locationsAndLabelsSection: some View {
         if isEditing || inventoryItemToDisplay.location != nil || !inventoryItemToDisplay.labels.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Locations & Labels")
+                Text("Location & Labels")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
 
@@ -750,30 +750,28 @@ struct InventoryDetailView: View {
                                 showingLabelSelection = true
                             }
                         }) {
-                            HStack(alignment: .top) {
-                                Text(inventoryItemToDisplay.labels.count == 1 ? "Label" : "Labels")
-                                    .foregroundStyle(.primary)
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(inventoryItemToDisplay.labels.count == 1 ? "Label" : "Labels")
+                                        .foregroundColor(.primary)
+                                    if !inventoryItemToDisplay.labels.isEmpty {
+                                        // Show labels as capsules in a flow layout
+                                        FlowLayout(spacing: 6) {
+                                            ForEach(inventoryItemToDisplay.labels.prefix(5)) { label in
+                                                LabelCapsuleView(label: label)
+                                            }
+                                        }
+                                    }
+                                }
                                 Spacer()
                                 if inventoryItemToDisplay.labels.isEmpty {
                                     Text("None")
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    // Show labels as emoji capsules
-                                    HStack(spacing: 4) {
-                                        ForEach(inventoryItemToDisplay.labels.prefix(5)) { label in
-                                            Text("\(label.emoji) \(label.name)")
-                                                .font(.caption)
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .background(Color(label.color ?? .blue).opacity(0.2))
-                                                .clipShape(Capsule())
-                                        }
-                                    }
+                                        .foregroundColor(.secondary)
                                 }
                                 if isEditing {
                                     Image(systemName: "chevron.right")
                                         .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                         }

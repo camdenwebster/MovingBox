@@ -189,6 +189,10 @@ struct MovingBoxApp: App {
                     AddHomeView()
                 case .globalLabelSettingsView:
                     GlobalLabelSettingsView()
+                case .insurancePolicyListView:
+                    InsurancePolicyListView()
+                case .insurancePolicyDetailView(let policy):
+                    InsurancePolicyDetailView(policy: policy)
                 }
             }
         )
