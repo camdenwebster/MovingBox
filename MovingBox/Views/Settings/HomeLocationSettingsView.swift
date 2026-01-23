@@ -33,14 +33,14 @@ struct HomeLocationSettingsView: View {
                 )
             } else {
                 Section {
-                    ForEach(filteredLocations) { location in
+                    ForEach(Array(filteredLocations), id: \.id) { (location: InventoryLocation) in
                         Button {
                             selectedLocation = location
                         } label: {
                             HStack {
                                 if let symbolName = location.sfSymbolName {
                                     Image(systemName: symbolName)
-                                        .foregroundStyle(.accentColor)
+                                        .foregroundStyle(.tint)
                                         .frame(width: 24)
                                 }
                                 Text(location.name)
