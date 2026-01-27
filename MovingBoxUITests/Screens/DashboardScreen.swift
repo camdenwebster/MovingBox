@@ -89,10 +89,23 @@ class DashboardScreen {
             || app.staticTexts["Dashboard"].waitForExistence(timeout: 10)
     }
 
-    func waitForRecentItems() -> Bool {
-        return app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'dashboard-recent-item-'")
-        ).firstMatch.waitForExistence(timeout: 30)
+    func waitForRecentItems(timeout: TimeInterval = 30) -> Bool {
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            // Check for recent item buttons
+            let recentItems = app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'dashboard-recent-item-'")
+            )
+            if recentItems.count > 0 {
+                return true
+            }
+            // Also check for "Recently Added" text to confirm section exists
+            if app.staticTexts["Recently Added"].exists && hasRecentItems() {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+        }
+        return false
     }
 
     func hasRecentItems() -> Bool {
@@ -108,11 +121,35 @@ class DashboardScreen {
     }
 
     func recentItemExists(named name: String) -> Bool {
-        // Look for item name as static text or label within the dashboard
-        return app.staticTexts[name].exists
-            || app.buttons.matching(
-                NSPredicate(format: "label CONTAINS[c] %@", name)
-            ).count > 0
+        // Look for item name as static text
+        if app.staticTexts[name].exists {
+            return true
+        }
+        // Look for partial match in static texts
+        let matchingTexts = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", name)
+        )
+        if matchingTexts.count > 0 {
+            return true
+        }
+        // Look for buttons containing the name
+        let matchingButtons = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", name)
+        )
+        if matchingButtons.count > 0 {
+            return true
+        }
+        // Look for recent item buttons with the name
+        let recentItems = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'dashboard-recent-item-'")
+        )
+        for i in 0..<recentItems.count {
+            let item = recentItems.element(boundBy: i)
+            if item.label.localizedCaseInsensitiveContains(name) {
+                return true
+            }
+        }
+        return false
     }
 
     func getStatCardValue() -> String? {

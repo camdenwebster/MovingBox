@@ -150,9 +150,30 @@ class HomeManagementScreen {
     }
 
     func waitForHomeToExist(named name: String, timeout: TimeInterval = 5) -> Bool {
-        let button = app.buttons[name]
-        let staticText = app.staticTexts[name]
-        return button.waitForExistence(timeout: timeout) || staticText.waitForExistence(timeout: timeout)
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            // Check for exact match button
+            if app.buttons[name].exists {
+                return true
+            }
+            // Check for static text with exact name
+            if app.staticTexts[name].exists {
+                return true
+            }
+            // Check for button containing the name (NavigationLink may have combined label)
+            let buttonsContaining = app.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", name)
+            )
+            if buttonsContaining.count > 0 {
+                return true
+            }
+            // Check cells containing static text with the name
+            if app.cells.containing(.staticText, identifier: name).firstMatch.exists {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        return false
     }
 
     func isSaveButtonEnabled() -> Bool {

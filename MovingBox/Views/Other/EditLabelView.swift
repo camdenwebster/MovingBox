@@ -51,9 +51,11 @@ struct EditLabelView: View {
     var body: some View {
         Form {
             Section("Details") {
-                FormTextFieldRow(label: "Name", text: $labelName, isEditing: $isEditing, placeholder: "Electronics")
-                    .disabled(!isEditingEnabled)
-                    .accessibilityIdentifier("label-name-field")
+                FormTextFieldRow(
+                    label: "Name", text: $labelName, isEditing: $isEditing, placeholder: "Electronics",
+                    textFieldIdentifier: "label-name-field"
+                )
+                .disabled(!isEditingEnabled)
                 ColorPicker("Color", selection: $labelColor, supportsOpacity: false)
                     .disabled(!isEditingEnabled)
                 HStack {

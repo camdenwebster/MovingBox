@@ -104,8 +104,16 @@ class LabelScreen {
     func swipeToDeleteLabel(named name: String) {
         // Find the cell containing this label name
         let labelRow = app.cells.containing(.staticText, identifier: name).firstMatch
-        labelRow.swipeLeft()
-        app.buttons["Delete"].tap()
+        if labelRow.waitForExistence(timeout: 3) {
+            labelRow.swipeLeft()
+            // Wait for delete button to appear and tap it
+            let deleteButton = app.buttons["Delete"]
+            if deleteButton.waitForExistence(timeout: 2) {
+                deleteButton.tap()
+                // Wait for the delete animation to complete
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+        }
     }
 
     // MARK: - Verification Methods
@@ -133,8 +141,19 @@ class LabelScreen {
     }
 
     func waitForLabelToExist(named name: String, timeout: TimeInterval = 5) -> Bool {
-        let staticText = app.staticTexts[name]
-        return staticText.waitForExistence(timeout: timeout)
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            // Check for the label in static texts
+            if app.staticTexts[name].exists {
+                return true
+            }
+            // Also check in cells containing the name
+            if app.cells.containing(.staticText, identifier: name).firstMatch.exists {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        return false
     }
 
     func waitForLabelToDisappear(named name: String, timeout: TimeInterval = 5) -> Bool {
@@ -155,7 +174,17 @@ class LabelScreen {
     }
 
     func getLabelCount() -> Int {
-        return app.cells.count
+        // Wait a moment for the list to stabilize
+        Thread.sleep(forTimeInterval: 0.5)
+        // Count cells that contain static texts (actual label rows, not empty state)
+        let cells = app.cells.allElementsBoundByIndex
+        var count = 0
+        for cell in cells {
+            if cell.staticTexts.count > 0 {
+                count += 1
+            }
+        }
+        return count
     }
 
     func getLabelNames() -> [String] {
