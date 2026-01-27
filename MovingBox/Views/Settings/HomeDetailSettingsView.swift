@@ -370,7 +370,9 @@ struct HomeDetailSettingsView: View {
                         }
                     }
                     .bold()
-                    .disabled(tempHome.address1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || tempHome.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty  || isCreating)
+                    .disabled(
+                        tempHome.address1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || tempHome.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
                 }
             } else {
                 ToolbarItem(placement: .topBarTrailing) {

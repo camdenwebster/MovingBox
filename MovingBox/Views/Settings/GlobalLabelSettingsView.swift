@@ -28,14 +28,7 @@ struct GlobalLabelSettingsView: View {
                     Button {
                         selectedLabel = label
                     } label: {
-                        HStack {
-                            Text(label.emoji)
-                                .padding(7)
-                                .background(in: Circle())
-                                .backgroundStyle(Color(label.color ?? .blue))
-                            Text(label.name)
-                            Spacer()
-                        }
+                        LabelCapsuleView(label: label)
                     }
                     .accessibilityIdentifier("label-row-\(label.id.uuidString)")
                 }

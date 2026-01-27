@@ -63,6 +63,22 @@ class LabelScreen {
     }
 
     func clearAndEnterLabelName(_ name: String) {
+        // Wait for the text field to exist and be hittable
+        if !labelNameField.waitForExistence(timeout: 5) {
+            // Try finding by other means - the field might be rendered differently
+            let anyTextField = app.textFields.firstMatch
+            if anyTextField.waitForExistence(timeout: 3) {
+                anyTextField.tap()
+                anyTextField.press(forDuration: 1.0)
+                if app.menuItems["Select All"].waitForExistence(timeout: 2) {
+                    app.menuItems["Select All"].tap()
+                    app.keys["delete"].tap()
+                }
+                anyTextField.typeText(name)
+                return
+            }
+        }
+
         labelNameField.tap()
         // Select all and delete
         labelNameField.press(forDuration: 1.0)
