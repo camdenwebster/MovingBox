@@ -33,6 +33,8 @@ struct EditLocationView: View {
     @State private var loadingError: Error?
     @State private var cachedImageURL: URL?
     @State private var showPhotoSourceAlert = false
+    @State private var selectedSFSymbol: String?
+    @State private var showSymbolPicker = false
 
     private var activeHome: Home? {
         // Use explicitly provided home if available
@@ -63,6 +65,7 @@ struct EditLocationView: View {
         }
         _locationName = State(initialValue: location?.name ?? "")
         _locationDesc = State(initialValue: location?.desc ?? "")
+        _selectedSFSymbol = State(initialValue: location?.sfSymbolName)
     }
 
     // Computed properties
@@ -123,8 +126,35 @@ struct EditLocationView: View {
                 placeholder: "Kitchen"
             )
             .disabled(!isEditingEnabled)
+            .accessibilityIdentifier("location-name-field")
             .onChange(of: locationName) { _, newValue in
                 locationInstance.name = newValue
+            }
+
+            if isEditingEnabled || selectedSFSymbol != nil {
+                Section {
+                    Button {
+                        if isEditingEnabled {
+                            showSymbolPicker = true
+                        }
+                    } label: {
+                        HStack {
+                            Text("Icon")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if let symbolName = selectedSFSymbol {
+                                Image(systemName: symbolName)
+                                    .font(.title2)
+                                    .foregroundStyle(.tint)
+                            } else {
+                                Text("None")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .disabled(!isEditingEnabled)
+                    .accessibilityIdentifier("location-icon-row")
+                }
             }
 
             if isEditingEnabled || !locationDesc.isEmpty {
@@ -139,7 +169,7 @@ struct EditLocationView: View {
                 }
             }
         }
-        .navigationTitle(isNewLocation ? "New Location" : "Edit \(location?.name ?? "Location")")
+        .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "Location")")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if presentedInSheet {
@@ -162,6 +192,7 @@ struct EditLocationView: View {
                                 existingLocation.name = locationInstance.name
                                 existingLocation.desc = locationInstance.desc
                                 existingLocation.imageURL = locationInstance.imageURL
+                                existingLocation.sfSymbolName = locationInstance.sfSymbolName
                                 try? modelContext.save()
                             }
                             isEditing = false
@@ -196,8 +227,17 @@ struct EditLocationView: View {
                     }
                     .disabled(locationName.isEmpty)
                     .bold()
+                    .accessibilityIdentifier("location-save-button")
                 }
             }
+        }
+        .onChange(of: selectedSFSymbol) { _, newValue in
+            locationInstance.sfSymbolName = newValue
+        }
+        .sheet(isPresented: $showSymbolPicker) {
+            SFSymbolPickerView(selectedSymbol: $selectedSFSymbol)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .task(id: location?.imageURL) {
             guard let location = location,

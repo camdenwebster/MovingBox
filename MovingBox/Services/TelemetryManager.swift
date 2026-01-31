@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 3/17/25.
 //
 
+import CryptoKit
 import Foundation
 import TelemetryDeck
 
@@ -21,7 +22,9 @@ final class TelemetryManager: @unchecked Sendable {
     // MARK: - Inventory Items
 
     func trackInventoryItemAdded(name: String) {
-        TelemetryManager.signal("Inventory.itemCreated")
+        TelemetryManager.signal(
+            "Inventory.itemCreated",
+            with: ["name_hash": hashed(name)])
     }
 
     func trackInventoryItemDeleted() {
@@ -156,7 +159,9 @@ final class TelemetryManager: @unchecked Sendable {
     // MARK: - Settings
 
     func trackLocationCreated(name: String) {
-        TelemetryManager.signal("Settings.Location.created")
+        TelemetryManager.signal(
+            "Settings.Location.created",
+            with: ["name_hash": hashed(name)])
     }
 
     func trackLocationDeleted() {
@@ -164,7 +169,9 @@ final class TelemetryManager: @unchecked Sendable {
     }
 
     func trackLabelCreated(name: String) {
-        TelemetryManager.signal("Settings.Label.created")
+        TelemetryManager.signal(
+            "Settings.Label.created",
+            with: ["name_hash": hashed(name)])
     }
 
     func trackLabelDeleted() {
@@ -172,11 +179,18 @@ final class TelemetryManager: @unchecked Sendable {
     }
 
     func trackHomeCreated(name: String) {
-        TelemetryManager.signal("Settings.Home.created")
+        TelemetryManager.signal(
+            "Settings.Home.created",
+            with: ["name_hash": hashed(name)])
     }
 
     func trackHomeRenamed(oldName: String, newName: String) {
-        TelemetryManager.signal("Settings.Home.renamed")
+        TelemetryManager.signal(
+            "Settings.Home.renamed",
+            with: [
+                "old_name_hash": hashed(oldName),
+                "new_name_hash": hashed(newName),
+            ])
     }
 
     func trackHomeDeleted() {
@@ -187,7 +201,7 @@ final class TelemetryManager: @unchecked Sendable {
         TelemetryManager.signal(
             "Settings.Home.switched",
             with: [
-                "home_name": homeName
+                "home_name_hash": hashed(homeName)
             ])
     }
 
@@ -233,7 +247,13 @@ final class TelemetryManager: @unchecked Sendable {
             ])
     }
 
-    // MARK: - Helper
+    // MARK: - Helpers
+
+    /// SHA256 hash of a string, returned as a hex prefix for privacy-safe telemetry parameters.
+    private func hashed(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined().prefix(16).description
+    }
 
     private static func signal(_ name: String, with additionalInfo: [String: String] = [:]) {
         TelemetryDeck.signal(name, parameters: additionalInfo)

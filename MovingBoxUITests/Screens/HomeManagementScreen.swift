@@ -37,7 +37,7 @@ class HomeManagementScreen {
         // Add Home Screen - navigation bar title is "Add Home"
         self.addHomeNavigationBar = app.navigationBars["Add Home"]
         self.homeNameTextField = app.textFields["Home Name (Optional)"]
-        self.streetAddressTextField = app.textFields["Street Address"]
+        self.streetAddressTextField = app.textFields["Address"]
         self.saveButton = app.buttons["Save"]
         self.cancelButton = app.buttons["Cancel"]
 

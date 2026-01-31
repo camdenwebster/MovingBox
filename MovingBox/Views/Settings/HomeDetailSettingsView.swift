@@ -10,34 +10,21 @@ import SwiftUI
 
 struct HomeDetailSettingsView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @Query private var allHomes: [Home]
 
-    let home: Home?
-    @State private var tempHome: Home
-    @State private var isEditing = false
-    @State private var isCreating = false
-    @State private var showingDeleteConfirmation = false
-    @State private var deleteError: String?
-    @State private var saveError: String?
-    @FocusState private var focusedField: AddressField?
+    private let home: Home?
+    let presentedInSheet: Bool
 
-    enum AddressField: Hashable {
-        case street
-        case unit
-        case city
-        case state
-        case zip
-    }
+    @State private var viewModel: HomeDetailSettingsViewModel?
 
-    private var isNewHome: Bool {
-        home == nil
-    }
-
-    private var displayHome: Home {
-        home ?? tempHome
-    }
+    // Photo state
+    @State private var tempUIImage: UIImage?
+    @State private var loadedImage: UIImage?
+    @State private var photoIsLoading = false
+    @State private var cachedImageURL: URL?
 
     private let availableColors: [(name: String, color: Color)] = [
         ("green", .green),
@@ -54,501 +41,464 @@ struct HomeDetailSettingsView: View {
         ("brown", .brown),
     ]
 
-    init(home: Home?) {
+    init(home: Home?, presentedInSheet: Bool = false) {
         self.home = home
-        // Initialize tempHome with either the existing home or a new one
-        if let home = home {
-            _tempHome = State(initialValue: home)
-        } else {
-            var newHome = Home()
-            newHome.country = Locale.current.region?.identifier ?? "US"
-            _tempHome = State(initialValue: newHome)
-            _isEditing = State(initialValue: true)
-        }
-    }
-
-    private func countryName(for code: String) -> String {
-        let locale = Locale.current
-        return locale.localizedString(forRegionCode: code) ?? code
+        self.presentedInSheet = presentedInSheet
     }
 
     var body: some View {
-        Form {
-            Section {
-                if isEditing {
-                    TextField(
-                        "Home Name (Optional)",
-                        text: Binding(
-                            get: { tempHome.name },
-                            set: { tempHome.name = $0 }
-                        ))
-                } else {
-                    HStack {
-                        Text("Name")
-                        Spacer()
-                        Text(displayHome.displayName)
-                            .foregroundColor(.secondary)
+        Group {
+            if let viewModel = viewModel {
+                formContent(viewModel: viewModel)
+                    .navigationTitle(viewModel.isNewHome ? "Add Home" : viewModel.displayHome.displayName)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { toolbarContent(viewModel: viewModel) }
+                    .disabled(viewModel.isCreating)
+                    .overlay { loadingOverlay(viewModel: viewModel) }
+                    .alert("Delete Home", isPresented: deleteConfirmationBinding(viewModel: viewModel)) {
+                        deleteConfirmationButtons(viewModel: viewModel)
+                    } message: {
+                        Text(
+                            "Are you sure you want to delete \(viewModel.displayHome.displayName)? This will also delete all locations associated with this home. Items will remain but will be unassigned."
+                        )
                     }
-                }
-
-                if isEditing && !isNewHome {
-                    Toggle(
-                        "Set as Primary",
-                        isOn: Binding(
-                            get: { tempHome.isPrimary },
-                            set: { newValue in
-                                if newValue {
-                                    // Make this home primary and unmark all others
-                                    for otherHome in allHomes {
-                                        otherHome.isPrimary = (otherHome.id == tempHome.id)
-                                    }
-                                    tempHome.isPrimary = true
-                                    // Update active home ID
-                                    settings.activeHomeId = tempHome.id.uuidString
-                                } else {
-                                    // Can't unset if it's the only home or currently primary
-                                    // Find another home to make primary
-                                    if let firstOtherHome = allHomes.first(where: { $0.id != tempHome.id }) {
-                                        firstOtherHome.isPrimary = true
-                                        tempHome.isPrimary = false
-                                        settings.activeHomeId = firstOtherHome.id.uuidString
-                                    }
-                                }
-                            }
-                        ))
-                } else if !isEditing {
-                    HStack {
-                        Text("Primary Home")
-                        Spacer()
-                        if displayHome.isPrimary {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.accentColor)
+                    .alert("Cannot Delete", isPresented: deleteErrorBinding(viewModel: viewModel)) {
+                        Button("OK") { viewModel.clearDeleteError() }
+                    } message: {
+                        if let error = viewModel.deleteError {
+                            Text(error)
                         }
                     }
-                }
-
-                if isEditing {
-                    HStack {
-                        Text("Color")
-                        Spacer()
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(availableColors, id: \.name) { colorOption in
-                                    Circle()
-                                        .fill(colorOption.color)
-                                        .frame(width: 32, height: 32)
-                                        .overlay(
-                                            Circle()
-                                                .strokeBorder(
-                                                    tempHome.colorName == colorOption.name
-                                                        ? Color.primary : Color.clear, lineWidth: 2)
-                                        )
-                                        .onTapGesture {
-                                            tempHome.colorName = colorOption.name
-                                        }
-                                }
-                            }
-                            .padding(.vertical, 4)
+                    .alert("Error", isPresented: saveErrorBinding(viewModel: viewModel)) {
+                        Button("OK") { viewModel.clearSaveError() }
+                    } message: {
+                        if let error = viewModel.saveError {
+                            Text(error)
                         }
                     }
-                } else {
-                    HStack {
-                        Text("Color")
-                        Spacer()
-                        Circle()
-                            .fill(displayHome.color)
-                            .frame(width: 24, height: 24)
-                    }
-                }
-            } header: {
-                Text("Home Details")
-            } footer: {
-                if isEditing && tempHome.name.isEmpty {
-                    Text("If no name is provided, the street address will be used.")
-                }
+            } else {
+                ProgressView()
+                    .navigationTitle(home?.displayName ?? "Add Home")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .task(id: home?.imageURL) {
+            guard let home = home,
+                let imageURL = home.imageURL,
+                !photoIsLoading
+            else { return }
+
+            if cachedImageURL != imageURL {
+                loadedImage = nil
+                cachedImageURL = imageURL
             }
 
-            Section("Address") {
-                if isEditing {
-                    TextField(
-                        "Street Address",
-                        text: Binding(
-                            get: { tempHome.address1 },
-                            set: { tempHome.address1 = $0 }
-                        )
-                    )
-                    .textContentType(.streetAddressLine1)
-                    .focused($focusedField, equals: .street)
-                    .submitLabel(.next)
-                    .onSubmit {
-                        focusedField = .unit
-                    }
-                    .onChange(of: tempHome.address1) { oldValue, newValue in
-                        // If field was populated (likely via autofill) and we're focused here, advance
-                        if focusedField == .street && !newValue.isEmpty && oldValue.isEmpty {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                focusedField = .unit
-                            }
-                        }
-                    }
+            guard loadedImage == nil else { return }
 
-                    TextField(
-                        "Apt, Suite, Unit",
-                        text: Binding(
-                            get: { tempHome.address2 },
-                            set: { tempHome.address2 = $0 }
-                        )
-                    )
-                    .textContentType(.streetAddressLine2)
-                    .focused($focusedField, equals: .unit)
-                    .submitLabel(.next)
-                    .onSubmit {
-                        focusedField = .city
-                    }
-                    .onChange(of: tempHome.address2) { oldValue, newValue in
-                        // Advance to city if unit was skipped but city is populated (autofill)
-                        if focusedField == .unit && !tempHome.city.isEmpty {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                focusedField = .city
-                            }
-                        }
-                    }
+            photoIsLoading = true
+            defer { photoIsLoading = false }
 
-                    TextField(
-                        "City",
-                        text: Binding(
-                            get: { tempHome.city },
-                            set: { tempHome.city = $0 }
-                        )
-                    )
-                    .textContentType(.addressCity)
-                    .focused($focusedField, equals: .city)
-                    .submitLabel(.next)
-                    .onSubmit {
-                        focusedField = .state
-                    }
-                    .onChange(of: tempHome.city) { oldValue, newValue in
-                        if focusedField == .city && !newValue.isEmpty && oldValue.isEmpty {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                focusedField = .state
-                            }
-                        }
-                    }
-
-                    TextField(
-                        "State/Province",
-                        text: Binding(
-                            get: { tempHome.state },
-                            set: { tempHome.state = $0 }
-                        )
-                    )
-                    .textContentType(.addressState)
-                    .focused($focusedField, equals: .state)
-                    .submitLabel(.next)
-                    .onSubmit {
-                        focusedField = .zip
-                    }
-                    .onChange(of: tempHome.state) { oldValue, newValue in
-                        if focusedField == .state && !newValue.isEmpty && oldValue.isEmpty {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                focusedField = .zip
-                            }
-                        }
-                    }
-
-                    TextField(
-                        "ZIP/Postal Code",
-                        text: Binding(
-                            get: { tempHome.zip },
-                            set: { tempHome.zip = $0 }
-                        )
-                    )
-                    .textContentType(.postalCode)
-                    .keyboardType(.numberPad)
-                    .focused($focusedField, equals: .zip)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        focusedField = nil
-                    }
-                    .onChange(of: tempHome.zip) { oldValue, newValue in
-                        // If ZIP was populated via autofill, dismiss keyboard
-                        if focusedField == .zip && !newValue.isEmpty && oldValue.isEmpty {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                focusedField = nil
-                            }
-                        }
-                    }
-
-                    Picker(
-                        "Country",
-                        selection: Binding(
-                            get: { tempHome.country },
-                            set: { tempHome.country = $0 }
-                        )
-                    ) {
-                        // Current user's country at the top
-                        if let userCountry = Locale.current.region?.identifier {
-                            Text(countryName(for: userCountry))
-                                .tag(userCountry)
-
-                            Divider()
-                        }
-
-                        // All other countries, sorted alphabetically
-                        ForEach(
-                            Locale.Region.isoRegions.filter { $0.identifier != Locale.current.region?.identifier }
-                                .sorted(by: { countryName(for: $0.identifier) < countryName(for: $1.identifier) }),
-                            id: \.identifier
-                        ) { region in
-                            Text(countryName(for: region.identifier))
-                                .tag(region.identifier)
-                        }
-                    }
-                } else {
-                    if !displayHome.address1.isEmpty {
-                        LabeledContent("Street", value: displayHome.address1)
-                    }
-                    if !displayHome.address2.isEmpty {
-                        LabeledContent("Unit", value: displayHome.address2)
-                    }
-                    if !displayHome.city.isEmpty {
-                        LabeledContent("City", value: displayHome.city)
-                    }
-                    if !displayHome.state.isEmpty {
-                        LabeledContent("State", value: displayHome.state)
-                    }
-                    if !displayHome.zip.isEmpty {
-                        LabeledContent("ZIP", value: displayHome.zip)
-                    }
-                    if !displayHome.country.isEmpty {
-                        LabeledContent("Country", value: countryName(for: displayHome.country))
-                    }
-                }
-            }
-
-            if !isNewHome, let existingHome = home {
-                Section("Organization") {
-                    NavigationLink {
-                        HomeLocationSettingsView(home: existingHome)
-                    } label: {
-                        Label("Locations", systemImage: "map")
-                    }
-                }
-            }
-
-            if !isNewHome && allHomes.count > 1 {
-                Section {
-                    Button(
-                        role: .destructive,
-                        action: {
-                            showingDeleteConfirmation = true
-                        }
-                    ) {
-                        Label("Delete Home", systemImage: "trash")
-                    }
-                } footer: {
-                    Text(
-                        "Deleting this home will also delete all associated locations. Items will remain but will be unassigned."
-                    )
+            do {
+                // Load thumbnail instead of full-size image to reduce memory usage
+                let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: imageURL)
+                loadedImage = thumbnail
+            } catch {
+                // Fall back to full-size image if thumbnail isn't available
+                do {
+                    let photo = try await home.photo
+                    loadedImage = photo
+                } catch {
+                    print("Failed to load home image: \(error)")
                 }
             }
         }
         .onAppear {
-            // Ensure country always has a valid value to prevent picker warnings
-            if tempHome.country.isEmpty {
-                tempHome.country = Locale.current.region?.identifier ?? "US"
+            if viewModel == nil {
+                viewModel = HomeDetailSettingsViewModel(
+                    home: home,
+                    modelContext: modelContext,
+                    settings: settings,
+                    allHomesProvider: { self.allHomes }
+                )
             }
         }
-        .navigationTitle(isNewHome ? "Add Home" : displayHome.displayName)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if isNewHome {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await createHome()
+        .onDisappear {
+            // Release full-size images from memory when leaving the view
+            tempUIImage = nil
+            loadedImage = nil
+        }
+    }
+
+    // MARK: - Bindings
+
+    private func deleteConfirmationBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<Bool> {
+        Binding(
+            get: { viewModel.showingDeleteConfirmation },
+            set: { viewModel.showingDeleteConfirmation = $0 }
+        )
+    }
+
+    private func deleteErrorBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<Bool> {
+        Binding(
+            get: { viewModel.deleteError != nil },
+            set: { if !$0 { viewModel.clearDeleteError() } }
+        )
+    }
+
+    private func saveErrorBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<Bool> {
+        Binding(
+            get: { viewModel.saveError != nil },
+            set: { if !$0 { viewModel.clearSaveError() } }
+        )
+    }
+
+    // MARK: - Form Content
+
+    @ViewBuilder
+    private func formContent(viewModel: HomeDetailSettingsViewModel) -> some View {
+        Form {
+            photoSection(viewModel: viewModel)
+            homeDetailsSection(viewModel: viewModel)
+            addressSection(viewModel: viewModel)
+            organizationSection(viewModel: viewModel)
+            deleteSection(viewModel: viewModel)
+        }
+    }
+
+    // MARK: - Photo Section
+
+    @ViewBuilder
+    private func photoSection(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if viewModel.isEditing || loadedImage != nil {
+            Section(header: EmptyView()) {
+                if let uiImage = tempUIImage ?? loadedImage {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .clipped()
+                        .listRowInsets(EdgeInsets())
+                        .overlay(alignment: .bottomTrailing) {
+                            if viewModel.isEditing {
+                                PhotoPickerView(
+                                    model: tempHomeBinding(viewModel: viewModel),
+                                    loadedImage: viewModel.isNewHome ? $tempUIImage : $loadedImage,
+                                    isLoading: $photoIsLoading
+                                )
+                            }
+                        }
+                } else if photoIsLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                } else if viewModel.isEditing {
+                    PhotoPickerView(
+                        model: tempHomeBinding(viewModel: viewModel),
+                        loadedImage: viewModel.isNewHome ? $tempUIImage : $loadedImage,
+                        isLoading: $photoIsLoading
+                    ) { showPhotoSourceAlert in
+                        AddPhotoButton {
+                            showPhotoSourceAlert.wrappedValue = true
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func tempHomeBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<Home> {
+        Binding(
+            get: { viewModel.tempHome },
+            set: { _ in }
+        )
+    }
+
+    // MARK: - Home Details Section
+
+    @ViewBuilder
+    private func homeDetailsSection(viewModel: HomeDetailSettingsViewModel) -> some View {
+        Section {
+            nameField(viewModel: viewModel)
+            primaryToggle(viewModel: viewModel)
+            colorPicker(viewModel: viewModel)
+        } header: {
+            Text("Home Details")
+        } footer: {
+            if viewModel.isEditing && viewModel.tempHome.name.isEmpty {
+                Text("If no name is provided, the street address will be used.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func nameField(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if viewModel.isEditing {
+            TextField(
+                "Home Name (Optional)",
+                text: Binding(
+                    get: { viewModel.tempHome.name },
+                    set: { viewModel.tempHome.name = $0 }
+                )
+            )
+        } else {
+            HStack {
+                Text("Name")
+                Spacer()
+                Text(viewModel.displayHome.displayName)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func primaryToggle(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if viewModel.isEditing && !viewModel.isNewHome {
+            Toggle(
+                "Set as Primary",
+                isOn: Binding(
+                    get: { viewModel.tempHome.isPrimary },
+                    set: { viewModel.togglePrimary($0) }
+                )
+            )
+        } else if !viewModel.isEditing {
+            HStack {
+                Text("Primary Home")
+                Spacer()
+                if viewModel.displayHome.isPrimary {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func colorPicker(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if viewModel.isEditing {
+            HStack {
+                Text("Color")
+                Spacer()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(availableColors, id: \.name) { colorOption in
+                            colorCircle(for: colorOption, viewModel: viewModel)
                         }
                     }
-                    .bold()
-                    .disabled(
-                        tempHome.address1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || tempHome.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
+                    .padding(.vertical, 4)
                 }
+            }
+        } else {
+            HStack {
+                Text("Color")
+                Spacer()
+                Circle()
+                    .fill(viewModel.displayHome.color)
+                    .frame(width: 24, height: 24)
+            }
+        }
+    }
+
+    private func colorCircle(for colorOption: (name: String, color: Color), viewModel: HomeDetailSettingsViewModel)
+        -> some View
+    {
+        Circle()
+            .fill(colorOption.color)
+            .frame(width: 32, height: 32)
+            .overlay(
+                Circle()
+                    .strokeBorder(
+                        viewModel.tempHome.colorName == colorOption.name
+                            ? Color.primary : Color.clear,
+                        lineWidth: 2
+                    )
+            )
+            .onTapGesture {
+                viewModel.tempHome.colorName = colorOption.name
+            }
+    }
+
+    // MARK: - Address Section
+
+    @ViewBuilder
+    private func addressSection(viewModel: HomeDetailSettingsViewModel) -> some View {
+        Section("Address") {
+            if viewModel.isEditing {
+                addressEditingFields(viewModel: viewModel)
             } else {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isEditing ? "Done" : "Edit") {
-                        if isEditing {
-                            saveChanges()
+                addressDisplayFields(viewModel: viewModel)
+            }
+        }
+    }
+
+    // MARK: - Organization Section
+
+    @ViewBuilder
+    private func organizationSection(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if !viewModel.isNewHome {
+            Section("Organization") {
+                NavigationLink {
+                    LocationSettingsView(home: viewModel.displayHome)
+                } label: {
+                    Label("Locations", systemImage: "map")
+                }
+            }
+        }
+    }
+
+    // MARK: - Delete Section
+
+    @ViewBuilder
+    private func deleteSection(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if !viewModel.isNewHome && viewModel.canDelete {
+            Section {
+                Button(action: {
+                    viewModel.confirmDelete()
+                }) {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Delete Home")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .foregroundStyle(.white)
+                    .background(Color.red)
+                    .clipShape(.rect(cornerRadius: UIConstants.cornerRadius))
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            } footer: {
+                Text(
+                    "Deleting this home will also delete all associated locations. Items will remain but will be unassigned."
+                )
+            }
+        }
+    }
+
+    // MARK: - Toolbar Content
+
+    @ToolbarContentBuilder
+    private func toolbarContent(viewModel: HomeDetailSettingsViewModel) -> some ToolbarContent {
+        if presentedInSheet {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismissView()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        ToolbarItem(placement: viewModel.isEditing ? .confirmationAction : .topBarTrailing) {
+            if viewModel.isEditing {
+                Button("Save") {
+                    Task {
+                        // Save photo if one was selected
+                        if let uiImage = tempUIImage {
+                            let id = UUID().uuidString
+                            if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
+                                viewModel.tempHome.imageURL = imageURL
+                            }
+                            // Release the full-size UIImage from memory now that it's saved to disk
+                            tempUIImage = nil
                         }
-                        isEditing.toggle()
+
+                        if viewModel.isNewHome {
+                            if await viewModel.createHome() {
+                                dismissView()
+                            }
+                        } else {
+                            await viewModel.saveChanges()
+                            viewModel.isEditing = false
+                        }
                     }
+                }
+                .bold()
+                .disabled(viewModel.isNewHome && !viewModel.canSave)
+            } else {
+                Button("Edit") {
+                    viewModel.isEditing = true
                 }
             }
         }
-        .disabled(isCreating)
-        .overlay {
-            if isCreating {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black.opacity(0.2))
-            }
+    }
+
+    // MARK: - Loading Overlay
+
+    @ViewBuilder
+    private func loadingOverlay(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if viewModel.isCreating {
+            ProgressView()
+                .scaleEffect(1.5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black.opacity(0.2))
         }
-        .alert("Delete Home", isPresented: $showingDeleteConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                deleteHome()
-            }
-        } message: {
-            Text(
-                "Are you sure you want to delete \(displayHome.displayName)? This will also delete all locations associated with this home. Items will remain but will be unassigned."
-            )
-        }
-        .alert(
-            "Cannot Delete",
-            isPresented: Binding(
-                get: { deleteError != nil },
-                set: { if !$0 { deleteError = nil } }
-            )
-        ) {
-            Button("OK") { deleteError = nil }
-        } message: {
-            if let error = deleteError {
-                Text(error)
-            }
-        }
-        .alert(
-            "Error",
-            isPresented: Binding(
-                get: { saveError != nil },
-                set: { if !$0 { saveError = nil } }
-            )
-        ) {
-            Button("OK") { saveError = nil }
-        } message: {
-            if let error = saveError {
-                Text(error)
+    }
+
+    // MARK: - Delete Confirmation Buttons
+
+    @ViewBuilder
+    private func deleteConfirmationButtons(viewModel: HomeDetailSettingsViewModel) -> some View {
+        Button("Cancel", role: .cancel) {}
+        Button("Delete", role: .destructive) {
+            if viewModel.deleteHome() {
+                dismissView()
             }
         }
     }
 
-    private func saveChanges() {
-        guard let existingHome = home else { return }
-
-        existingHome.name = tempHome.name
-        existingHome.address1 = tempHome.address1
-        existingHome.address2 = tempHome.address2
-        existingHome.city = tempHome.city
-        existingHome.state = tempHome.state
-        existingHome.zip = tempHome.zip
-        existingHome.country = tempHome.country
-        existingHome.colorName = tempHome.colorName
-        existingHome.isPrimary = tempHome.isPrimary
-
-        do {
-            try modelContext.save()
-        } catch {
-            saveError = "Failed to save changes: \(error.localizedDescription)"
-        }
-    }
-
-    private func createHome() async {
-        isCreating = true
-        saveError = nil
-
-        do {
-            let trimmedName = tempHome.name.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Create new home with default locations and labels
-            // Pass the name (which can be empty) - address is required and validated by save button
-            let newHome = try await DefaultDataManager.createNewHome(
-                name: trimmedName,
-                modelContext: modelContext
-            )
-
-            // Copy all properties from tempHome to newHome
-            newHome.address1 = tempHome.address1
-            newHome.address2 = tempHome.address2
-            newHome.city = tempHome.city
-            newHome.state = tempHome.state
-            newHome.zip = tempHome.zip
-            newHome.country = tempHome.country
-            newHome.colorName = tempHome.colorName
-
-            // If this is the first home, make it primary
-            if allHomes.isEmpty {
-                newHome.isPrimary = true
-                settings.activeHomeId = newHome.id.uuidString
-            }
-
-            // Save context
-            try modelContext.save()
-
-            // Track telemetry using displayName (name or address)
-            TelemetryManager.shared.trackHomeCreated(name: newHome.displayName)
-
-            // Navigate back
-            await MainActor.run {
-                router.navigateBack()
-            }
-        } catch {
-            await MainActor.run {
-                self.saveError = "Failed to create home: \(error.localizedDescription)"
-                isCreating = false
-            }
-        }
-    }
-
-    private func deleteHome() {
-        guard let homeToDelete = home else { return }
-
-        // Validation: can't delete if only one home exists
-        if allHomes.count == 1 {
-            deleteError = "You must have at least one home. Cannot delete the last remaining home."
-            return
-        }
-
-        // If deleting primary home, make another home primary first
-        if homeToDelete.isPrimary {
-            if let firstOtherHome = allHomes.first(where: { $0.id != homeToDelete.id }) {
-                firstOtherHome.isPrimary = true
-                settings.activeHomeId = firstOtherHome.id.uuidString
-            }
-        }
-
-        // Delete all locations associated with this home
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        if let locations = try? modelContext.fetch(locationDescriptor) {
-            for location in locations where location.home?.id == homeToDelete.id {
-                // Unassign items from this location
-                if let items = location.inventoryItems {
-                    for item in items {
-                        item.location = nil
-                    }
-                }
-                modelContext.delete(location)
-            }
-        }
-
-        // Clear direct home references from items
-        // Items can have home assigned directly (not through location)
-        let itemDescriptor = FetchDescriptor<InventoryItem>()
-        if let items = try? modelContext.fetch(itemDescriptor) {
-            for item in items where item.home?.id == homeToDelete.id {
-                item.home = nil
-            }
-        }
-
-        // Delete the home itself
-        modelContext.delete(homeToDelete)
-
-        // Save changes
-        do {
-            try modelContext.save()
+    private func dismissView() {
+        if presentedInSheet {
+            dismiss()
+        } else {
             router.navigateBack()
-        } catch {
-            deleteError = "Failed to delete home: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Address Editing Fields
+
+    @ViewBuilder
+    private func addressEditingFields(viewModel: HomeDetailSettingsViewModel) -> some View {
+        TextField(
+            "Address",
+            text: Binding(
+                get: { viewModel.addressInput },
+                set: { viewModel.addressInput = $0 }
+            ),
+            axis: .vertical
+        )
+        .textContentType(.fullStreetAddress)
+        .lineLimit(2...5)
+    }
+
+    // MARK: - Address Display Fields
+
+    @ViewBuilder
+    private func addressDisplayFields(viewModel: HomeDetailSettingsViewModel) -> some View {
+        let address = formatDisplayAddress(viewModel.displayHome)
+        if !address.isEmpty {
+            Text(address)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatDisplayAddress(_ home: Home) -> String {
+        var lines: [String] = []
+        if !home.address1.isEmpty { lines.append(home.address1) }
+        if !home.address2.isEmpty { lines.append(home.address2) }
+        var cityStateParts: [String] = []
+        if !home.city.isEmpty { cityStateParts.append(home.city) }
+        if !home.state.isEmpty { cityStateParts.append(home.state) }
+        if !home.zip.isEmpty { cityStateParts.append(home.zip) }
+        if !cityStateParts.isEmpty {
+            lines.append(cityStateParts.joined(separator: ", "))
+        }
+        return lines.joined(separator: "\n")
     }
 }
 
@@ -575,6 +525,6 @@ struct HomeDetailSettingsView: View {
         }
     } catch {
         return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
     }
 }

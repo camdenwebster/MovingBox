@@ -21,6 +21,9 @@ struct LocationsListView: View {
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
     @State private var searchText = ""
+    @State private var showAddLocationSheet = false
+    @State private var isEditing = false
+    @State private var locationToDelete: InventoryLocation?
 
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
 
@@ -139,16 +142,9 @@ struct LocationsListView: View {
                     description: Text("Add locations to organize your items by room or area.")
                 )
                 .toolbar {
-                    ToolbarItem {
+                    ToolbarItem(placement: .primaryAction) {
                         Button {
-                            router.navigate(to: .locationsSettingsView)
-                        } label: {
-                            Text("Edit")
-                        }
-                    }
-                    ToolbarItem {
-                        Button {
-                            addLocation()
+                            showAddLocationSheet = true
                         } label: {
                             Label("Add Location", systemImage: "plus")
                         }
@@ -173,20 +169,48 @@ struct LocationsListView: View {
                         }
 
                         ForEach(filteredLocations) { location in
-                            NavigationLink(value: location) {
-                                LocationItemCard(location: location)
-                                    .frame(maxWidth: 180)
+                            if isEditing {
+                                Button {
+                                    locationToDelete = location
+                                } label: {
+                                    LocationItemCard(location: location)
+                                        .frame(maxWidth: 180)
+                                        .overlay(alignment: .topLeading) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.title)
+                                                .symbolRenderingMode(.palette)
+                                                .foregroundStyle(.white, .red)
+                                                .offset(x: -8, y: -8)
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                NavigationLink(value: location) {
+                                    LocationItemCard(location: location)
+                                        .frame(maxWidth: 180)
+                                }
                             }
                         }
                     }
                     .padding()
+                    .animation(.default, value: filteredLocations.map(\.id))
                 }
                 .toolbar {
-                    ToolbarItemGroup(placement: .primaryAction) {
+                    ToolbarItem(placement: .primaryAction) {
                         Button {
-                            router.navigate(to: .locationsSettingsView)
+                            isEditing.toggle()
                         } label: {
-                            Text("Edit")
+                            Text(isEditing ? "Done" : "Edit")
+                        }
+                    }
+                    if !isEditing {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button {
+                                showAddLocationSheet = true
+                            } label: {
+                                Label("Add Location", systemImage: "plus")
+                            }
+                            .accessibilityIdentifier("addLocation")
                         }
                     }
                 }
@@ -199,21 +223,37 @@ struct LocationsListView: View {
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "Search locations")
         .background(Color(.systemGroupedBackground))
+        .sheet(isPresented: $showAddLocationSheet) {
+            NavigationStack {
+                EditLocationView(location: nil, isEditing: true, presentedInSheet: true)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .alert(
+            "Delete Location?",
+            isPresented: Binding(
+                get: { locationToDelete != nil },
+                set: { if !$0 { locationToDelete = nil } }
+            ),
+            presenting: locationToDelete
+        ) { location in
+            Button("Delete", role: .destructive) {
+                deleteLocation(location)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { location in
+            Text("\"\(location.name)\" will be deleted. Any items in this location will be unassigned.")
+        }
         .onAppear {
             print("LocationsListView: Total number of locations: \(locations.count)")
         }
     }
 
-    private func addLocation() {
-        router.navigate(to: .editLocationView(location: nil))
-    }
-
-    private func deleteLocations(at offsets: IndexSet) {
-        Task {
-            for index in offsets {
-                let location = filteredLocations[index]
-                modelContext.delete(location)
-            }
+    private func deleteLocation(_ location: InventoryLocation) {
+        withAnimation {
+            modelContext.delete(location)
+            TelemetryManager.shared.trackLocationDeleted()
             try? modelContext.save()
         }
     }

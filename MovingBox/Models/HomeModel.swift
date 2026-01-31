@@ -32,6 +32,12 @@ class Home: PhotoManageable {
     @Relationship(inverse: \InventoryItem.home) var items: [InventoryItem]?
     @Relationship(inverse: \InventoryLocation.home) var locations: [InventoryLocation]?
 
+    var thumbnailURL: URL? {
+        guard let imageURL = imageURL else { return nil }
+        let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
+        return OptimizedImageManager.shared.getThumbnailURL(for: id)
+    }
+
     /// Display name for the home - uses name if provided, otherwise falls back to address1, then "Unnamed Home"
     var displayName: String {
         if !name.isEmpty {

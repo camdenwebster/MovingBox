@@ -55,7 +55,8 @@ struct InventoryListSubView: View {
         var result = items
 
         // Apply home filtering if needed (can't do this in predicate due to computed property)
-        if !showAllHomes, let activeHome = activeHome {
+        // Skip home filtering for unassigned items — they may lack a direct home reference
+        if !showAllHomes, !showOnlyUnassigned, let activeHome = activeHome {
             result = result.filter { item in
                 item.effectiveHome?.id == activeHome.id
             }

@@ -16,7 +16,14 @@ struct LocationSelectionView: View {
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
 
     @Binding var selectedLocation: InventoryLocation?
+    @Binding var selectedHome: Home?
+    @State private var pickedHome: Home?
     @State private var searchText = ""
+
+    init(selectedLocation: Binding<InventoryLocation?>, selectedHome: Binding<Home?>) {
+        self._selectedLocation = selectedLocation
+        self._selectedHome = selectedHome
+    }
 
     private var activeHome: Home? {
         guard let activeIdString = settingsManager.activeHomeId,
@@ -27,19 +34,18 @@ struct LocationSelectionView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    // Filter locations by active home
-    private var locations: [InventoryLocation] {
-        guard let activeHome = activeHome else {
+    private var locationsForPickedHome: [InventoryLocation] {
+        guard let pickedHome = pickedHome else {
             return allLocations
         }
-        return allLocations.filter { $0.home?.id == activeHome.id }
+        return allLocations.filter { $0.home?.id == pickedHome.id }
     }
 
     private var filteredLocations: [InventoryLocation] {
         if searchText.isEmpty {
-            return locations
+            return locationsForPickedHome
         }
-        return locations.filter { location in
+        return locationsForPickedHome.filter { location in
             location.name.localizedCaseInsensitiveContains(searchText)
         }
     }
@@ -47,50 +53,72 @@ struct LocationSelectionView: View {
     var body: some View {
         NavigationStack {
             List {
+                if !homes.isEmpty {
+                    Section {
+                        Picker("Home", selection: $pickedHome) {
+                            ForEach(homes) { home in
+                                Text(home.displayName)
+                                    .tag(home as Home?)
+                            }
+                        }
+                        .accessibilityIdentifier("locationSelection-homePicker")
+                    }
+                }
+
                 // None option
                 Button(action: {
+                    selectedHome = pickedHome
                     selectedLocation = nil
                     dismiss()
                 }) {
                     HStack {
-                        Text("None")
-                            .foregroundColor(.primary)
+                        Text("No Location")
+                            .foregroundStyle(.primary)
                         Spacer()
                         if selectedLocation == nil {
                             Image(systemName: "checkmark")
-                                .foregroundColor(.accentColor)
+                                .foregroundStyle(Color.accentColor)
                         }
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("locationSelection-noLocation")
 
                 if !filteredLocations.isEmpty {
                     Section {
                         ForEach(filteredLocations) { location in
                             Button(action: {
+                                selectedHome = pickedHome
                                 selectedLocation = location
                                 dismiss()
                             }) {
                                 HStack {
+                                    if let symbolName = location.sfSymbolName {
+                                        Image(systemName: symbolName)
+                                            .foregroundStyle(.tint)
+                                            .frame(width: 24)
+                                    }
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(location.name)
-                                            .foregroundColor(.primary)
+                                            .foregroundStyle(.primary)
                                         if !location.desc.isEmpty {
                                             Text(location.desc)
                                                 .font(.caption)
-                                                .foregroundColor(.secondary)
+                                                .foregroundStyle(.secondary)
                                                 .lineLimit(1)
                                         }
                                     }
                                     Spacer()
                                     if selectedLocation?.id == location.id {
                                         Image(systemName: "checkmark")
-                                            .foregroundColor(.accentColor)
+                                            .foregroundStyle(Color.accentColor)
                                     }
                                 }
-                                .contentShape(Rectangle())  // Makes the whole row tappable
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("locationSelection-row-\(location.name)")
                         }
                     }
                 }
@@ -107,13 +135,13 @@ struct LocationSelectionView: View {
             .navigationTitle("Select Location")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button(action: {
                         addNewLocation()
                     }) {
@@ -121,13 +149,19 @@ struct LocationSelectionView: View {
                     }
                 }
             }
+            .onAppear {
+                if pickedHome == nil {
+                    pickedHome = selectedHome ?? activeHome ?? homes.first
+                }
+            }
         }
     }
 
     private func addNewLocation() {
         let newLocation = InventoryLocation(name: "New Location", desc: "")
-        newLocation.home = activeHome
+        newLocation.home = pickedHome
         modelContext.insert(newLocation)
+        selectedHome = pickedHome
         selectedLocation = newLocation
         dismiss()
     }
@@ -135,6 +169,7 @@ struct LocationSelectionView: View {
 
 #Preview {
     @Previewable @State var location: InventoryLocation? = nil
-    return LocationSelectionView(selectedLocation: $location)
+    @Previewable @State var home: Home? = nil
+    return LocationSelectionView(selectedLocation: $location, selectedHome: $home)
         .environmentObject(SettingsManager())
 }

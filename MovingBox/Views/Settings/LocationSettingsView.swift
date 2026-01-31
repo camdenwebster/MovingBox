@@ -1,5 +1,5 @@
 //
-//  HomeLocationSettingsView.swift
+//  LocationSettingsView.swift
 //  MovingBox
 //
 //  Created by Claude on 12/20/25.
@@ -8,18 +8,39 @@
 import SwiftData
 import SwiftUI
 
-struct HomeLocationSettingsView: View {
+struct LocationSettingsView: View {
     @Environment(\.modelContext) var modelContext
+    @EnvironmentObject var settingsManager: SettingsManager
     @Query private var allLocations: [InventoryLocation]
+    @Query(sort: \Home.purchaseDate) private var homes: [Home]
 
-    let home: Home
+    let home: Home?
 
     @State private var selectedLocation: InventoryLocation?
     @State private var showAddLocationSheet = false
 
+    init(home: Home? = nil) {
+        self.home = home
+    }
+
+    private var activeHome: Home? {
+        if let home = home {
+            return home
+        }
+        guard let activeIdString = settingsManager.activeHomeId,
+            let activeId = UUID(uuidString: activeIdString)
+        else {
+            return homes.first { $0.isPrimary }
+        }
+        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    }
+
     private var filteredLocations: [InventoryLocation] {
-        allLocations.filter { location in
-            location.home?.id == home.id
+        guard let activeHome = activeHome else {
+            return allLocations.sorted { $0.name < $1.name }
+        }
+        return allLocations.filter { location in
+            location.home?.id == activeHome.id
         }.sorted { $0.name < $1.name }
     }
 
@@ -40,13 +61,12 @@ struct HomeLocationSettingsView: View {
                             HStack {
                                 if let symbolName = location.sfSymbolName {
                                     Image(systemName: symbolName)
-                                        .foregroundStyle(.tint)
                                         .frame(width: 24)
                                 }
                                 Text(location.name)
-                                    .foregroundStyle(.primary)
                                 Spacer()
                             }
+                            .foregroundColor(.primary)
                         }
                     }
                     .onDelete(perform: deleteLocations)
@@ -65,14 +85,14 @@ struct HomeLocationSettingsView: View {
         }
         .sheet(item: $selectedLocation) { location in
             NavigationStack {
-                EditLocationView(location: location, isEditing: true, presentedInSheet: true, home: home)
+                EditLocationView(location: location, isEditing: true, presentedInSheet: true, home: activeHome)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showAddLocationSheet) {
             NavigationStack {
-                EditLocationView(location: nil, isEditing: true, presentedInSheet: true, home: home)
+                EditLocationView(location: nil, isEditing: true, presentedInSheet: true, home: activeHome)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -110,7 +130,7 @@ struct HomeLocationSettingsView: View {
         container.mainContext.insert(location2)
 
         return NavigationStack {
-            HomeLocationSettingsView(home: home)
+            LocationSettingsView(home: home)
                 .modelContainer(container)
                 .environmentObject(SettingsManager())
         }

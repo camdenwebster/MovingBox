@@ -923,4 +923,240 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Dashboard should be accessible after navigation"
         )
     }
+
+    // MARK: - Move Item Between Homes via Location Picker
+
+    func testMoveItemToAnotherHome_ShouldUpdateLocationDisplay() throws {
+        // Relaunch with test data (provides Main House + Beach House with locations and items)
+        app.terminate()
+        app.launchArguments = [
+            "Use-Test-Data",
+            "Disable-Animations",
+            "Skip-Onboarding",
+            "UI-Testing-Mock-Camera",
+        ]
+        app.launch()
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
+
+        // Wait for test data to load
+        XCTAssertTrue(dashboardScreen.waitForRecentItems(), "Recent items should be visible")
+
+        // - Given the user is on the Dashboard with Main House selected (primary/default)
+        // Navigate to All Items
+        dashboardScreen.tapAllInventory()
+        let inventoryListScreen = InventoryListScreen(app: app)
+        XCTAssertTrue(inventoryListScreen.isDisplayed(), "Inventory list should be displayed")
+        XCTAssertTrue(inventoryListScreen.waitForItemsToLoad(), "Items should load")
+
+        // - When the user taps on an item to open its detail view
+        inventoryListScreen.tapFirstItem()
+
+        // Wait for detail screen to appear
+        XCTAssertTrue(
+            inventoryDetailScreen.editButton.waitForExistence(timeout: 5),
+            "Item detail edit button should be visible"
+        )
+
+        // Enter edit mode
+        inventoryDetailScreen.enterEditMode()
+
+        // - And taps the location picker to open LocationSelectionView
+        let locationPickerButton = app.buttons["locationPicker"]
+        XCTAssertTrue(
+            locationPickerButton.waitForExistence(timeout: 5),
+            "Location picker button should be visible in edit mode"
+        )
+        locationPickerButton.tap()
+
+        // - Then the LocationSelectionView sheet should appear with a home picker
+        let selectLocationNav = app.navigationBars["Select Location"]
+        XCTAssertTrue(
+            selectLocationNav.waitForExistence(timeout: 5),
+            "Location selection sheet should appear"
+        )
+
+        let homePicker = app.buttons["locationSelection-homePicker"]
+        XCTAssertTrue(
+            homePicker.waitForExistence(timeout: 5),
+            "Home picker should be visible in location selection"
+        )
+
+        // - When the user changes the home to "Beach House"
+        homePicker.tap()
+
+        let beachHouseOption = app.buttons["Beach House"]
+        XCTAssertTrue(
+            beachHouseOption.waitForExistence(timeout: 3),
+            "Beach House option should appear in home picker menu"
+        )
+        beachHouseOption.tap()
+
+        // - And selects "Beach Living Room" from the Beach House locations
+        let beachLivingRoom = app.buttons["locationSelection-row-Beach Living Room"]
+        XCTAssertTrue(
+            beachLivingRoom.waitForExistence(timeout: 5),
+            "Beach Living Room should appear after switching to Beach House"
+        )
+        beachLivingRoom.tap()
+
+        // - Then the sheet should dismiss and the detail view should show the new location
+        XCTAssertTrue(
+            inventoryDetailScreen.saveButton.waitForExistence(timeout: 5),
+            "Should return to item detail view after location selection"
+        )
+
+        // Verify the location row now shows "Beach House" and "Beach Living Room"
+        let beachHouseLabel = app.staticTexts["Beach House"]
+        XCTAssertTrue(
+            beachHouseLabel.waitForExistence(timeout: 3),
+            "Beach House should be displayed in the location row"
+        )
+
+        let beachLivingRoomLabel = app.staticTexts["Beach Living Room"]
+        XCTAssertTrue(
+            beachLivingRoomLabel.waitForExistence(timeout: 3),
+            "Beach Living Room should be displayed in the location row"
+        )
+
+        // Save the item with the new location
+        inventoryDetailScreen.saveItem()
+    }
+
+    func testMoveItemToAnotherHome_ShouldAppearInNewHomeInventory() throws {
+        // Relaunch with test data (Main House + Beach House with locations and items)
+        app.terminate()
+        app.launchArguments = [
+            "Use-Test-Data",
+            "Disable-Animations",
+            "Skip-Onboarding",
+            "UI-Testing-Mock-Camera",
+        ]
+        app.launch()
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
+        XCTAssertTrue(dashboardScreen.waitForRecentItems(), "Recent items should be visible")
+
+        // --- Step 1: Navigate to an item and capture its title ---
+
+        dashboardScreen.tapAllInventory()
+        let inventoryListScreen = InventoryListScreen(app: app)
+        XCTAssertTrue(inventoryListScreen.isDisplayed(), "Inventory list should be displayed")
+        XCTAssertTrue(inventoryListScreen.waitForItemsToLoad(), "Items should load")
+
+        inventoryListScreen.tapFirstItem()
+        XCTAssertTrue(
+            inventoryDetailScreen.editButton.waitForExistence(timeout: 5),
+            "Item detail edit button should be visible"
+        )
+
+        // Enter edit mode to access the title field and location picker
+        inventoryDetailScreen.enterEditMode()
+
+        // Capture the item title so we can verify it later in Beach House
+        let titleField = inventoryDetailScreen.titleField
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Title field should be visible")
+        let itemTitle = titleField.value as? String ?? ""
+        XCTAssertFalse(itemTitle.isEmpty, "Item title should not be empty")
+
+        // --- Step 2: Move the item to Beach House / Beach Living Room ---
+
+        let locationPickerButton = app.buttons["locationPicker"]
+        XCTAssertTrue(
+            locationPickerButton.waitForExistence(timeout: 5),
+            "Location picker button should be visible in edit mode"
+        )
+        locationPickerButton.tap()
+
+        let selectLocationNav = app.navigationBars["Select Location"]
+        XCTAssertTrue(
+            selectLocationNav.waitForExistence(timeout: 5),
+            "Location selection sheet should appear"
+        )
+
+        // Change home picker to Beach House
+        let homePicker = app.buttons["locationSelection-homePicker"]
+        XCTAssertTrue(
+            homePicker.waitForExistence(timeout: 5),
+            "Home picker should be visible in location selection"
+        )
+        homePicker.tap()
+
+        let beachHouseOption = app.buttons["Beach House"]
+        XCTAssertTrue(
+            beachHouseOption.waitForExistence(timeout: 3),
+            "Beach House option should appear in home picker menu"
+        )
+        beachHouseOption.tap()
+
+        // Select a Beach House location
+        let beachLivingRoom = app.buttons["locationSelection-row-Beach Living Room"]
+        XCTAssertTrue(
+            beachLivingRoom.waitForExistence(timeout: 5),
+            "Beach Living Room should appear after switching to Beach House"
+        )
+        beachLivingRoom.tap()
+
+        // Verify we're back on the detail view
+        XCTAssertTrue(
+            inventoryDetailScreen.saveButton.waitForExistence(timeout: 5),
+            "Should return to item detail view after location selection"
+        )
+
+        // Save the item
+        inventoryDetailScreen.saveItem()
+
+        // Wait for save to complete (back to view mode)
+        XCTAssertTrue(
+            inventoryDetailScreen.editButton.waitForExistence(timeout: 5),
+            "Should return to view mode after save"
+        )
+
+        // --- Step 3: Navigate back to the sidebar ---
+
+        // Navigate back through: Item Detail → Inventory List → Dashboard
+        let navigationHelper = NavigationHelper(app: app)
+        navigationHelper.navigateBackToDashboard()
+
+        // From Dashboard, go one more back to reach the sidebar
+        let backButton = app.navigationBars.buttons.element(boundBy: 0)
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        }
+        sleep(1)
+
+        // --- Step 4: Navigate to Beach House ---
+
+        // In the sidebar, tap Beach House to open its dashboard
+        let beachHouseInSidebar = app.staticTexts["Beach House"]
+        XCTAssertTrue(
+            beachHouseInSidebar.waitForExistence(timeout: 5),
+            "Beach House should be visible in the sidebar"
+        )
+        beachHouseInSidebar.tap()
+
+        // Wait for Beach House dashboard to load
+        XCTAssertTrue(
+            dashboardScreen.waitForDashboard(),
+            "Beach House dashboard should be visible"
+        )
+
+        // --- Step 5: Verify the moved item appears in Beach House inventory ---
+
+        dashboardScreen.tapAllInventory()
+        let beachHouseInventoryList = InventoryListScreen(app: app)
+        XCTAssertTrue(
+            beachHouseInventoryList.isDisplayed(),
+            "Beach House inventory list should be displayed"
+        )
+        XCTAssertTrue(
+            beachHouseInventoryList.waitForItemsToLoad(),
+            "Beach House items should load"
+        )
+
+        // The moved item's title should appear in the Beach House inventory list
+        let movedItemText = app.staticTexts[itemTitle]
+        XCTAssertTrue(
+            movedItemText.waitForExistence(timeout: 10),
+            "The moved item '\(itemTitle)' should appear in Beach House inventory list"
+        )
+    }
 }
