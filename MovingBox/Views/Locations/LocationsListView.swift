@@ -166,6 +166,7 @@ struct LocationsListView: View {
                                 noLocationCard
                                     .frame(maxWidth: 180)
                             }
+                            .accessibilityIdentifier("locations-no-location-card")
                         }
 
                         ForEach(filteredLocations) { location in
@@ -183,6 +184,7 @@ struct LocationsListView: View {
                                                 .offset(x: -8, y: -8)
                                         }
                                 }
+                                .accessibilityIdentifier("location-delete-\(location.name)")
                                 .buttonStyle(.plain)
                             } else {
                                 NavigationLink(value: location) {
@@ -202,6 +204,7 @@ struct LocationsListView: View {
                         } label: {
                             Text(isEditing ? "Done" : "Edit")
                         }
+                        .accessibilityIdentifier("locations-edit-button")
                     }
                     if !isEditing {
                         ToolbarItem(placement: .primaryAction) {

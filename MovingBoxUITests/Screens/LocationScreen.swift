@@ -12,6 +12,13 @@ class LocationScreen {
 
     // Locations List Elements
     let addLocationButton: XCUIElement
+    let editButton: XCUIElement
+    let noLocationCard: XCUIElement
+
+    // Delete Alert Elements
+    let deleteAlert: XCUIElement
+    let deleteAlertConfirm: XCUIElement
+    let deleteAlertCancel: XCUIElement
 
     // Edit Location Elements
     let nameField: XCUIElement
@@ -23,6 +30,13 @@ class LocationScreen {
 
         // Locations List
         self.addLocationButton = app.buttons["addLocation"]
+        self.editButton = app.buttons["locations-edit-button"]
+        self.noLocationCard = app.buttons["locations-no-location-card"]
+
+        // Delete Alert
+        self.deleteAlert = app.alerts["Delete Location?"]
+        self.deleteAlertConfirm = app.alerts["Delete Location?"].buttons["Delete"]
+        self.deleteAlertCancel = app.alerts["Delete Location?"].buttons["Cancel"]
 
         // Edit Location
         self.nameField = app.textFields["location-name-field"]
@@ -70,6 +84,47 @@ class LocationScreen {
             selectSymbol(named: symbol)
         }
         tapSave()
+    }
+
+    // MARK: - Edit Mode Actions
+
+    func tapEdit() {
+        editButton.tap()
+    }
+
+    func tapDone() {
+        editButton.tap()
+    }
+
+    func tapLocationToDelete(named name: String) {
+        let deleteButton = app.buttons["location-delete-\(name)"]
+        deleteButton.tap()
+    }
+
+    func confirmDelete() {
+        deleteAlertConfirm.tap()
+    }
+
+    func cancelDelete() {
+        deleteAlertCancel.tap()
+    }
+
+    func tapNoLocationCard() {
+        noLocationCard.tap()
+    }
+
+    // MARK: - Delete Verification
+
+    func waitForDeleteAlert(timeout: TimeInterval = 5) -> Bool {
+        return deleteAlert.waitForExistence(timeout: timeout)
+    }
+
+    func noLocationCardExists() -> Bool {
+        return noLocationCard.exists
+    }
+
+    func waitForNoLocationCard(timeout: TimeInterval = 5) -> Bool {
+        return noLocationCard.waitForExistence(timeout: timeout)
     }
 
     // MARK: - Verification
