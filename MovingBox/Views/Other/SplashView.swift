@@ -9,24 +9,28 @@ import SwiftUI
 
 struct SplashView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @EnvironmentObject private var containerManager: ModelContainerManager
-    
+    @Environment(ModelContainerManager.self) private var containerManager
+
+    private let bottomStatusHeight: CGFloat = 140
+
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
     }
-    
+
     private var textColor: Color {
         colorScheme == .dark ? .splashTextDark : .splashTextLight
     }
-    
+
     var body: some View {
         ZStack {
             Image(backgroundImage)
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 20) {
+                Spacer()
+
                 if let appIcon = Bundle.main.icon {
                     Image(uiImage: appIcon)
                         .resizable()
@@ -34,7 +38,7 @@ struct SplashView: View {
                         .frame(width: 80, height: 80)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
-                
+
                 VStack {
                     Text("MovingBox")
                         .font(.largeTitle)
@@ -44,33 +48,47 @@ struct SplashView: View {
                         .fontWeight(.light)
                         .foregroundColor(textColor)
                 }
-                
-                // Migration Progress (only show when loading)
-                if containerManager.isLoading {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                            .scaleEffect(1.2)
-                        
-                        Text("Migration in progress, please do not close the app")
-                            .font(.caption)
-                            .foregroundColor(textColor.opacity(0.8))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 20)
-                    .onAppear {
-                        print("🔄 SplashView - Migration UI appeared (isLoading = \(containerManager.isLoading))")
-                    }
-                    .onDisappear {
-                        print("🔄 SplashView - Migration UI disappeared")
-                    }
-                } else {
-                    // Debug when not loading
-                    Text("")
-                        .onAppear {
-                            print("🔄 SplashView - No migration UI shown (isLoading = \(containerManager.isLoading))")
+
+                Spacer()
+
+                // Migration and CloudKit Sync Progress
+                Group {
+                    if containerManager.isLoading || containerManager.isCloudKitSyncing {
+                        VStack(spacing: 12) {
+
+                            if containerManager.isLoading {
+                                Text("Migration in progress, please do not close the app")
+                                    .font(.caption)
+                                    .foregroundColor(textColor.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                            } else if containerManager.isCloudKitSyncing {
+                                Text(containerManager.cloudKitSyncMessage)
+                                    .font(.caption)
+                                    .foregroundColor(textColor.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .secondary))
+                                    .scaleEffect(1.2)
+                            }
                         }
+                        .onAppear {
+                            print(
+                                "🔄 SplashView - Progress UI appeared (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))"
+                            )
+                        }
+                        .onDisappear {
+                            print("🔄 SplashView - Progress UI disappeared")
+                        }
+                    } else {
+                        Color.clear
+                            .onAppear {
+                                print(
+                                    "🔄 SplashView - No progress UI shown (isLoading = \(containerManager.isLoading), isCloudKitSyncing = \(containerManager.isCloudKitSyncing))"
+                                )
+                            }
+                    }
                 }
+                .frame(height: bottomStatusHeight)
             }
         }
     }
@@ -79,9 +97,10 @@ struct SplashView: View {
 extension Bundle {
     var icon: UIImage? {
         if let icons = infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
-           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
-           let lastIcon = iconFiles.last {
+            let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
+            let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
+            let lastIcon = iconFiles.last
+        {
             return UIImage(named: lastIcon)
         }
         return nil
@@ -90,5 +109,5 @@ extension Bundle {
 
 #Preview {
     SplashView()
-        .environmentObject(ModelContainerManager.shared)
+        .environment(ModelContainerManager.shared)
 }

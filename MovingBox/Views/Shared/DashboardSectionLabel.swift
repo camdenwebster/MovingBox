@@ -11,9 +11,9 @@ struct DashboardSectionLabel: View {
     var text: String
     var isButton = true
     var useSubTitle: Bool = false
-    
+
     var body: some View {
-        HStack(spacing: 8)  {
+        HStack(spacing: 8) {
             Text(self.text)
                 .font(useSubTitle ? .title3 : .title)
                 .foregroundStyle(.primary)

@@ -6,9 +6,10 @@
 //
 
 import Foundation
-import SwiftUI
 import SwiftData
+import SwiftUI
 import UIKit
+
 @testable import MovingBox
 
 // MARK: - Mock OpenAI Service
@@ -17,7 +18,7 @@ import UIKit
 class MockOpenAIService: OpenAIServiceProtocol {
     var shouldFail = false
     var shouldFailMultiItem = false
-    
+
     var mockResponse = ImageDetails(
         title: "Test Item",
         quantity: "1",
@@ -29,7 +30,7 @@ class MockOpenAIService: OpenAIServiceProtocol {
         price: "100.00",
         serialNumber: "TEST123"
     )
-    
+
     var mockMultiItemResponse = MultiItemAnalysisResponse(
         items: [
             DetectedInventoryItem(
@@ -46,29 +47,33 @@ class MockOpenAIService: OpenAIServiceProtocol {
         analysisType: "multi_item",
         confidence: 0.85
     )
-    
-    func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws -> ImageDetails {
+
+    func getImageDetails(
+        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+    ) async throws -> ImageDetails {
         if shouldFail {
             throw OpenAIError.invalidData
         }
-        
+
         // Simulate network delay
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
+        try await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+
         return mockResponse
     }
-    
-    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws -> MultiItemAnalysisResponse {
+
+    func getMultiItemDetails(
+        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+    ) async throws -> MultiItemAnalysisResponse {
         if shouldFailMultiItem {
             throw OpenAIError.invalidData
         }
-        
+
         // Simulate network delay
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
+        try await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+
         return mockMultiItemResponse
     }
-    
+
     func cancelCurrentRequest() {
         // Mock implementation - no-op
     }
@@ -81,52 +86,62 @@ class MockImageManager: ImageManagerProtocol {
     var shouldFail = false
     var mockImages: [UIImage] = []
     var mockURLs: [String] = []
-    
+
     func saveImage(_ image: UIImage, id: String) async throws -> URL {
         if shouldFail {
-            throw NSError(domain: "MockImageManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock save failed"])
+            throw NSError(
+                domain: "MockImageManager", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Mock save failed"])
         }
         return URL(string: "file:///mock/\(id).jpg")!
     }
-    
+
     func saveSecondaryImages(_ images: [UIImage], itemId: String) async throws -> [String] {
         if shouldFail {
-            throw NSError(domain: "MockImageManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock save failed"])
+            throw NSError(
+                domain: "MockImageManager", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Mock save failed"])
         }
         return images.enumerated().map { "file:///mock/\(itemId)_\($0.offset).jpg" }
     }
-    
+
     func loadImage(url: URL) async throws -> UIImage {
         if shouldFail {
-            throw NSError(domain: "MockImageManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock load failed"])
+            throw NSError(
+                domain: "MockImageManager", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Mock load failed"])
         }
         return mockImages.first ?? UIImage()
     }
-    
+
     func loadSecondaryImages(from urls: [String]) async throws -> [UIImage] {
         if shouldFail {
-            throw NSError(domain: "MockImageManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock load failed"])
+            throw NSError(
+                domain: "MockImageManager", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Mock load failed"])
         }
         return mockImages
     }
-    
+
     func deleteSecondaryImage(urlString: String) async throws {
         if shouldFail {
-            throw NSError(domain: "MockImageManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock delete failed"])
+            throw NSError(
+                domain: "MockImageManager", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Mock delete failed"])
         }
         // Mock implementation - remove from mockURLs if exists
         if let index = mockURLs.firstIndex(of: urlString) {
             mockURLs.remove(at: index)
         }
     }
-    
+
     func prepareImageForAI(from image: UIImage) async -> String? {
         if shouldFail {
             return nil
         }
         return "mock_base64_string_for_testing"
     }
-    
+
     func getThumbnailURL(for id: String) -> URL? {
         return URL(string: "file:///mock/thumb_\(id).jpg")
     }
@@ -139,33 +154,33 @@ class MockSettingsManager: SettingsManager {
     private var _isPro = false
     private var _highQualityAnalysisEnabled = false
     private var _maxTokens = 1000
-    
+
     override var isPro: Bool {
         get { return _isPro }
         set { _isPro = newValue }
     }
-    
+
     override var highQualityAnalysisEnabled: Bool {
         get { return _highQualityAnalysisEnabled }
         set { _highQualityAnalysisEnabled = newValue }
     }
-    
+
     override var maxTokens: Int {
         get { return _maxTokens }
         set { _maxTokens = newValue }
     }
-    
+
     override var effectiveAIModel: String {
         if isPro && highQualityAnalysisEnabled {
             return "gpt-5-mini"
         }
         return "gpt-4o"
     }
-    
+
     override var effectiveDetailLevel: String {
         return (isPro && highQualityAnalysisEnabled) ? "high" : "low"
     }
-    
+
     override var effectiveImageResolution: CGFloat {
         return (isPro && highQualityAnalysisEnabled) ? 1250.0 : 512.0
     }
@@ -184,25 +199,27 @@ extension InventoryItem {
         item.model = "Test Model"
         item.serial = "TEST123"
         item.quantityString = "1"
-        
+
         context.insert(item)
         return item
     }
-    
+
     @MainActor
     static func createTestItemWithImages(in context: ModelContext) -> InventoryItem {
         let item = createTestItem(in: context)
         item.imageURL = URL(string: "file:///test/primary.jpg")
         item.secondaryPhotoURLs = [
             "file:///test/secondary1.jpg",
-            "file:///test/secondary2.jpg"
+            "file:///test/secondary2.jpg",
         ]
         return item
     }
 }
 
 extension UIImage {
-    static func createTestImage(size: CGSize = CGSize(width: 100, height: 100), color: UIColor = .blue) -> UIImage {
+    static func createTestImage(
+        size: CGSize = CGSize(width: 100, height: 100), color: UIColor = .blue
+    ) -> UIImage {
         let rect = CGRect(origin: .zero, size: size)
         UIGraphicsBeginImageContext(size)
         color.setFill()

@@ -1,56 +1,56 @@
-import SwiftUIBackports
-import SwiftUI
 import SwiftData
+import SwiftUI
+import SwiftUIBackports
 
 struct ExportDataView: View {
-    @EnvironmentObject private var containerManager: ModelContainerManager
+    @Environment(ModelContainerManager.self) private var containerManager
     @State private var exportCoordinator = ExportCoordinator()
     @State private var exportItems = true
     @State private var exportLocations = true
     @State private var exportLabels = true
     @State private var showNoOptionsAlert = false
-    
+
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         return formatter
     }()
-    
+
     private var hasExportOptionsSelected: Bool {
         exportItems || exportLocations || exportLabels
     }
-    
+
     var body: some View {
         Form {
             Section {
                 Toggle(isOn: $exportItems) {
                     HStack {
                         Image(systemName: "cube.box")
-                            
+
                         Text("Export Items")
                     }
                 }
                 .accessibilityIdentifier("export-items-toggle")
-                
+
                 Toggle(isOn: $exportLocations) {
                     HStack {
                         Image(systemName: "map")
-                            
+
                         Text("Export Locations")
                     }
                 }
                 .accessibilityIdentifier("export-locations-toggle")
-                
+
                 Toggle(isOn: $exportLabels) {
                     HStack {
                         Image(systemName: "tag")
-                            
+
                         Text("Export Labels")
                     }
                 }
                 .accessibilityIdentifier("export-labels-toggle")
             }
-            
+
             Section {
                 Button {
                     if hasExportOptionsSelected {
@@ -89,14 +89,17 @@ struct ExportDataView: View {
         .navigationTitle("Export Data")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Cannot Export", isPresented: $showNoOptionsAlert) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) {}
         } message: {
             Text("Please select at least one option to export.")
         }
-        .sheet(isPresented: $exportCoordinator.showShareSheet, onDismiss: {
-            exportCoordinator.showExportProgress = false
-            exportCoordinator.archiveURL = nil
-        }) {
+        .sheet(
+            isPresented: $exportCoordinator.showShareSheet,
+            onDismiss: {
+                exportCoordinator.showExportProgress = false
+                exportCoordinator.archiveURL = nil
+            }
+        ) {
             if let url = exportCoordinator.archiveURL {
                 ShareSheet(activityItems: [url])
             }
@@ -115,10 +118,12 @@ struct ExportDataView: View {
                 exportCoordinator.exportError = nil
             }
         } message: {
-            Text(exportCoordinator.exportError?.localizedDescription ?? "An error occurred while exporting data.")
+            Text(
+                exportCoordinator.exportError?.localizedDescription
+                    ?? "An error occurred while exporting data.")
         }
     }
-    
+
     @MainActor
     private func startExport() async {
         let timestamp = dateFormatter.string(from: Date())

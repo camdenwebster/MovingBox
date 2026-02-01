@@ -1,14 +1,14 @@
-import SwiftUI
-import SwiftData
 import AVFoundation
 import StoreKit
+import SwiftData
+import SwiftUI
 
 enum ItemCreationStep: CaseIterable {
     case camera
     case analyzing
     case multiItemSelection
     case details
-    
+
     var displayName: String {
         switch self {
         case .camera: return "Camera"
@@ -17,7 +17,7 @@ enum ItemCreationStep: CaseIterable {
         case .details: return "Details"
         }
     }
-    
+
     static func getNavigationFlow(for captureMode: CaptureMode) -> [ItemCreationStep] {
         switch captureMode {
         case .singleItem:
@@ -34,7 +34,7 @@ struct ItemCreationFlowView: View {
     @Environment(\.isOnboarding) private var isOnboarding
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    
+
     @State private var currentStep: ItemCreationStep = .camera
     @State private var capturedImage: UIImage?
     @State private var capturedImages: [UIImage] = []
@@ -51,7 +51,7 @@ struct ItemCreationFlowView: View {
 
     let location: InventoryLocation?
     let onComplete: (() -> Void)?
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -96,12 +96,14 @@ struct ItemCreationFlowView: View {
                             dismiss()
                         }
                     )
-                    .transition(.asymmetric(
-                        insertion: .identity,
-                        removal: .move(edge: .leading)
-                    ))
+                    .transition(
+                        .asymmetric(
+                            insertion: .identity,
+                            removal: .move(edge: .leading)
+                        )
+                    )
                     .id("camera-\(transitionId)")
-                    
+
                 case .analyzing:
                     if !capturedImages.isEmpty, let item = item {
                         ZStack {
@@ -130,20 +132,22 @@ struct ItemCreationFlowView: View {
                                 await performMultiImageAnalysis(item: item, images: capturedImages)
                             }
                         }
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing),
-                            removal: .move(edge: .leading)
-                        ))
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .trailing),
+                                removal: .move(edge: .leading)
+                            )
+                        )
                         .id("analysis-\(transitionId)")
                     }
-                    
+
                 case .multiItemSelection:
                     // This view doesn't support multi-item selection, fall back to details
                     Text("Multi-item selection not supported in this view")
                         .onAppear {
                             currentStep = .details
                         }
-                    
+
                 case .details:
                     if let item = item {
                         InventoryDetailView(
@@ -158,10 +162,12 @@ struct ItemCreationFlowView: View {
                                 dismiss()
                             }
                         )
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing),
-                            removal: .opacity
-                        ))
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .trailing),
+                                removal: .opacity
+                            )
+                        )
                         .id("details-\(transitionId)")
                     } else {
                         Text("Loading item details...")
@@ -208,7 +214,10 @@ struct ItemCreationFlowView: View {
         } message: {
             Text("Please grant camera access in Settings to use this feature.")
         }
-        .alert(errorMessage ?? "Error", isPresented: .init(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+        .alert(
+            errorMessage ?? "Error",
+            isPresented: .init(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+        ) {
             Button("Continue Anyway", role: .none) {
                 withAnimation(transitionAnimation) {
                     currentStep = .details
@@ -230,7 +239,7 @@ struct ItemCreationFlowView: View {
     private func handleCapturedImages(_ images: [UIImage]) async {
         await MainActor.run {
             capturedImages = images
-            capturedImage = images.first // For backward compatibility
+            capturedImage = images.first  // For backward compatibility
         }
 
         print("📸 ItemCreationFlowView - handleCapturedImages called. Capture mode: \(captureMode)")
@@ -260,24 +269,26 @@ struct ItemCreationFlowView: View {
             notes: "",
             showInvalidQuantityAlert: false
         )
-        
+
         // Generate a unique ID for this item
         let itemId = UUID().uuidString
-        
+
         do {
             if let primaryImage = images.first {
                 // Save the primary image
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(primaryImage, id: itemId)
+                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
+                    primaryImage, id: itemId)
                 newItem.imageURL = primaryImageURL
-                
+
                 // Save secondary images if there are more than one
                 if images.count > 1 {
                     let secondaryImages = Array(images.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(secondaryImages, itemId: itemId)
+                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
+                        secondaryImages, itemId: itemId)
                     newItem.secondaryPhotoURLs = secondaryURLs
                 }
             }
-            
+
             await MainActor.run {
                 modelContext.insert(newItem)
                 try? modelContext.save()
@@ -288,31 +299,31 @@ struct ItemCreationFlowView: View {
             print("Error processing images: \(error)")
         }
     }
-    
+
     // Legacy method for backward compatibility (keep for now)
     private func handleCapturedImage(_ image: UIImage) async {
         await handleCapturedImages([image])
     }
-    
+
     private func performImageAnalysis(item: InventoryItem, image: UIImage) async {
         print("Starting image analysis...")
-        
+
         // Reset flags to ensure proper state
         await MainActor.run {
             analysisComplete = false
             errorMessage = nil
         }
-        
+
         do {
             // Prepare image for AI
             guard await OptimizedImageManager.shared.prepareImageForAI(from: image) != nil else {
                 throw OpenAIError.invalidData
             }
-            
+
             // Create OpenAI service and get image details
             let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
-            
+
             print("Calling OpenAI for image analysis...")
             let imageDetails = try await openAi.getImageDetails(
                 from: [capturedImage].compactMap { $0 },
@@ -320,19 +331,19 @@ struct ItemCreationFlowView: View {
                 modelContext: modelContext
             )
             print("OpenAI analysis complete, updating item...")
-            
+
             // Update the item with the results
             await MainActor.run {
                 // Get all labels and locations for the unified update
                 let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-                
+
                 item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
                 try? modelContext.save()
-                
+
                 // Set processing flag to false
                 processingImage = false
-                
+
                 // Set analysis complete flag to trigger UI update
                 analysisComplete = true
                 print("Analysis complete, item updated")
@@ -370,28 +381,29 @@ struct ItemCreationFlowView: View {
             }
         }
     }
-    
+
     private func performMultiImageAnalysis(item: InventoryItem, images: [UIImage]) async {
         print("Starting multi-image analysis with \(images.count) images...")
-        
+
         // Reset flags to ensure proper state
         await MainActor.run {
             analysisComplete = false
             errorMessage = nil
         }
-        
+
         do {
             // Prepare all images for AI
-            let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: images)
-            
+            let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(
+                from: images)
+
             guard !imageBase64Array.isEmpty else {
                 throw OpenAIError.invalidData
             }
-            
+
             // Create OpenAI service with multiple images and get image details
             let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
-            
+
             print("Calling OpenAI for multi-image analysis...")
             let imageDetails = try await openAi.getImageDetails(
                 from: capturedImages,
@@ -399,7 +411,7 @@ struct ItemCreationFlowView: View {
                 modelContext: modelContext
             )
             print("OpenAI multi-image analysis complete, updating item...")
-            
+
             // Update the item with the results
             await MainActor.run {
                 // Get all labels and locations for the unified update
@@ -455,8 +467,7 @@ struct ItemCreationFlowView: View {
             }
         }
     }
-    
-    
+
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
@@ -468,12 +479,16 @@ struct ItemCreationFlowView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             TelemetryManager.shared.trackAppReviewRequested()
             if #available(iOS 18.0, *) {
-                if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                if let scene = UIApplication.shared.connectedScenes.first(where: {
+                    $0.activationState == .foregroundActive
+                }) as? UIWindowScene {
                     AppStore.requestReview(in: scene)
                     print("📱 Requested app review using AppStore API")
                 }
             } else {
-                if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                if let scene = UIApplication.shared.connectedScenes.first(where: {
+                    $0.activationState == .foregroundActive
+                }) as? UIWindowScene {
                     SKStoreReviewController.requestReview(in: scene)
                     print("📱 Requested app review using legacy API")
                 }
@@ -484,7 +499,10 @@ struct ItemCreationFlowView: View {
 
 #Preview {
     ItemCreationFlowView(location: nil, onComplete: nil)
-        .modelContainer(try! ModelContainer(for: InventoryLocation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        .modelContainer(
+            try! ModelContainer(
+                for: InventoryLocation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        )
         .environmentObject(Router())
         .environmentObject(SettingsManager())
 }

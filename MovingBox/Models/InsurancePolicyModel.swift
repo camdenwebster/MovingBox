@@ -56,8 +56,8 @@ class InsurancePolicy {
     }
 }
 
-private extension Calendar {
-    static func date(byAddingYear years: Int, to date: Date) -> Date? {
+extension Calendar {
+    fileprivate static func date(byAddingYear years: Int, to date: Date) -> Date? {
         return Calendar.current.date(byAdding: .year, value: years, to: date)
     }
 }

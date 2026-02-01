@@ -12,11 +12,11 @@ struct LabelItemCard: View {
     var showCost: Bool = false
     @State private var thumbnail: UIImage?
     @State private var loadingError: Error?
-    
+
     private var totalReplacementCost: Decimal {
         label.inventoryItems?.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) }) ?? 0
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Photo section
@@ -27,7 +27,7 @@ struct LabelItemCard: View {
                     .frame(maxWidth: .infinity)
                     .background(Color(label.color ?? .systemGray5))
             }
-            
+
             // Label details
             VStack(alignment: .leading) {
                 Text(label.name)
@@ -58,9 +58,11 @@ struct LabelItemCard: View {
             .padding(.vertical, 8)
         }
         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
-        .background(RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
-            .fill(Color(.secondarySystemGroupedBackground))
-            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1))
+        .background(
+            RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
+                .fill(Color(.secondarySystemGroupedBackground))
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
         .padding(1)
     }
 }

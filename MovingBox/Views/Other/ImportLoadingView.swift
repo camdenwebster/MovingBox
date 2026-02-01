@@ -1,5 +1,5 @@
-import SwiftUIBackports
 import SwiftUI
+import SwiftUIBackports
 
 struct ImportLoadingView: View {
     let importedItemCount: Int
@@ -11,28 +11,28 @@ struct ImportLoadingView: View {
     let progress: Double
     let error: Error?
     let onCancel: () -> Void
-    
+
     @State private var currentMessage = 0
     @State private var showFinishButton = false
-    
+
     private let messages = [
         "Reading your data...",
         "Processing items...",
         "Setting up locations...",
         "Configuring labels...",
-        "Almost there..."
+        "Almost there...",
     ]
-    
+
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
     }
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
                 Color(uiColor: .systemBackground)
                     .ignoresSafeArea()
-                
+
                 if let image = UIImage(named: backgroundImage) {
                     Image(uiImage: image)
                         .resizable()
@@ -42,7 +42,7 @@ struct ImportLoadingView: View {
                         .ignoresSafeArea()
                         .opacity(0.5)
                 }
-                
+
                 VStack(spacing: 24) {
                     Group {
                         if let error = error {
@@ -87,30 +87,30 @@ struct ImportLoadingView: View {
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                             .onAppear { print(" Error view appeared with: \(error.localizedDescription)") }
-                            
+
                         } else if !showFinishButton {
                             // Loading state
                             VStack {
                                 Spacer()
-                                
+
                                 ProgressView()
                                     .controlSize(.extraLarge)
-                                
+
                                 Text(messages[currentMessage])
                                     .font(.headline)
                                     .multilineTextAlignment(.center)
                                     .foregroundStyle(.primary)
                                     .transition(.move(edge: .top).combined(with: .opacity))
                                     .id("message-\(currentMessage)")
-                                
+
                                 Spacer()
-                                
+
                                 // Progress bar
                                 VStack(spacing: 8) {
                                     ProgressView(value: progress)
                                         .progressViewStyle(.linear)
                                         .tint(.green)
-                                    
+
                                     Text("\(Int(progress * 100))%")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -119,7 +119,7 @@ struct ImportLoadingView: View {
                                 .padding(.bottom, 40)
                             }
                             .onAppear { print(" Loading view appeared") }
-                            
+
                         } else {
                             // Success state
                             VStack(spacing: 16) {
@@ -127,10 +127,10 @@ struct ImportLoadingView: View {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 60))
                                     .foregroundColor(.green)
-                                
+
                                 Text("Import Complete!")
                                     .font(.title2.bold())
-                                
+
                                 VStack(spacing: 8) {
                                     Text("\(importedItemCount) items imported")
                                     Text("\(importedLocationCount) locations imported")
@@ -171,7 +171,9 @@ struct ImportLoadingView: View {
             }
         }
         .onAppear {
-            print(" ImportLoadingView appeared with - Error: \(String(describing: error)), Completed: \(importCompleted), Progress: \(progress)")
+            print(
+                " ImportLoadingView appeared with - Error: \(String(describing: error)), Completed: \(importCompleted), Progress: \(progress)"
+            )
         }
         .onChange(of: importCompleted) { _, completed in
             print(" Import completed changed to: \(completed)")
@@ -185,16 +187,18 @@ struct ImportLoadingView: View {
             await animateMessages()
         }
     }
-    
+
     @MainActor
     private func animateMessages() async {
         while !showFinishButton && error == nil {
             try? await Task.sleep(for: .seconds(2))
             guard !showFinishButton && error == nil else {
-                print(" Stopping message animation - ShowFinish: \(showFinishButton), Error: \(String(describing: error))")
+                print(
+                    " Stopping message animation - ShowFinish: \(showFinishButton), Error: \(String(describing: error))"
+                )
                 break
             }
-            
+
             withAnimation {
                 currentMessage = (currentMessage + 1) % messages.count
             }

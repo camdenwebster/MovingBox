@@ -1,9 +1,9 @@
-import SwiftUI
 import AVFoundation
 import AVKit
-import PhotosUI
-import UIKit
 import Combine
+import PhotosUI
+import SwiftUI
+import UIKit
 
 // MARK: - Environment Key for Preview Mode
 
@@ -20,43 +20,45 @@ extension EnvironmentValues {
 
 /// Represents the capture mode for the MultiPhotoCameraView
 enum CaptureMode: CaseIterable {
-    case singleItem  /// Multiple photos of one item (existing functionality)
-    case multiItem   /// One photo with multiple items (new functionality)
-    
+    case singleItem
+    /// Multiple photos of one item (existing functionality)
+    case multiItem
+    /// One photo with multiple items (new functionality)
+
     // MARK: - Display Properties
-    
+
     var displayName: String {
         switch self {
         case .singleItem: return "Single"
         case .multiItem: return "Multi"
         }
     }
-    
+
     var description: String {
         switch self {
         case .singleItem: return "Multiple photos of one item"
         case .multiItem: return "One photo with multiple items"
         }
     }
-    
+
     var iconName: String {
         switch self {
         case .singleItem: return "photo"
         case .multiItem: return "photo.stack"
         }
     }
-    
+
     // MARK: - Photo Limits
-    
+
     func maxPhotosAllowed(isPro: Bool) -> Int {
         switch self {
         case .singleItem:
             return isPro ? 5 : 1
         case .multiItem:
-            return 1 // Always 1 for multi-item mode
+            return 1  // Always 1 for multi-item mode
         }
     }
-    
+
     func photoCounterText(currentCount: Int, isPro: Bool) -> String {
         switch self {
         case .singleItem:
@@ -66,9 +68,9 @@ enum CaptureMode: CaseIterable {
             return ""  // No counter text for multi-item mode
         }
     }
-    
+
     // MARK: - Validation
-    
+
     func isValidPhotoCount(_ count: Int) -> Bool {
         switch self {
         case .singleItem:
@@ -77,7 +79,7 @@ enum CaptureMode: CaseIterable {
             return count == 1
         }
     }
-    
+
     func errorMessage(for error: CaptureModeError) -> String {
         switch (self, error) {
         case (.singleItem, .tooManyPhotos):
@@ -90,33 +92,35 @@ enum CaptureMode: CaseIterable {
             return "Please take exactly one photo for multi-item analysis."
         }
     }
-    
+
     // MARK: - UI Behavior
-    
+
     var showsPhotoPickerButton: Bool {
         switch self {
         case .singleItem: return true
         case .multiItem: return true  // Enable photo picker for multi-item mode
         }
     }
-    
+
     var showsThumbnailScrollView: Bool {
         switch self {
         case .singleItem: return true
         case .multiItem: return false
         }
     }
-    
+
     var allowsMultipleCaptures: Bool {
         switch self {
         case .singleItem: return true
         case .multiItem: return false
         }
     }
-    
+
     // MARK: - Navigation
-    
-    func postCaptureDestination(images: [UIImage], location: InventoryLocation?) -> PostCaptureDestination {
+
+    func postCaptureDestination(images: [UIImage], location: InventoryLocation?)
+        -> PostCaptureDestination
+    {
         switch self {
         case .singleItem:
             return .itemCreationFlow(images: images, location: location)
@@ -141,6 +145,7 @@ enum CaptureModeError {
 struct MultiPhotoCameraView: View {
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
+    @Environment(ModelContainerManager.self) private var containerManager
     @StateObject private var model = MultiPhotoCameraViewModel()
     @Binding var capturedImages: [UIImage]
     let captureMode: CaptureMode
@@ -190,7 +195,7 @@ struct MultiPhotoCameraView: View {
         self.onComplete = onComplete
         self.onCancel = onCancel
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             let squareSize = calculateSquareSize(geometry: geometry)
@@ -202,7 +207,8 @@ struct MultiPhotoCameraView: View {
                 cameraPreview(geometry: geometry)
 
                 if showMultiItemPreview,
-                   let capturedImage = model.capturedImages.first {
+                    let capturedImage = model.capturedImages.first
+                {
                     MultiItemPreviewOverlay(
                         capturedImage: capturedImage,
                         squareSize: squareSize,
@@ -212,7 +218,8 @@ struct MultiPhotoCameraView: View {
                             }
                             model.capturedImages.removeAll()
                         },
-                        onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) }
+                        onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) },
+                        isSyncingData: containerManager.isCloudKitSyncing
                     )
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -225,9 +232,9 @@ struct MultiPhotoCameraView: View {
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {
             if settings.isPro || model.selectedCaptureMode == .multiItem {
-                Button("OK") { }
+                Button("OK") {}
             } else {
-                Button("Close") { }
+                Button("Close") {}
                 Button("Go Pro") {
                     model.showingPaywall = true
                 }
@@ -244,7 +251,10 @@ struct MultiPhotoCameraView: View {
         .photosPicker(
             isPresented: $showingPhotoPicker,
             selection: $selectedItems,
-            maxSelectionCount: max(0, model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro) - model.capturedImages.count),
+            maxSelectionCount: max(
+                0,
+                model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro)
+                    - model.capturedImages.count),
             matching: .images
         )
         .alert("Switch Camera Mode?", isPresented: $model.showingModeSwitchConfirmation) {
@@ -298,7 +308,8 @@ struct MultiPhotoCameraView: View {
             )
         }
         .onAppear {
-            model.loadInitialCaptureMode(preferredCaptureMode: settings.preferredCaptureMode, isPro: settings.isPro)
+            model.loadInitialCaptureMode(
+                preferredCaptureMode: settings.preferredCaptureMode, isPro: settings.isPro)
             if isPreview && !capturedImages.isEmpty {
                 model.capturedImages = capturedImages
             }
@@ -316,7 +327,7 @@ struct MultiPhotoCameraView: View {
     private func cameraPreview(geometry: GeometryProxy) -> some View {
         Group {
             if isUITesting {
-                Image("tablet", bundle: .main)
+                Image("desk-chair", bundle: .main)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -339,14 +350,15 @@ struct MultiPhotoCameraView: View {
                 }
             }
         }
-        .aspectRatio(3/4, contentMode: .fit)
+        .aspectRatio(3 / 4, contentMode: .fit)
         .frame(maxHeight: geometry.size.height - 180)
         .clipped()
     }
 
     @ViewBuilder
     private func cameraControls(geometry: GeometryProxy, cameraRect: CGRect) -> some View {
-        let isMultiItemPreview = model.shouldShowMultiItemPreview(captureMode: model.selectedCaptureMode)
+        let isMultiItemPreview = model.shouldShowMultiItemPreview(
+            captureMode: model.selectedCaptureMode)
 
         VStack(spacing: 0) {
             CameraTopControls(
@@ -360,7 +372,8 @@ struct MultiPhotoCameraView: View {
                     onComplete(model.capturedImages, model.selectedCaptureMode)
                 },
                 isMultiItemPreviewShowing: isMultiItemPreview,
-                hasPhotoCaptured: !model.capturedImages.isEmpty
+                hasPhotoCaptured: !model.capturedImages.isEmpty,
+                isSyncingData: containerManager.isCloudKitSyncing
             )
 
             if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
@@ -403,7 +416,7 @@ struct MultiPhotoCameraView: View {
             if !isMultiItemPreview {
                 VStack(spacing: 0) {
                     Spacer()
-                    
+
                     ZoomControlView(
                         zoomFactors: model.zoomFactors,
                         currentZoomIndex: localZoomIndex,
@@ -412,11 +425,12 @@ struct MultiPhotoCameraView: View {
                         }
                     )
                     .padding(.bottom, 16)
-                    
+
                     CameraBottomControls(
                         captureMode: model.selectedCaptureMode,
                         photoCount: model.capturedImages.count,
-                        photoCounterText: model.selectedCaptureMode.photoCounterText(currentCount: model.capturedImages.count, isPro: settings.isPro),
+                        photoCounterText: model.selectedCaptureMode.photoCounterText(
+                            currentCount: model.capturedImages.count, isPro: settings.isPro),
                         hasPhotoCaptured: !model.capturedImages.isEmpty,
                         onShutterTap: { handleShutterTap() },
                         onRetakeTap: { model.capturedImages.removeAll() },
@@ -522,7 +536,8 @@ struct MultiPhotoCameraView: View {
             guard model.capturedImages.count < maxPhotos else { break }
 
             if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
+                let image = UIImage(data: data)
+            {
 
                 let croppedImage = await cropToSquare(image: image)
                 let optimizedImage = await OptimizedImageManager.shared.optimizeImage(croppedImage)
@@ -549,12 +564,14 @@ struct MultiPhotoCameraView: View {
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 guard let cgImage = image.cgImage,
-                      let croppedCGImage = cgImage.cropping(to: cropRect) else {
+                    let croppedCGImage = cgImage.cropping(to: cropRect)
+                else {
                     continuation.resume(returning: image)
                     return
                 }
 
-                let croppedImage = UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
+                let croppedImage = UIImage(
+                    cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
                 continuation.resume(returning: croppedImage)
             }
         }
@@ -591,7 +608,7 @@ struct MultiPhotoCameraView: View {
             capturedImages: .constant([
                 createPreviewImage(color: .systemBlue, label: "1"),
                 createPreviewImage(color: .systemGreen, label: "2"),
-                createPreviewImage(color: .systemOrange, label: "3")
+                createPreviewImage(color: .systemOrange, label: "3"),
             ]),
             captureMode: .singleItem,
             onPermissionCheck: { _ in },
@@ -606,16 +623,16 @@ private func createPreviewImage(color: UIColor, label: String) -> UIImage {
     return renderer.image { context in
         color.setFill()
         context.fill(CGRect(origin: .zero, size: size))
-        
+
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
-        
+
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 80, weight: .bold),
             .foregroundColor: UIColor.white,
-            .paragraphStyle: paragraphStyle
+            .paragraphStyle: paragraphStyle,
         ]
-        
+
         let text = label as NSString
         let textSize = text.size(withAttributes: attributes)
         let textRect = CGRect(
@@ -642,5 +659,6 @@ private struct PreviewContainer<Content: View>: View {
             .environment(\.isPreview, true)
             .environmentObject(SettingsManager())
             .environmentObject(RevenueCatManager.shared)
+            .environment(ModelContainerManager.shared)
     }
 }

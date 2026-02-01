@@ -1,15 +1,15 @@
-import SwiftUI
-import SwiftData
 import CloudKit
-import Network
 import Combine
+import Network
+import SwiftData
+import SwiftUI
 
 enum SyncStatus {
     case ready
     case syncing
     case offline
     case error(String)
-    
+
     var displayText: String {
         switch self {
         case .ready:
@@ -22,7 +22,7 @@ enum SyncStatus {
             return "Error: \(message)"
         }
     }
-    
+
     var isError: Bool {
         if case .error = self {
             return true
@@ -42,13 +42,12 @@ class SyncStatusMonitor: ObservableObject {
             }
         }
     }
-    @Published var lastSyncDate: Date?
-    
+
     private let networkMonitor = NWPathMonitor()
     private let networkQueue = DispatchQueue(label: "NetworkMonitor")
     private var cancellables = Set<AnyCancellable>()
     private var isNetworkAvailable = false
-    
+
     init() {
         self.isSyncEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
         if UserDefaults.standard.object(forKey: "iCloudSyncEnabled") == nil {
@@ -56,12 +55,12 @@ class SyncStatusMonitor: ObservableObject {
             self.isSyncEnabled = true
             UserDefaults.standard.set(true, forKey: "iCloudSyncEnabled")
         }
-        
+
         setupNetworkMonitoring()
         setupCloudKitNotifications()
         updateSyncStatus()
     }
-    
+
     private func setupNetworkMonitoring() {
         networkMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -72,7 +71,7 @@ class SyncStatusMonitor: ObservableObject {
         }
         networkMonitor.start(queue: networkQueue)
     }
-    
+
     private func setupCloudKitNotifications() {
         // Listen for CloudKit sync notifications
         NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
@@ -83,7 +82,7 @@ class SyncStatusMonitor: ObservableObject {
             }
             .store(in: &cancellables)
     }
-    
+
     private func handleRemoteChange() {
         if isSyncEnabled && isNetworkAvailable {
             syncStatus = .syncing
@@ -92,15 +91,15 @@ class SyncStatusMonitor: ObservableObject {
                 guard let self = self else { return }
                 if self.isSyncEnabled && self.isNetworkAvailable {
                     self.syncStatus = .ready
-                    self.lastSyncDate = Date()
+                    // Note: lastSyncDate is now updated by ModelContainerManager via CloudKit events
                 }
             }
         }
     }
-    
+
     private func updateSyncStatus() {
         if !isSyncEnabled {
-            syncStatus = .ready // Show ready when sync is disabled
+            syncStatus = .ready  // Show ready when sync is disabled
         } else if !isNetworkAvailable {
             syncStatus = .offline
         } else {
@@ -108,15 +107,15 @@ class SyncStatusMonitor: ObservableObject {
             syncStatus = .ready
         }
     }
-    
+
     func refreshStatus() {
         updateSyncStatus()
     }
-    
+
     func setSyncEnabled(_ enabled: Bool) {
         isSyncEnabled = enabled
     }
-    
+
     deinit {
         networkMonitor.cancel()
     }
@@ -125,7 +124,10 @@ class SyncStatusMonitor: ObservableObject {
 struct SyncDataSettingsView: View {
     @StateObject private var syncMonitor = SyncStatusMonitor()
     @EnvironmentObject var router: Router
-    
+    @EnvironmentObject var settings: SettingsManager
+    @State private var showRestartAlert = false
+    @State private var initialSyncState: Bool?
+
     var body: some View {
         List {
             syncSettingsSection
@@ -135,9 +137,32 @@ struct SyncDataSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             syncMonitor.refreshStatus()
+            // Capture initial state on first appear
+            if initialSyncState == nil {
+                initialSyncState = syncMonitor.isSyncEnabled
+            }
+        }
+        .onChange(of: syncMonitor.isSyncEnabled) { _, newValue in
+            // Show alert if sync setting changed from initial state
+            if let initial = initialSyncState, initial != newValue {
+                showRestartAlert = true
+            }
+        }
+        .alert("Restart Required", isPresented: $showRestartAlert) {
+            Button("Restart Now") {
+                // Exit the app - user will need to reopen manually
+                exit(0)
+            }
+            Button("Later", role: .cancel) {
+                // User chose to restart later - do nothing
+            }
+        } message: {
+            Text(
+                "The app needs to restart for sync changes to take effect. Your data is safe and will be preserved."
+            )
         }
     }
-    
+
     private var syncSettingsSection: some View {
         Section {
             Toggle(isOn: $syncMonitor.isSyncEnabled) {
@@ -146,30 +171,33 @@ struct SyncDataSettingsView: View {
                         .foregroundStyle(.primary)
                 } icon: {
                     Image(systemName: "icloud")
-                        
+
                 }
             }
-            
+
             HStack {
                 Label {
                     Text("Sync Service")
                         .foregroundStyle(.primary)
                 } icon: {
                     Image(systemName: "server.rack")
-                        
+
                 }
                 Spacer()
                 Text("iCloud")
                     .foregroundColor(.secondary)
             }
-            
+
             HStack {
                 Label {
                     Text("Sync Status")
                         .foregroundStyle(.primary)
                 } icon: {
-                    Image(systemName: syncMonitor.syncStatus.isError ? "exclamationmark.triangle" : "checkmark.circle")
-                        .foregroundStyle(syncMonitor.syncStatus.isError ? .red : .green)
+                    Image(
+                        systemName: syncMonitor.syncStatus.isError
+                            ? "exclamationmark.triangle" : "checkmark.circle"
+                    )
+                    .foregroundStyle(syncMonitor.syncStatus.isError ? .red : .green)
                 }
                 Spacer()
                 HStack(spacing: 8) {
@@ -181,27 +209,31 @@ struct SyncDataSettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
-            if let lastSync = syncMonitor.lastSyncDate {
+
+            if let lastSyncText = formattedLastSyncText(for: nil) {
                 HStack {
                     Label {
                         Text("Last Sync")
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "clock")
-                            
+
                     }
                     Spacer()
-                    Text(lastSync, style: .relative)
+                    Text(lastSyncText)
                         .foregroundColor(.secondary)
                 }
             }
         } header: {
             Text("Sync Settings")
-//                .font(.footnote)
+            //                .font(.footnote)
         } footer: {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Your data is automatically synced across all your devices using iCloud when sync is enabled.")
+                Text(
+                    "Your data is automatically synced across all your devices using iCloud when sync is enabled."
+                )
+                Text("Changes to sync settings require restarting the app to take effect.")
+                    .foregroundColor(.secondary)
                 if !syncMonitor.isSyncEnabled {
                     Text("Sync is currently disabled. Your data will only be available on this device.")
                         .foregroundColor(.orange)
@@ -210,34 +242,34 @@ struct SyncDataSettingsView: View {
             .font(.footnote)
         }
     }
-    
+
     private var manageDataSection: some View {
         Group {
             Section("Manage Data") {
-                
+
                 NavigationLink(value: Router.Destination.importDataView) {
                     Label {
                         Text("Import Data")
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "square.and.arrow.down")
-                            
+
                     }
                 }
                 .accessibilityIdentifier("importDataLink")
-                
+
                 NavigationLink(value: Router.Destination.exportDataView) {
                     Label {
                         Text("Export Data")
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "square.and.arrow.up")
-                            
+
                     }
                 }
                 .accessibilityIdentifier("exportDataLink")
             }
-            
+
             Section {
                 NavigationLink(value: Router.Destination.deleteDataView) {
                     Label {
@@ -251,11 +283,31 @@ struct SyncDataSettingsView: View {
             }
         }
     }
+
+    private func formattedLastSyncText(for date: Date?) -> String? {
+        guard let date else { return nil }
+
+        let now = Date()
+        let elapsed = now.timeIntervalSince(date)
+        let oneDay: TimeInterval = 24 * 60 * 60
+
+        if elapsed >= 0, elapsed < oneDay {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .short
+            return formatter.localizedString(for: date, relativeTo: now)
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
 }
 
 #Preview {
     NavigationStack {
         SyncDataSettingsView()
             .environmentObject(Router())
+            .environmentObject(SettingsManager())
     }
 }
