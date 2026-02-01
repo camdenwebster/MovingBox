@@ -106,4 +106,3 @@ fastlane/screenshots/light/screenshots.html
 fastlane/screenshots/dark/screenshots.html
 .DS_Store
 .claude/settings.local.json
-.claude/settings.local.json
