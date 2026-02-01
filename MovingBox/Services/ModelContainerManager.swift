@@ -32,6 +32,7 @@ class ModelContainerManager {
     private let orphanedItemsMigrationKey = "MovingBox_OrphanedItemsMigration_v1"
     private let schemaRecoveryPerformedKey = "MovingBox_SchemaRecoveryPerformed"
     private let idStabilizationMigrationKey = "MovingBox_IDStabilization_v1"
+    private let labelToLabelsMigrationKey = "MovingBox_LabelToLabels_v1"
 
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -189,6 +190,9 @@ class ModelContainerManager {
                 // CRITICAL: Run ID stabilization for existing users who migrated before this fix
                 // This ensures IDs are persisted even if multi-home migration already ran
                 try? await performIDStabilizationMigration()
+
+                // Migrate legacy single-label to multi-label (silent, no UI)
+                try? await performLabelToLabelsMigration()
 
                 // Skip migration and go straight to CloudKit setup - no UI needed
                 try await enableCloudKitSync()
@@ -413,6 +417,9 @@ class ModelContainerManager {
         await updateMigrationStatus("Migrating inventory items...", progress: 0.6)
         try? await migrateInventoryItems()
 
+        await updateMigrationStatus("Migrating labels...", progress: 0.65)
+        try? await performLabelToLabelsMigration()
+
         await updateMigrationStatus("Setting up multi-home support...", progress: 0.7)
         try? await performMultiHomeMigration()
 
@@ -628,6 +635,41 @@ class ModelContainerManager {
         print(
             "📦 ModelContainerManager - Stabilized: \(homes.count) homes, \(locations.count) locations, \(labels.count) labels, \(items.count) items"
         )
+    }
+
+    // MARK: - Label to Labels Migration
+
+    /// Migrates items from the legacy single `label` relationship to the new `labels` array.
+    /// This prevents data loss when upgrading from the single-label schema to multi-label.
+    private var isLabelToLabelsMigrationCompleted: Bool {
+        UserDefaults.standard.bool(forKey: labelToLabelsMigrationKey)
+    }
+
+    internal func performLabelToLabelsMigration() async throws {
+        guard !isLabelToLabelsMigrationCompleted else {
+            print("📦 ModelContainerManager - Label-to-labels migration already completed, skipping")
+            return
+        }
+
+        let context = container.mainContext
+        print("📦 ModelContainerManager - Starting label-to-labels migration")
+
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try context.fetch(itemDescriptor)
+        var migratedCount = 0
+
+        for item in items {
+            if let legacyLabel = item.label, item.labels.isEmpty {
+                item.labels = [legacyLabel]
+                item.label = nil
+                migratedCount += 1
+            }
+        }
+
+        try context.save()
+        UserDefaults.standard.set(true, forKey: labelToLabelsMigrationKey)
+
+        print("📦 ModelContainerManager - Label-to-labels migration completed: \(migratedCount) items migrated")
     }
 
     // MARK: - Multi-Home Migration

@@ -32,6 +32,7 @@ final class InventoryItem: ObservableObject, PhotoManageable {
     var model: String = ""
     var make: String = ""
     var location: InventoryLocation?
+    var label: InventoryLabel?  // Legacy single-label — kept temporarily for migration to multi-label
     var labels: [InventoryLabel] = []
     var price: Decimal = Decimal.zero
     var insured: Bool = false
