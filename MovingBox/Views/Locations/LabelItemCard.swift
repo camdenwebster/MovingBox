@@ -14,7 +14,7 @@ struct LabelItemCard: View {
     @State private var loadingError: Error?
 
     private var totalReplacementCost: Decimal {
-        label.inventoryItems?.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) }) ?? 0
+        label.inventoryItems.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
     }
 
     var body: some View {
@@ -39,7 +39,7 @@ struct LabelItemCard: View {
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
-                    Text("\(label.inventoryItems?.count ?? 0)")
+                    Text("\(label.inventoryItems.count)")
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
                 }

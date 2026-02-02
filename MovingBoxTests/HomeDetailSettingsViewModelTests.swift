@@ -24,7 +24,7 @@ import Testing
             InventoryLabel.self,
             InsurancePolicy.self,
         ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 
@@ -212,6 +212,7 @@ import Testing
         let home1 = Home.createTestHome(in: context, name: "Home 1")
         let home2 = Home.createTestHome(in: context, name: "Home 2")
         let viewModel = createViewModel(home: home1, context: context, allHomes: [home1, home2])
+        viewModel.isEditing = true
 
         #expect(viewModel.canDelete == true)
     }
@@ -501,6 +502,7 @@ import Testing
             allHomesProvider: { [home] }
         )
 
+        viewModel.isEditing = true
         #expect(viewModel.canDelete == false)  // Only one home
 
         viewModel.updateDependencies(

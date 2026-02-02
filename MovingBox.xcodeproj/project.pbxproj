@@ -13,6 +13,7 @@
 		1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 1920B0D52D88B13000CFA1E9 /* TelemetryDeck */; };
 		1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */; };
 		1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */; };
+		19328B001A68604693BB3069 /* RelationshipMigrationHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E26F90DDA9263EB769A09A /* RelationshipMigrationHelper.swift */; };
 		194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195652DA4805B008CABAA /* ModelContainerManager.swift */; };
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
 		1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC812BF391CF00734AF4 /* Assets.xcassets */; };
@@ -114,6 +115,7 @@
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
+		19E26F90DDA9263EB769A09A /* RelationshipMigrationHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipMigrationHelper.swift; sourceTree = "<group>"; };
 		19E37DFC2E56168500FB73D8 /* MovingBox.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MovingBox.icon; sourceTree = "<group>"; };
 		19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MovingBox-beta.icon"; sourceTree = "<group>"; };
 		19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
@@ -311,6 +313,7 @@
 				675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */,
 				19F765D42DAB558000AE287D /* OptimizedImageManager.swift */,
 				19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */,
+				19E26F90DDA9263EB769A09A /* RelationshipMigrationHelper.swift */,
 				194195652DA4805B008CABAA /* ModelContainerManager.swift */,
 				19750C372DA07FF40056F0FC /* OnboardingManager.swift */,
 				19C01D5D2D93088300773DA4 /* JWTManager.swift */,
@@ -599,6 +602,7 @@
 			files = (
 				1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */,
 				19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */,
+				19328B001A68604693BB3069 /* RelationshipMigrationHelper.swift in Sources */,
 				194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */,
 				19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,

@@ -51,22 +51,18 @@ final class MockDataDeletionService: DataDeletionServiceProtocol {
 @MainActor
 struct DataDeletionViewTests {
 
-    private func makeTestContainer() -> ModelContainer {
+    private func makeTestContainer() throws -> ModelContainer {
         let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-            Home.self,
-            InsurancePolicy.self,
+            InventoryItem.self, InventoryLocation.self, InventoryLabel.self,
+            Home.self, InsurancePolicy.self,
         ])
-
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try! ModelContainer(for: schema, configurations: [config])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        return try ModelContainer(for: schema, configurations: [config])
     }
 
     @Test("DataDeletionView displays warning section correctly")
-    func testWarningSection() {
-        let container = makeTestContainer()
+    func testWarningSection() throws {
+        let container = try makeTestContainer()
         let view = DataDeletionView()
             .modelContainer(container)
 
@@ -79,8 +75,8 @@ struct DataDeletionViewTests {
     }
 
     @Test("DataDeletionView shows scope selection options")
-    func testScopeSelectionSection() {
-        let container = makeTestContainer()
+    func testScopeSelectionSection() throws {
+        let container = try makeTestContainer()
         let view = DataDeletionView()
             .modelContainer(container)
 
@@ -93,8 +89,8 @@ struct DataDeletionViewTests {
     }
 
     @Test("DataDeletionView confirmation section validates input")
-    func testConfirmationSection() {
-        let container = makeTestContainer()
+    func testConfirmationSection() throws {
+        let container = try makeTestContainer()
         let view = DataDeletionView()
             .modelContainer(container)
 
@@ -107,8 +103,8 @@ struct DataDeletionViewTests {
     }
 
     @Test("DataDeletionView handles navigation correctly")
-    func testNavigationElements() {
-        let container = makeTestContainer()
+    func testNavigationElements() throws {
+        let container = try makeTestContainer()
         let view = NavigationStack {
             DataDeletionView()
                 .modelContainer(container)
@@ -123,8 +119,8 @@ struct DataDeletionViewTests {
     }
 
     @Test("DataDeletionView displays alerts correctly")
-    func testAlertPresentation() {
-        let container = makeTestContainer()
+    func testAlertPresentation() throws {
+        let container = try makeTestContainer()
         let view = DataDeletionView()
             .modelContainer(container)
 
@@ -137,8 +133,8 @@ struct DataDeletionViewTests {
     }
 
     @Test("DataDeletionView responds to service state changes")
-    func testServiceStateBinding() {
-        let container = makeTestContainer()
+    func testServiceStateBinding() throws {
+        let container = try makeTestContainer()
         let mockService = MockDataDeletionService()
         let view = DataDeletionView(deletionService: mockService)
             .modelContainer(container)
@@ -152,8 +148,8 @@ struct DataDeletionViewTests {
     }
 
     @Test("DataDeletionView uses injected service for testing")
-    func testDependencyInjection() {
-        let container = makeTestContainer()
+    func testDependencyInjection() throws {
+        let container = try makeTestContainer()
         let mockService = MockDataDeletionService()
         let view = DataDeletionView(deletionService: mockService)
             .modelContainer(container)

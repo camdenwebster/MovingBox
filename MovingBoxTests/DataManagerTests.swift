@@ -10,7 +10,7 @@ import ZIPFoundation
 struct DataManagerTests {
     func createContainer() throws -> ModelContainer {
         let schema = Schema([InventoryItem.self, InventoryLocation.self, InventoryLabel.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [config])
     }
 

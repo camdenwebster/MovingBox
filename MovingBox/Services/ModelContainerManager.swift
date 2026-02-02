@@ -32,7 +32,6 @@ class ModelContainerManager {
     private let orphanedItemsMigrationKey = "MovingBox_OrphanedItemsMigration_v1"
     private let schemaRecoveryPerformedKey = "MovingBox_SchemaRecoveryPerformed"
     private let idStabilizationMigrationKey = "MovingBox_IDStabilization_v1"
-    private let labelToLabelsMigrationKey = "MovingBox_LabelToLabels_v1"
 
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -91,17 +90,19 @@ class ModelContainerManager {
     }
 
     private let schema = Schema([
-        InventoryLabel.self,
-        InventoryItem.self,
-        InventoryLocation.self,
-        InsurancePolicy.self,
-        Home.self,
+        InventoryItem.self, InventoryLocation.self, InventoryLabel.self,
+        Home.self, InsurancePolicy.self,
     ])
 
     private init() {
         // CRITICAL: Register value transformers BEFORE creating ModelContainer
         // SwiftData needs transformers registered before reading schema
         UIColorValueTransformer.register()
+
+        // Capture relationship mappings BEFORE container creation.
+        // SwiftData lightweight migration will drop old FK columns (ZLABEL, ZINSURANCEPOLICY)
+        // when it sees the schema changed from to-one to to-many relationships.
+        let relationshipMappings = RelationshipMigrationHelper.captureMappingsIfNeeded()
 
         // Always start with CloudKit disabled during initialization/migration
         let configuration = ModelConfiguration(
@@ -112,9 +113,16 @@ class ModelContainerManager {
         )
 
         do {
-            // Try to create container with automatic migration
-            self.container = try ModelContainer(for: schema, configurations: [configuration])
-            print("📦 ModelContainerManager - Created local container for migration")
+            // Try to create container with automatic lightweight migration
+            self.container = try ModelContainer(
+                for: schema, configurations: [configuration])
+            print("📦 ModelContainerManager - Created local container")
+
+            // Restore relationships that were captured before lightweight migration
+            if !relationshipMappings.isEmpty {
+                RelationshipMigrationHelper.restoreMappings(
+                    relationshipMappings, context: container.mainContext)
+            }
         } catch let error as NSError {
             print("📦 ModelContainerManager - Error creating container: \(error)")
             print("📦 ModelContainerManager - Error domain: \(error.domain), code: \(error.code)")
@@ -151,7 +159,8 @@ class ModelContainerManager {
                     }
 
                     // Try to create fresh container
-                    self.container = try ModelContainer(for: schema, configurations: [configuration])
+                    self.container = try ModelContainer(
+                        for: schema, configurations: [configuration])
                     print("📦 ModelContainerManager - Created fresh container after backup")
 
                     // Mark that we need to skip migration since we started fresh
@@ -190,9 +199,6 @@ class ModelContainerManager {
                 // CRITICAL: Run ID stabilization for existing users who migrated before this fix
                 // This ensures IDs are persisted even if multi-home migration already ran
                 try? await performIDStabilizationMigration()
-
-                // Migrate legacy single-label to multi-label (silent, no UI)
-                try? await performLabelToLabelsMigration()
 
                 // Skip migration and go straight to CloudKit setup - no UI needed
                 try await enableCloudKitSync()
@@ -331,7 +337,8 @@ class ModelContainerManager {
         )
 
         do {
-            let newContainer = try ModelContainer(for: schema, configurations: [syncConfiguration])
+            let newContainer = try ModelContainer(
+                for: schema, configurations: [syncConfiguration])
 
             // Migrate data from local container to sync-enabled container
             try await migrateToSyncContainer(from: container, to: newContainer)
@@ -416,9 +423,6 @@ class ModelContainerManager {
 
         await updateMigrationStatus("Migrating inventory items...", progress: 0.6)
         try? await migrateInventoryItems()
-
-        await updateMigrationStatus("Migrating labels...", progress: 0.65)
-        try? await performLabelToLabelsMigration()
 
         await updateMigrationStatus("Setting up multi-home support...", progress: 0.7)
         try? await performMultiHomeMigration()
@@ -635,41 +639,6 @@ class ModelContainerManager {
         print(
             "📦 ModelContainerManager - Stabilized: \(homes.count) homes, \(locations.count) locations, \(labels.count) labels, \(items.count) items"
         )
-    }
-
-    // MARK: - Label to Labels Migration
-
-    /// Migrates items from the legacy single `label` relationship to the new `labels` array.
-    /// This prevents data loss when upgrading from the single-label schema to multi-label.
-    private var isLabelToLabelsMigrationCompleted: Bool {
-        UserDefaults.standard.bool(forKey: labelToLabelsMigrationKey)
-    }
-
-    internal func performLabelToLabelsMigration() async throws {
-        guard !isLabelToLabelsMigrationCompleted else {
-            print("📦 ModelContainerManager - Label-to-labels migration already completed, skipping")
-            return
-        }
-
-        let context = container.mainContext
-        print("📦 ModelContainerManager - Starting label-to-labels migration")
-
-        let itemDescriptor = FetchDescriptor<InventoryItem>()
-        let items = try context.fetch(itemDescriptor)
-        var migratedCount = 0
-
-        for item in items {
-            if let legacyLabel = item.label, item.labels.isEmpty {
-                item.labels = [legacyLabel]
-                item.label = nil
-                migratedCount += 1
-            }
-        }
-
-        try context.save()
-        UserDefaults.standard.set(true, forKey: labelToLabelsMigrationKey)
-
-        print("📦 ModelContainerManager - Label-to-labels migration completed: \(migratedCount) items migrated")
     }
 
     // MARK: - Multi-Home Migration

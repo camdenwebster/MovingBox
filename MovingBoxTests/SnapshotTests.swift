@@ -83,7 +83,7 @@ final class SnapshotTests {
         await cleanup()
 
         print("Creating test container...")
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: Home.self, InventoryLabel.self, InventoryItem.self, InventoryLocation.self,
             InsurancePolicy.self, configurations: config)

@@ -104,7 +104,7 @@ struct ProgressMapperTests {
     func terminalPhasesReturnFullProgress() async throws {
         let container = try ModelContainer(
             for: InventoryItem.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = ModelContext(container)
 
