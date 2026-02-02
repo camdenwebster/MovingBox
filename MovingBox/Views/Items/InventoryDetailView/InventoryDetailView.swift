@@ -94,6 +94,7 @@ struct InventoryDetailView: View {
     @State private var selectedPhotosPickerItems: [PhotosPickerItem] = []
     @State private var showDocumentScanner = false
     @State private var showingLocationSelection = false
+    @State private var itemHome: Home?
     @State private var showingLabelSelection = false
     @State private var showDocumentPicker = false
     @State private var showingFileViewer = false
@@ -707,14 +708,18 @@ struct InventoryDetailView: View {
 
     @ViewBuilder
     private var locationsAndLabelsSection: some View {
-        if isEditing || inventoryItemToDisplay.location != nil || inventoryItemToDisplay.label != nil {
+        if isEditing || inventoryItemToDisplay.location != nil || inventoryItemToDisplay.effectiveHome != nil
+            || !inventoryItemToDisplay.labels.isEmpty
+        {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Locations & Labels")
+                Text("Location & Labels")
                     .sectionHeaderStyle()
                     .padding(.horizontal, 16)
 
                 VStack(spacing: 0) {
-                    if isEditing || inventoryItemToDisplay.location != nil {
+                    if isEditing || inventoryItemToDisplay.location != nil
+                        || inventoryItemToDisplay.effectiveHome != nil
+                    {
                         Button(action: {
                             if isEditing {
                                 showingLocationSelection = true
@@ -724,12 +729,12 @@ struct InventoryDetailView: View {
                                 Text("Location")
                                     .foregroundColor(.primary)
                                 Spacer()
-                                Text(inventoryItemToDisplay.location?.name ?? "None")
-                                    .foregroundColor(.secondary)
-                                if isEditing {
-                                    Image(systemName: "chevron.right")
-                                        .font(.footnote)
-                                        .foregroundColor(.secondary)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(inventoryItemToDisplay.location?.name ?? "None")
+                                    if let home = inventoryItemToDisplay.effectiveHome {
+                                        Text(home.displayName)
+                                            .font(.caption)
+                                    }
                                 }
                             }
                         }
@@ -738,33 +743,37 @@ struct InventoryDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if isEditing || inventoryItemToDisplay.label != nil {
+                        if isEditing || !inventoryItemToDisplay.labels.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || inventoryItemToDisplay.label != nil {
+                    if isEditing || !inventoryItemToDisplay.labels.isEmpty {
                         Button(action: {
                             if isEditing {
                                 showingLabelSelection = true
                             }
                         }) {
                             HStack {
-                                Text("Label")
-                                    .foregroundColor(.primary)
+                                VStack(alignment: .leading) {
+                                    Text(inventoryItemToDisplay.labels.count == 1 ? "Label" : "Labels")
+                                        .foregroundColor(.primary)
+                                    if !inventoryItemToDisplay.labels.isEmpty {
+                                        // Show labels as capsules in a flow layout
+                                        FlowLayout(spacing: 6) {
+                                            ForEach(inventoryItemToDisplay.labels.prefix(5)) { label in
+                                                LabelCapsuleView(label: label)
+                                            }
+                                        }
+                                    }
+                                }
                                 Spacer()
-                                if let label = inventoryItemToDisplay.label {
-                                    Text("\(label.emoji) \(label.name)")
-                                        .foregroundColor(.secondary)
-                                } else {
+                                if inventoryItemToDisplay.labels.isEmpty {
                                     Text("None")
-                                        .foregroundColor(.secondary)
                                 }
                                 if isEditing {
-                                    Image(systemName: "chevron.right")
-                                        .font(.footnote)
-                                        .foregroundColor(.secondary)
+                                    Image(systemName: "plus")
                                 }
                             }
                         }
@@ -1165,6 +1174,14 @@ struct InventoryDetailView: View {
             .ignoresSafeArea(edges: .top)
             .background(Color(.systemGroupedBackground))
         }
+        .onAppear {
+            if itemHome == nil {
+                itemHome = inventoryItemToDisplay.effectiveHome
+            }
+        }
+        .onChange(of: itemHome) { _, newHome in
+            inventoryItemToDisplay.home = newHome
+        }
     }
 
     var body: some View {
@@ -1201,10 +1218,13 @@ struct InventoryDetailView: View {
                 )
             }
             .sheet(isPresented: $showingLocationSelection) {
-                LocationSelectionView(selectedLocation: $inventoryItemToDisplay.location)
+                LocationSelectionView(
+                    selectedLocation: $inventoryItemToDisplay.location,
+                    selectedHome: $itemHome
+                )
             }
             .sheet(isPresented: $showingLabelSelection) {
-                LabelSelectionView(selectedLabel: $inventoryItemToDisplay.label)
+                LabelSelectionView(selectedLabels: $inventoryItemToDisplay.labels)
             }
             .fileImporter(
                 isPresented: $showDocumentPicker, allowedContentTypes: [.pdf, .image],
@@ -1447,7 +1467,7 @@ struct InventoryDetailView: View {
     private func addLabel() {
         let label = InventoryLabel()
         modelContext.insert(label)
-        inventoryItemToDisplay.label = label
+        inventoryItemToDisplay.labels = [label]
         router.navigate(to: .editLabelView(label: label, isEditing: true))
     }
 
@@ -1991,7 +2011,7 @@ struct AttachmentRowView: View {
                 model: "MacBook Pro M2",
                 make: "Apple",
                 location: location,
-                label: nil,
+                labels: [],
                 price: Decimal(2499.99),
                 insured: false,
                 assetId: "macbook-preview",

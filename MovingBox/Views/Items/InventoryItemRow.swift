@@ -79,13 +79,17 @@ struct InventoryItemRow: View {
 
             Spacer()
 
-            if let label = item.label {
-                Text(label.emoji)
-                    .padding(7)
-                    .background(in: Circle())
-                    .backgroundStyle(Color(label.color ?? .blue))
-            } else {
-                EmptyView()
+            // Display all label emojis in a horizontal stack (max 5)
+            if !item.labels.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(item.labels.prefix(5)) { label in
+                        Text(label.emoji)
+                            .font(.caption)
+                            .padding(5)
+                            .background(in: Circle())
+                            .backgroundStyle(Color(label.color ?? .blue))
+                    }
+                }
             }
         }
     }

@@ -229,3 +229,50 @@ extension UIImage {
         return image
     }
 }
+
+// MARK: - Home Test Helpers
+
+extension Home {
+    @MainActor
+    static func createTestHome(
+        in context: ModelContext,
+        name: String = "Test Home",
+        address1: String = "123 Test St",
+        city: String = "Test City",
+        state: String = "CA",
+        zip: String = "12345",
+        country: String = "US",
+        isPrimary: Bool = false,
+        colorName: String = "green"
+    ) -> Home {
+        let home = Home(
+            name: name,
+            address1: address1,
+            city: city,
+            state: state,
+            zip: zip,
+            country: country
+        )
+        home.isPrimary = isPrimary
+        home.colorName = colorName
+        context.insert(home)
+        return home
+    }
+
+    @MainActor
+    static func createTestHomeWithLocations(
+        in context: ModelContext,
+        name: String = "Test Home",
+        locationCount: Int = 3
+    ) -> Home {
+        let home = createTestHome(in: context, name: name)
+
+        for i in 1...locationCount {
+            let location = InventoryLocation(name: "Room \(i)", desc: "Test room \(i)")
+            location.home = home
+            context.insert(location)
+        }
+
+        return home
+    }
+}

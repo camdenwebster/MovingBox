@@ -10,9 +10,12 @@ import SwiftUI
 
 struct EditLabelView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
-    @EnvironmentObject var settingsManager: SettingsManager
     var label: InventoryLabel?
+    var presentedInSheet: Bool
+    var onDismiss: (() -> Void)?
+    var onLabelCreated: ((InventoryLabel) -> Void)?
     @State private var labelName = ""
     @State private var labelDesc = ""
     @State private var labelColor = Color.red
@@ -22,21 +25,18 @@ struct EditLabelView: View {
     @Query(sort: [
         SortDescriptor(\InventoryLabel.name)
     ]) var labels: [InventoryLabel]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-
-    private var activeHome: Home? {
-        guard let activeIdString = settingsManager.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
-        else {
-            return homes.first { $0.isPrimary }
-        }
-        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
-    }
 
     // MARK: - Add initializer to accept isEditing parameter
-    init(label: InventoryLabel? = nil, isEditing: Bool = false) {
+    init(
+        label: InventoryLabel? = nil, isEditing: Bool = false, presentedInSheet: Bool = false,
+        onDismiss: (() -> Void)? = nil,
+        onLabelCreated: ((InventoryLabel) -> Void)? = nil
+    ) {
         self.label = label
         self._isEditing = State(initialValue: isEditing)
+        self.presentedInSheet = presentedInSheet
+        self.onDismiss = onDismiss
+        self.onLabelCreated = onLabelCreated
     }
 
     // Computed properties
@@ -51,8 +51,11 @@ struct EditLabelView: View {
     var body: some View {
         Form {
             Section("Details") {
-                FormTextFieldRow(label: "Name", text: $labelName, isEditing: $isEditing, placeholder: "Electronics")
-                    .disabled(!isEditingEnabled)
+                FormTextFieldRow(
+                    label: "Name", text: $labelName, isEditing: $isEditing, placeholder: "Electronics",
+                    textFieldIdentifier: "label-name-field"
+                )
+                .disabled(!isEditingEnabled)
                 ColorPicker("Color", selection: $labelColor, supportsOpacity: false)
                     .disabled(!isEditingEnabled)
                 HStack {
@@ -86,40 +89,57 @@ struct EditLabelView: View {
                 }
             }
         }
-        .navigationTitle(isNewLabel ? "New Label" : "\(label?.name ?? "") Details")
+        .navigationTitle(isNewLabel ? "New Label" : "Edit \(label?.name ?? "Label")")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: labelColor, setColor)
         .toolbar {
-            if !isNewLabel {
-                Button(isEditing ? "Save" : "Edit") {
-                    if isEditing {
-                        label?.name = labelName
-                        label?.desc = labelDesc
-                        label?.color = UIColor(labelColor)
-                        label?.emoji = labelEmoji
-                        isEditing = false
-                    } else {
-                        isEditing = true
+            if presentedInSheet {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismissView()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.secondary)
                     }
+                    .accessibilityIdentifier("label-dismiss-button")
                 }
-            } else {
-                Button("Save") {
-                    let newLabel = InventoryLabel(
-                        name: labelName, desc: labelDesc, color: UIColor(labelColor), emoji: labelEmoji)
+            }
 
-                    // Assign active home to new label
-                    newLabel.home = activeHome
+            ToolbarItem(placement: .confirmationAction) {
+                if !isNewLabel {
+                    Button(isEditing ? "Save" : "Edit") {
+                        if isEditing {
+                            label?.name = labelName
+                            label?.desc = labelDesc
+                            label?.color = UIColor(labelColor)
+                            label?.emoji = labelEmoji
+                            isEditing = false
+                            if presentedInSheet {
+                                dismissView()
+                            }
+                        } else {
+                            isEditing = true
+                        }
+                    }
+                    .accessibilityIdentifier("label-edit-save-button")
+                } else {
+                    Button("Save") {
+                        let newLabel = InventoryLabel(
+                            name: labelName, desc: labelDesc, color: UIColor(labelColor), emoji: labelEmoji)
 
-                    modelContext.insert(newLabel)
-                    TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
-                    print("EditLabelView: Created new label - \(newLabel.name)")
-                    print("EditLabelView: Assigned to home - \(activeHome?.name ?? "nil")")
-                    print("EditLabelView: Total number of labels after save: \(labels.count)")
-                    isEditing = false
-                    router.navigateBack()
+                        modelContext.insert(newLabel)
+                        TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
+                        print("EditLabelView: Created new label - \(newLabel.name)")
+                        print("EditLabelView: Total number of labels after save: \(labels.count)")
+                        onLabelCreated?(newLabel)
+                        isEditing = false
+                        dismissView()
+                    }
+                    .disabled(labelName.isEmpty)
+                    .bold()
+                    .accessibilityIdentifier("label-save-button")
                 }
-                .disabled(labelName.isEmpty)
-                .bold()
             }
         }
         .onAppear {
@@ -130,6 +150,15 @@ struct EditLabelView: View {
                 labelColor = Color(existingLabel.color ?? .red)
                 labelEmoji = existingLabel.emoji
             }
+        }
+    }
+
+    private func dismissView() {
+        if presentedInSheet {
+            onDismiss?()
+            dismiss()
+        } else {
+            router.navigateBack()
         }
     }
 
@@ -155,10 +184,14 @@ struct EmojiPickerView: View {
             "Objects",
             [
                 "📱", "💻", "⌨️", "🖥️", "🖱️", "🖨️", "📷", "📸", "📹", "🎥", "📽️", "🎞️", "📞", "☎️", "📟", "📠", "📺", "📻", "🎙️", "🎚️", "🎛️",
-                "🧭", "⏱️", "⏲️", "⏰", "🕰️", "⌚️", "📡", "🔋", "🪫", "🔌", "💡", "🔦", "🕯️", "🧯", "🛢️", "💸", "💵", "💴", "💶", "💷", "💰", "💳",
-                "💎", "⚖️", "🧰", "🔧", "🔨", "⚒️", "🛠️", "⛏️", "🔩", "⚙️", "🧱", "⛓️", "⛓️‍💥", "🧲", "🔫", "💣", "🧨", "🪓", "🔪", "🗡️", "⚔️", "🛡️",
-                "🚬", "⚰️", "⚱️", "🏺", "🔮", "📿", "🧿", "🪬", "💈", "⚗️", "🔭", "🔬", "🕳️", "💊", "💉", "🩸", "🩹", "🩺", "🚪", "🛏️", "🛋️", "🪑",
-                "🚽", "🚿", "🛁", "🧴", "🧷", "🧹", "🧺", "🧻", "🧼", "🧽", "🧯", "🪤", "🫙", "🛝", "🛞", "🛟", "🛜", "🪭", "🪮", "🫆", "🪏", "🫟",
+                "🧭", "⏱️", "⏲️", "⏰", "🕰️", "⌚️", "📡", "🔋", "🪫", "🔌", "💡", "🔦", "🕯️", "🧯", "🛢️", "💸", "💵", "💴", "💶", "💷", "💰",
+                "💳",
+                "💎", "⚖️", "🧰", "🔧", "🔨", "⚒️", "🛠️", "⛏️", "🔩", "⚙️", "🧱", "⛓️", "⛓️‍💥", "🧲", "🔫", "💣", "🧨", "🪓", "🔪", "🗡️", "⚔️",
+                "🛡️",
+                "🚬", "⚰️", "⚱️", "🏺", "🔮", "📿", "🧿", "🪬", "💈", "⚗️", "🔭", "🔬", "🕳️", "💊", "💉", "🩸", "🩹", "🩺", "🚪", "🛏️", "🛋️",
+                "🪑",
+                "🚽", "🚿", "🛁", "🧴", "🧷", "🧹", "🧺", "🧻", "🧼", "🧽", "🧯", "🪤", "🫙", "🛝", "🛞", "🛟", "🛜", "🪭", "🪮", "🫆", "🪏",
+                "🫟",
                 "🚫", "❌", "⭕", "♨️", "🚹", "🚺", "🚻", "🚼", "🚾", "🛂", "🛃", "🛄", "🛅", "🚸", "📵", "🔞", "☢️", "☣️",
             ]
         ),
@@ -176,11 +209,15 @@ struct EmojiPickerView: View {
         (
             "Food",
             [
-                "🍏", "🍎", "🍐", "🍊", "🍋", "🍋‍🟩", "🍌", "🍉", "🍇", "🍓", "🍈", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦", "🥬",
-                "🥒", "🌶️", "🌽", "🥕", "🧄", "🧅", "🥔", "🍠", "🫚", "🫛", "🫜", "🥐", "🥯", "🍞", "🥖", "🥨", "🧀", "🥚", "🍳", "🧈", "🥞", "🧇", "🥓", "🥩",
-                "🍗", "🍖", "🦴", "🌭", "🍔", "🍟", "🍕", "🥪", "🥙", "🧆", "🌮", "🌯", "🫔", "🥗", "🥘", "🥫", "🍝", "🍜", "🍲", "🍛", "🍣", "🍱",
+                "🍏", "🍎", "🍐", "🍊", "🍋", "🍋‍🟩", "🍌", "🍉", "🍇", "🍓", "🍈", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦",
+                "🥬",
+                "🥒", "🌶️", "🌽", "🥕", "🧄", "🧅", "🥔", "🍠", "🫚", "🫛", "🫜", "🥐", "🥯", "🍞", "🥖", "🥨", "🧀", "🥚", "🍳", "🧈", "🥞",
+                "🧇", "🥓", "🥩",
+                "🍗", "🍖", "🦴", "🌭", "🍔", "🍟", "🍕", "🥪", "🥙", "🧆", "🌮", "🌯", "🫔", "🥗", "🥘", "🥫", "🍝", "🍜", "🍲", "🍛", "🍣",
+                "🍱",
                 "🥟", "🦪", "🍤", "🍙", "🍚", "🍘", "🍥", "🥠", "🥮", "🍢", "🍡", "🍧", "🍨", "🍦", "🥧", "🧁", "🍰", "🎂", "🍮", "🍭", "🍬",
-                "🍫", "🍿", "🍩", "🍪", "🌰", "🥜", "🍯", "🫘", "🍄‍🟫", "🥛", "🍼", "☕", "🍵", "🧃", "🥤", "🍶", "🍺", "🍻", "🥂", "🍷", "🥃", "🍸", "🍹",
+                "🍫", "🍿", "🍩", "🍪", "🌰", "🥜", "🍯", "🫘", "🍄‍🟫", "🥛", "🍼", "☕", "🍵", "🧃", "🥤", "🍶", "🍺", "🍻", "🥂", "🍷", "🥃",
+                "🍸", "🍹",
                 "🧉", "🍾", "🧊", "🫗", "🥄", "🍴", "🍽️", "🥣", "🥡", "🥢",
             ]
         ),
@@ -209,7 +246,8 @@ struct EmojiPickerView: View {
         (
             "Symbols",
             [
-                "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "🩷", "🩵", "🩶", "💔", "❤️‍🔥", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "⭐", "🌟", "✨",
+                "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "🩷", "🩵", "🩶", "💔", "❤️‍🔥", "💕", "💞", "💓", "💗", "💖", "💘", "💝",
+                "⭐", "🌟", "✨",
                 "💫", "🔥", "💯", "✅", "❎", "☑️", "⚠️", "🚫", "⛔", "❌", "⭕", "❓", "❗", "‼️", "⁉️", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣",
                 "🟤", "⚫", "⚪", "🔶", "🔷", "🔸", "🔹", "▪️", "▫️", "◼️", "◻️", "🔲", "🔳", "📌", "📍", "🏷️", "🔖", "📎", "🖇️", "✂️", "📐",
                 "📏", "🔒", "🔓", "🔐", "🔑", "🗝️", "🔔", "🔕", "📦", "📬", "📮", "📤", "📥", "📨", "✉️", "📧", "🎁", "🛒", "♻️", "🆕", "🆓",
@@ -227,8 +265,10 @@ struct EmojiPickerView: View {
         (
             "Nature",
             [
-                "🌸", "🌹", "🌺", "🌻", "🌼", "🌷", "🌱", "🌲", "🌳", "🌴", "🌵", "🪾", "🎋", "🎍", "🌾", "🌿", "☘️", "🍀", "🍁", "🍂", "🍃", "🍄",
-                "🌰", "🪴", "🪵", "🪨", "💐", "🪻", "🪷", "🪸", "🪽", "☀️", "🌤️", "⛅", "🌥️", "☁️", "🌦️", "🌧️", "⛈️", "🌩️", "🌨️", "❄️", "☃️", "⛄", "🌬️",
+                "🌸", "🌹", "🌺", "🌻", "🌼", "🌷", "🌱", "🌲", "🌳", "🌴", "🌵", "🪾", "🎋", "🎍", "🌾", "🌿", "☘️", "🍀", "🍁", "🍂", "🍃",
+                "🍄",
+                "🌰", "🪴", "🪵", "🪨", "💐", "🪻", "🪷", "🪸", "🪽", "☀️", "🌤️", "⛅", "🌥️", "☁️", "🌦️", "🌧️", "⛈️", "🌩️", "🌨️", "❄️", "☃️",
+                "⛄", "🌬️",
                 "💨", "🌊", "🌈", "🌪️", "🌫️", "💧", "💦", "☔", "⚡", "🌙", "🌛", "🌜", "🌚", "🌝", "🌞", "⭐", "🌟", "💫", "✨", "☄️",
             ]
         ),
@@ -294,7 +334,6 @@ struct EmojiPickerView: View {
         return EditLabelView(label: previewer.label)
             .modelContainer(previewer.container)
             .environmentObject(Router())
-            .environmentObject(SettingsManager())
     } catch {
         return Text("Failed to create preview: \(error.localizedDescription)")
     }

@@ -16,7 +16,7 @@ import Testing
             Home.self,
             InsurancePolicy.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [modelConfiguration])
     }
 
@@ -32,7 +32,7 @@ import Testing
                 model: "Model1",
                 make: "Make1",
                 location: nil,
-                label: nil,
+                labels: [],
                 price: Decimal(10.0),
                 insured: false,
                 assetId: "asset1",
@@ -48,7 +48,7 @@ import Testing
                 model: "Model2",
                 make: "Make2",
                 location: nil,
-                label: nil,
+                labels: [],
                 price: Decimal(20.0),
                 insured: false,
                 assetId: "asset2",
@@ -64,7 +64,7 @@ import Testing
                 model: "Model3",
                 make: "Make3",
                 location: nil,
-                label: nil,
+                labels: [],
                 price: Decimal(30.0),
                 insured: false,
                 assetId: "asset3",

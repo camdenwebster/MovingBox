@@ -121,18 +121,6 @@ class DefaultDataManager {
 
     // MARK: - Home-Scoped Data Creation
 
-    static func populateDefaultLabels(modelContext: ModelContext, home: Home) async {
-        print("🏷️ Creating default labels for home: \(home.displayName)")
-        await TestData.loadDefaultData(context: modelContext, home: home)
-
-        do {
-            try modelContext.save()
-            print("✅ Default labels saved successfully for home: \(home.displayName)")
-        } catch {
-            print("❌ Error saving default labels: \(error)")
-        }
-    }
-
     static func populateDefaultLocations(modelContext: ModelContext, home: Home) async {
         print("📍 Creating default locations for home: \(home.displayName)")
         await createDefaultRooms(context: modelContext, home: home)
@@ -162,7 +150,7 @@ class DefaultDataManager {
         let home = Home(name: name)
         modelContext.insert(home)
 
-        await populateDefaultLabels(modelContext: modelContext, home: home)
+        // Only create locations for new homes (labels are global, not per-home)
         await populateDefaultLocations(modelContext: modelContext, home: home)
 
         try modelContext.save()
@@ -194,7 +182,9 @@ class DefaultDataManager {
 
                 // Only populate defaults for first launch
                 if !OnboardingManager.hasCompletedOnboarding() {
-                    await populateDefaultLabels(modelContext: modelContext, home: home)
+                    // Labels are global (not per-home), create once
+                    await populateDefaultLabels(modelContext: modelContext)
+                    // Locations are per-home
                     await populateDefaultLocations(modelContext: modelContext, home: home)
                 }
 

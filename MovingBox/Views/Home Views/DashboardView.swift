@@ -113,8 +113,10 @@ struct DashboardView: View {
                     .accessibilityIdentifier("dashboard-all-inventory-button")
 
                     LazyVGrid(columns: columns, spacing: 16) {
-                        StatCard(label: "Number of Items", value: "\(items.count)")
-                        StatCard(label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost))
+                        StatCard(label: "Number of Items", value: "\(items.count)", identifier: "stat-items")
+                        StatCard(
+                            label: "Total Value", value: CurrencyFormatter.format(totalReplacementCost),
+                            identifier: "stat-value")
                     }
                     .padding(.horizontal)
                 }
@@ -256,6 +258,18 @@ struct DashboardView: View {
             .tint(.green)
         }
         .whatsNewSheet()
+        .onAppear {
+            // Only sync activeHomeId when a specific home was explicitly passed to this view.
+            // This prevents the default dashboard (showing primary home) from overwriting
+            // the active home selection, which caused issues on iPhone navigation.
+            if let specificHome = specificHome {
+                let homeIdString = specificHome.id.uuidString
+                if settings.activeHomeId != homeIdString {
+                    print("🏠 DashboardView - Syncing activeHomeId to: \(specificHome.displayName) (\(homeIdString))")
+                    settings.activeHomeId = homeIdString
+                }
+            }
+        }
         .task(id: home?.imageURL) {
             guard let home = home,
                 let imageURL = home.imageURL,
@@ -382,6 +396,7 @@ struct DashboardView: View {
 struct StatCard: View {
     let label: String
     let value: String
+    var identifier: String = "stat"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -390,13 +405,13 @@ struct StatCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .accessibilityIdentifier("statCardLabel")
+                .accessibilityIdentifier("\(identifier)-label")
             Text(value)
                 .font(.title2)
                 .fontWeight(.medium)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .accessibilityIdentifier("statCardValue")
+                .accessibilityIdentifier("\(identifier)-value")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()

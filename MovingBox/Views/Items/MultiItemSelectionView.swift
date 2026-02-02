@@ -24,6 +24,7 @@ struct MultiItemSelectionView: View {
     // MARK: - State Properties
 
     @State private var selectedLocation: InventoryLocation?
+    @State private var selectedHome: Home?
     @State private var showingLocationPicker = false
 
     // MARK: - Animation Properties
@@ -305,21 +306,28 @@ struct MultiItemSelectionView: View {
             HStack {
                 Label("Location", systemImage: "mappin.circle.fill")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
                 Button(action: { showingLocationPicker = true }) {
                     HStack(spacing: 6) {
-                        Text(selectedLocation?.name ?? "Not specified")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            if let home = selectedHome {
+                                Text(home.displayName)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(selectedLocation?.name ?? "Not specified")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                        }
 
                         Image(systemName: "chevron.right")
                             .font(.caption)
                     }
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 }
                 .accessibilityIdentifier("multiItemLocationButton")
             }
@@ -327,7 +335,15 @@ struct MultiItemSelectionView: View {
         .padding(.vertical, 16)
         .background(Color(.systemBackground))
         .sheet(isPresented: $showingLocationPicker) {
-            LocationSelectionView(selectedLocation: $selectedLocation)
+            LocationSelectionView(
+                selectedLocation: $selectedLocation,
+                selectedHome: $selectedHome
+            )
+        }
+        .onAppear {
+            if selectedHome == nil {
+                selectedHome = selectedLocation?.home
+            }
         }
     }
 

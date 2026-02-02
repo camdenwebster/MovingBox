@@ -37,21 +37,11 @@ struct EnhancedItemCreationFlowView: View {
         self.location = location
         self.onComplete = onComplete
 
-        // Initialize StateObject using temporary container
-        // Force new instance by using the captureMode in initialization
-        let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-            Home.self,
-        ])
-        let tempContainer = try! ModelContainer(
-            for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        // Initialize StateObject with nil context - will be set in onAppear
         self._viewModel = StateObject(
             wrappedValue: ItemCreationFlowViewModel(
                 captureMode: captureMode,
-                location: location,
-                modelContext: ModelContext(tempContainer)
+                location: location
             ))
     }
 

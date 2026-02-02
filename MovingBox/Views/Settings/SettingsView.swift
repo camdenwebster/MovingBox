@@ -111,6 +111,24 @@ struct SettingsView: View {
                         Image(systemName: "house")
                     }
                 }
+                NavigationLink(value: Router.Destination.globalLabelSettingsView) {
+                    Label {
+                        Text("Labels")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "tag")
+                    }
+                }
+                .accessibilityIdentifier("settings-labels-button")
+                NavigationLink(value: Router.Destination.insurancePolicyListView) {
+                    Label {
+                        Text("Insurance Policies")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "shield")
+                    }
+                }
+                .accessibilityIdentifier("settings-insurance-button")
             }
 
             if revenueCatManager.isProSubscriptionActive {
@@ -334,6 +352,9 @@ struct SettingsView: View {
             case .addHomeView: AddHomeView()
             case .aboutView: AboutView()
             case .featureRequestView: FeatureRequestView()
+            case .globalLabelSettingsView: GlobalLabelSettingsView()
+            case .insurancePolicyListView: InsurancePolicyListView()
+            case .insurancePolicyDetailView(let policy): InsurancePolicyDetailView(policy: policy)
             default: EmptyView()
             }
         }
@@ -493,79 +514,6 @@ struct AISettingsView: View {
     }
 }
 
-struct LocationSettingsView: View {
-    @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
-    @Environment(\.modelContext) var modelContext
-    @EnvironmentObject var router: Router
-    @EnvironmentObject var settings: SettingsManager
-    @Query(sort: [
-        SortDescriptor(\InventoryLocation.name)
-    ]) var allLocations: [InventoryLocation]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-
-    private var activeHome: Home? {
-        guard let activeIdString = settings.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
-        else {
-            return homes.first { $0.isPrimary }
-        }
-        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
-    }
-
-    // Filter locations by active home
-    private var locations: [InventoryLocation] {
-        guard let activeHome = activeHome else {
-            return allLocations
-        }
-        return allLocations.filter { $0.home?.id == activeHome.id }
-    }
-
-    var body: some View {
-        List {
-            if locations.isEmpty {
-                ContentUnavailableView(
-                    "No Locations",
-                    systemImage: "map",
-                    description: Text("Add locations to organize your items by room or area.")
-                )
-            } else {
-                ForEach(locations) { location in
-                    NavigationLink {
-                        EditLocationView(location: location)
-                    } label: {
-                        Text(location.name)
-                    }
-                }
-                .onDelete(perform: deleteLocations)
-            }
-        }
-        .navigationTitle("Location Settings")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                EditButton()
-                Button("Add Location", systemImage: "plus") {
-                    addLocation()
-                }
-                .accessibilityIdentifier("addLocation")
-            }
-        }
-    }
-
-    func addLocation() {
-        router.navigate(to: .editLocationView(location: nil, isEditing: true))
-    }
-
-    func deleteLocations(at offsets: IndexSet) {
-        for index in offsets {
-            let locationToDelete = locations[index]
-            modelContext.delete(locationToDelete)
-            print("Deleting location: \(locationToDelete.name)")
-            TelemetryManager.shared.trackLocationDeleted()
-        }
-    }
-}
-
 struct LabelSettingsView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
@@ -584,12 +532,9 @@ struct LabelSettingsView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    // Filter labels by active home
+    // Labels are global (not filtered by home)
     private var labels: [InventoryLabel] {
-        guard let activeHome = activeHome else {
-            return allLabels
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
+        allLabels
     }
 
     var body: some View {

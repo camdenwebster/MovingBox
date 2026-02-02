@@ -14,6 +14,8 @@ struct HomeListView: View {
     @EnvironmentObject var settings: SettingsManager
     @Query(sort: [SortDescriptor(\Home.name)]) private var homes: [Home]
 
+    @State private var showingCreateSheet = false
+
     var body: some View {
         List {
             if homes.isEmpty {
@@ -27,33 +29,7 @@ struct HomeListView: View {
                     NavigationLink {
                         HomeDetailSettingsView(home: home)
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(home.displayName)
-                                        .font(.headline)
-
-                                    if home.isPrimary {
-                                        Text("PRIMARY")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.accentColor)
-                                            .cornerRadius(4)
-                                    }
-                                }
-
-                                if !home.address1.isEmpty {
-                                    Text(formatAddress(home))
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-
-                            Spacer()
-                        }
+                        homeRow(home: home)
                     }
                 }
             }
@@ -62,9 +38,69 @@ struct HomeListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(destination: HomeDetailSettingsView(home: nil)) {
+                Button {
+                    showingCreateSheet = true
+                } label: {
                     Label("Add Home", systemImage: "plus")
                 }
+            }
+        }
+        .sheet(isPresented: $showingCreateSheet) {
+            NavigationStack {
+                HomeDetailSettingsView(home: nil, presentedInSheet: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func homeRow(home: Home) -> some View {
+        HStack(spacing: 12) {
+            homeThumbnail(home: home)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(home.displayName)
+                        .font(.headline)
+
+                    if home.isPrimary {
+                        Text("PRIMARY")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor)
+                            .clipShape(.rect(cornerRadius: 4))
+                    }
+                }
+
+                if !home.address1.isEmpty {
+                    Text(formatAddress(home))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func homeThumbnail(home: Home) -> some View {
+        AsyncImage(url: home.thumbnailURL) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 44, height: 44)
+                    .clipShape(.rect(cornerRadius: 8))
+            default:
+                Image(systemName: "house.fill")
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(home.color)
+                    .clipShape(.rect(cornerRadius: 8))
             }
         }
     }
@@ -117,6 +153,6 @@ struct HomeListView: View {
         }
     } catch {
         return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
     }
 }

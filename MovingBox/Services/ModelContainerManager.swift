@@ -31,6 +31,7 @@ class ModelContainerManager {
     private let multiHomeMigrationKey = "MovingBox_MultiHomeMigration_v1"
     private let orphanedItemsMigrationKey = "MovingBox_OrphanedItemsMigration_v1"
     private let schemaRecoveryPerformedKey = "MovingBox_SchemaRecoveryPerformed"
+    private let idStabilizationMigrationKey = "MovingBox_IDStabilization_v1"
 
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -89,17 +90,19 @@ class ModelContainerManager {
     }
 
     private let schema = Schema([
-        InventoryLabel.self,
-        InventoryItem.self,
-        InventoryLocation.self,
-        InsurancePolicy.self,
-        Home.self,
+        InventoryItem.self, InventoryLocation.self, InventoryLabel.self,
+        Home.self, InsurancePolicy.self,
     ])
 
     private init() {
         // CRITICAL: Register value transformers BEFORE creating ModelContainer
         // SwiftData needs transformers registered before reading schema
         UIColorValueTransformer.register()
+
+        // Capture relationship mappings BEFORE container creation.
+        // SwiftData lightweight migration will drop old FK columns (ZLABEL, ZINSURANCEPOLICY)
+        // when it sees the schema changed from to-one to to-many relationships.
+        let relationshipMappings = RelationshipMigrationHelper.captureMappingsIfNeeded()
 
         // Always start with CloudKit disabled during initialization/migration
         let configuration = ModelConfiguration(
@@ -110,9 +113,16 @@ class ModelContainerManager {
         )
 
         do {
-            // Try to create container with automatic migration
-            self.container = try ModelContainer(for: schema, configurations: [configuration])
-            print("📦 ModelContainerManager - Created local container for migration")
+            // Try to create container with automatic lightweight migration
+            self.container = try ModelContainer(
+                for: schema, configurations: [configuration])
+            print("📦 ModelContainerManager - Created local container")
+
+            // Restore relationships that were captured before lightweight migration
+            if !relationshipMappings.isEmpty {
+                RelationshipMigrationHelper.restoreMappings(
+                    relationshipMappings, context: container.mainContext)
+            }
         } catch let error as NSError {
             print("📦 ModelContainerManager - Error creating container: \(error)")
             print("📦 ModelContainerManager - Error domain: \(error.domain), code: \(error.code)")
@@ -149,7 +159,8 @@ class ModelContainerManager {
                     }
 
                     // Try to create fresh container
-                    self.container = try ModelContainer(for: schema, configurations: [configuration])
+                    self.container = try ModelContainer(
+                        for: schema, configurations: [configuration])
                     print("📦 ModelContainerManager - Created fresh container after backup")
 
                     // Mark that we need to skip migration since we started fresh
@@ -184,6 +195,11 @@ class ModelContainerManager {
             // Check if migration was already completed
             if isMigrationAlreadyCompleted {
                 print("📦 ModelContainerManager - Migration already completed, skipping")
+
+                // CRITICAL: Run ID stabilization for existing users who migrated before this fix
+                // This ensures IDs are persisted even if multi-home migration already ran
+                try? await performIDStabilizationMigration()
+
                 // Skip migration and go straight to CloudKit setup - no UI needed
                 try await enableCloudKitSync()
 
@@ -321,7 +337,8 @@ class ModelContainerManager {
         )
 
         do {
-            let newContainer = try ModelContainer(for: schema, configurations: [syncConfiguration])
+            let newContainer = try ModelContainer(
+                for: schema, configurations: [syncConfiguration])
 
             // Migrate data from local container to sync-enabled container
             try await migrateToSyncContainer(from: container, to: newContainer)
@@ -391,6 +408,11 @@ class ModelContainerManager {
         // Original migration logic for first device or when CloudKit is disabled
         await updateMigrationStatus("Checking data compatibility...", progress: 0.1)
         try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+
+        // CRITICAL: Stabilize IDs first, before any other migration
+        // This ensures all model objects have their IDs persisted to prevent regeneration
+        await updateMigrationStatus("Stabilizing data identifiers...", progress: 0.15)
+        try? await performIDStabilizationMigration()
 
         // Migrate all models before enabling CloudKit
         await updateMigrationStatus("Migrating home data...", progress: 0.2)
@@ -554,6 +576,71 @@ class ModelContainerManager {
         }
     }
 
+    // MARK: - ID Stabilization Migration
+
+    /// Ensures all model objects have their IDs persisted to the database.
+    /// This prevents UUID regeneration issues when SwiftData loads objects that were
+    /// created before the `id` property was explicitly set in initializers.
+    private var isIDStabilizationCompleted: Bool {
+        UserDefaults.standard.bool(forKey: idStabilizationMigrationKey)
+    }
+
+    internal func performIDStabilizationMigration() async throws {
+        guard !isIDStabilizationCompleted else {
+            print("📦 ModelContainerManager - ID stabilization already completed, skipping")
+            return
+        }
+
+        let context = container.mainContext
+        print("📦 ModelContainerManager - Starting ID stabilization migration")
+
+        // Fetch all objects to ensure their IDs are loaded/generated
+        // The act of fetching and saving will persist any newly generated IDs
+
+        // 1. Stabilize Home IDs
+        let homeDescriptor = FetchDescriptor<Home>()
+        let homes = try context.fetch(homeDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(homes.count) home IDs")
+        for home in homes {
+            // Access the id to ensure it's generated if not already persisted
+            _ = home.id
+        }
+
+        // 2. Stabilize Location IDs
+        let locationDescriptor = FetchDescriptor<InventoryLocation>()
+        let locations = try context.fetch(locationDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(locations.count) location IDs")
+        for location in locations {
+            _ = location.id
+        }
+
+        // 3. Stabilize Label IDs
+        let labelDescriptor = FetchDescriptor<InventoryLabel>()
+        let labels = try context.fetch(labelDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(labels.count) label IDs")
+        for label in labels {
+            _ = label.id
+        }
+
+        // 4. Stabilize Item IDs
+        let itemDescriptor = FetchDescriptor<InventoryItem>()
+        let items = try context.fetch(itemDescriptor)
+        print("📦 ModelContainerManager - Stabilizing \(items.count) item IDs")
+        for item in items {
+            _ = item.id
+        }
+
+        // 5. Save context to persist all IDs
+        try context.save()
+
+        // Mark as complete
+        UserDefaults.standard.set(true, forKey: idStabilizationMigrationKey)
+        print("📦 ModelContainerManager - ID stabilization migration completed")
+        print(
+            "📦 ModelContainerManager - Stabilized: \(homes.count) homes, \(locations.count) locations, \(labels.count) labels, \(items.count) items"
+        )
+    }
+
     // MARK: - Multi-Home Migration
 
     private var isMultiHomeMigrationCompleted: Bool {
@@ -595,18 +682,9 @@ class ModelContainerManager {
         }
         print("📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations to primary home")
 
-        // 3. Assign all orphaned labels to primary home
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let labels = try context.fetch(labelDescriptor)
-        var migratedLabelsCount = 0
+        // Note: Labels are now global and don't need home assignment
 
-        for label in labels where label.home == nil {
-            label.home = primaryHome
-            migratedLabelsCount += 1
-        }
-        print("📦 ModelContainerManager - Migrated \(migratedLabelsCount) labels to primary home")
-
-        // 4. Assign all items without an effective home to primary home
+        // 3. Assign all items without an effective home to primary home
         let itemDescriptor = FetchDescriptor<InventoryItem>()
         let items = try context.fetch(itemDescriptor)
         var migratedItemsCount = 0
@@ -635,7 +713,7 @@ class ModelContainerManager {
 
         print("📦 ModelContainerManager - Multi-home migration completed successfully")
         print(
-            "📦 ModelContainerManager - Summary: \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items"
+            "📦 ModelContainerManager - Summary: \(migratedLocationsCount) locations, \(migratedItemsCount) items"
         )
     }
 
@@ -661,9 +739,7 @@ class ModelContainerManager {
         let locations = try context.fetch(locationDescriptor)
         let orphanedLocations = locations.filter { $0.home == nil }
 
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let labels = try context.fetch(labelDescriptor)
-        let orphanedLabels = labels.filter { $0.home == nil }
+        // Note: Labels are now global and don't need home assignment
 
         let itemDescriptor = FetchDescriptor<InventoryItem>()
         let items = try context.fetch(itemDescriptor)
@@ -671,7 +747,7 @@ class ModelContainerManager {
             (item.location?.home == nil) && (item.home == nil)
         }
 
-        let hasOrphans = !orphanedLocations.isEmpty || !orphanedLabels.isEmpty || !orphanedItems.isEmpty
+        let hasOrphans = !orphanedLocations.isEmpty || !orphanedItems.isEmpty
 
         // Skip if already completed AND no orphans found
         guard force || hasOrphans || !isOrphanedItemsMigrationCompleted else {
@@ -681,7 +757,7 @@ class ModelContainerManager {
 
         if hasOrphans {
             print(
-                "📦 ModelContainerManager - Found \(orphanedLocations.count) orphaned locations, \(orphanedLabels.count) orphaned labels, \(orphanedItems.count) orphaned items - running migration"
+                "📦 ModelContainerManager - Found \(orphanedLocations.count) orphaned locations, \(orphanedItems.count) orphaned items - running migration"
             )
         } else {
             print("📦 ModelContainerManager - No orphaned items found, but force=\(force), running migration anyway")
@@ -695,13 +771,7 @@ class ModelContainerManager {
             print("📦 ModelContainerManager - Assigned location '\(location.name)' to primary home")
         }
 
-        // Migrate orphaned labels
-        var migratedLabelsCount = 0
-        for label in orphanedLabels {
-            label.home = primaryHome
-            migratedLabelsCount += 1
-            print("📦 ModelContainerManager - Assigned label '\(label.name)' to primary home")
-        }
+        // Note: Labels are now global and don't need home assignment
 
         // Migrate orphaned items
         var migratedItemsCount = 0
@@ -721,7 +791,7 @@ class ModelContainerManager {
 
         print("📦 ModelContainerManager - Orphaned items migration completed successfully\(force ? " (forced)" : "")")
         print(
-            "📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations, \(migratedLabelsCount) labels, \(migratedItemsCount) items to primary home '\(primaryHome.name)'"
+            "📦 ModelContainerManager - Migrated \(migratedLocationsCount) locations, \(migratedItemsCount) items to primary home '\(primaryHome.name)'"
         )
     }
 

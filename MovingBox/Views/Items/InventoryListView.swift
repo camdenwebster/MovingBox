@@ -428,7 +428,7 @@ struct InventoryListView: View {
                     model: "",
                     make: "",
                     location: location,
-                    label: nil,
+                    labels: [],
                     price: Decimal.zero,
                     insured: false,
                     assetId: "",
@@ -507,7 +507,7 @@ struct InventoryListView: View {
             model: "",
             make: "",
             location: location,
-            label: nil,
+            labels: [],
             price: Decimal.zero,
             insured: false,
             assetId: "",
@@ -579,7 +579,7 @@ struct InventoryListView: View {
 
     func updateSelectedItemsLabel(to label: InventoryLabel?) {
         for item in selectedItems {
-            item.label = label
+            item.labels = label.map { [$0] } ?? []
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
@@ -610,20 +610,9 @@ struct InventoryListView: View {
 
     func getAllLabels() -> [InventoryLabel] {
         do {
+            // Labels are global (not filtered by home)
             let descriptor = FetchDescriptor<InventoryLabel>(sortBy: [SortDescriptor(\InventoryLabel.name)])
-            let allLabels = try modelContext.fetch(descriptor)
-
-            // Filter by active home if one is set
-            if let activeHomeIdString = settings.activeHomeId,
-                let activeHomeId = UUID(uuidString: activeHomeIdString)
-            {
-                return allLabels.filter { label in
-                    label.home?.id == activeHomeId
-                }
-            }
-
-            // Return all labels if no active home is set
-            return allLabels
+            return try modelContext.fetch(descriptor)
         } catch {
             print("Error fetching labels: \(error)")
             return []
@@ -691,7 +680,7 @@ struct InventoryListView: View {
 
     func changeSelectedItemsLabel(to label: InventoryLabel?) {
         for item in selectedItems {
-            item.label = label
+            item.labels = label.map { [$0] } ?? []
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()

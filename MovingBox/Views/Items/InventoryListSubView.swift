@@ -55,9 +55,17 @@ struct InventoryListSubView: View {
         var result = items
 
         // Apply home filtering if needed (can't do this in predicate due to computed property)
-        if !showAllHomes, let activeHome = activeHome {
+        // Skip home filtering for unassigned items — they may lack a direct home reference
+        if !showAllHomes, !showOnlyUnassigned, let activeHome = activeHome {
             result = result.filter { item in
                 item.effectiveHome?.id == activeHome.id
+            }
+        }
+
+        // Apply label filtering if needed (can't do in predicate with array.contains)
+        if let filterLabel = filterLabel {
+            result = result.filter { item in
+                item.labels.contains { $0.id == filterLabel.id }
             }
         }
 
@@ -139,10 +147,10 @@ struct InventoryListSubView: View {
             }
         } else if let filterLabel = filterLabel {
             // Show items with specific label
-            let labelID = filterLabel.persistentModelID
-            predicate = #Predicate<InventoryItem> { item in
-                item.label?.persistentModelID == labelID
-            }
+            // Note: SwiftData predicates don't support array.contains well with persistentModelID,
+            // so we filter in-memory via filteredItems computed property instead
+            let labelID = filterLabel.id
+            predicate = nil
         } else {
             // No predicate-level filtering needed
             // Home filtering happens in-memory via filteredItems

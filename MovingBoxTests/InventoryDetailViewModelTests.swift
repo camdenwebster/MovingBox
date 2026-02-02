@@ -24,7 +24,7 @@ struct InventoryDetailViewModelTests {
             Home.self,
             InsurancePolicy.self,
         ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 

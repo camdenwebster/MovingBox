@@ -23,14 +23,20 @@ class Home: PhotoManageable {
     var purchasePrice: Decimal = 0.00
     var imageURL: URL?
     var secondaryPhotoURLs: [String] = []
-    var insurancePolicy: InsurancePolicy?
+    // Many-to-many relationship with insurance policies
+    @Relationship var insurancePolicies: [InsurancePolicy] = []
     var isPrimary: Bool = false
     var colorName: String = "green"
 
     // Inverse relationships for CloudKit compatibility
     @Relationship(inverse: \InventoryItem.home) var items: [InventoryItem]?
     @Relationship(inverse: \InventoryLocation.home) var locations: [InventoryLocation]?
-    @Relationship(inverse: \InventoryLabel.home) var labels: [InventoryLabel]?
+
+    var thumbnailURL: URL? {
+        guard let imageURL = imageURL else { return nil }
+        let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
+        return OptimizedImageManager.shared.getThumbnailURL(for: id)
+    }
 
     /// Display name for the home - uses name if provided, otherwise falls back to address1, then "Unnamed Home"
     var displayName: String {
@@ -119,8 +125,8 @@ class Home: PhotoManageable {
     ///   - country: Country name
     ///   - purchaseDate: Date of purchase (defaults to current date)
     ///   - purchasePrice: Purchase price (defaults to 0.00)
-    ///   - insurancePolicy: Associated insurance policy (optional)
     init(
+        id: UUID = UUID(),
         name: String = "",
         address1: String = "",
         address2: String = "",
@@ -129,9 +135,9 @@ class Home: PhotoManageable {
         zip: String = "",
         country: String = "",
         purchaseDate: Date = Date(),
-        purchasePrice: Decimal = 0.00,
-        insurancePolicy: InsurancePolicy? = nil
+        purchasePrice: Decimal = 0.00
     ) {
+        self.id = id
         self.name = name
         self.address1 = address1
         self.address2 = address2
@@ -141,7 +147,6 @@ class Home: PhotoManageable {
         self.country = country
         self.purchaseDate = purchaseDate
         self.purchasePrice = purchasePrice
-        self.insurancePolicy = insurancePolicy
 
         // Attempt migration on init
         Task {

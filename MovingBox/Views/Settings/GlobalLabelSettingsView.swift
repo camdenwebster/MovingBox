@@ -1,76 +1,76 @@
 //
-//  HomeLabelSettingsView.swift
+//  GlobalLabelSettingsView.swift
 //  MovingBox
 //
-//  Created by Claude on 12/20/25.
+//  Created by Claude on 1/17/26.
 //
 
 import SwiftData
 import SwiftUI
 
-struct HomeLabelSettingsView: View {
+struct GlobalLabelSettingsView: View {
     @Environment(\.modelContext) var modelContext
-    @EnvironmentObject var router: Router
-    @Query private var allLabels: [InventoryLabel]
+    @Query(sort: \InventoryLabel.name) private var allLabels: [InventoryLabel]
 
-    let home: Home
-
-    private var filteredLabels: [InventoryLabel] {
-        allLabels.filter { label in
-            label.home?.id == home.id
-        }.sorted { $0.name < $1.name }
-    }
+    @State private var selectedLabel: InventoryLabel?
+    @State private var showAddLabelSheet = false
 
     var body: some View {
         List {
-            if filteredLabels.isEmpty {
+            if allLabels.isEmpty {
                 ContentUnavailableView(
                     "No Labels",
                     systemImage: "tag",
-                    description: Text("Add labels to categorize items in this home.")
+                    description: Text("Add labels to categorize your items.")
                 )
             } else {
-                ForEach(filteredLabels) { label in
-                    NavigationLink {
-                        EditLabelView(label: label)
+                ForEach(allLabels) { label in
+                    Button {
+                        selectedLabel = label
                     } label: {
-                        HStack {
-                            Text(label.emoji)
-                                .padding(7)
-                                .background(in: Circle())
-                                .backgroundStyle(Color(label.color ?? .blue))
-                            Text(label.name)
-                        }
+                        LabelCapsuleView(label: label)
                     }
+                    .accessibilityIdentifier("label-row-\(label.id.uuidString)")
                 }
                 .onDelete(perform: deleteLabel)
             }
         }
+        .accessibilityIdentifier("labels-list")
         .navigationTitle("Labels")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
+                    .accessibilityIdentifier("labels-edit-button")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    addLabel()
+                    showAddLabelSheet = true
                 } label: {
                     Label("Add Label", systemImage: "plus")
                 }
+                .accessibilityIdentifier("labels-add-button")
             }
         }
-    }
-
-    func addLabel() {
-        let newLabel = InventoryLabel(name: "", desc: "")
-        newLabel.home = home
-        router.navigate(to: .editLabelView(label: newLabel, isEditing: true))
+        .sheet(item: $selectedLabel) { label in
+            NavigationStack {
+                EditLabelView(label: label, isEditing: true, presentedInSheet: true)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showAddLabelSheet) {
+            NavigationStack {
+                EditLabelView(label: nil, isEditing: true, presentedInSheet: true)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     func deleteLabel(at offsets: IndexSet) {
         for index in offsets {
-            let labelToDelete = filteredLabels[index]
+            let labelToDelete = allLabels[index]
             modelContext.delete(labelToDelete)
             print("Deleting label: \(labelToDelete.name)")
             TelemetryManager.shared.trackLabelDeleted()
@@ -82,27 +82,21 @@ struct HomeLabelSettingsView: View {
 #Preview {
     do {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Home.self, InventoryLabel.self, configurations: config)
-
-        let home = Home(name: "Main House")
-        container.mainContext.insert(home)
+        let container = try ModelContainer(for: InventoryLabel.self, configurations: config)
 
         let label1 = InventoryLabel(name: "Electronics", desc: "Electronic devices", emoji: "📱")
-        label1.home = home
-
         let label2 = InventoryLabel(name: "Furniture", desc: "Home furniture", emoji: "🛋️")
-        label2.home = home
 
         container.mainContext.insert(label1)
         container.mainContext.insert(label2)
 
         return NavigationStack {
-            HomeLabelSettingsView(home: home)
+            GlobalLabelSettingsView()
                 .modelContainer(container)
                 .environmentObject(Router())
         }
     } catch {
         return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
     }
 }

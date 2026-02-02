@@ -9,32 +9,17 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
-private struct CurrencyField: View {
-    let title: String
-    @Binding var value: Decimal
-    let isEnabled: Bool
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            if isEnabled {
-                TextField("Amount", value: $value, format: .currency(code: "USD"))
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-            } else {
-                Text(value, format: .currency(code: "USD"))
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-}
-
 @MainActor
 struct EditHomeView: View {
     @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
+
+    var home: Home?
+    var presentedInSheet: Bool
+    var onDismiss: (() -> Void)?
+
     @State private var isEditing = false
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
@@ -46,10 +31,22 @@ struct EditHomeView: View {
         home.country = Locale.current.region?.identifier ?? "US"
         return home
     }()
-    @State private var tempPolicy = InsurancePolicy()
+
+    init(
+        home: Home? = nil,
+        presentedInSheet: Bool = false,
+        onDismiss: (() -> Void)? = nil
+    ) {
+        self.home = home
+        self.presentedInSheet = presentedInSheet
+        self.onDismiss = onDismiss
+    }
 
     private var isNewHome: Bool {
-        homes.isEmpty
+        if presentedInSheet {
+            return home == nil
+        }
+        return homes.isEmpty
     }
 
     private var isEditingEnabled: Bool {
@@ -57,7 +54,10 @@ struct EditHomeView: View {
     }
 
     private var activeHome: Home? {
-        homes.last
+        if presentedInSheet {
+            return home
+        }
+        return home ?? homes.last
     }
 
     private func countryName(for code: String) -> String {
@@ -191,74 +191,9 @@ struct EditHomeView: View {
                     }
                 }
             }
-
-            Section("Insurance Policy") {
-                FormTextFieldRow(
-                    label: "Insurance Provider", text: $tempPolicy.providerName, isEditing: $isEditing,
-                    placeholder: "Name")
-                FormTextFieldRow(
-                    label: "Policy Number", text: $tempPolicy.policyNumber, isEditing: $isEditing,
-                    placeholder: "Number")
-
-                if isEditingEnabled {
-                    DatePicker("Start Date", selection: $tempPolicy.startDate, displayedComponents: .date)
-                    DatePicker(
-                        "End Date", selection: $tempPolicy.endDate, in: tempPolicy.startDate...,
-                        displayedComponents: .date)
-                } else {
-                    HStack {
-                        Text("Start Date")
-                        Spacer()
-                        Text(tempPolicy.startDate.formatted(date: .abbreviated, time: .omitted))
-                            .foregroundColor(.secondary)
-                    }
-                    HStack {
-                        Text("End Date")
-                        Spacer()
-                        Text(tempPolicy.endDate.formatted(date: .abbreviated, time: .omitted))
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-
-            Section("Coverage Details") {
-                CurrencyField(
-                    title: "Deductible",
-                    value: $tempPolicy.deductibleAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Dwelling Coverage",
-                    value: $tempPolicy.dwellingCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Personal Property",
-                    value: $tempPolicy.personalPropertyCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Loss of Use",
-                    value: $tempPolicy.lossOfUseCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Liability",
-                    value: $tempPolicy.liabilityCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-
-                CurrencyField(
-                    title: "Medical Payments",
-                    value: $tempPolicy.medicalPaymentsCoverageAmount,
-                    isEnabled: isEditingEnabled
-                )
-            }
         }
+        .navigationTitle(isNewHome ? "New Home" : (activeHome?.displayName ?? "Home"))
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: activeHome?.imageURL) {
             guard let home = activeHome,
                 let imageURL = home.imageURL,
@@ -301,74 +236,89 @@ struct EditHomeView: View {
         .onAppear {
             if let existingHome = activeHome {
                 tempHome = existingHome
-                if let policy = existingHome.insurancePolicy {
-                    tempPolicy = policy
-                }
             } else {
                 // Set default country for new homes
                 tempHome.country = Locale.current.region?.identifier ?? "US"
             }
+            // When presented in a sheet, start in editing mode
+            if presentedInSheet {
+                isEditing = true
+            }
         }
         .toolbar {
-            if !isNewHome {
-                Button(isEditing ? "Save" : "Edit") {
-                    if isEditing {
-                        if let home = activeHome {
-                            home.name = tempHome.name
-                            home.address1 = tempHome.address1
-                            home.address2 = tempHome.address2
-                            home.city = tempHome.city
-                            home.state = tempHome.state
-                            home.zip = tempHome.zip
-                            home.country = tempHome.country
-
-                            if home.insurancePolicy == nil {
-                                tempPolicy.insuredHome = home
-                                home.insurancePolicy = tempPolicy
-                            }
-                        }
-                        isEditing = false
-                    } else {
-                        isEditing = true
+            if presentedInSheet {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismissView()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .font(isEditing ? .body.bold() : .body)
-            } else {
-                Button("Save") {
-                    Task {
-                        do {
-                            if isNewHome {
-                                let home = try await DefaultDataManager.getOrCreateHome(modelContext: modelContext)
-
-                                home.name = tempHome.name
-                                home.address1 = tempHome.address1
-                                home.address2 = tempHome.address2
-                                home.city = tempHome.city
-                                home.state = tempHome.state
-                                home.zip = tempHome.zip
-                                home.country = tempHome.country
-                                home.purchaseDate = Date()
-                                home.imageURL = tempHome.imageURL
-
-                                if !tempPolicy.providerName.isEmpty || !tempPolicy.policyNumber.isEmpty {
-                                    tempPolicy.insuredHome = home
-                                    home.insurancePolicy = tempPolicy
-                                }
-
-                                TelemetryManager.shared.trackLocationCreated(name: home.address1)
-                                print("EditHomeView: Updated home - \(home.name)")
-                            }
-
-                            try modelContext.save()
-                            router.navigateBack()
-                        } catch {
-                            print("❌ Error saving home: \(error)")
-                        }
-                    }
-                }
-                .disabled(tempHome.address1.isEmpty)
-                .bold()
             }
+
+            ToolbarItem(placement: .confirmationAction) {
+                if !isNewHome {
+                    Button(isEditing ? "Save" : "Edit") {
+                        if isEditing {
+                            if let existingHome = activeHome {
+                                existingHome.name = tempHome.name
+                                existingHome.address1 = tempHome.address1
+                                existingHome.address2 = tempHome.address2
+                                existingHome.city = tempHome.city
+                                existingHome.state = tempHome.state
+                                existingHome.zip = tempHome.zip
+                                existingHome.country = tempHome.country
+                            }
+                            isEditing = false
+                            if presentedInSheet {
+                                dismissView()
+                            }
+                        } else {
+                            isEditing = true
+                        }
+                    }
+                    .font(isEditing ? .body.bold() : .body)
+                } else {
+                    Button("Save") {
+                        Task {
+                            do {
+                                let newHome = try await DefaultDataManager.getOrCreateHome(modelContext: modelContext)
+
+                                newHome.name = tempHome.name
+                                newHome.address1 = tempHome.address1
+                                newHome.address2 = tempHome.address2
+                                newHome.city = tempHome.city
+                                newHome.state = tempHome.state
+                                newHome.zip = tempHome.zip
+                                newHome.country = tempHome.country
+                                newHome.purchaseDate = Date()
+                                newHome.imageURL = tempHome.imageURL
+
+                                TelemetryManager.shared.trackLocationCreated(name: newHome.address1)
+                                print("EditHomeView: Created home - \(newHome.name)")
+
+                                try modelContext.save()
+                                dismissView()
+                            } catch {
+                                print("❌ Error saving home: \(error)")
+                            }
+                        }
+                    }
+                    .disabled(tempHome.address1.isEmpty)
+                    .bold()
+                }
+            }
+        }
+    }
+
+    private func dismissView() {
+        if presentedInSheet {
+            onDismiss?()
+            dismiss()
+        } else {
+            router.navigateBack()
         }
     }
 }

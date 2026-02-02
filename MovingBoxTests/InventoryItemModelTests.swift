@@ -74,7 +74,7 @@ import Testing
             model: "",
             make: "",
             location: nil,
-            label: nil,
+            labels: [],
             price: 0,
             insured: false,
             assetId: "",
@@ -280,7 +280,7 @@ import Testing
             model: "",
             make: "",
             location: nil,
-            label: nil,
+            labels: [],
             price: 0,
             insured: false,
             assetId: "",
@@ -432,5 +432,364 @@ import Testing
         // Test case 4: Item without location or home
         let item4 = InventoryItem()
         #expect(item4.effectiveHome == nil, "Item should have no effective home when neither location nor home is set")
+    }
+
+    @Test("Test effectiveHome with location that has nil home falls back to direct home")
+    func testEffectiveHomeLocationWithNilHome() async throws {
+        // Location exists but has no home assigned
+        let location = InventoryLocation(name: "Orphaned Location")
+        // location.home is nil by default
+
+        let directHome = Home(name: "Direct Home")
+
+        let item = InventoryItem()
+        item.location = location
+        item.home = directHome
+
+        // Since location.home is nil, effectiveHome should fall back to item.home
+        #expect(item.effectiveHome === directHome, "Item should fall back to direct home when location's home is nil")
+    }
+
+    @Test("Test item ID is set correctly on initialization")
+    func testItemIdInitialization() async throws {
+        // Test default init
+        let item1 = InventoryItem()
+        #expect(item1.id != UUID(), "Item should have a valid UUID")
+
+        // Test init with title
+        let item2 = InventoryItem(title: "Test Item")
+        #expect(item2.id != UUID(), "Item should have a valid UUID")
+
+        // Verify IDs are unique
+        #expect(item1.id != item2.id, "Different items should have different IDs")
+    }
+
+    @Test("Test item ID can be explicitly set")
+    func testItemIdExplicitSet() async throws {
+        let explicitId = UUID()
+        let item = InventoryItem(id: explicitId)
+
+        #expect(item.id == explicitId, "Item ID should match explicitly set UUID")
+    }
+
+    @Test("Test home ID is set correctly on initialization")
+    func testHomeIdInitialization() async throws {
+        let home = Home(name: "Test Home")
+        #expect(home.id != UUID(), "Home should have a valid UUID")
+
+        // Test with explicit ID
+        let explicitId = UUID()
+        let homeWithId = Home(id: explicitId, name: "Home With ID")
+        #expect(homeWithId.id == explicitId, "Home ID should match explicitly set UUID")
+    }
+
+    @Test("Test location ID is set correctly on initialization")
+    func testLocationIdInitialization() async throws {
+        let location = InventoryLocation(name: "Test Location")
+        #expect(location.id != UUID(), "Location should have a valid UUID")
+
+        // Test with explicit ID
+        let explicitId = UUID()
+        let locationWithId = InventoryLocation(id: explicitId, name: "Location With ID")
+        #expect(locationWithId.id == explicitId, "Location ID should match explicitly set UUID")
+    }
+
+    @Test("Test label ID is set correctly on initialization")
+    func testLabelIdInitialization() async throws {
+        let label = InventoryLabel(name: "Test Label")
+        #expect(label.id != UUID(), "Label should have a valid UUID")
+
+        // Test with explicit ID
+        let explicitId = UUID()
+        let labelWithId = InventoryLabel(id: explicitId, name: "Label With ID")
+        #expect(labelWithId.id == explicitId, "Label ID should match explicitly set UUID")
+    }
+
+    @Test("Test item home assignment does not affect location")
+    func testHomeAssignmentIndependentOfLocation() async throws {
+        let home1 = Home(name: "Home 1")
+        let home2 = Home(name: "Home 2")
+        let location = InventoryLocation(name: "Test Location")
+        location.home = home1
+
+        let item = InventoryItem()
+        item.location = location
+        item.home = home2
+
+        // Verify location's home is unchanged
+        #expect(location.home === home1, "Setting item.home should not affect location.home")
+
+        // Verify effectiveHome still uses location's home
+        #expect(item.effectiveHome === home1, "effectiveHome should still prefer location's home")
+    }
+
+    @Test("Test clearing location makes item use direct home")
+    func testClearingLocationUsesDirectHome() async throws {
+        let locationHome = Home(name: "Location Home")
+        let directHome = Home(name: "Direct Home")
+        let location = InventoryLocation(name: "Test Location")
+        location.home = locationHome
+
+        let item = InventoryItem()
+        item.location = location
+        item.home = directHome
+
+        // Initially uses location's home
+        #expect(item.effectiveHome === locationHome)
+
+        // Clear location
+        item.location = nil
+
+        // Now should use direct home
+        #expect(item.effectiveHome === directHome, "After clearing location, item should use direct home")
+    }
+
+    // MARK: - Multi-Label Tests
+
+    @Test("Test labels array initialization is empty by default")
+    func testLabelsArrayDefaultInitialization() async throws {
+        let item = InventoryItem()
+
+        #expect(item.labels.isEmpty, "Labels array should be empty by default")
+        #expect(item.labels.count == 0)
+    }
+
+    @Test("Test item initialization with single label")
+    func testItemInitializationWithSingleLabel() async throws {
+        let label = InventoryLabel(name: "Electronics", emoji: "📱")
+        let item = InventoryItem(
+            title: "Test Item",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: nil,
+            labels: [label],
+            price: 0,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false
+        )
+
+        #expect(item.labels.count == 1)
+        #expect(item.labels.first?.name == "Electronics")
+        #expect(item.labels.first?.emoji == "📱")
+    }
+
+    @Test("Test item initialization with multiple labels")
+    func testItemInitializationWithMultipleLabels() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+        let label3 = InventoryLabel(name: "Expensive", emoji: "💰")
+
+        let item = InventoryItem(
+            title: "Test Item",
+            quantityString: "1",
+            quantityInt: 1,
+            desc: "",
+            serial: "",
+            model: "",
+            make: "",
+            location: nil,
+            labels: [label1, label2, label3],
+            price: 0,
+            insured: false,
+            assetId: "",
+            notes: "",
+            showInvalidQuantityAlert: false
+        )
+
+        #expect(item.labels.count == 3)
+        #expect(item.labels.contains { $0.name == "Electronics" })
+        #expect(item.labels.contains { $0.name == "Office" })
+        #expect(item.labels.contains { $0.name == "Expensive" })
+    }
+
+    @Test("Test adding labels to item")
+    func testAddingLabelsToItem() async throws {
+        let item = InventoryItem()
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+
+        // Initially empty
+        #expect(item.labels.isEmpty)
+
+        // Add first label
+        item.labels.append(label1)
+        #expect(item.labels.count == 1)
+
+        // Add second label
+        item.labels.append(label2)
+        #expect(item.labels.count == 2)
+    }
+
+    @Test("Test removing labels from item")
+    func testRemovingLabelsFromItem() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+        let label3 = InventoryLabel(name: "Expensive", emoji: "💰")
+
+        let item = InventoryItem()
+        item.labels = [label1, label2, label3]
+        #expect(item.labels.count == 3)
+
+        // Remove by ID
+        item.labels.removeAll { $0.id == label2.id }
+        #expect(item.labels.count == 2)
+        #expect(!item.labels.contains { $0.name == "Office" })
+        #expect(item.labels.contains { $0.name == "Electronics" })
+        #expect(item.labels.contains { $0.name == "Expensive" })
+    }
+
+    @Test("Test clearing all labels")
+    func testClearingAllLabels() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+
+        let item = InventoryItem()
+        item.labels = [label1, label2]
+        #expect(item.labels.count == 2)
+
+        // Clear all labels
+        item.labels.removeAll()
+        #expect(item.labels.isEmpty)
+    }
+
+    @Test("Test maximum 5 labels enforcement in Builder pattern")
+    func testBuilderMaxLabelsEnforcement() async throws {
+        let labels = (1...10).map { InventoryLabel(name: "Label \($0)", emoji: "🏷️") }
+
+        let item = InventoryItem.Builder(title: "Test Item")
+            .addLabel(labels[0])
+            .addLabel(labels[1])
+            .addLabel(labels[2])
+            .addLabel(labels[3])
+            .addLabel(labels[4])
+            .addLabel(labels[5])  // Should be ignored (6th label)
+            .addLabel(labels[6])  // Should be ignored (7th label)
+            .build()
+
+        #expect(item.labels.count == 5, "Builder should enforce maximum of 5 labels")
+    }
+
+    @Test("Test Builder addLabel prevents duplicates")
+    func testBuilderAddLabelPreventsDuplicates() async throws {
+        let label = InventoryLabel(name: "Electronics", emoji: "📱")
+
+        let item = InventoryItem.Builder(title: "Test Item")
+            .addLabel(label)
+            .addLabel(label)  // Same label again
+            .addLabel(label)  // Same label again
+            .build()
+
+        #expect(item.labels.count == 1, "Builder should prevent duplicate labels")
+    }
+
+    @Test("Test Builder labels method sets array directly")
+    func testBuilderLabelsMethod() async throws {
+        let label1 = InventoryLabel(name: "Electronics", emoji: "📱")
+        let label2 = InventoryLabel(name: "Office", emoji: "💼")
+
+        let item = InventoryItem.Builder(title: "Test Item")
+            .labels([label1, label2])
+            .build()
+
+        #expect(item.labels.count == 2)
+        #expect(item.labels.contains { $0.name == "Electronics" })
+        #expect(item.labels.contains { $0.name == "Office" })
+    }
+
+    @Test("Test replacing labels array")
+    func testReplacingLabelsArray() async throws {
+        let label1 = InventoryLabel(name: "Old Label", emoji: "📦")
+        let label2 = InventoryLabel(name: "New Label 1", emoji: "🏷️")
+        let label3 = InventoryLabel(name: "New Label 2", emoji: "✨")
+
+        let item = InventoryItem()
+        item.labels = [label1]
+        #expect(item.labels.count == 1)
+
+        // Replace with new labels (batch operation behavior)
+        item.labels = [label2, label3]
+        #expect(item.labels.count == 2)
+        #expect(!item.labels.contains { $0.name == "Old Label" })
+        #expect(item.labels.contains { $0.name == "New Label 1" })
+        #expect(item.labels.contains { $0.name == "New Label 2" })
+    }
+}
+
+// MARK: - ImageDetails Multi-Category Tests
+
+@MainActor
+@Suite struct ImageDetailsMultiCategoryTests {
+
+    @Test("Test ImageDetails with single category backwards compatibility")
+    func testImageDetailsSingleCategory() async throws {
+        let details = ImageDetails(
+            title: "Test Item",
+            quantity: "1",
+            description: "Test description",
+            make: "Test Make",
+            model: "Test Model",
+            category: "Electronics",
+            location: "Office",
+            price: "$99.99",
+            serialNumber: "123ABC"
+        )
+
+        #expect(details.category == "Electronics")
+        #expect(details.categories.count == 1)
+        #expect(details.categories.first == "Electronics")
+    }
+
+    @Test("Test ImageDetails with multiple categories")
+    func testImageDetailsMultipleCategories() async throws {
+        let details = ImageDetails(
+            title: "Test Item",
+            quantity: "1",
+            description: "Test description",
+            make: "Test Make",
+            model: "Test Model",
+            category: "Electronics",
+            categories: ["Electronics", "Office", "Expensive"],
+            location: "Office",
+            price: "$99.99",
+            serialNumber: "123ABC"
+        )
+
+        #expect(details.categories.count == 3)
+        #expect(details.categories.contains("Electronics"))
+        #expect(details.categories.contains("Office"))
+        #expect(details.categories.contains("Expensive"))
+    }
+
+    @Test("Test ImageDetails empty categories uses single category")
+    func testImageDetailsEmptyCategoriesUsesSingleCategory() async throws {
+        let details = ImageDetails(
+            title: "Test Item",
+            quantity: "1",
+            description: "Test description",
+            make: "Test Make",
+            model: "Test Model",
+            category: "Furniture",
+            categories: [],
+            location: "Living Room",
+            price: "$199.99",
+            serialNumber: ""
+        )
+
+        #expect(details.categories.count == 1)
+        #expect(details.categories.first == "Furniture")
+    }
+
+    @Test("Test ImageDetails empty() has empty categories")
+    func testImageDetailsEmptyHasEmptyCategories() async throws {
+        let details = ImageDetails.empty()
+
+        #expect(details.categories.isEmpty)
+        #expect(details.category == "None")
     }
 }

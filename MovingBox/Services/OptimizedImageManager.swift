@@ -41,7 +41,10 @@ final class OptimizedImageManager {
         self.customImagesDirectory = nil
         setupImageDirectory()
         cache.countLimit = 100
+        // Limit cache to ~50MB to prevent excessive memory usage
+        cache.totalCostLimit = 50 * 1024 * 1024
         setupUbiquityURLMonitoring()
+        setupMemoryWarningObserver()
     }
 
     // Internal initializer for testing with custom directory
@@ -49,7 +52,8 @@ final class OptimizedImageManager {
         self.customImagesDirectory = testDirectory
         setupImageDirectory()
         cache.countLimit = 100
-        // Skip ubiquity monitoring for test instances
+        cache.totalCostLimit = 50 * 1024 * 1024
+        // Skip ubiquity and memory monitoring for test instances
     }
 
     private func setupImageDirectory() {
@@ -64,6 +68,20 @@ final class OptimizedImageManager {
                 print("📸 OptimizedImageManager - Attempted path: \(imagesDirectoryURL.path)")
             }
         }
+    }
+
+    private func setupMemoryWarningObserver() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(didReceiveMemoryWarning),
+            name: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil
+        )
+    }
+
+    @objc private func didReceiveMemoryWarning(_ notification: Notification) {
+        clearCache()
+        print("📸 OptimizedImageManager - Cleared image cache due to memory warning")
     }
 
     // ADD: Monitor iCloud URL changes
@@ -311,7 +329,10 @@ final class OptimizedImageManager {
                 let data = thumbnail.jpegData(compressionQuality: 0.7)
             else { return }
 
-            cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
+            // Report estimated memory cost for totalCostLimit enforcement
+            let estimatedBytes = Int(
+                thumbnail.size.width * thumbnail.size.height * thumbnail.scale * thumbnail.scale * 4)
+            cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString, cost: estimatedBytes)
 
             var error: NSError?
             fileCoordinator.coordinate(writingItemAt: thumbnailURL, options: .forReplacing, error: &error) { url in
@@ -340,7 +361,8 @@ final class OptimizedImageManager {
         }
 
         let thumbnail = try await loadThumbnailFromDisk(thumbnailURL)
-        cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
+        let cost = Int(thumbnail.size.width * thumbnail.size.height * thumbnail.scale * thumbnail.scale * 4)
+        cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString, cost: cost)
         return thumbnail
     }
 
@@ -355,7 +377,8 @@ final class OptimizedImageManager {
         if await ensureUbiquitousItemAvailable(at: thumbnailURL) {
             do {
                 let thumbnail = try await loadThumbnailFromDisk(thumbnailURL)
-                cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString)
+                let cost = Int(thumbnail.size.width * thumbnail.size.height * thumbnail.scale * thumbnail.scale * 4)
+                cache.setObject(thumbnail, forKey: "\(id)_thumb" as NSString, cost: cost)
                 return thumbnail
             } catch {
                 // Fall through to regeneration attempt below.
@@ -376,7 +399,8 @@ final class OptimizedImageManager {
             }
 
             let regenerated = try await loadThumbnailFromDisk(thumbnailURL)
-            cache.setObject(regenerated, forKey: "\(id)_thumb" as NSString)
+            let cost = Int(regenerated.size.width * regenerated.size.height * regenerated.scale * regenerated.scale * 4)
+            cache.setObject(regenerated, forKey: "\(id)_thumb" as NSString, cost: cost)
             return regenerated
         }.value
     }

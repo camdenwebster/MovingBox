@@ -25,17 +25,20 @@ struct LabelStatisticsView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    // Filter labels by active home
+    // Labels are global (not filtered by home)
     private var labels: [InventoryLabel] {
-        guard let activeHome = activeHome else {
-            return allLabels
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
+        allLabels
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            DashboardSectionLabel(text: "Labels", isButton: false)
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                router.navigate(to: .labelsListView(showAllHomes: false))
+            } label: {
+                DashboardSectionLabel(text: "Labels")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("dashboard-labels-button")
 
             if labels.isEmpty {
                 ContentUnavailableView {
@@ -53,8 +56,12 @@ struct LabelStatisticsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHGrid(rows: [row], spacing: 16) {
                         ForEach(labels) { label in
-                            LabelItemCard(label: label)
-                                .frame(width: 180)
+                            NavigationLink(
+                                value: Router.Destination.inventoryListViewForLabel(label: label)
+                            ) {
+                                LabelItemCard(label: label)
+                                    .frame(width: 180)
+                            }
                         }
                     }
                     .scrollTargetLayout()

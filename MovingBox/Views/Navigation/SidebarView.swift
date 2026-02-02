@@ -16,6 +16,9 @@ struct SidebarView: View {
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
     @Binding var selection: Router.SidebarDestination?
 
+    // State to force re-render when active home changes
+    @State private var activeHomeIdTrigger: String?
+
     // MARK: - Computed Properties
 
     private var primaryHome: Home? {
@@ -27,8 +30,10 @@ struct SidebarView: View {
     }
 
     private var activeHome: Home? {
-        guard let activeIdString = settingsManager.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
+        // Use activeHomeIdTrigger to ensure SwiftUI tracks this dependency
+        let activeIdString = activeHomeIdTrigger ?? settingsManager.activeHomeId
+        guard let idString = activeIdString,
+            let activeId = UUID(uuidString: idString)
         else {
             return primaryHome
         }
@@ -40,13 +45,6 @@ struct SidebarView: View {
             return []
         }
         return allLocations.filter { $0.home?.id == activeHome.id }
-    }
-
-    private var filteredLabels: [InventoryLabel] {
-        guard let activeHome = activeHome else {
-            return []
-        }
-        return allLabels.filter { $0.home?.id == activeHome.id }
     }
 
     // MARK: - Body
@@ -92,36 +90,39 @@ struct SidebarView: View {
                 }
             }
 
-            // Labels Section (filtered by active home)
+            // Labels Section (global across all homes)
             Section("Labels") {
-                if filteredLabels.isEmpty {
+                if allLabels.isEmpty {
                     Text("No labels")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(filteredLabels, id: \.persistentModelID) { label in
-                        NavigationLink(value: Router.SidebarDestination.label(label.persistentModelID)) {
-                            Label {
-                                let backgroundColor = Color(label.color ?? .blue)
-                                Text(label.name)
-                                    .fontDesign(.rounded)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(backgroundColor.idealTextColor())
-                                    .padding(7)
-                                    .background(in: Capsule())
-                                    .backgroundStyle(backgroundColor.gradient)
-                            } icon: {
-                                Text(label.emoji)
-
-                            }
+                    ForEach(allLabels, id: \.persistentModelID) { label in
+                        NavigationLink(
+                            value:
+                                Router.SidebarDestination.label(label.persistentModelID)
+                        ) {
+                            LabelCapsuleView(label: label)
                         }
                     }
                 }
             }
         }
         .listStyle(.sidebar)
+        .onAppear {
+            // Sync activeHomeId on initial load
+            activeHomeIdTrigger = settingsManager.activeHomeId
+            updateActiveHome(for: selection)
+        }
         .onChange(of: selection) { _, newValue in
             updateActiveHome(for: newValue)
+        }
+        .onChange(of: settingsManager.activeHomeId) { _, newValue in
+            // Sync local trigger to force re-render when active home changes
+            activeHomeIdTrigger = newValue
+            print(
+                "📍 SidebarView - activeHomeId changed to: \(newValue ?? "nil"), filtered locations: \(filteredLocations.count)"
+            )
         }
     }
 

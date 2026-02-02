@@ -12,15 +12,27 @@ struct FormTextFieldRow: View {
     @Binding var text: String
     @Binding var isEditing: Bool
     var placeholder: String = ""
+    var textFieldIdentifier: String? = nil
 
     var body: some View {
         HStack {
             Text(label)
             Spacer()
-            TextField(placeholder, text: $text)
-                .multilineTextAlignment(.trailing)
-                .foregroundColor(isEditing ? .primary : .secondary)
-                .disabled(!isEditing)
+            textField
+        }
+    }
+
+    @ViewBuilder
+    private var textField: some View {
+        let field = TextField(placeholder, text: $text)
+            .multilineTextAlignment(.trailing)
+            .foregroundColor(isEditing ? .primary : .secondary)
+            .disabled(!isEditing)
+
+        if let identifier = textFieldIdentifier {
+            field.accessibilityIdentifier(identifier)
+        } else {
+            field
         }
     }
 }

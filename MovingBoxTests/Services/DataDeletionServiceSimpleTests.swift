@@ -7,22 +7,18 @@ import Testing
 @MainActor
 struct DataDeletionServiceSimpleTests {
 
-    private func makeTestContainer() -> ModelContainer {
+    private func makeTestContainer() throws -> ModelContainer {
         let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-            Home.self,
-            InsurancePolicy.self,
+            InventoryItem.self, InventoryLocation.self, InventoryLabel.self,
+            Home.self, InsurancePolicy.self,
         ])
-
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try! ModelContainer(for: schema, configurations: [config])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        return try ModelContainer(for: schema, configurations: [config])
     }
 
     @Test("DataDeletionService initializes correctly")
-    func testInitialization() {
-        let container = makeTestContainer()
+    func testInitialization() throws {
+        let container = try makeTestContainer()
         let context = container.mainContext
         let service = DataDeletionService(modelContext: context)
 
@@ -33,7 +29,7 @@ struct DataDeletionServiceSimpleTests {
 
     @Test("DataDeletionService deletes empty database successfully")
     func testDeleteEmptyDatabase() async throws {
-        let container = makeTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let service = DataDeletionService(modelContext: context)
 
@@ -48,7 +44,7 @@ struct DataDeletionServiceSimpleTests {
 
     @Test("DataDeletionService state management works correctly")
     func testStateManagement() async throws {
-        let container = makeTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let service = DataDeletionService(modelContext: context)
 

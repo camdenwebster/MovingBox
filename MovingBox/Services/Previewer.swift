@@ -76,7 +76,7 @@ struct Previewer {
                 model: "WA-87",
                 make: "WARM Audio",
                 location: newLocation,
-                label: newLabel,
+                labels: [newLabel],
                 price: 599.99,
                 insured: false,
                 assetId: "",

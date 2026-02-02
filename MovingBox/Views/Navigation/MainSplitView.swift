@@ -102,12 +102,16 @@ struct MainSplitView: View {
             DashboardView()
         case .locationsListView(let showAllHomes):
             LocationsListView(showAllHomes: showAllHomes)
+        case .labelsListView(let showAllHomes):
+            LabelsListView(showAllHomes: showAllHomes)
         case .settingsView:
             SettingsView()
         case .aISettingsView:
             AISettingsView()
         case .inventoryListView(let location, let showAllHomes):
             InventoryListView(location: location, showAllHomes: showAllHomes)
+        case .inventoryListViewForLabel(let label):
+            InventoryListView(location: nil, filterLabel: label)
         case .editLocationView(let location, let isEditing):
             EditLocationView(location: location, isEditing: isEditing)
         case .editLabelView(let label, let isEditing):
@@ -136,6 +140,12 @@ struct MainSplitView: View {
             AboutView()
         case .featureRequestView:
             FeatureRequestView()
+        case .globalLabelSettingsView:
+            GlobalLabelSettingsView()
+        case .insurancePolicyListView:
+            InsurancePolicyListView()
+        case .insurancePolicyDetailView(let policy):
+            InsurancePolicyDetailView(policy: policy)
         }
     }
 

@@ -30,11 +30,14 @@
       "mcp__ios-simulator__*",
       "mcp__sosumi__*",
       "mcp__context7__*",
+      "Resolve-Library-Id",
+      "Query-Docs",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:docs.sentry.io)",
       "WebFetch(domain:www.aiproxy.com)",
       "WebFetch(domain:github.com)",
-      "WebSearch"
+      "WebSearch",
+      "Skill(commit-commands:commit)"
     ],
     "deny": [
       "Bash(rm:*)"
@@ -71,6 +74,8 @@
     "TodoWrite",
     "ExitPlanMode",
     "Task",
+    "Query-Docs",
+    "Resolve-Library-Id",
     "Bash(xcodebuild:*)",
     "Bash(git:*)",
     "Bash(swift:*)",

@@ -18,7 +18,7 @@ import Testing
     @Test("Complete onboarding flow with survey")
     func testCompleteOnboardingFlowWithSurvey() async throws {
         // Given - Clean environment
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: InventoryItem.self, configurations: config)
         _ = ModelContext(container)
 
@@ -153,7 +153,7 @@ import Testing
     @Test("Onboarding with existing items skips flow")
     func testOnboardingWithExistingItems() async throws {
         // Given - Environment with existing items
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: InventoryItem.self, configurations: config)
         let context = ModelContext(container)
 

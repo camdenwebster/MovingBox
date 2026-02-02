@@ -22,8 +22,10 @@ class InsurancePolicy {
     var startDate: Date = Date()
     var endDate: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
 
-    // Add insuredHome property with a relationship
-    @Relationship(deleteRule: .nullify) var insuredHome: Home?
+    // Many-to-many relationship with homes
+    // One policy can cover multiple properties (landlord packages, umbrella policies)
+    // One property can have multiple policies (homeowners + flood + earthquake)
+    @Relationship(deleteRule: .nullify, inverse: \Home.insurancePolicies) var insuredHomes: [Home] = []
 
     // Default initializer will use the default values
     init() {}
@@ -40,7 +42,7 @@ class InsurancePolicy {
         medicalPaymentsCoverageAmount: Decimal,
         startDate: Date,
         endDate: Date,
-        insuredHome: Home? = nil
+        insuredHomes: [Home] = []
     ) {
         self.providerName = providerName
         self.policyNumber = policyNumber
@@ -52,7 +54,7 @@ class InsurancePolicy {
         self.medicalPaymentsCoverageAmount = medicalPaymentsCoverageAmount
         self.startDate = startDate
         self.endDate = endDate
-        self.insuredHome = insuredHome
+        self.insuredHomes = insuredHomes
     }
 }
 

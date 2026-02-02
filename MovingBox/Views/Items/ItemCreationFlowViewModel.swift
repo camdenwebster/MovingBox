@@ -198,6 +198,43 @@ class ItemCreationFlowViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Home Assignment
+
+    /// Assigns the appropriate home to an item if it doesn't already have one through its location.
+    /// Uses active home from settings, with fallback to primary home.
+    /// - Parameters:
+    ///   - item: The item to assign a home to
+    ///   - context: The model context for fetching homes
+    private func assignHomeToItemIfNeeded(_ item: InventoryItem, context: ModelContext) {
+        // Skip if item already has an effective home through its location
+        guard item.location == nil || item.location?.home == nil else {
+            return
+        }
+
+        // Try active home from settings first
+        if let activeHomeIdString = settingsManager?.activeHomeId,
+            let activeHomeId = UUID(uuidString: activeHomeIdString)
+        {
+            let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
+            if let activeHome = try? context.fetch(homeDescriptor).first {
+                item.home = activeHome
+                return
+            }
+        }
+
+        // Fallback to primary home
+        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+        if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
+            item.home = primaryHome
+            return
+        }
+
+        // Log warning if no home could be assigned
+        print(
+            "⚠️ ItemCreationFlowViewModel - Could not assign home to item '\(item.title)'. No active or primary home found."
+        )
+    }
+
     // MARK: - Image Processing
 
     /// Handle captured images from camera
@@ -248,7 +285,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             model: "",
             make: "",
             location: location,
-            label: nil,
+            labels: [],
             price: Decimal.zero,
             insured: false,
             assetId: "",
@@ -277,33 +314,7 @@ class ItemCreationFlowViewModel: ObservableObject {
 
             await MainActor.run {
                 if let context = modelContext {
-                    // Assign active home if item has no location or location has no home
-                    if newItem.location == nil || newItem.location?.home == nil {
-                        // Get active home from SettingsManager
-                        if let activeHomeIdString = settingsManager?.activeHomeId,
-                            let activeHomeId = UUID(uuidString: activeHomeIdString)
-                        {
-                            let homeDescriptor = FetchDescriptor<Home>(
-                                predicate: #Predicate<Home> { $0.id == activeHomeId })
-                            if let activeHome = try? context.fetch(homeDescriptor).first {
-                                newItem.home = activeHome
-                            } else {
-                                // Fallback to primary home
-                                let primaryHomeDescriptor = FetchDescriptor<Home>(
-                                    predicate: #Predicate { $0.isPrimary })
-                                if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
-                                    newItem.home = primaryHome
-                                }
-                            }
-                        } else {
-                            // Fallback to primary home
-                            let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-                            if let primaryHome = try? context.fetch(homeDescriptor).first {
-                                newItem.home = primaryHome
-                            }
-                        }
-                    }
-
+                    assignHomeToItemIfNeeded(newItem, context: context)
                     context.insert(newItem)
                     try? context.save()
                 }
@@ -486,7 +497,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                 model: detectedItem.model,
                 make: detectedItem.make,
                 location: location,
-                label: nil,
+                labels: [],
                 price: parsePrice(from: detectedItem.estimatedPrice),
                 insured: false,
                 assetId: "",
@@ -529,7 +540,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                 if let existingLabel = existingLabels.first(where: {
                     $0.name.lowercased() == detectedCategory.lowercased()
                 }) {
-                    item.label = existingLabel
+                    item.labels = [existingLabel]
                 } else if !detectedCategory.isEmpty && detectedCategory.lowercased() != "unknown" {
                     // Create new label for this category
                     let colorString = assignColorForCategory(detectedCategory)
@@ -540,38 +551,14 @@ class ItemCreationFlowViewModel: ObservableObject {
                     let uiColor = UIColor(color)
                     let newLabel = InventoryLabel(name: detectedCategory, color: uiColor)
                     context.insert(newLabel)
-                    item.label = newLabel
+                    item.labels = [newLabel]
                 }
             }
         }
 
         // Insert all items in batch
         for item in items {
-            // Assign active home if item has no location or location has no home
-            if item.location == nil || item.location?.home == nil {
-                // Get active home from SettingsManager
-                if let activeHomeIdString = settingsManager?.activeHomeId,
-                    let activeHomeId = UUID(uuidString: activeHomeIdString)
-                {
-                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
-                    if let activeHome = try? context.fetch(homeDescriptor).first {
-                        item.home = activeHome
-                    } else {
-                        // Fallback to primary home
-                        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-                        if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
-                            item.home = primaryHome
-                        }
-                    }
-                } else {
-                    // Fallback to primary home
-                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-                    if let primaryHome = try? context.fetch(homeDescriptor).first {
-                        item.home = primaryHome
-                    }
-                }
-            }
-
+            assignHomeToItemIfNeeded(item, context: context)
             context.insert(item)
             // Track telemetry for each item
             TelemetryManager.shared.trackInventoryItemAdded(name: item.title)

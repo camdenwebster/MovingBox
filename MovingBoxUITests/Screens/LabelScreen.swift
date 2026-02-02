@@ -1,0 +1,220 @@
+//
+//  LabelScreen.swift
+//  MovingBoxUITests
+//
+//  Created by Claude Code on 1/17/26.
+//
+
+import XCTest
+
+class LabelScreen {
+    let app: XCUIApplication
+
+    // Labels List Screen Elements
+    let labelsList: XCUIElement
+    let addLabelButton: XCUIElement
+    let editButton: XCUIElement
+
+    // Edit Label Screen Elements
+    let labelNameField: XCUIElement
+    let saveButton: XCUIElement
+    let editSaveButton: XCUIElement
+
+    init(app: XCUIApplication) {
+        self.app = app
+
+        // Labels List Screen
+        self.labelsList = app.collectionViews["labels-list"]
+        self.addLabelButton = app.buttons["labels-add-button"]
+        self.editButton = app.buttons["labels-edit-button"]
+
+        // Edit Label Screen
+        self.labelNameField = app.textFields["label-name-field"]
+        self.saveButton = app.buttons["label-save-button"]
+        self.editSaveButton = app.buttons["label-edit-save-button"]
+    }
+
+    // MARK: - Navigation Actions
+
+    func tapAddLabel() {
+        addLabelButton.tap()
+    }
+
+    func tapEdit() {
+        editButton.tap()
+    }
+
+    func selectLabel(named name: String) {
+        // Find the cell containing a staticText with this name and tap it
+        let cell = app.cells.containing(.staticText, identifier: name).firstMatch
+        if cell.exists {
+            cell.tap()
+        } else {
+            // Fallback to tapping the static text directly
+            app.staticTexts[name].firstMatch.tap()
+        }
+    }
+
+    // MARK: - Edit Label Actions
+
+    func enterLabelName(_ name: String) {
+        labelNameField.tap()
+        labelNameField.typeText(name)
+    }
+
+    func clearAndEnterLabelName(_ name: String) {
+        // Wait for the text field to exist and be hittable
+        if !labelNameField.waitForExistence(timeout: 5) {
+            // Try finding by other means - the field might be rendered differently
+            let anyTextField = app.textFields.firstMatch
+            if anyTextField.waitForExistence(timeout: 3) {
+                anyTextField.tap()
+                anyTextField.press(forDuration: 1.0)
+                if app.menuItems["Select All"].waitForExistence(timeout: 2) {
+                    app.menuItems["Select All"].tap()
+                    app.keys["delete"].tap()
+                }
+                anyTextField.typeText(name)
+                return
+            }
+        }
+
+        labelNameField.tap()
+        // Select all and delete
+        labelNameField.press(forDuration: 1.0)
+        if app.menuItems["Select All"].waitForExistence(timeout: 2) {
+            app.menuItems["Select All"].tap()
+            app.keys["delete"].tap()
+        }
+        labelNameField.typeText(name)
+    }
+
+    func tapSave() {
+        saveButton.tap()
+    }
+
+    func tapEditSave() {
+        editSaveButton.tap()
+    }
+
+    func createLabel(name: String) {
+        tapAddLabel()
+        XCTAssertTrue(waitForEditLabelScreen(), "Edit label screen should be displayed")
+        enterLabelName(name)
+        tapSave()
+    }
+
+    // MARK: - Delete Actions
+
+    func deleteLabel(named name: String) {
+        // Enter edit mode
+        tapEdit()
+        // Find the cell containing this label name
+        let labelRow = app.cells.containing(.staticText, identifier: name).firstMatch
+        // Swipe to reveal delete
+        labelRow.swipeLeft()
+        // Tap delete button
+        app.buttons["Delete"].tap()
+    }
+
+    func swipeToDeleteLabel(named name: String) {
+        // Find the cell containing this label name
+        let labelRow = app.cells.containing(.staticText, identifier: name).firstMatch
+        if labelRow.waitForExistence(timeout: 3) {
+            labelRow.swipeLeft()
+            // Wait for delete button to appear and tap it
+            let deleteButton = app.buttons["Delete"]
+            if deleteButton.waitForExistence(timeout: 2) {
+                deleteButton.tap()
+                // Wait for the delete animation to complete
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+        }
+    }
+
+    // MARK: - Verification Methods
+
+    func isLabelsListDisplayed() -> Bool {
+        return app.navigationBars["Labels"].waitForExistence(timeout: 5)
+    }
+
+    func waitForLabelsList() -> Bool {
+        return isLabelsListDisplayed()
+    }
+
+    func isEditLabelScreenDisplayed() -> Bool {
+        return app.navigationBars["New Label"].waitForExistence(timeout: 5)
+            || labelNameField.waitForExistence(timeout: 5)
+    }
+
+    func waitForEditLabelScreen() -> Bool {
+        return isEditLabelScreenDisplayed()
+    }
+
+    func labelExists(named name: String) -> Bool {
+        return app.staticTexts[name].exists
+            || app.cells.containing(.staticText, identifier: name).firstMatch.exists
+    }
+
+    func waitForLabelToExist(named name: String, timeout: TimeInterval = 5) -> Bool {
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            // Check for the label in static texts
+            if app.staticTexts[name].exists {
+                return true
+            }
+            // Also check in cells containing the name
+            if app.cells.containing(.staticText, identifier: name).firstMatch.exists {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        return false
+    }
+
+    func waitForLabelToDisappear(named name: String, timeout: TimeInterval = 5) -> Bool {
+        let staticText = app.staticTexts[name]
+        // Wait for the element to no longer exist
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            if !staticText.exists {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return !staticText.exists
+    }
+
+    func isSaveButtonEnabled() -> Bool {
+        return saveButton.isEnabled
+    }
+
+    func getLabelCount() -> Int {
+        // Wait a moment for the list to stabilize
+        Thread.sleep(forTimeInterval: 0.5)
+        // Count cells that contain static texts (actual label rows, not empty state)
+        let cells = app.cells.allElementsBoundByIndex
+        var count = 0
+        for cell in cells {
+            if cell.staticTexts.count > 0 {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    func getLabelNames() -> [String] {
+        var names: [String] = []
+        let cells = app.cells.allElementsBoundByIndex
+        for cell in cells {
+            let labels = cell.staticTexts.allElementsBoundByIndex
+            // Skip the emoji, get the name (usually second static text)
+            if labels.count > 1 {
+                names.append(labels[1].label)
+            } else if let firstLabel = labels.first {
+                names.append(firstLabel.label)
+            }
+        }
+        return names
+    }
+}
