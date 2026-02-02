@@ -5,7 +5,9 @@
 //  Created by Camden Webster on 5/14/24.
 //
 
+import Dependencies
 import RevenueCat
+import SQLiteData
 import Sentry
 import SwiftData
 import SwiftUI
@@ -35,6 +37,11 @@ struct MovingBoxApp: App {
 
     init() {
         Self.registerTransformers()
+
+        // Prepare sqlite-data database (runs schema migrations)
+        prepareDependencies {
+            $0.defaultDatabase = try! appDatabase()
+        }
 
         // Configure TelemetryDeck
         let appId = AppConfig.telemetryDeckAppId
@@ -223,6 +230,20 @@ struct MovingBoxApp: App {
             .task {
                 // Initialize container (waits for initial CloudKit sync to complete)
                 await containerManager.initialize()
+
+                // Migrate SwiftData store to sqlite-data (runs once, silently)
+                @Dependency(\.defaultDatabase) var database
+                let migrationResult = SQLiteMigrationCoordinator.migrateIfNeeded(database: database)
+                switch migrationResult {
+                case .freshInstall:
+                    print("📦 sqlite-data: Fresh install — no migration needed")
+                case .alreadyCompleted:
+                    break
+                case .success(let stats):
+                    print("📦 sqlite-data: Migration succeeded — \(stats)")
+                case .error(let message):
+                    print("📦 sqlite-data: Migration failed — \(message)")
+                }
 
                 // Check RevenueCat subscription status
                 do {
