@@ -31,7 +31,7 @@ class ModelContainerManager {
     private let multiHomeMigrationKey = "MovingBox_MultiHomeMigration_v1"
     private let orphanedItemsMigrationKey = "MovingBox_OrphanedItemsMigration_v1"
     private let schemaRecoveryPerformedKey = "MovingBox_SchemaRecoveryPerformed"
-    private let idStabilizationMigrationKey = "MovingBox_IDStabilization_v1"
+    private let idStabilizationMigrationKey = "MovingBox_IDStabilization_v2"
 
     // Current schema version - increment for future migrations
     private let currentSchemaVersion = 2
@@ -594,16 +594,18 @@ class ModelContainerManager {
         let context = container.mainContext
         print("📦 ModelContainerManager - Starting ID stabilization migration")
 
-        // Fetch all objects to ensure their IDs are loaded/generated
-        // The act of fetching and saving will persist any newly generated IDs
+        // Assign fresh unique UUIDs to all model objects. SwiftData's lightweight migration
+        // adds the `id` column with a single default UUID for ALL existing rows (or NULL),
+        // meaning every object of the same type shares the same identity. Self-assignment
+        // (obj.id = obj.id) doesn't work because SwiftData optimizes away no-op sets.
+        // Assigning UUID() guarantees each object gets a distinct, persisted identifier.
 
         // 1. Stabilize Home IDs
         let homeDescriptor = FetchDescriptor<Home>()
         let homes = try context.fetch(homeDescriptor)
         print("📦 ModelContainerManager - Stabilizing \(homes.count) home IDs")
         for home in homes {
-            // Access the id to ensure it's generated if not already persisted
-            _ = home.id
+            home.id = UUID()
         }
 
         // 2. Stabilize Location IDs
@@ -611,7 +613,7 @@ class ModelContainerManager {
         let locations = try context.fetch(locationDescriptor)
         print("📦 ModelContainerManager - Stabilizing \(locations.count) location IDs")
         for location in locations {
-            _ = location.id
+            location.id = UUID()
         }
 
         // 3. Stabilize Label IDs
@@ -619,7 +621,7 @@ class ModelContainerManager {
         let labels = try context.fetch(labelDescriptor)
         print("📦 ModelContainerManager - Stabilizing \(labels.count) label IDs")
         for label in labels {
-            _ = label.id
+            label.id = UUID()
         }
 
         // 4. Stabilize Item IDs
@@ -627,11 +629,23 @@ class ModelContainerManager {
         let items = try context.fetch(itemDescriptor)
         print("📦 ModelContainerManager - Stabilizing \(items.count) item IDs")
         for item in items {
-            _ = item.id
+            item.id = UUID()
         }
 
         // 5. Save context to persist all IDs
         try context.save()
+
+        // 6. Update activeHomeId to match the now-persisted primary home UUID.
+        // Previous broken migration may have stored a stale UUID that no longer matches.
+        if let primaryHome = homes.first(where: { $0.isPrimary }) ?? homes.first {
+            let newActiveHomeId = primaryHome.id.uuidString
+            let oldActiveHomeId = UserDefaults.standard.string(forKey: "activeHomeId")
+            if oldActiveHomeId != newActiveHomeId {
+                UserDefaults.standard.set(newActiveHomeId, forKey: "activeHomeId")
+                print(
+                    "📦 ModelContainerManager - Updated activeHomeId: \(oldActiveHomeId ?? "nil") → \(newActiveHomeId)")
+            }
+        }
 
         // Mark as complete
         UserDefaults.standard.set(true, forKey: idStabilizationMigrationKey)
