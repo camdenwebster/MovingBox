@@ -1,9 +1,40 @@
 import CloudKit
+import SQLiteData
 import SwiftData
 import SwiftUI
 
 @MainActor
 class DefaultDataManager {
+
+    // MARK: - sqlite-data Default Data
+
+    static func populateDefaultSQLiteLabels(database: any DatabaseWriter) async {
+        do {
+            let existingCount = try await database.read { db in
+                try SQLiteInventoryLabel.count().fetchOne(db) ?? 0
+            }
+            guard existingCount == 0 else {
+                print("🏷️ sqlite-data: Existing labels found, skipping default creation")
+                return
+            }
+            try await database.write { db in
+                for labelData in TestData.labels {
+                    try SQLiteInventoryLabel.insert {
+                        SQLiteInventoryLabel(
+                            id: UUID(),
+                            name: labelData.name,
+                            desc: labelData.desc,
+                            color: labelData.color,
+                            emoji: labelData.emoji
+                        )
+                    }.execute(db)
+                }
+            }
+            print("🏷️ sqlite-data: Default labels created")
+        } catch {
+            print("❌ sqlite-data: Error creating default labels: \(error)")
+        }
+    }
     static func getAllLabels(from context: ModelContext) -> [String] {
         let descriptor = FetchDescriptor<InventoryLabel>()
         do {

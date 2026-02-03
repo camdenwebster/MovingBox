@@ -1,6 +1,9 @@
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct OnboardingWelcomeView: View {
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Environment(\.colorScheme) private var colorScheme
@@ -156,9 +159,9 @@ struct OnboardingWelcomeView: View {
                 print("⚠️ Onboarding state check failed: \(error)")
             }
 
-            // Try setting up default data
+            // Create default labels in sqlite-data (home + locations are created in OnboardingHomeView)
             await updateStatusMessage("Setting up default data...")
-            await DefaultDataManager.populateDefaultData(modelContext: modelContext)
+            await DefaultDataManager.populateDefaultSQLiteLabels(database: database)
 
             // Continue with onboarding
             await MainActor.run {

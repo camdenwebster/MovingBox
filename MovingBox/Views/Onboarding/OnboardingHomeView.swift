@@ -179,6 +179,19 @@ struct OnboardingHomeView: View {
                         colorName: "green"
                     )
                 }.execute(db)
+
+                // Create default locations for the new home
+                for roomData in TestData.defaultRooms {
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(
+                            id: UUID(),
+                            name: roomData.name,
+                            desc: roomData.desc,
+                            sfSymbolName: roomData.sfSymbol,
+                            homeID: newHomeID
+                        )
+                    }.execute(db)
+                }
             }
             settings.activeHomeId = newHomeID.uuidString
         }
