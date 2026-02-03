@@ -26,11 +26,14 @@ extension UIColor {
         }
 
         var hexValue: Int64? {
-            guard let components = queryOutput.cgColor.components else { return nil }
+            let converted = queryOutput.cgColor.converted(
+                to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil
+            )
+            guard let components = converted?.components, components.count >= 3 else { return nil }
             let r = Int64(components[0] * 0xFF) << 24
             let g = Int64(components[1] * 0xFF) << 16
             let b = Int64(components[2] * 0xFF) << 8
-            let a = Int64((components.indices.contains(3) ? components[3] : 1) * 0xFF)
+            let a = Int64((components.count >= 4 ? components[3] : 1) * 0xFF)
             return r | g | b | a
         }
 

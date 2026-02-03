@@ -5,6 +5,7 @@
 //  Created by Claude Code
 //
 
+import Dependencies
 import SQLiteData
 import SwiftUI
 

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SQLiteData
 import Testing
 
 @testable import MovingBox

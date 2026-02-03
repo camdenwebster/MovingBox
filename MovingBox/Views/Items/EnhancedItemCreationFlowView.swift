@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import Dependencies
 import SQLiteData
 import SwiftUI
 

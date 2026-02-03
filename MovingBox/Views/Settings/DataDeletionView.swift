@@ -43,7 +43,7 @@ final class DataDeletionService: DataDeletionServiceProtocol {
         do {
             try await performDeletion(scope: scope)
 
-            // Brief delay to let @FetchAll and remaining @Query results refresh
+            // Brief delay to let @FetchAll results refresh
             try await Task.sleep(for: .seconds(1))
 
             deletionCompleted = true
@@ -262,7 +262,7 @@ struct DataDeletionView: View {
         .onChange(of: deletionService?.deletionCompleted) { _, completed in
             if completed == true {
                 // Dismiss back to settings and clear navigation stack
-                // We stay in settings to avoid Dashboard which has stale @Query results
+                // We stay in settings to avoid Dashboard which may have stale results
                 Task {
                     // First dismiss this view
                     await MainActor.run {

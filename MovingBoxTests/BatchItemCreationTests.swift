@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/25/25.
 //
 
+import SQLiteData
 import SwiftUI
 import Testing
 

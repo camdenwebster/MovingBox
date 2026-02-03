@@ -1,30 +1,14 @@
-@_exported import Dependencies
+import Dependencies
 import Foundation
 import OSLog
-@_exported import SQLiteData
+import SQLiteData
 
 private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "Database")
 
-func appDatabase() throws -> any DatabaseWriter {
-    var configuration = Configuration()
-    configuration.foreignKeysEnabled = true
-
-    #if DEBUG
-        configuration.prepareDatabase { db in
-            db.trace(options: .profile) {
-                logger.debug("\($0.expandedDescription)")
-            }
-        }
-    #endif
-
-    let database = try SQLiteData.defaultDatabase(configuration: configuration)
-    logger.info("Opened database at '\(database.path)'")
-
-    var migrator = DatabaseMigrator()
-    #if DEBUG
-        migrator.eraseDatabaseOnSchemaChange = true
-    #endif
-
+/// Registers all sqlite-data schema migrations on the given migrator.
+/// Shared between the production database and in-memory test databases
+/// so the schema is always defined in exactly one place.
+func registerMigrations(_ migrator: inout DatabaseMigrator) {
     migrator.registerMigration("Create initial tables") { db in
         // 1. inventoryLabels (no FK dependencies)
         try #sql(
@@ -170,7 +154,8 @@ func appDatabase() throws -> any DatabaseWriter {
         .execute(db)
     }
 
-    migrator.registerMigration("Create foreign key indexes") { db in
+    migrator.registerMigration("Create indexes") { db in
+        // Foreign key indexes
         try #sql(
             """
             CREATE INDEX "idx_inventoryLocations_homeID" ON "inventoryLocations"("homeID")
@@ -219,8 +204,47 @@ func appDatabase() throws -> any DatabaseWriter {
             """
         )
         .execute(db)
-    }
 
+        // Unique indexes on join tables to prevent duplicate relationships
+        try #sql(
+            """
+            CREATE UNIQUE INDEX "idx_inventoryItemLabels_unique"
+                ON "inventoryItemLabels"("inventoryItemID", "inventoryLabelID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE UNIQUE INDEX "idx_homeInsurancePolicies_unique"
+                ON "homeInsurancePolicies"("homeID", "insurancePolicyID")
+            """
+        )
+        .execute(db)
+    }
+}
+
+func appDatabase() throws -> any DatabaseWriter {
+    var configuration = Configuration()
+    configuration.foreignKeysEnabled = true
+
+    #if DEBUG
+        configuration.prepareDatabase { db in
+            db.trace(options: .profile) {
+                logger.debug("\($0.expandedDescription)")
+            }
+        }
+    #endif
+
+    let database = try SQLiteData.defaultDatabase(configuration: configuration)
+    logger.info("Opened database at '\(database.path)'")
+
+    var migrator = DatabaseMigrator()
+    #if DEBUG
+        migrator.eraseDatabaseOnSchemaChange = true
+    #endif
+
+    registerMigrations(&migrator)
     try migrator.migrate(database)
     return database
 }

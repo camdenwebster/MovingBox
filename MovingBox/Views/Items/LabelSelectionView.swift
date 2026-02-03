@@ -5,6 +5,7 @@
 //  Created by AI Assistant on 1/10/25.
 //
 
+import Dependencies
 import SQLiteData
 import SwiftUI
 

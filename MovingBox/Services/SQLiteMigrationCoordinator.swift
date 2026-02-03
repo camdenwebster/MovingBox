@@ -891,17 +891,22 @@ struct SQLiteMigrationCoordinator {
         return appSupport.appendingPathComponent("default.store").path
     }
 
+    private static let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
     private static func tableExists(db: OpaquePointer?, table: String) -> Bool {
         var stmt: OpaquePointer?
-        let query = "SELECT name FROM sqlite_master WHERE type='table' AND name='\(table)'"
+        let query = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
         guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, table, -1, SQLITE_TRANSIENT)
         return sqlite3_step(stmt) == SQLITE_ROW
     }
 
     private static func columnExists(db: OpaquePointer?, table: String, column: String) -> Bool {
         var stmt: OpaquePointer?
-        let query = "PRAGMA table_info(\(table))"
+        // PRAGMA doesn't support parameter binding, but table names are hardcoded internal
+        // constants so this is safe. We quote the table name to prevent injection.
+        let query = "PRAGMA table_info(\"\(table.replacingOccurrences(of: "\"", with: "\"\""))\")"
         guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
 
@@ -1019,12 +1024,15 @@ struct SQLiteMigrationCoordinator {
             return nil
         }
 
-        // Convert UIColor to hex integer (RGBA)
-        guard let components = color.cgColor.components else { return nil }
+        // Convert UIColor to hex integer (RGBA), normalizing to sRGB for grayscale safety
+        let converted = color.cgColor.converted(
+            to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil
+        )
+        guard let components = converted?.components, components.count >= 3 else { return nil }
         let r = Int64(components[0] * 0xFF) << 24
         let g = Int64(components[1] * 0xFF) << 16
         let b = Int64(components[2] * 0xFF) << 8
-        let a = Int64((components.indices.contains(3) ? components[3] : 1) * 0xFF)
+        let a = Int64((components.count >= 4 ? components[3] : 1) * 0xFF)
         return r | g | b | a
     }
 
@@ -1047,8 +1055,10 @@ struct SQLiteMigrationCoordinator {
 // MARK: - Date ISO 8601 Helper
 
 extension Date {
+    private static let iso8601Formatter = ISO8601DateFormatter()
+
     fileprivate var iso8601String: String {
-        ISO8601DateFormatter().string(from: self)
+        Self.iso8601Formatter.string(from: self)
     }
 }
 

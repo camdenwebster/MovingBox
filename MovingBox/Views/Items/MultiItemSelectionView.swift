@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import Dependencies
 import SQLiteData
 import SwiftUI
 import SwiftUIBackports

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SQLiteData
 import SwiftData
 import SwiftUI
 import UIKit
