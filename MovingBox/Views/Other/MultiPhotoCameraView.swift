@@ -20,10 +20,10 @@ extension EnvironmentValues {
 
 /// Represents the capture mode for the MultiPhotoCameraView
 enum CaptureMode: CaseIterable {
-    case singleItem
     /// Multiple photos of one item (existing functionality)
+    case singleItem
+    /// Multiple photos with multiple items (new functionality)
     case multiItem
-    /// One photo with multiple items (new functionality)
 
     // MARK: - Display Properties
 
@@ -37,7 +37,7 @@ enum CaptureMode: CaseIterable {
     var description: String {
         switch self {
         case .singleItem: return "Multiple photos of one item"
-        case .multiItem: return "One photo with multiple items"
+        case .multiItem: return "Multiple photos with multiple items"
         }
     }
 
@@ -55,18 +55,13 @@ enum CaptureMode: CaseIterable {
         case .singleItem:
             return isPro ? 5 : 1
         case .multiItem:
-            return 1  // Always 1 for multi-item mode
+            return 5
         }
     }
 
     func photoCounterText(currentCount: Int, isPro: Bool) -> String {
-        switch self {
-        case .singleItem:
-            let maxPhotos = maxPhotosAllowed(isPro: isPro)
-            return "\(currentCount) of \(maxPhotos)"
-        case .multiItem:
-            return ""  // No counter text for multi-item mode
-        }
+        let maxPhotos = maxPhotosAllowed(isPro: isPro)
+        return "\(currentCount) of \(maxPhotos)"
     }
 
     // MARK: - Validation
@@ -76,7 +71,7 @@ enum CaptureMode: CaseIterable {
         case .singleItem:
             return count >= 1 && count <= 5
         case .multiItem:
-            return count == 1
+            return count >= 1 && count <= 5
         }
     }
 
@@ -85,11 +80,11 @@ enum CaptureMode: CaseIterable {
         case (.singleItem, .tooManyPhotos):
             return "You can take up to 5 photos in single-item mode."
         case (.multiItem, .tooManyPhotos):
-            return "You can only take one photo in multi-item mode."
+            return "You can take up to 5 photos in multi-item mode."
         case (.singleItem, .noPhotos):
             return "Please take at least one photo."
         case (.multiItem, .noPhotos):
-            return "Please take exactly one photo for multi-item analysis."
+            return "Please take at least one photo for multi-item analysis."
         }
     }
 
@@ -105,14 +100,14 @@ enum CaptureMode: CaseIterable {
     var showsThumbnailScrollView: Bool {
         switch self {
         case .singleItem: return true
-        case .multiItem: return false
+        case .multiItem: return true
         }
     }
 
     var allowsMultipleCaptures: Bool {
         switch self {
         case .singleItem: return true
-        case .multiItem: return false
+        case .multiItem: return true
         }
     }
 
@@ -167,7 +162,6 @@ struct MultiPhotoCameraView: View {
     @State private var showingFocusIndicator = false
     @State private var orientation = UIDeviceOrientation.portrait
     @State private var localZoomIndex: Int = 0
-    @State private var showMultiItemPreview = false
 
     init(
         capturedImages: Binding<[UIImage]>,
@@ -205,24 +199,6 @@ struct MultiPhotoCameraView: View {
                 Color.black.ignoresSafeArea(.all)
 
                 cameraPreview(geometry: geometry)
-
-                if showMultiItemPreview,
-                    let capturedImage = model.capturedImages.first
-                {
-                    MultiItemPreviewOverlay(
-                        capturedImage: capturedImage,
-                        squareSize: squareSize,
-                        onRetake: {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                showMultiItemPreview = false
-                            }
-                            model.capturedImages.removeAll()
-                        },
-                        onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) },
-                        isSyncingData: containerManager.isCloudKitSyncing
-                    )
-                    .transition(.scale.combined(with: .opacity))
-                }
 
                 cameraControls(geometry: geometry, cameraRect: cameraRect)
             }
@@ -275,26 +251,8 @@ struct MultiPhotoCameraView: View {
         .onChange(of: model.capturedImages) { oldImages, newImages in
             capturedImages = newImages
 
-            if model.selectedCaptureMode == .multiItem {
-                if !newImages.isEmpty && oldImages.isEmpty {
-                    // Animate in when first image is captured
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                        showMultiItemPreview = true
-                    }
-                } else if newImages.isEmpty && !oldImages.isEmpty {
-                    // Animate out when images are cleared (if not already animated by onRetake)
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        showMultiItemPreview = false
-                    }
-                }
-            } else {
-                // Ensure preview is hidden in single item mode
-                showMultiItemPreview = false
-                if model.selectedCaptureMode == .singleItem {
-                    if newImages.count > oldImages.count, let newImage = newImages.last {
-                        triggerCaptureAnimation(with: newImage)
-                    }
-                }
+            if newImages.count > oldImages.count, let newImage = newImages.last {
+                triggerCaptureAnimation(with: newImage)
             }
         }
         .onChange(of: model.currentZoomIndex) { _, newIndex in
@@ -357,9 +315,6 @@ struct MultiPhotoCameraView: View {
 
     @ViewBuilder
     private func cameraControls(geometry: GeometryProxy, cameraRect: CGRect) -> some View {
-        let isMultiItemPreview = model.shouldShowMultiItemPreview(
-            captureMode: model.selectedCaptureMode)
-
         VStack(spacing: 0) {
             CameraTopControls(
                 model: model,
@@ -371,7 +326,7 @@ struct MultiPhotoCameraView: View {
                 onDone: {
                     onComplete(model.capturedImages, model.selectedCaptureMode)
                 },
-                isMultiItemPreviewShowing: isMultiItemPreview,
+                isMultiItemPreviewShowing: false,
                 hasPhotoCaptured: !model.capturedImages.isEmpty,
                 isSyncingData: containerManager.isCloudKitSyncing
             )
@@ -413,43 +368,41 @@ struct MultiPhotoCameraView: View {
                 )
             }
 
-            if !isMultiItemPreview {
-                VStack(spacing: 0) {
-                    Spacer()
+            VStack(spacing: 0) {
+                Spacer()
 
-                    ZoomControlView(
-                        zoomFactors: model.zoomFactors,
-                        currentZoomIndex: localZoomIndex,
-                        onZoomTap: { index in
-                            model.setZoom(to: index)
+                ZoomControlView(
+                    zoomFactors: model.zoomFactors,
+                    currentZoomIndex: localZoomIndex,
+                    onZoomTap: { index in
+                        model.setZoom(to: index)
+                    }
+                )
+                .padding(.bottom, 16)
+
+                CameraBottomControls(
+                    captureMode: model.selectedCaptureMode,
+                    photoCount: model.capturedImages.count,
+                    photoCounterText: model.selectedCaptureMode.photoCounterText(
+                        currentCount: model.capturedImages.count, isPro: settings.isPro),
+                    hasPhotoCaptured: !model.capturedImages.isEmpty,
+                    onShutterTap: { handleShutterTap() },
+                    onRetakeTap: { model.capturedImages.removeAll() },
+                    onPhotoPickerTap: { handlePhotoPickerTap() },
+                    selectedCaptureMode: Binding(
+                        get: { model.selectedCaptureMode },
+                        set: { newMode in
+                            let oldMode = model.selectedCaptureMode
+                            if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
+                                model.saveCaptureMode(to: settings)
+                            }
                         }
                     )
-                    .padding(.bottom, 16)
-
-                    CameraBottomControls(
-                        captureMode: model.selectedCaptureMode,
-                        photoCount: model.capturedImages.count,
-                        photoCounterText: model.selectedCaptureMode.photoCounterText(
-                            currentCount: model.capturedImages.count, isPro: settings.isPro),
-                        hasPhotoCaptured: !model.capturedImages.isEmpty,
-                        onShutterTap: { handleShutterTap() },
-                        onRetakeTap: { model.capturedImages.removeAll() },
-                        onPhotoPickerTap: { handlePhotoPickerTap() },
-                        selectedCaptureMode: Binding(
-                            get: { model.selectedCaptureMode },
-                            set: { newMode in
-                                let oldMode = model.selectedCaptureMode
-                                if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
-                                    model.saveCaptureMode(to: settings)
-                                }
-                            }
-                        )
-                    )
-                    .padding(.top, 10)
-                    .background(Color.black)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                )
+                .padding(.top, 10)
+                .background(Color.black)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }
 

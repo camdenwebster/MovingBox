@@ -667,7 +667,7 @@ struct CameraBottomControls: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            if captureMode == .multiItem && hasPhotoCaptured {
+            if !captureMode.allowsMultipleCaptures && hasPhotoCaptured {
                 Button {
                     onRetakeTap()
                 } label: {

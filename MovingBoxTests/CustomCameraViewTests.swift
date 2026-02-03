@@ -15,7 +15,7 @@ import Testing
         #expect(singleMode.displayName == "Single")
         #expect(multiMode.displayName == "Multi")
         #expect(singleMode.description == "Multiple photos of one item")
-        #expect(multiMode.description == "One photo with multiple items")
+        #expect(multiMode.description == "Multiple photos with multiple items")
     }
 
     @Test("CaptureMode max photos logic")
@@ -25,8 +25,8 @@ import Testing
 
         #expect(singleMode.maxPhotosAllowed(isPro: false) == 1)
         #expect(singleMode.maxPhotosAllowed(isPro: true) == 5)
-        #expect(multiMode.maxPhotosAllowed(isPro: false) == 1)
-        #expect(multiMode.maxPhotosAllowed(isPro: true) == 1)
+        #expect(multiMode.maxPhotosAllowed(isPro: false) == 5)
+        #expect(multiMode.maxPhotosAllowed(isPro: true) == 5)
     }
 
     @Test("CaptureMode validation")
@@ -38,7 +38,8 @@ import Testing
         #expect(singleMode.isValidPhotoCount(5) == true)
         #expect(singleMode.isValidPhotoCount(6) == false)
         #expect(multiMode.isValidPhotoCount(1) == true)
-        #expect(multiMode.isValidPhotoCount(2) == false)
+        #expect(multiMode.isValidPhotoCount(2) == true)
+        #expect(multiMode.isValidPhotoCount(6) == false)
     }
 
     @Test("MultiPhotoCameraView single item mode initializer")
@@ -99,9 +100,9 @@ import Testing
         #expect(singleMode.showsPhotoPickerButton == true)
         #expect(multiMode.showsPhotoPickerButton == true)
         #expect(singleMode.showsThumbnailScrollView == true)
-        #expect(multiMode.showsThumbnailScrollView == false)
+        #expect(multiMode.showsThumbnailScrollView == true)
         #expect(singleMode.allowsMultipleCaptures == true)
-        #expect(multiMode.allowsMultipleCaptures == false)
+        #expect(multiMode.allowsMultipleCaptures == true)
     }
 
     // MARK: - Helper Methods
