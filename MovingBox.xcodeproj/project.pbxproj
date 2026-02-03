@@ -160,6 +160,7 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		190B05F92E079A4100F23E05 /* .claude */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = .claude; sourceTree = "<group>"; };
 		1917E1D02F3235D60072C655 /* spec */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = spec; sourceTree = "<group>"; };
+		1917E1D62F3249280072C655 /* Test Plans */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "Test Plans"; sourceTree = "<group>"; };
 		196A7F3E2DB49BA000C5C4E8 /* fastlane */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = fastlane; sourceTree = "<group>"; };
 		19B7D9702D9B112200690F64 /* MovingBoxUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxUITests; sourceTree = "<group>"; };
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
@@ -221,6 +222,7 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				1917E1D62F3249280072C655 /* Test Plans */,
 				1917E1D02F3235D60072C655 /* spec */,
 				191881AD2EC61EB9009FB4F4 /* opencode.json */,
 				191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */,
