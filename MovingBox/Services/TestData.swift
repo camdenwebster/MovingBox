@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SQLiteData
 import SwiftData
 import UIKit
 
@@ -805,6 +806,164 @@ struct TestData {
             print("✅ TestData - Successfully saved \(items.count) test items across \(createdHomes.count) homes")
         } catch {
             print("❌ TestData - Error saving context: \(error)")
+        }
+    }
+
+    // MARK: - sqlite-data Test Data
+
+    @MainActor
+    static func loadSQLiteTestData(database: any DatabaseWriter) async {
+        // Phase 1: Save images to disk (async I/O, independent of database)
+
+        var homeImageURLs: [URL?] = []
+        for homeData in homes {
+            let url = await setupImageURL(imageName: homeData.imageName, id: UUID().uuidString)
+            homeImageURLs.append(url)
+        }
+
+        var locationImageURLs: [URL?] = []
+        for locationData in locations {
+            let url = await setupImageURL(imageName: locationData.imageName, id: UUID().uuidString)
+            locationImageURLs.append(url)
+        }
+
+        var itemImageURLs: [URL?] = []
+        for itemData in items {
+            let url = await setupImageURL(imageName: itemData.imageName, id: UUID().uuidString)
+            itemImageURLs.append(url)
+        }
+
+        // Phase 2: Generate UUIDs for cross-referencing
+
+        let homeIDs = homes.map { _ in UUID() }
+
+        var labelIDs: [String: UUID] = [:]
+        for labelData in labels {
+            labelIDs[labelData.name] = UUID()
+        }
+
+        let locationRecords: [(id: UUID, name: String, homeIndex: Int)] = locations.map { loc in
+            (id: UUID(), name: loc.name, homeIndex: loc.homeIndex)
+        }
+
+        let itemIDs = items.map { _ in UUID() }
+
+        // Phase 3: Write everything to database in a single transaction
+
+        do {
+            try await database.write { db in
+                // Homes
+                for (index, homeData) in homes.enumerated() {
+                    try SQLiteHome.insert {
+                        SQLiteHome(
+                            id: homeIDs[index],
+                            name: homeData.name,
+                            address1: homeData.address1,
+                            city: homeData.city,
+                            state: homeData.state,
+                            imageURL: homeImageURLs[index],
+                            isPrimary: homeData.isPrimary
+                        )
+                    }.execute(db)
+                }
+                print("✅ TestData - Created \(homes.count) homes")
+
+                // Labels
+                for labelData in labels {
+                    try SQLiteInventoryLabel.insert {
+                        SQLiteInventoryLabel(
+                            id: labelIDs[labelData.name]!,
+                            name: labelData.name,
+                            desc: labelData.desc,
+                            color: labelData.color,
+                            emoji: labelData.emoji
+                        )
+                    }.execute(db)
+                }
+                print("✅ TestData - Created \(labels.count) labels")
+
+                // Locations
+                for (index, locationData) in locations.enumerated() {
+                    let homeID =
+                        locationData.homeIndex < homeIDs.count
+                        ? homeIDs[locationData.homeIndex] : nil
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(
+                            id: locationRecords[index].id,
+                            name: locationData.name,
+                            desc: locationData.desc,
+                            sfSymbolName: locationData.sfSymbol,
+                            imageURL: locationImageURLs[index],
+                            homeID: homeID
+                        )
+                    }.execute(db)
+                }
+                print("✅ TestData - Created \(locations.count) locations")
+
+                // Items + item-label joins
+                for (index, itemData) in items.enumerated() {
+                    let matchingLocation = locationRecords.first {
+                        $0.name == itemData.location && $0.homeIndex == itemData.homeIndex
+                    }
+                    let locationID = matchingLocation?.id ?? locationRecords[0].id
+                    let homeID =
+                        itemData.homeIndex < homeIDs.count
+                        ? homeIDs[itemData.homeIndex] : homeIDs[0]
+                    let labelID = labelIDs[itemData.label] ?? labelIDs.values.first!
+
+                    try SQLiteInventoryItem.insert {
+                        SQLiteInventoryItem(
+                            id: itemIDs[index],
+                            title: itemData.title,
+                            desc: itemData.desc,
+                            serial: "SN\(UUID().uuidString.prefix(8))",
+                            model: itemData.model,
+                            make: itemData.make,
+                            price: itemData.price,
+                            imageURL: itemImageURLs[index],
+                            hasUsedAI: true,
+                            purchaseDate: Calendar.current.date(
+                                byAdding: .month, value: -Int.random(in: 1...24), to: Date()),
+                            warrantyExpirationDate: Calendar.current.date(
+                                byAdding: .month, value: Int.random(in: 6...36), to: Date()),
+                            purchaseLocation: ["Apple Store", "Best Buy", "Amazon", "Target", "Costco"]
+                                .randomElement()!,
+                            condition: ["New", "Like New", "Good", "Fair"].randomElement()!,
+                            hasWarranty: Bool.random(),
+                            dimensionLength: "\(Int.random(in: 5...50))",
+                            dimensionWidth: "\(Int.random(in: 5...50))",
+                            dimensionHeight: "\(Int.random(in: 3...30))",
+                            dimensionUnit: ["inches", "feet", "cm", "m"].randomElement()!,
+                            weightValue: "\(Double.random(in: 0.5...50.0).rounded(toPlaces: 1))",
+                            weightUnit: ["lbs", "kg", "oz", "g"].randomElement()!,
+                            color: ["Black", "White", "Silver", "Space Gray", "Blue", "Red"]
+                                .randomElement()!,
+                            storageRequirements: [
+                                "Keep dry", "Climate controlled", "Upright only",
+                                "Fragile - handle with care", "",
+                            ].randomElement()!,
+                            isFragile: ["OLED TV", "Guitar", "MacBook Pro"].contains(itemData.title),
+                            movingPriority: Int.random(in: 1...5),
+                            roomDestination: itemData.location,
+                            locationID: locationID,
+                            homeID: homeID
+                        )
+                    }.execute(db)
+
+                    try SQLiteInventoryItemLabel.insert {
+                        SQLiteInventoryItemLabel(
+                            id: UUID(),
+                            inventoryItemID: itemIDs[index],
+                            inventoryLabelID: labelID
+                        )
+                    }.execute(db)
+                }
+                print("✅ TestData - Created \(items.count) items")
+            }
+
+            print("✅ TestData - Successfully saved all test data to sqlite-data")
+        } catch {
+            print("❌ TestData - Error saving test data to sqlite-data: \(error)")
         }
     }
 }

@@ -196,15 +196,8 @@ struct MovingBoxApp: App {
                 // Load Test Data if launch argument is set
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     print("📱 MovingBoxApp - Loading test data...")
-                    await TestData.loadTestData(modelContext: containerManager.container.mainContext)
+                    await TestData.loadSQLiteTestData(database: database)
                     print("📱 MovingBoxApp - Test data loaded")
-
-                    // Run orphaned items migration after test data loads
-                    // This ensures test data items/locations/labels are assigned to homes
-                    // Force=true allows it to run even if already completed (for test data scenarios)
-                    print("📱 MovingBoxApp - Running post-test-data migration...")
-                    try? await containerManager.performOrphanedItemsMigration(force: true)
-                    print("📱 MovingBoxApp - Post-test-data migration complete")
 
                     settings.hasLaunched = true
                     appState = .main
