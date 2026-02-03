@@ -1,7 +1,8 @@
+import SQLiteData
 import SwiftUI
 
 struct HorizontalPhotoScrollView: View {
-    let item: InventoryItem
+    let item: SQLiteInventoryItem
     let isEditing: Bool
     let onAddPhoto: () -> Void
     let onDeletePhoto: (String) -> Void
@@ -14,7 +15,7 @@ struct HorizontalPhotoScrollView: View {
     @State private var selectedImageIndex: Int = 0
 
     init(
-        item: InventoryItem,
+        item: SQLiteInventoryItem,
         isEditing: Bool,
         onAddPhoto: @escaping () -> Void,
         onDeletePhoto: @escaping (String) -> Void,
@@ -316,22 +317,7 @@ struct AddPhotoThumbnailButton: View {
 
 #Preview {
     // Create a sample item for preview
-    let sampleItem = InventoryItem(
-        title: "Sample Item",
-        quantityString: "1",
-        quantityInt: 1,
-        desc: "Sample description",
-        serial: "",
-        model: "",
-        make: "",
-        location: nil,
-        labels: [],
-        price: Decimal.zero,
-        insured: false,
-        assetId: "",
-        notes: "",
-        showInvalidQuantityAlert: false
-    )
+    let sampleItem = SQLiteInventoryItem(id: UUID(), title: "Sample Item")
 
     HorizontalPhotoScrollView(
         item: sampleItem,

@@ -7,7 +7,6 @@
 
 import Foundation
 import SQLiteData
-import SwiftData
 import SwiftUI
 import UIKit
 
@@ -189,32 +188,103 @@ class MockSettingsManager: SettingsManager {
 
 // MARK: - Test Data Helpers
 
-extension InventoryItem {
-    @MainActor
-    static func createTestItem(in context: ModelContext) -> InventoryItem {
-        let item = InventoryItem()
-        item.title = "Test Item"
-        item.desc = "A test item for unit testing"
-        item.price = Decimal(100.0)
-        item.make = "Test Make"
-        item.model = "Test Model"
-        item.serial = "TEST123"
-        item.quantityString = "1"
+@MainActor
+@discardableResult
+func createTestItem(in database: DatabaseQueue) throws -> SQLiteInventoryItem {
+    let item = SQLiteInventoryItem(
+        id: UUID(),
+        title: "Test Item",
+        quantityString: "1",
+        desc: "A test item for unit testing",
+        serial: "TEST123",
+        model: "Test Model",
+        make: "Test Make",
+        price: Decimal(100.0)
+    )
+    try database.write { db in
+        try SQLiteInventoryItem.insert { item }.execute(db)
+    }
+    return item
+}
 
-        context.insert(item)
-        return item
+@MainActor
+@discardableResult
+func createTestItemWithImages(in database: DatabaseQueue) throws -> SQLiteInventoryItem {
+    var item = SQLiteInventoryItem(
+        id: UUID(),
+        title: "Test Item",
+        quantityString: "1",
+        desc: "A test item for unit testing",
+        serial: "TEST123",
+        model: "Test Model",
+        make: "Test Make",
+        price: Decimal(100.0)
+    )
+    item.imageURL = URL(string: "file:///test/primary.jpg")
+    item.secondaryPhotoURLs = [
+        "file:///test/secondary1.jpg",
+        "file:///test/secondary2.jpg",
+    ]
+    try database.write { db in
+        try SQLiteInventoryItem.insert { item }.execute(db)
+    }
+    return item
+}
+
+// MARK: - Home Test Helpers
+
+@MainActor
+@discardableResult
+func createTestHome(
+    in database: DatabaseQueue,
+    name: String = "Test Home",
+    address1: String = "123 Test St",
+    city: String = "Test City",
+    state: String = "CA",
+    zip: String = "12345",
+    country: String = "US",
+    isPrimary: Bool = false,
+    colorName: String = "green"
+) throws -> SQLiteHome {
+    let home = SQLiteHome(
+        id: UUID(),
+        name: name,
+        address1: address1,
+        city: city,
+        state: state,
+        zip: zip,
+        country: country,
+        isPrimary: isPrimary,
+        colorName: colorName
+    )
+    try database.write { db in
+        try SQLiteHome.insert { home }.execute(db)
+    }
+    return home
+}
+
+@MainActor
+@discardableResult
+func createTestHomeWithLocations(
+    in database: DatabaseQueue,
+    name: String = "Test Home",
+    locationCount: Int = 3
+) throws -> SQLiteHome {
+    let home = try createTestHome(in: database, name: name)
+
+    for i in 1...locationCount {
+        let location = SQLiteInventoryLocation(
+            id: UUID(),
+            name: "Room \(i)",
+            desc: "Test room \(i)",
+            homeID: home.id
+        )
+        try database.write { db in
+            try SQLiteInventoryLocation.insert { location }.execute(db)
+        }
     }
 
-    @MainActor
-    static func createTestItemWithImages(in context: ModelContext) -> InventoryItem {
-        let item = createTestItem(in: context)
-        item.imageURL = URL(string: "file:///test/primary.jpg")
-        item.secondaryPhotoURLs = [
-            "file:///test/secondary1.jpg",
-            "file:///test/secondary2.jpg",
-        ]
-        return item
-    }
+    return home
 }
 
 extension UIImage {
@@ -228,52 +298,5 @@ extension UIImage {
         let image = UIGraphicsGetImageFromCurrentImageContext()!
         UIGraphicsEndImageContext()
         return image
-    }
-}
-
-// MARK: - Home Test Helpers
-
-extension Home {
-    @MainActor
-    static func createTestHome(
-        in context: ModelContext,
-        name: String = "Test Home",
-        address1: String = "123 Test St",
-        city: String = "Test City",
-        state: String = "CA",
-        zip: String = "12345",
-        country: String = "US",
-        isPrimary: Bool = false,
-        colorName: String = "green"
-    ) -> Home {
-        let home = Home(
-            name: name,
-            address1: address1,
-            city: city,
-            state: state,
-            zip: zip,
-            country: country
-        )
-        home.isPrimary = isPrimary
-        home.colorName = colorName
-        context.insert(home)
-        return home
-    }
-
-    @MainActor
-    static func createTestHomeWithLocations(
-        in context: ModelContext,
-        name: String = "Test Home",
-        locationCount: Int = 3
-    ) -> Home {
-        let home = createTestHome(in: context, name: name)
-
-        for i in 1...locationCount {
-            let location = InventoryLocation(name: "Room \(i)", desc: "Test room \(i)")
-            location.home = home
-            context.insert(location)
-        }
-
-        return home
     }
 }

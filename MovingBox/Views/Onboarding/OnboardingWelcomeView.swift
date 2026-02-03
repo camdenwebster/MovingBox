@@ -8,7 +8,6 @@ struct OnboardingWelcomeView: View {
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.disableAnimations) private var disableAnimations
-    @Environment(\.modelContext) private var modelContext
 
     @State private var imageOpacity = 0.0
     @State private var welcomeOpacity = 0.0
@@ -149,7 +148,7 @@ struct OnboardingWelcomeView: View {
             await updateStatusMessage("Checking for existing data...")
             do {
                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(
-                    modelContext: modelContext)
+                    database: database)
                 if shouldDismiss {
                     await updateStatusMessage("Complete! Redirecting...")
                     manager.markOnboardingComplete()

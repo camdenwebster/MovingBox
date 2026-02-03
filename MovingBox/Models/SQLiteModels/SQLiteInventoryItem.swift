@@ -69,3 +69,5 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
         return OptimizedImageManager.shared.getThumbnailURL(for: id)
     }
 }
+
+extension SQLiteInventoryItem: PhotoManageable {}

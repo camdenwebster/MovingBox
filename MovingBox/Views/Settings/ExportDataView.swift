@@ -1,9 +1,10 @@
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 
 struct ExportDataView: View {
-    @Environment(ModelContainerManager.self) private var containerManager
+    @Dependency(\.defaultDatabase) var database
     @State private var exportCoordinator = ExportCoordinator()
     @State private var exportItems = true
     @State private var exportLocations = true
@@ -135,7 +136,7 @@ struct ExportDataView: View {
         )
 
         await exportCoordinator.exportWithProgress(
-            modelContainer: containerManager.container,
+            database: database,
             fileName: fileName,
             config: config
         )

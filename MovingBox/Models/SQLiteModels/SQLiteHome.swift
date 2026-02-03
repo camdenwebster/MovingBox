@@ -30,6 +30,8 @@ nonisolated struct SQLiteHome: Hashable, Identifiable {
     }
 }
 
+extension SQLiteHome: PhotoManageable {}
+
 extension Color {
     static func homeColor(for name: String) -> Color {
         switch name {

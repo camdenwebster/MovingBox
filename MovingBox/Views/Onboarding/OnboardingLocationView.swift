@@ -12,8 +12,8 @@ struct OnboardingLocationView: View {
     @FetchAll(SQLiteInventoryLocation.all, animation: .default)
     private var locations: [SQLiteInventoryLocation]
 
-    // InventoryLocation() used only as PhotoManageable bridge for PhotoPickerView
-    @State private var locationPhotoAdapter = InventoryLocation()
+    // SQLiteInventoryLocation used only as PhotoManageable bridge for PhotoPickerView
+    @State private var locationPhotoAdapter = SQLiteInventoryLocation(id: UUID(), name: "")
     @State private var locationName = ""
     @State private var locationDesc = ""
     @State private var imageURL: URL?
@@ -42,7 +42,7 @@ struct OnboardingLocationView: View {
         }
     }
 
-    private var photoAdapterBinding: Binding<InventoryLocation> {
+    private var photoAdapterBinding: Binding<SQLiteInventoryLocation> {
         Binding(
             get: {
                 locationPhotoAdapter.imageURL = imageURL

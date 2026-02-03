@@ -9,7 +9,6 @@ import Dependencies
 import RevenueCat
 import SQLiteData
 import Sentry
-import SwiftData
 import SwiftUI
 import TelemetryDeck
 import UIKit
@@ -21,7 +20,6 @@ struct MovingBoxApp: App {
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
-    @State private var containerManager = ModelContainerManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var appState: AppState = .splash
 
@@ -31,13 +29,7 @@ struct MovingBoxApp: App {
         case main
     }
 
-    static func registerTransformers() {
-        UIColorValueTransformer.register()
-    }
-
     init() {
-        Self.registerTransformers()
-
         // Prepare sqlite-data database (runs schema migrations)
         prepareDependencies {
             $0.defaultDatabase = try! appDatabase()
@@ -169,9 +161,6 @@ struct MovingBoxApp: App {
                 .toolbar(removing: .title)
             #endif
             .task {
-                // Initialize container (waits for initial CloudKit sync to complete)
-                await containerManager.initialize()
-
                 // Migrate SwiftData store to sqlite-data (runs once, silently)
                 @Dependency(\.defaultDatabase) var database
                 let migrationResult = SQLiteMigrationCoordinator.migrateIfNeeded(database: database)
@@ -213,10 +202,8 @@ struct MovingBoxApp: App {
                 // Send launched signal to TD
                 TelemetryDeck.signal("appLaunched")
             }
-            .modelContainer(containerManager.container)
             .environment(\.featureFlags, FeatureFlags(distribution: .current))
             .environment(\.whatsNew, .forMovingBox())
-            .environment(containerManager)
             .environmentObject(router)
             .environmentObject(settings)
             .environmentObject(onboardingManager)

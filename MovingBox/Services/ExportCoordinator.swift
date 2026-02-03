@@ -1,4 +1,4 @@
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
@@ -23,7 +23,7 @@ final class ExportCoordinator {
     }
 
     func exportWithProgress(
-        modelContainer: ModelContainer,
+        database: any DatabaseWriter,
         fileName: String,
         config: DataManager.ExportConfig
     ) async {
@@ -36,7 +36,7 @@ final class ExportCoordinator {
                 isExporting = true
 
                 for await progress in DataManager.shared.exportInventoryWithProgress(
-                    modelContainer: modelContainer,
+                    database: database,
                     fileName: fileName,
                     config: config
                 ) {
@@ -92,8 +92,8 @@ final class ExportCoordinator {
     }
 
     func exportSpecificItems(
-        items: [InventoryItem],
-        modelContainer: ModelContainer
+        items: [SQLiteInventoryItem],
+        database: any DatabaseWriter
     ) async {
         exportTask = Task {
             do {
@@ -103,7 +103,7 @@ final class ExportCoordinator {
 
                 let url = try await DataManager.shared.exportSpecificItems(
                     items: items,
-                    modelContainer: modelContainer
+                    database: database
                 )
 
                 archiveURL = url

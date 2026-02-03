@@ -2,6 +2,7 @@ import AVFoundation
 import AVKit
 import Combine
 import PhotosUI
+import SQLiteData
 import SwiftUI
 import UIKit
 
@@ -118,7 +119,7 @@ enum CaptureMode: CaseIterable {
 
     // MARK: - Navigation
 
-    func postCaptureDestination(images: [UIImage], location: InventoryLocation?)
+    func postCaptureDestination(images: [UIImage], location: SQLiteInventoryLocation?)
         -> PostCaptureDestination
     {
         switch self {
@@ -133,8 +134,8 @@ enum CaptureMode: CaseIterable {
 // MARK: - Supporting Types
 
 enum PostCaptureDestination {
-    case itemCreationFlow(images: [UIImage], location: InventoryLocation?)
-    case multiItemSelection(images: [UIImage], location: InventoryLocation?)
+    case itemCreationFlow(images: [UIImage], location: SQLiteInventoryLocation?)
+    case multiItemSelection(images: [UIImage], location: SQLiteInventoryLocation?)
 }
 
 enum CaptureModeError {
@@ -145,7 +146,6 @@ enum CaptureModeError {
 struct MultiPhotoCameraView: View {
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
-    @Environment(ModelContainerManager.self) private var containerManager
     @StateObject private var model = MultiPhotoCameraViewModel()
     @Binding var capturedImages: [UIImage]
     let captureMode: CaptureMode
@@ -219,7 +219,7 @@ struct MultiPhotoCameraView: View {
                             model.capturedImages.removeAll()
                         },
                         onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) },
-                        isSyncingData: containerManager.isCloudKitSyncing
+                        isSyncingData: false
                     )
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -373,7 +373,7 @@ struct MultiPhotoCameraView: View {
                 },
                 isMultiItemPreviewShowing: isMultiItemPreview,
                 hasPhotoCaptured: !model.capturedImages.isEmpty,
-                isSyncingData: containerManager.isCloudKitSyncing
+                isSyncingData: false
             )
 
             if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
@@ -659,6 +659,5 @@ private struct PreviewContainer<Content: View>: View {
             .environment(\.isPreview, true)
             .environmentObject(SettingsManager())
             .environmentObject(RevenueCatManager.shared)
-            .environment(ModelContainerManager.shared)
     }
 }

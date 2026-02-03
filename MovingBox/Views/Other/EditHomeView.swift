@@ -40,8 +40,8 @@ struct EditHomeView: View {
     @State private var country: String = ""
     @State private var imageURL: URL?
 
-    // PhotoPickerView adapter — Home() used only as PhotoManageable bridge
-    @State private var photoAdapter = Home()
+    // PhotoPickerView adapter — SQLiteHome used only as PhotoManageable bridge
+    @State private var photoAdapter = SQLiteHome(id: UUID(), name: "")
 
     init(
         homeID: UUID? = nil,
@@ -263,7 +263,7 @@ struct EditHomeView: View {
 
     // MARK: - Photo Adapter
 
-    private var photoAdapterBinding: Binding<Home> {
+    private var photoAdapterBinding: Binding<SQLiteHome> {
         Binding(
             get: {
                 photoAdapter.imageURL = imageURL

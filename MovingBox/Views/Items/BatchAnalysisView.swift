@@ -7,21 +7,19 @@
 
 import Dependencies
 import SQLiteData
-import SwiftData
 import SwiftUI
 
 struct BatchAnalysisView: View {
     @Dependency(\.defaultDatabase) var database
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var settings: SettingsManager
 
-    let selectedItems: [InventoryItem]
+    let selectedItems: [SQLiteInventoryItem]
     let onDismiss: () -> Void
 
-    @State private var analysisProgress: [PersistentIdentifier: AnalysisState] = [:]
+    @State private var analysisProgress: [UUID: AnalysisState] = [:]
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
-    @State private var currentDelay: TimeInterval = 1.0  // Initial delay
+    @State private var currentDelay: TimeInterval = 1.0
     @State private var consecutiveErrors = 0
 
     enum AnalysisState {
@@ -31,22 +29,20 @@ struct BatchAnalysisView: View {
         case failed(String)
     }
 
-    @State private var filteredItemsWithImages: [InventoryItem] = []
+    @State private var filteredItemsWithImages: [SQLiteInventoryItem] = []
     @State private var isFilteringItems = true
 
-    private var itemsWithImages: [InventoryItem] {
+    private var itemsWithImages: [SQLiteInventoryItem] {
         filteredItemsWithImages
     }
 
-    private func hasAnalyzableImage(_ item: InventoryItem) -> Bool {
-        // Check primary image URL
+    private func hasAnalyzableImage(_ item: SQLiteInventoryItem) -> Bool {
         if let imageURL = item.imageURL,
             !imageURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             return true
         }
 
-        // Check secondary photo URLs (filter out empty strings)
         if !item.secondaryPhotoURLs.isEmpty {
             let validURLs = item.secondaryPhotoURLs.filter { url in
                 !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -56,32 +52,17 @@ struct BatchAnalysisView: View {
             }
         }
 
-        // Check legacy data property (for items that haven't migrated yet)
-        if let data = item.data, !data.isEmpty {
-            return true
-        }
-
         return false
     }
 
     @MainActor
     private func filterItemsWithImages() async {
         isFilteringItems = true
-
-        var itemsWithValidImages: [InventoryItem] = []
-
-        for item in selectedItems {
-            let hasImages = await item.hasAnalyzableImageAfterMigration()
-            if hasImages {
-                itemsWithValidImages.append(item)
-            }
-        }
-
-        filteredItemsWithImages = itemsWithValidImages
+        filteredItemsWithImages = selectedItems.filter { hasAnalyzableImage($0) }
         isFilteringItems = false
     }
 
-    private func getImageCount(for item: InventoryItem) -> Int {
+    private func getImageCount(for item: SQLiteInventoryItem) -> Int {
         let primaryCount =
             (item.imageURL != nil
                 && !item.imageURL!.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -89,8 +70,7 @@ struct BatchAnalysisView: View {
         let secondaryCount = item.secondaryPhotoURLs.filter {
             !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }.count
-        let legacyCount = (item.data != nil && !item.data!.isEmpty) ? 1 : 0
-        return primaryCount + secondaryCount + legacyCount
+        return primaryCount + secondaryCount
     }
 
     var body: some View {
@@ -112,7 +92,7 @@ struct BatchAnalysisView: View {
                                 "AI will analyze images from \(itemsWithImages.count) selected items and update their information automatically."
                             )
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         } header: {
                             Text("Batch Analysis")
                         }
@@ -127,7 +107,7 @@ struct BatchAnalysisView: View {
                                         let imageCount = getImageCount(for: item)
                                         Text("\(imageCount) image\(imageCount == 1 ? "" : "s")")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundStyle(.secondary)
                                     }
 
                                     Spacer()
@@ -155,7 +135,7 @@ struct BatchAnalysisView: View {
 
                 if let errorMessage = errorMessage {
                     Text(errorMessage)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                         .padding()
                 }
             }
@@ -180,22 +160,22 @@ struct BatchAnalysisView: View {
     }
 
     @ViewBuilder
-    private func analysisStatusView(for item: InventoryItem) -> some View {
-        let state = analysisProgress[item.persistentModelID] ?? .pending
+    private func analysisStatusView(for item: SQLiteInventoryItem) -> some View {
+        let state = analysisProgress[item.id] ?? .pending
 
         switch state {
         case .pending:
             Image(systemName: "clock")
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         case .analyzing:
             ProgressView()
                 .scaleEffect(0.8)
         case .completed:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
+                .foregroundStyle(.green)
         case .failed(let error):
             Image(systemName: "exclamationmark.circle.fill")
-                .foregroundColor(.red)
+                .foregroundStyle(.red)
                 .help(error)
         }
     }
@@ -210,53 +190,42 @@ struct BatchAnalysisView: View {
     private func performBatchAnalysis() async {
         isAnalyzing = true
         errorMessage = nil
-        currentDelay = 1.0  // Reset delay
-        consecutiveErrors = 0  // Reset error counter
+        currentDelay = 1.0
+        consecutiveErrors = 0
 
-        // Initialize all items as pending
         for item in itemsWithImages {
-            analysisProgress[item.persistentModelID] = .pending
+            analysisProgress[item.id] = .pending
         }
 
         for item in itemsWithImages {
-            analysisProgress[item.persistentModelID] = .analyzing
+            analysisProgress[item.id] = .analyzing
 
             do {
                 try await analyzeItem(item)
-                analysisProgress[item.persistentModelID] = .completed
+                analysisProgress[item.id] = .completed
 
-                // Success: reset consecutive errors and reduce delay slightly
                 consecutiveErrors = 0
-                currentDelay = max(0.5, currentDelay * 0.9)  // Reduce delay but keep minimum of 0.5s
+                currentDelay = max(0.5, currentDelay * 0.9)
 
             } catch {
-                analysisProgress[item.persistentModelID] = .failed(error.localizedDescription)
+                analysisProgress[item.id] = .failed(error.localizedDescription)
 
-                // Error: increase consecutive error count and apply exponential backoff
                 consecutiveErrors += 1
-                currentDelay = min(10.0, currentDelay * pow(2.0, Double(min(consecutiveErrors, 4))))  // Cap at 10 seconds
+                currentDelay = min(10.0, currentDelay * pow(2.0, Double(min(consecutiveErrors, 4))))
             }
 
-            // Adaptive delay between requests based on success/failure rate
-            let delayNanoseconds = UInt64(currentDelay * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: delayNanoseconds)
+            try? await Task.sleep(for: .seconds(currentDelay))
         }
 
         isAnalyzing = false
 
-        // Show completion message for a moment, then dismiss
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            onDismiss()
-        }
+        try? await Task.sleep(for: .seconds(1.5))
+        onDismiss()
     }
 
-    private func analyzeItem(_ item: InventoryItem) async throws {
+    private func analyzeItem(_ item: SQLiteInventoryItem) async throws {
         var images: [UIImage] = []
 
-        // Ensure migration is complete before trying to load images
-        _ = await item.hasAnalyzableImageAfterMigration()
-
-        // Get primary image if exists
         if let imageURL = item.imageURL {
             do {
                 let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
@@ -266,7 +235,6 @@ struct BatchAnalysisView: View {
             }
         }
 
-        // Get secondary images if they exist
         if !item.secondaryPhotoURLs.isEmpty {
             do {
                 let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(
@@ -277,19 +245,12 @@ struct BatchAnalysisView: View {
             }
         }
 
-        // Handle legacy data if no modern images are available
-        if images.isEmpty, let data = item.data, let image = UIImage(data: data) {
-            images.append(image)
-        }
-
-        // Skip if no images could be loaded
         guard !images.isEmpty else {
             throw NSError(
                 domain: "BatchAnalysis", code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "No images could be loaded"])
         }
 
-        // Perform AI analysis
         let openAI = OpenAIServiceFactory.create()
         let imageDetails = try await openAI.getImageDetails(
             from: images,
@@ -297,32 +258,27 @@ struct BatchAnalysisView: View {
             database: database
         )
 
-        // Update the item with analysis results
-        item.title = imageDetails.title
-        item.desc = imageDetails.description
-        item.make = imageDetails.make
-        item.model = imageDetails.model
-        item.serial = imageDetails.serialNumber
-        item.price = Decimal(string: imageDetails.price) ?? Decimal.zero
-        item.hasUsedAI = true
-
-        // Save the changes
-        try modelContext.save()
+        try await database.write { db in
+            try SQLiteInventoryItem.find(item.id).update {
+                $0.title = imageDetails.title
+                $0.desc = imageDetails.description
+                $0.make = imageDetails.make
+                $0.model = imageDetails.model
+                $0.serial = imageDetails.serialNumber
+                $0.price = Decimal(string: imageDetails.price) ?? Decimal.zero
+                $0.hasUsedAI = true
+            }.execute(db)
+        }
     }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        let items = try previewer.container.mainContext.fetch(FetchDescriptor<InventoryItem>())
-
-        return BatchAnalysisView(
-            selectedItems: Array(items.prefix(3)),
-            onDismiss: {}
-        )
-        .modelContainer(previewer.container)
-        .environmentObject(SettingsManager())
-    } catch {
-        return Text("Preview Error: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    BatchAnalysisView(
+        selectedItems: [],
+        onDismiss: {}
+    )
+    .environmentObject(SettingsManager())
 }

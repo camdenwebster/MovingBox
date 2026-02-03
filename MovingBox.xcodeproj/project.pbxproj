@@ -13,8 +13,6 @@
 		1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 1920B0D52D88B13000CFA1E9 /* TelemetryDeck */; };
 		1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */; };
 		1927DE702D8B2DB400BEFD9D /* TestAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */; };
-		19328B001A68604693BB3069 /* RelationshipMigrationHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E26F90DDA9263EB769A09A /* RelationshipMigrationHelper.swift */; };
-		194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194195652DA4805B008CABAA /* ModelContainerManager.swift */; };
 		1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */; };
 		1942DC822BF391CF00734AF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC812BF391CF00734AF4 /* Assets.xcassets */; };
 		1942DC852BF391CF00734AF4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */; };
@@ -36,7 +34,6 @@
 		1979BE542EF6E18700CB8A01 /* WhatsNewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1979BE532EF6E18700CB8A01 /* WhatsNewKit */; };
 		197D67CD2EAA7B1500A53A02 /* SentrySwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
-		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
 		19A014472F3047F9003DFA2B /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = 19A014462F3047F9003DFA2B /* SQLiteData */; };
 		19A6B2982E74721C006A6EF6 /* AIProxy in Frameworks */ = {isa = PBXBuildFile; productRef = 19A6B2972E74721C006A6EF6 /* AIProxy */; };
 		19A9AB102DB274C7001CEDA2 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
@@ -88,7 +85,6 @@
 		1927DDF92D8B1FEF00BEFD9D /* download_images.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = download_images.py; sourceTree = "<group>"; };
 		1927DE6F2D8B2DB400BEFD9D /* TestAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TestAssets.xcassets; sourceTree = "<group>"; };
 		1937AABB2D938FBD00C68797 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
-		194195652DA4805B008CABAA /* ModelContainerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContainerManager.swift; sourceTree = "<group>"; };
 		1942DC7A2BF391CB00734AF4 /* MovingBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MovingBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingBoxApp.swift; sourceTree = "<group>"; };
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -104,7 +100,6 @@
 		19750C372DA07FF40056F0FC /* OnboardingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		1979BBE42EF5E5D700CB8A01 /* Package.resolved */ = {isa = PBXFileReference; lastKnownFileType = text; name = Package.resolved; path = MovingBox.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved; sourceTree = "<group>"; };
 		198958AC2BF8FAC700C52CAE /* TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestData.swift; path = MovingBox/Services/TestData.swift; sourceTree = SOURCE_ROOT; };
-		198958AE2BF99F5600C52CAE /* Previewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Previewer.swift; path = MovingBox/Services/Previewer.swift; sourceTree = SOURCE_ROOT; };
 		198958B02BF9AEA200C52CAE /* MovingBox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MovingBox.entitlements; sourceTree = "<group>"; };
 		198958B12BF9AEF900C52CAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1995E01B2DB98CEE004E4914 /* MovingBoxScreenshots.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxScreenshots.xctestplan; path = "Test Plans/MovingBoxScreenshots.xctestplan"; sourceTree = "<group>"; };
@@ -119,7 +114,6 @@
 		19D133902D72B422002448A9 /* DefaultDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultDataManager.swift; sourceTree = "<group>"; };
 		19D133C92D75455B002448A9 /* MovingBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MovingBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19D3430D2C12146800F8B2C7 /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
-		19E26F90DDA9263EB769A09A /* RelationshipMigrationHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipMigrationHelper.swift; sourceTree = "<group>"; };
 		19E37DFC2E56168500FB73D8 /* MovingBox.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MovingBox.icon; sourceTree = "<group>"; };
 		19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MovingBox-beta.icon"; sourceTree = "<group>"; };
 		19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
@@ -165,6 +159,7 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		190B05F92E079A4100F23E05 /* .claude */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = .claude; sourceTree = "<group>"; };
+		1917E1D02F3235D60072C655 /* spec */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = spec; sourceTree = "<group>"; };
 		196A7F3E2DB49BA000C5C4E8 /* fastlane */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = fastlane; sourceTree = "<group>"; };
 		19B7D9702D9B112200690F64 /* MovingBoxUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MovingBoxUITests; sourceTree = "<group>"; };
 		19C01D602D93157A00773DA4 /* Configuration */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Configuration; sourceTree = "<group>"; };
@@ -226,6 +221,7 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				1917E1D02F3235D60072C655 /* spec */,
 				191881AD2EC61EB9009FB4F4 /* opencode.json */,
 				191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */,
 				191881AB2EC54398009FB4F4 /* CLAUDE.md */,
@@ -324,8 +320,6 @@
 				675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */,
 				19F765D42DAB558000AE287D /* OptimizedImageManager.swift */,
 				19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */,
-				19E26F90DDA9263EB769A09A /* RelationshipMigrationHelper.swift */,
-				194195652DA4805B008CABAA /* ModelContainerManager.swift */,
 				19750C372DA07FF40056F0FC /* OnboardingManager.swift */,
 				19C01D5D2D93088300773DA4 /* JWTManager.swift */,
 				1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */,
@@ -333,7 +327,6 @@
 				190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */,
 				1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */,
 				1942DC8B2BF3D4BE00734AF4 /* OpenAIService.swift */,
-				198958AE2BF99F5600C52CAE /* Previewer.swift */,
 				19D3430D2C12146800F8B2C7 /* Router.swift */,
 				198958AC2BF8FAC700C52CAE /* TestData.swift */,
 				19D133902D72B422002448A9 /* DefaultDataManager.swift */,
@@ -615,10 +608,7 @@
 			files = (
 				1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */,
 				19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */,
-				19328B001A68604693BB3069 /* RelationshipMigrationHelper.swift in Sources */,
-				194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */,
 				19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */,
-				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
 				19BA29932DC464A70064C5A9 /* DataManager.swift in Sources */,
 				0CBDBBF6E6C64A42B24D9534 /* ProgressMapper.swift in Sources */,

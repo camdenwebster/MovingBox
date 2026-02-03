@@ -2,7 +2,6 @@ import PhotosUI
 import SwiftUI
 
 struct PhotoPickerView<T: PhotoManageable>: View {
-    @Environment(\.modelContext) private var modelContext
     @Binding var model: T
     @Binding var loadedImage: UIImage?
     @Binding var isLoading: Bool
@@ -73,7 +72,6 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                 Button("Remove Photo", role: .destructive) {
                     model.imageURL = nil
                     loadedImage = nil
-                    try? modelContext.save()
                 }
             }
         }
@@ -123,7 +121,6 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                 loadedImage = image
                 // Then update the model
                 model.imageURL = imageURL
-                try? modelContext.save()
             }
         } catch {
             await MainActor.run {

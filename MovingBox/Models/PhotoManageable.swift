@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 @MainActor
-protocol PhotoManageable: AnyObject {
+protocol PhotoManageable {
     var imageURL: URL? { get set }
     var secondaryPhotoURLs: [String] { get set }
     var photo: UIImage? { get async throws }
@@ -30,8 +30,6 @@ extension PhotoManageable {
             // Reconstruct the URL using OptimizedImageManager
             let newURL = OptimizedImageManager.shared.getImageURL(for: id)
             if let image = try? await OptimizedImageManager.shared.loadImage(url: newURL) {
-                // Update the stored URL to the correct path
-                self.imageURL = newURL
                 return image
             }
 

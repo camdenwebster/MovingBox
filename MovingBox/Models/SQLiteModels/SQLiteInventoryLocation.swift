@@ -18,3 +18,5 @@ nonisolated struct SQLiteInventoryLocation: Hashable, Identifiable {
         return OptimizedImageManager.shared.getThumbnailURL(for: id)
     }
 }
+
+extension SQLiteInventoryLocation: PhotoManageable {}

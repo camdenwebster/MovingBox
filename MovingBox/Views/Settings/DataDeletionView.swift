@@ -1,6 +1,5 @@
 import Dependencies
 import SQLiteData
-import SwiftData
 import SwiftUI
 import SwiftUIBackports
 
@@ -23,11 +22,9 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     private(set) var lastError: Error?
     private(set) var deletionCompleted = false
 
-    private let modelContext: ModelContext
     private let database: any DatabaseWriter
 
-    init(modelContext: ModelContext, database: any DatabaseWriter) {
-        self.modelContext = modelContext
+    init(database: any DatabaseWriter) {
         self.database = database
     }
 
@@ -60,11 +57,8 @@ final class DataDeletionService: DataDeletionServiceProtocol {
 
     private func performDeletion(scope: DeletionScope) async throws {
         try await deleteSQLiteContent()
-        try await deleteSwiftDataContent()
         await clearImageCache()
         try await createInitialHome()
-
-        try modelContext.save()
 
         if scope == .localAndICloud {
             print("🗑️ Deleted all data including iCloud sync")
@@ -74,13 +68,6 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     }
 
     private func createInitialHome() async throws {
-        // SwiftData home (for views not yet migrated)
-        let newHome = Home(name: "My Home")
-        newHome.isPrimary = true
-        modelContext.insert(newHome)
-        try modelContext.save()
-
-        // SQLite home (primary store)
         let newHomeID = UUID()
         try await database.write { db in
             try SQLiteHome.insert {
@@ -111,40 +98,6 @@ final class DataDeletionService: DataDeletionServiceProtocol {
             // Then parent table
             try SQLiteHome.delete().execute(db)
         }
-    }
-
-    private func deleteSwiftDataContent() async throws {
-        let itemDescriptor = FetchDescriptor<InventoryItem>()
-        let items = try modelContext.fetch(itemDescriptor)
-        for item in items {
-            modelContext.delete(item)
-        }
-
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        let locations = try modelContext.fetch(locationDescriptor)
-        for location in locations {
-            modelContext.delete(location)
-        }
-
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let labels = try modelContext.fetch(labelDescriptor)
-        for label in labels {
-            modelContext.delete(label)
-        }
-
-        let homeDescriptor = FetchDescriptor<Home>()
-        let homes = try modelContext.fetch(homeDescriptor)
-        for home in homes {
-            modelContext.delete(home)
-        }
-
-        let policyDescriptor = FetchDescriptor<InsurancePolicy>()
-        let policies = try modelContext.fetch(policyDescriptor)
-        for policy in policies {
-            modelContext.delete(policy)
-        }
-
-        try modelContext.save()
     }
 
     private func clearImageCache() async {
@@ -194,7 +147,6 @@ enum DeletionScope: String, CaseIterable {
 
 struct DataDeletionView: View {
     @Dependency(\.defaultDatabase) var database
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var router: Router
     @State private var selectedScope: DeletionScope = .localOnly
@@ -236,7 +188,7 @@ struct DataDeletionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if deletionService == nil {
-                deletionService = DataDeletionService(modelContext: modelContext, database: database)
+                deletionService = DataDeletionService(database: database)
             }
         }
         .alert("Final Confirmation", isPresented: $showFinalConfirmation) {

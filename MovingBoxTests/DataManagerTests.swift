@@ -1,5 +1,5 @@
 import Foundation
-import SwiftData
+import SQLiteData
 import Testing
 import UIKit
 import ZIPFoundation
@@ -8,32 +8,14 @@ import ZIPFoundation
 
 @MainActor
 struct DataManagerTests {
-    func createContainer() throws -> ModelContainer {
-        let schema = Schema([InventoryItem.self, InventoryLocation.self, InventoryLabel.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [config])
-    }
-
-    func createContext(with container: ModelContainer) -> ModelContext {
-        return ModelContext(container)
-    }
-
-    /// Creates a DataManager instance configured for testing with the given container.
-    /// This is necessary because DataManager.shared doesn't have a container configured,
-    /// which is correct for production but breaks tests that need to access SwiftData.
-    func createDataManager(with container: ModelContainer) -> DataManager {
-        return DataManager(modelContainer: container)
-    }
-
     let fileManager = FileManager.default
 
     @Test("Empty inventory throws error")
     func emptyInventoryThrowsError() async throws {
-        let container = try createContainer()
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
         do {
-            _ = try await dataManager.exportInventory(modelContainer: container)
+            _ = try await DataManager.shared.exportInventory(database: database)
             Issue.record("Expected error to be thrown")
         } catch let error as DataManager.DataError {
             #expect(error == .nothingToExport)
@@ -44,23 +26,19 @@ struct DataManagerTests {
 
     @Test("Export with items creates zip file")
     func exportWithItemsCreatesZip() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        item.desc = "Test Description"
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item", desc: "Test Description")
+            }.execute(db)
+        }
 
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         #expect(fileManager.fileExists(atPath: url.path))
         #expect(url.lastPathComponent.hasPrefix("MovingBox-export"))
         #expect(url.lastPathComponent.hasSuffix(".zip"))
@@ -75,9 +53,7 @@ struct DataManagerTests {
 
     @Test("Export with photos includes photos in zip")
     func exportWithPhotosIncludesPhotos() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let tempURL = try getTestFileURL(named: "test.png")
         let image = UIImage(systemName: "star.fill")!
@@ -88,19 +64,17 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: tempURL)
         }
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        item.imageURL = tempURL
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item", imageURL: tempURL)
+            }.execute(db)
+        }
 
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             let hasPhotosFolder = archive.contains { $0.path.hasPrefix("photos/") }
@@ -112,29 +86,27 @@ struct DataManagerTests {
 
     @Test("Export with locations includes locations.csv and photos")
     func exportWithLocationsIncludesLocationsData() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let location = InventoryLocation(name: "Test Location")
-        location.desc = "Test Notes"
-        location.imageURL = try createTestImage(named: "location.png")
-        context.insert(location)
-        try context.save()
+        let locationID = UUID()
+        let locationImageURL = try createTestImage(named: "location.png")
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        item.location = location
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(
+                    id: locationID, name: "Test Location", desc: "Test Notes",
+                    imageURL: locationImageURL)
+            }.execute(db)
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item", locationID: locationID)
+            }.execute(db)
+        }
 
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "locations.csv" })
@@ -146,18 +118,15 @@ struct DataManagerTests {
 
     @Test("Import with locations and items returns correct counts")
     func importWithLocationsAndItemsReturnsCounts() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
         let zipURL = try createTestImportFile()
 
-        // When
         var importedItemCount = 0
         var importedLocationCount = 0
 
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .completed(let result) = progress {
                 importedItemCount = result.itemCount
@@ -165,25 +134,25 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         #expect(importedItemCount == 2)
         #expect(importedLocationCount == 2)
 
-        let locations = try context.fetch(FetchDescriptor<InventoryLocation>())
+        let locations = try await database.read { db in
+            try SQLiteInventoryLocation.fetchAll(db)
+        }
         #expect(locations.count == 2)
 
-        let items = try context.fetch(FetchDescriptor<InventoryItem>())
+        let items = try await database.read { db in
+            try SQLiteInventoryItem.fetchAll(db)
+        }
         #expect(items.count == 2)
 
-        // Cleanup
         try? FileManager.default.removeItem(at: zipURL)
     }
 
     @Test("Import with invalid zip throws error")
     func importWithInvalidZipThrowsError() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let documentsURL = try fileManager.url(
             for: .documentDirectory,
@@ -197,7 +166,6 @@ struct DataManagerTests {
             try fileManager.removeItem(at: invalidZipURL)
         }
 
-        // Write invalid zip data
         let invalidData = "This is not a valid zip file".data(using: .utf8)!
         try invalidData.write(to: invalidZipURL)
 
@@ -205,12 +173,11 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: invalidZipURL)
         }
 
-        // When
         var receivedError: Error?
 
         for try await progress in await DataManager.shared.importInventory(
             from: invalidZipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let sendableError) = progress {
                 receivedError = sendableError.toError()
@@ -218,7 +185,6 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         guard let error = receivedError else {
             Issue.record("Expected error to be received")
             return
@@ -235,23 +201,20 @@ struct DataManagerTests {
 
     @Test("Export respects configuration flags")
     func exportRespectsConfiguration() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        context.insert(item)
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item")
+            }.execute(db)
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(id: UUID(), name: "Test Location")
+            }.execute(db)
+            try SQLiteInventoryLabel.insert {
+                SQLiteInventoryLabel(id: UUID(), name: "Test Label")
+            }.execute(db)
+        }
 
-        let location = InventoryLocation(name: "Test Location")
-        context.insert(location)
-
-        let label = InventoryLabel(name: "Test Label")
-        context.insert(label)
-
-        try context.save()
-
-        // When exporting only items
         let itemsOnlyConfig = DataManager.ExportConfig(
             includeItems: true,
             includeLocations: false,
@@ -259,11 +222,10 @@ struct DataManagerTests {
         )
 
         let itemsOnlyURL = try await DataManager.shared.exportInventory(
-            modelContainer: container,
+            database: database,
             config: itemsOnlyConfig
         )
 
-        // Then
         do {
             let archive = try Archive(url: itemsOnlyURL, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "inventory.csv" })
@@ -278,13 +240,10 @@ struct DataManagerTests {
 
     @Test("Import respects configuration flags")
     func importRespectsConfiguration() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let importURL = try createTestImportFile()
 
-        // When importing only items
         let itemsOnlyConfig = DataManager.ImportConfig(
             includeItems: true,
             includeLocations: false,
@@ -297,7 +256,7 @@ struct DataManagerTests {
 
         for try await progress in await DataManager.shared.importInventory(
             from: importURL,
-            modelContainer: container,
+            database: database,
             config: itemsOnlyConfig
         ) {
             if case .completed(let result) = progress {
@@ -307,7 +266,6 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         #expect(importedItemCount > 0)
         #expect(importedLocationCount == 0)
         #expect(importedLabelCount == 0)
@@ -317,29 +275,23 @@ struct DataManagerTests {
 
     @Test("Import handles file access errors gracefully")
     func importHandlesFileAccessErrors() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create a file that we can't read
         let deniedFileURL = try getTestFileURL(named: "denied.zip")
         try "test".data(using: .utf8)?.write(to: deniedFileURL)
 
-        // Make file unreadable by removing read permissions (on macOS this might not work as expected)
         try fileManager.setAttributes([.posixPermissions: 0o000], ofItemAtPath: deniedFileURL.path)
 
         defer {
-            // Restore permissions for cleanup
             try? fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: deniedFileURL.path)
             try? fileManager.removeItem(at: deniedFileURL)
         }
 
-        // When
         var receivedError: Error?
 
         for try await progress in await DataManager.shared.importInventory(
             from: deniedFileURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let sendableError) = progress {
                 receivedError = sendableError.toError()
@@ -347,17 +299,13 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         #expect(receivedError != nil)
     }
 
     @Test("Import validates file size limits")
     func importValidatesFileSizeLimits() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create a zip with CSV that references a large file
         let workingDir = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -369,7 +317,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create inventory CSV referencing a large image
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item,Test Description,Test Location,,1,,,,,false,,large.png,false
@@ -377,11 +324,9 @@ struct DataManagerTests {
         try inventoryCSV.write(
             to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
-        // Create a dummy file that would simulate large file (we can't create actual 100MB file in tests)
         let largeFileURL = photosDir.appendingPathComponent("large.png")
         try "large_file_content".data(using: .utf8)?.write(to: largeFileURL)
 
-        // Create zip
         let zipURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -397,14 +342,11 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: zipURL)
         }
 
-        // When/Then - The test should pass since we can't create an actual large file in tests
-        // This tests the validation logic exists
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let error) = progress {
-                // If we get a file size error, that's expected
                 if let dataError = error as? DataManager.DataError,
                     dataError == .fileTooLarge
                 {
@@ -412,7 +354,6 @@ struct DataManagerTests {
                 }
             }
             if case .completed = progress {
-                // Normal completion is also acceptable since our test file is small
                 break
             }
         }
@@ -420,9 +361,7 @@ struct DataManagerTests {
 
     @Test("Import validates file types")
     func importValidatesFileTypes() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let workingDir = try fileManager.url(
             for: .documentDirectory,
@@ -435,7 +374,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create inventory CSV referencing an invalid file type
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item,Test Description,Test Location,,1,,,,,false,,invalid.txt,false
@@ -443,11 +381,9 @@ struct DataManagerTests {
         try inventoryCSV.write(
             to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
-        // Create invalid file type
         let invalidFileURL = photosDir.appendingPathComponent("invalid.txt")
         try "invalid file content".data(using: .utf8)?.write(to: invalidFileURL)
 
-        // Create zip
         let zipURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -463,11 +399,10 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: zipURL)
         }
 
-        // When - Import should handle invalid file types gracefully
         var hadError = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let error) = progress {
                 if let dataError = error as? DataManager.DataError,
@@ -478,46 +413,36 @@ struct DataManagerTests {
                 break
             }
             if case .completed = progress {
-                // Completion is acceptable if the invalid file was skipped
                 break
             }
         }
 
-        // File type validation happens during copy, so we won't get an error if the file is just skipped
-        // This test ensures the validation logic exists
-        #expect(true)  // Test passes if no crash occurs
+        #expect(true)
     }
 
     @Test("Export with large dataset uses batched processing")
     func exportWithLargeDatasetUsesBatching() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create 150 items to test batching (batch size is 100)
-        for i in 1...150 {
-            let item = InventoryItem()
-            item.title = "Test Item \(i)"
-            item.desc = "Description \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...150 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Test Item \(i)", desc: "Description \(i)")
+                }.execute(db)
+            }
         }
-        try context.save()
 
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         #expect(fileManager.fileExists(atPath: url.path))
 
-        // Verify the archive contains all items
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "inventory.csv" })
 
-            // Extract and verify CSV content
             if let entry = archive["inventory.csv"] {
                 var csvData = Data()
                 _ = try archive.extract(entry) { data in
@@ -527,7 +452,6 @@ struct DataManagerTests {
                 let csvString = String(data: csvData, encoding: .utf8)
                 let lines = csvString?.components(separatedBy: .newlines).filter { !$0.isEmpty }
 
-                // Should have header + 150 items = 151 lines
                 #expect(lines?.count == 151)
             }
         } catch {
@@ -537,39 +461,35 @@ struct DataManagerTests {
 
     @Test("Batched export with locations and labels")
     func batchedExportWithMultipleTypes() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create 150 items, 50 locations, 30 labels
-        for i in 1...150 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...150 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...50 {
+                try SQLiteInventoryLocation.insert {
+                    SQLiteInventoryLocation(id: UUID(), name: "Location \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...30 {
+                try SQLiteInventoryLabel.insert {
+                    SQLiteInventoryLabel(id: UUID(), name: "Label \(i)")
+                }.execute(db)
+            }
         }
 
-        for i in 1...50 {
-            let location = InventoryLocation(name: "Location \(i)")
-            context.insert(location)
-        }
-
-        for i in 1...30 {
-            let label = InventoryLabel(name: "Label \(i)")
-            context.insert(label)
-        }
-
-        try context.save()
-
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         #expect(fileManager.fileExists(atPath: url.path))
 
-        // Verify all CSV files are present
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "inventory.csv" })
@@ -582,9 +502,7 @@ struct DataManagerTests {
 
     @Test("Import handles filename sanitization")
     func importHandlesFilenameSanitization() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let workingDir = try fileManager.url(
             for: .documentDirectory,
@@ -597,7 +515,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create inventory CSV with dangerous filenames
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item 1,Test Description,Test Location,,1,,,,,false,,../../../danger.png,false
@@ -606,11 +523,9 @@ struct DataManagerTests {
         try inventoryCSV.write(
             to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
-        // Create safe file
         let safeFileURL = photosDir.appendingPathComponent("safe.png")
         try "safe content".data(using: .utf8)?.write(to: safeFileURL)
 
-        // Create zip
         let zipURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -626,11 +541,10 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: zipURL)
         }
 
-        // When
         var completedSuccessfully = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .completed = progress {
                 completedSuccessfully = true
@@ -638,11 +552,11 @@ struct DataManagerTests {
             }
         }
 
-        // Then - Should complete without allowing path traversal
         #expect(completedSuccessfully)
 
-        // Verify items were imported (the dangerous filename should be sanitized)
-        let items = try context.fetch(FetchDescriptor<InventoryItem>())
+        let items = try await database.read { db in
+            try SQLiteInventoryItem.fetchAll(db)
+        }
         #expect(items.count == 2)
     }
 
@@ -654,15 +568,15 @@ struct DataManagerTests {
         #expect(memoryBytes > 0)
         #expect(memoryGB > 0)
 
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item")
+            }.execute(db)
+        }
 
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -672,21 +586,20 @@ struct DataManagerTests {
 
     @Test("Export progress reports all phases")
     func exportProgressReportsAllPhases() async throws {
-        let container = try createContainer()
-        let context = createContext(with: container)
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
-        for i in 1...10 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...10 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
         }
-        try context.save()
 
         var receivedPhases: Set<String> = []
 
-        for await progress in dataManager.exportInventoryWithProgress(
-            modelContainer: container
+        for await progress in DataManager.shared.exportInventoryWithProgress(
+            database: database
         ) {
             switch progress {
             case .preparing:
@@ -717,21 +630,20 @@ struct DataManagerTests {
 
     @Test("Export can be cancelled mid-operation")
     func exportCanBeCancelled() async throws {
-        let container = try createContainer()
-        let context = createContext(with: container)
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
-        for i in 1...200 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...200 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
         }
-        try context.save()
 
         let task = Task {
             var phaseCount = 0
-            for await progress in dataManager.exportInventoryWithProgress(
-                modelContainer: container
+            for await progress in DataManager.shared.exportInventoryWithProgress(
+                database: database
             ) {
                 phaseCount += 1
                 if case .fetchingData = progress, phaseCount > 1 {
@@ -749,32 +661,32 @@ struct DataManagerTests {
 
     @Test("Export result contains correct counts")
     func exportResultContainsCorrectCounts() async throws {
-        let container = try createContainer()
-        let context = createContext(with: container)
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
-        for i in 1...15 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...15 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...5 {
+                try SQLiteInventoryLocation.insert {
+                    SQLiteInventoryLocation(id: UUID(), name: "Location \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...3 {
+                try SQLiteInventoryLabel.insert {
+                    SQLiteInventoryLabel(id: UUID(), name: "Label \(i)")
+                }.execute(db)
+            }
         }
-
-        for i in 1...5 {
-            let location = InventoryLocation(name: "Location \(i)")
-            context.insert(location)
-        }
-
-        for i in 1...3 {
-            let label = InventoryLabel(name: "Label \(i)")
-            context.insert(label)
-        }
-
-        try context.save()
 
         var exportResult: DataManager.ExportResult?
 
-        for await progress in dataManager.exportInventoryWithProgress(
-            modelContainer: container
+        for await progress in DataManager.shared.exportInventoryWithProgress(
+            database: database
         ) {
             if case .completed(let result) = progress {
                 exportResult = result
@@ -829,7 +741,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create test CSVs
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item 1,Test Description,Test Location 1,,1,,,,,false,,test1.png,false
@@ -853,13 +764,11 @@ struct DataManagerTests {
         try labelsCSV.write(
             to: workingDir.appendingPathComponent("labels.csv"), atomically: true, encoding: .utf8)
 
-        // Create dummy photo files
         try createTestImage(named: "test1.png", in: photosDir)
         try createTestImage(named: "test2.png", in: photosDir)
         try createTestImage(named: "location1.png", in: photosDir)
         try createTestImage(named: "location2.png", in: photosDir)
 
-        // Create zip
         let zipURL = documentsURL.appendingPathComponent("test-import.zip")
         try? fileManager.removeItem(at: zipURL)
         try fileManager.zipItem(at: workingDir, to: zipURL, shouldKeepParent: false)

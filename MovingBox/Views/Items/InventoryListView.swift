@@ -559,9 +559,8 @@ struct InventoryListView: View {
     }
 
     func exportSelectedItems() {
-        // TODO: Migrate ExportCoordinator to use sqlite-data types
-        // ExportCoordinator currently requires [InventoryItem] and ModelContainer
-        print("⚠️ Export not yet migrated to sqlite-data")
+        // TODO: Wire up ExportCoordinator with sqlite-data items
+        print("⚠️ Export from selection not yet wired up")
     }
 
     // MARK: - Sorting Functions

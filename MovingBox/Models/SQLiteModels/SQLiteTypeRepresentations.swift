@@ -2,6 +2,20 @@ import Foundation
 import SQLiteData
 import UIKit
 
+// MARK: - Attachment Info
+
+struct AttachmentInfo: Codable, Hashable, Sendable {
+    let url: String
+    let originalName: String
+    let createdAt: Date
+
+    init(url: String, originalName: String) {
+        self.url = url
+        self.originalName = originalName
+        self.createdAt = Date()
+    }
+}
+
 // MARK: - UIColor Hex Representation
 
 extension UIColor {

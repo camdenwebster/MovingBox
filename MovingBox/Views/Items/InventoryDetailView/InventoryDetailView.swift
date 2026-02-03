@@ -12,14 +12,12 @@ import QuickLook
 import RevenueCatUI
 import SQLiteData
 import SentrySwiftUI
-import SwiftData
 import SwiftUI
 import VisionKit
 
 @MainActor
 struct InventoryDetailView: View {
     @Dependency(\.defaultDatabase) var database
-    @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var router: Router
@@ -135,64 +133,6 @@ struct InventoryDetailView: View {
         self._navigationPath = navigationPath
         self.showSparklesButton = showSparklesButton
         self._isEditing = State(initialValue: isEditing)
-        self.onSave = onSave
-        self.onCancel = onCancel
-    }
-
-    // MARK: - Compatibility init (InventoryItem → UUID, copies properties)
-    init(
-        item: InventoryItem,
-        navigationPath: Binding<NavigationPath>,
-        showSparklesButton: Bool = false,
-        isEditing: Bool = false,
-        onSave: (() -> Void)? = nil,
-        onCancel: (() -> Void)? = nil
-    ) {
-        self.itemID = item.id
-        // Pre-populate item state from the SwiftData model
-        self._item = State(
-            initialValue: SQLiteInventoryItem(
-                id: item.id,
-                title: item.title,
-                quantityString: item.quantityString,
-                quantityInt: item.quantityInt,
-                desc: item.desc,
-                serial: item.serial,
-                model: item.model,
-                make: item.make,
-                price: item.price,
-                insured: item.insured,
-                assetId: item.assetId,
-                notes: item.notes,
-                replacementCost: item.replacementCost,
-                depreciationRate: item.depreciationRate,
-                imageURL: item.imageURL,
-                secondaryPhotoURLs: item.secondaryPhotoURLs,
-                hasUsedAI: item.hasUsedAI,
-                purchaseDate: item.purchaseDate,
-                warrantyExpirationDate: item.warrantyExpirationDate,
-                purchaseLocation: item.purchaseLocation,
-                condition: item.condition,
-                hasWarranty: item.hasWarranty,
-                attachments: item.attachments,
-                dimensionLength: item.dimensionLength,
-                dimensionWidth: item.dimensionWidth,
-                dimensionHeight: item.dimensionHeight,
-                dimensionUnit: item.dimensionUnit,
-                weightValue: item.weightValue,
-                weightUnit: item.weightUnit,
-                color: item.color,
-                storageRequirements: item.storageRequirements,
-                isFragile: item.isFragile,
-                movingPriority: item.movingPriority,
-                roomDestination: item.roomDestination,
-                locationID: item.location?.id,
-                homeID: item.effectiveHome?.id
-            ))
-        self._navigationPath = navigationPath
-        self.showSparklesButton = showSparklesButton
-        self._isEditing = State(initialValue: isEditing)
-        self._displayPriceString = State(initialValue: formatInitialPrice(item.price))
         self.onSave = onSave
         self.onCancel = onCancel
     }

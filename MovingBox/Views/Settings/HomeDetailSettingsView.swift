@@ -23,8 +23,8 @@ struct HomeDetailSettingsView: View {
 
     @State private var viewModel: HomeDetailSettingsViewModel?
 
-    // Photo state — Home() is used solely as a PhotoManageable adapter for PhotoPickerView
-    @State private var photoAdapter = Home()
+    // Photo state — SQLiteHome used solely as a PhotoManageable adapter for PhotoPickerView
+    @State private var photoAdapter = SQLiteHome(id: UUID(), name: "")
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var photoIsLoading = false
@@ -223,7 +223,7 @@ struct HomeDetailSettingsView: View {
         }
     }
 
-    private func photoAdapterBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<Home> {
+    private func photoAdapterBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<SQLiteHome> {
         Binding(
             get: {
                 photoAdapter.imageURL = viewModel.imageURL

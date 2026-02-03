@@ -18,8 +18,8 @@ struct OnboardingHomeView: View {
     @State private var loadingError: Error?
     @State private var isLoading = false
 
-    // PhotoPickerView adapter — Home() used only as PhotoManageable bridge
-    @State private var photoAdapter = Home()
+    // PhotoPickerView adapter — SQLiteHome used only as PhotoManageable bridge
+    @State private var photoAdapter = SQLiteHome(id: UUID(), name: "")
 
     private var activeHome: SQLiteHome? {
         homes.last
@@ -48,7 +48,7 @@ struct OnboardingHomeView: View {
         }
     }
 
-    private var photoAdapterBinding: Binding<Home> {
+    private var photoAdapterBinding: Binding<SQLiteHome> {
         Binding(
             get: {
                 photoAdapter.imageURL = imageURL
