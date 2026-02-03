@@ -1,6 +1,7 @@
 import AVFoundation
+import Dependencies
+import SQLiteData
 import StoreKit
-import SwiftData
 import SwiftUI
 
 enum ItemCreationStep: CaseIterable {
@@ -29,7 +30,7 @@ enum ItemCreationStep: CaseIterable {
 }
 
 struct ItemCreationFlowView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
     @EnvironmentObject var router: Router
@@ -39,7 +40,7 @@ struct ItemCreationFlowView: View {
     @State private var capturedImage: UIImage?
     @State private var capturedImages: [UIImage] = []
     @State private var captureMode: CaptureMode = .singleItem
-    @State private var item: InventoryItem?
+    @State private var item: SQLiteInventoryItem?
     @State private var showingPermissionDenied = false
     @State private var processingImage = false
     @State private var analysisComplete = false
@@ -49,7 +50,7 @@ struct ItemCreationFlowView: View {
     // Animation properties
     private let transitionAnimation = Animation.easeInOut(duration: 0.3)
 
-    let location: InventoryLocation?
+    let locationID: UUID?
     let onComplete: (() -> Void)?
 
     var body: some View {
@@ -151,7 +152,7 @@ struct ItemCreationFlowView: View {
                 case .details:
                     if let item = item {
                         InventoryDetailView(
-                            inventoryItemToDisplay: item,
+                            itemID: item.id,
                             navigationPath: .constant(NavigationPath()),
                             isEditing: true,
                             onSave: {
@@ -239,48 +240,36 @@ struct ItemCreationFlowView: View {
     private func handleCapturedImages(_ images: [UIImage]) async {
         await MainActor.run {
             capturedImages = images
-            capturedImage = images.first  // For backward compatibility
+            capturedImage = images.first
         }
-
-        print("📸 ItemCreationFlowView - handleCapturedImages called. Capture mode: \(captureMode)")
 
         // Only run single-item creation if in single-item mode
-        guard captureMode == .singleItem else {
-            print("⏭️ ItemCreationFlowView - Skipping single-item creation (in multi-item mode)")
-            return
-        }
+        guard captureMode == .singleItem else { return }
 
-        print("➡️ ItemCreationFlowView - Running single item creation flow")
+        let newID = UUID()
+        let itemId = newID.uuidString
+        let resolvedHomeID = await resolveHomeID()
 
-        // Create the item first
-        let newItem = InventoryItem(
+        var newItem = SQLiteInventoryItem(
+            id: newID,
             title: "",
-            quantityString: "1",
-            quantityInt: 1,
             desc: "",
-            serial: "",
             model: "",
             make: "",
-            location: location,
-            labels: [],
             price: Decimal.zero,
-            insured: false,
-            assetId: "",
+            assetId: itemId,
             notes: "",
-            showInvalidQuantityAlert: false
+            hasUsedAI: true,
+            locationID: locationID,
+            homeID: resolvedHomeID
         )
-
-        // Generate a unique ID for this item
-        let itemId = UUID().uuidString
 
         do {
             if let primaryImage = images.first {
-                // Save the primary image
                 let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
                     primaryImage, id: itemId)
                 newItem.imageURL = primaryImageURL
 
-                // Save secondary images if there are more than one
                 if images.count > 1 {
                     let secondaryImages = Array(images.dropFirst())
                     let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
@@ -289,110 +278,96 @@ struct ItemCreationFlowView: View {
                 }
             }
 
-            await MainActor.run {
-                modelContext.insert(newItem)
-                try? modelContext.save()
-                TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
-                self.item = newItem
+            let itemToInsert = newItem
+            try await database.write { db in
+                try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
             }
+            TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
+            self.item = newItem
         } catch {
             print("Error processing images: \(error)")
         }
     }
 
-    // Legacy method for backward compatibility (keep for now)
-    private func handleCapturedImage(_ image: UIImage) async {
-        await handleCapturedImages([image])
-    }
-
-    private func performImageAnalysis(item: InventoryItem, image: UIImage) async {
-        print("Starting image analysis...")
-
-        // Reset flags to ensure proper state
+    private func performImageAnalysis(item: SQLiteInventoryItem, image: UIImage) async {
         await MainActor.run {
             analysisComplete = false
             errorMessage = nil
         }
 
         do {
-            // Prepare image for AI
             guard await OptimizedImageManager.shared.prepareImageForAI(from: image) != nil else {
                 throw OpenAIError.invalidData
             }
 
-            // Create OpenAI service and get image details
             let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            print("Calling OpenAI for image analysis...")
             let imageDetails = try await openAi.getImageDetails(
                 from: [capturedImage].compactMap { $0 },
                 settings: settings,
-                modelContext: modelContext
+                database: database
             )
-            print("OpenAI analysis complete, updating item...")
 
-            // Update the item with the results
+            // Fetch labels and locations from SQLite
+            let labels =
+                (try? await database.read { db in
+                    try SQLiteInventoryLabel.all.fetchAll(db)
+                }) ?? []
+            let locations =
+                (try? await database.read { db in
+                    try SQLiteInventoryLocation.all.fetchAll(db)
+                }) ?? []
+
             await MainActor.run {
-                // Get all labels and locations for the unified update
-                let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-                let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
-                try? modelContext.save()
-
-                // Set processing flag to false
+                updateItemFromImageDetails(imageDetails, labels: labels, locations: locations)
                 processingImage = false
-
-                // Set analysis complete flag to trigger UI update
                 analysisComplete = true
-                print("Analysis complete, item updated")
+            }
+
+            // Save updated item to SQLite
+            if let currentItem = self.item {
+                let itemToSave = currentItem
+                try? await database.write { db in
+                    try SQLiteInventoryItem.find(itemToSave.id).update {
+                        $0.title = itemToSave.title
+                        $0.desc = itemToSave.desc
+                        $0.model = itemToSave.model
+                        $0.make = itemToSave.make
+                        $0.price = itemToSave.price
+                        $0.serial = itemToSave.serial
+                        $0.notes = itemToSave.notes
+                        $0.dimensionLength = itemToSave.dimensionLength
+                        $0.dimensionWidth = itemToSave.dimensionWidth
+                        $0.dimensionHeight = itemToSave.dimensionHeight
+                        $0.dimensionUnit = itemToSave.dimensionUnit
+                        $0.weightValue = itemToSave.weightValue
+                        $0.weightUnit = itemToSave.weightUnit
+                        $0.condition = itemToSave.condition
+                        $0.hasUsedAI = itemToSave.hasUsedAI
+                    }.execute(db)
+                }
             }
         } catch let openAIError as OpenAIError {
             await MainActor.run {
-                switch openAIError {
-                case .invalidURL:
-                    errorMessage = "Invalid URL configuration"
-                case .invalidResponse:
-                    errorMessage = "Error communicating with AI service"
-                case .invalidData:
-                    errorMessage = "Unable to process AI response"
-                case .rateLimitExceeded:
-                    errorMessage = "Rate limit exceeded, please try again later"
-                case .serverError(_):
-                    errorMessage = "Server error: \(openAIError.localizedDescription)"
-                case .networkCancelled:
-                    errorMessage = "Request was cancelled. Please try again."
-                case .networkTimeout:
-                    errorMessage = "Request timed out. Please check your connection and try again."
-                case .networkUnavailable:
-                    errorMessage = "Network unavailable. Please check your internet connection."
-                @unknown default:
-                    errorMessage = "Unknown AI service error"
-                }
+                errorMessage = openAIErrorMessage(openAIError)
                 processingImage = false
-                print("Analysis error: \(errorMessage ?? "unknown")")
             }
         } catch {
             await MainActor.run {
                 errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
                 processingImage = false
-                print("Analysis exception: \(error)")
             }
         }
     }
 
-    private func performMultiImageAnalysis(item: InventoryItem, images: [UIImage]) async {
-        print("Starting multi-image analysis with \(images.count) images...")
-
-        // Reset flags to ensure proper state
+    private func performMultiImageAnalysis(item: SQLiteInventoryItem, images: [UIImage]) async {
         await MainActor.run {
             analysisComplete = false
             errorMessage = nil
         }
 
         do {
-            // Prepare all images for AI
             let imageBase64Array = await OptimizedImageManager.shared.prepareMultipleImagesForAI(
                 from: images)
 
@@ -400,70 +375,69 @@ struct ItemCreationFlowView: View {
                 throw OpenAIError.invalidData
             }
 
-            // Create OpenAI service with multiple images and get image details
             let openAi = OpenAIServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            print("Calling OpenAI for multi-image analysis...")
             let imageDetails = try await openAi.getImageDetails(
                 from: capturedImages,
                 settings: settings,
-                modelContext: modelContext
+                database: database
             )
-            print("OpenAI multi-image analysis complete, updating item...")
 
-            // Update the item with the results
+            // Fetch labels and locations from SQLite
+            let labels =
+                (try? await database.read { db in
+                    try SQLiteInventoryLabel.all.fetchAll(db)
+                }) ?? []
+            let locations =
+                (try? await database.read { db in
+                    try SQLiteInventoryLocation.all.fetchAll(db)
+                }) ?? []
+
             await MainActor.run {
-                // Get all labels and locations for the unified update
-                let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-                let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                updateItemFromImageDetails(imageDetails, labels: labels, locations: locations)
 
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
-                try? modelContext.save()
-
-                // Increment successful AI analysis count and check for review request
                 settings.incrementSuccessfulAIAnalysis()
                 if settings.shouldRequestReview() {
                     requestAppReview()
                 }
 
-                // Set processing flag to false
                 processingImage = false
-
-                // Set analysis complete flag to trigger UI update
                 analysisComplete = true
-                print("Multi-image analysis complete, item updated")
+            }
+
+            // Save updated item to SQLite
+            if let currentItem = self.item {
+                let itemToSave = currentItem
+                try? await database.write { db in
+                    try SQLiteInventoryItem.find(itemToSave.id).update {
+                        $0.title = itemToSave.title
+                        $0.desc = itemToSave.desc
+                        $0.model = itemToSave.model
+                        $0.make = itemToSave.make
+                        $0.price = itemToSave.price
+                        $0.serial = itemToSave.serial
+                        $0.notes = itemToSave.notes
+                        $0.dimensionLength = itemToSave.dimensionLength
+                        $0.dimensionWidth = itemToSave.dimensionWidth
+                        $0.dimensionHeight = itemToSave.dimensionHeight
+                        $0.dimensionUnit = itemToSave.dimensionUnit
+                        $0.weightValue = itemToSave.weightValue
+                        $0.weightUnit = itemToSave.weightUnit
+                        $0.condition = itemToSave.condition
+                        $0.hasUsedAI = itemToSave.hasUsedAI
+                    }.execute(db)
+                }
             }
         } catch let openAIError as OpenAIError {
             await MainActor.run {
-                switch openAIError {
-                case .invalidURL:
-                    errorMessage = "Invalid URL configuration"
-                case .invalidResponse:
-                    errorMessage = "Error communicating with AI service"
-                case .invalidData:
-                    errorMessage = "Unable to process AI response"
-                case .rateLimitExceeded:
-                    errorMessage = "Rate limit exceeded, please try again later"
-                case .serverError(_):
-                    errorMessage = "Server error: \(openAIError.localizedDescription)"
-                case .networkCancelled:
-                    errorMessage = "Request was cancelled. Please try again."
-                case .networkTimeout:
-                    errorMessage = "Request timed out. Please check your connection and try again."
-                case .networkUnavailable:
-                    errorMessage = "Network unavailable. Please check your internet connection."
-                @unknown default:
-                    errorMessage = "Unknown AI service error"
-                }
+                errorMessage = openAIErrorMessage(openAIError)
                 processingImage = false
-                print("Multi-image analysis error: \(errorMessage ?? "unknown")")
             }
         } catch {
             await MainActor.run {
                 errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
                 processingImage = false
-                print("Multi-image analysis exception: \(error)")
             }
         }
     }
@@ -475,7 +449,6 @@ struct ItemCreationFlowView: View {
     }
 
     private func requestAppReview() {
-        // Delay review request by 2 seconds to let user glance at results
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             TelemetryManager.shared.trackAppReviewRequested()
             if #available(iOS 18.0, *) {
@@ -483,26 +456,109 @@ struct ItemCreationFlowView: View {
                     $0.activationState == .foregroundActive
                 }) as? UIWindowScene {
                     AppStore.requestReview(in: scene)
-                    print("📱 Requested app review using AppStore API")
                 }
             } else {
                 if let scene = UIApplication.shared.connectedScenes.first(where: {
                     $0.activationState == .foregroundActive
                 }) as? UIWindowScene {
                     SKStoreReviewController.requestReview(in: scene)
-                    print("📱 Requested app review using legacy API")
                 }
             }
+        }
+    }
+
+    private func resolveHomeID() async -> UUID? {
+        if let locationID {
+            if let location = try? await database.read({ db in
+                try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+            }), let locationHomeID = location.homeID {
+                return locationHomeID
+            }
+        }
+
+        if let activeHomeIdString = settings.activeHomeId,
+            let activeHomeId = UUID(uuidString: activeHomeIdString)
+        {
+            if (try? await database.read({ db in
+                try SQLiteHome.find(activeHomeId).fetchOne(db)
+            })) != nil {
+                return activeHomeId
+            }
+        }
+
+        return try? await database.read { db in
+            try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)?.id
+        }
+    }
+
+    private func updateItemFromImageDetails(
+        _ imageDetails: ImageDetails,
+        labels: [SQLiteInventoryLabel],
+        locations: [SQLiteInventoryLocation]
+    ) {
+        guard var currentItem = item else { return }
+
+        if !imageDetails.title.isEmpty { currentItem.title = imageDetails.title }
+        if !imageDetails.make.isEmpty { currentItem.make = imageDetails.make }
+        if !imageDetails.model.isEmpty { currentItem.model = imageDetails.model }
+        if !imageDetails.description.isEmpty { currentItem.desc = imageDetails.description }
+        if !imageDetails.serialNumber.isEmpty { currentItem.serial = imageDetails.serialNumber }
+        if let condition = imageDetails.condition, !condition.isEmpty { currentItem.condition = condition }
+
+        let priceString = imageDetails.price
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if let price = Decimal(string: priceString), price > 0 {
+            currentItem.price = price
+        }
+
+        // Use individual dimension properties if available, fall back to parsing dimensions string
+        if let length = imageDetails.dimensionLength, !length.isEmpty {
+            currentItem.dimensionLength = length
+        }
+        if let width = imageDetails.dimensionWidth, !width.isEmpty {
+            currentItem.dimensionWidth = width
+        }
+        if let height = imageDetails.dimensionHeight, !height.isEmpty {
+            currentItem.dimensionHeight = height
+        }
+        if let unit = imageDetails.dimensionUnit, !unit.isEmpty {
+            currentItem.dimensionUnit = unit
+        }
+
+        if let weightVal = imageDetails.weightValue, !weightVal.isEmpty {
+            currentItem.weightValue = weightVal
+        }
+        if let weightUnitVal = imageDetails.weightUnit, !weightUnitVal.isEmpty {
+            currentItem.weightUnit = weightUnitVal
+        }
+
+        currentItem.hasUsedAI = true
+        item = currentItem
+    }
+
+    private func openAIErrorMessage(_ error: OpenAIError) -> String {
+        switch error {
+        case .invalidURL: return "Invalid URL configuration"
+        case .invalidResponse: return "Error communicating with AI service"
+        case .invalidData: return "Unable to process AI response"
+        case .rateLimitExceeded: return "Rate limit exceeded, please try again later"
+        case .serverError(_): return "Server error: \(error.localizedDescription)"
+        case .networkCancelled: return "Request was cancelled. Please try again."
+        case .networkTimeout: return "Request timed out. Please check your connection and try again."
+        case .networkUnavailable: return "Network unavailable. Please check your internet connection."
+        @unknown default: return "Unknown AI service error"
         }
     }
 }
 
 #Preview {
-    ItemCreationFlowView(location: nil, onComplete: nil)
-        .modelContainer(
-            try! ModelContainer(
-                for: InventoryLocation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-        )
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+
+    ItemCreationFlowView(locationID: nil, onComplete: nil)
         .environmentObject(Router())
         .environmentObject(SettingsManager())
 }

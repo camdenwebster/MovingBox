@@ -5,27 +5,32 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct LocationSettingsView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var settingsManager: SettingsManager
-    @Query private var allLocations: [InventoryLocation]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
 
-    let home: Home?
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    private var allLocations: [SQLiteInventoryLocation]
 
-    @State private var selectedLocation: InventoryLocation?
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
+    let homeID: UUID?
+
+    @State private var selectedLocationID: UUID?
     @State private var showAddLocationSheet = false
 
-    init(home: Home? = nil) {
-        self.home = home
+    init(homeID: UUID? = nil) {
+        self.homeID = homeID
     }
 
-    private var activeHome: Home? {
-        if let home = home {
-            return home
+    private var activeHome: SQLiteHome? {
+        if let homeID = homeID {
+            return homes.first { $0.id == homeID }
         }
         guard let activeIdString = settingsManager.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
@@ -35,13 +40,11 @@ struct LocationSettingsView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    private var filteredLocations: [InventoryLocation] {
+    private var filteredLocations: [SQLiteInventoryLocation] {
         guard let activeHome = activeHome else {
-            return allLocations.sorted { $0.name < $1.name }
+            return allLocations
         }
-        return allLocations.filter { location in
-            location.home?.id == activeHome.id
-        }.sorted { $0.name < $1.name }
+        return allLocations.filter { $0.homeID == activeHome.id }
     }
 
     var body: some View {
@@ -54,9 +57,9 @@ struct LocationSettingsView: View {
                 )
             } else {
                 Section {
-                    ForEach(Array(filteredLocations), id: \.id) { (location: InventoryLocation) in
+                    ForEach(filteredLocations) { location in
                         Button {
-                            selectedLocation = location
+                            selectedLocationID = location.id
                         } label: {
                             HStack {
                                 if let symbolName = location.sfSymbolName {
@@ -66,7 +69,7 @@ struct LocationSettingsView: View {
                                 Text(location.name)
                                 Spacer()
                             }
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                         }
                     }
                     .onDelete(perform: deleteLocations)
@@ -83,16 +86,25 @@ struct LocationSettingsView: View {
                 }
             }
         }
-        .sheet(item: $selectedLocation) { location in
+        .sheet(
+            item: Binding(
+                get: { selectedLocationID.map { IdentifiableUUID(id: $0) } },
+                set: { selectedLocationID = $0?.id }
+            )
+        ) { wrapper in
             NavigationStack {
-                EditLocationView(location: location, isEditing: true, presentedInSheet: true, home: activeHome)
+                EditLocationView(
+                    locationID: wrapper.id, isEditing: true, presentedInSheet: true,
+                    homeID: activeHome?.id)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showAddLocationSheet) {
             NavigationStack {
-                EditLocationView(location: nil, isEditing: true, presentedInSheet: true, home: activeHome)
+                EditLocationView(
+                    locationID: nil, isEditing: true, presentedInSheet: true,
+                    homeID: activeHome?.id)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -100,42 +112,28 @@ struct LocationSettingsView: View {
     }
 
     func deleteLocations(at offsets: IndexSet) {
-        for index in offsets {
-            let locationToDelete = filteredLocations[index]
-            modelContext.delete(locationToDelete)
-            print("Deleting location: \(locationToDelete.name)")
+        let locationsToDelete = offsets.map { filteredLocations[$0] }
+        for location in locationsToDelete {
             TelemetryManager.shared.trackLocationDeleted()
+            try? database.write { db in
+                try SQLiteInventoryLocation.find(location.id).delete().execute(db)
+            }
         }
-        try? modelContext.save()
     }
 }
 
+// MARK: - Helpers
+
+private struct IdentifiableUUID: Identifiable {
+    let id: UUID
+}
+
 #Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Home.self, InventoryLocation.self, configurations: config)
-
-        let home = Home(name: "Main House")
-        container.mainContext.insert(home)
-
-        let location1 = InventoryLocation(name: "Living Room", desc: "Main living area")
-        location1.home = home
-        location1.sfSymbolName = "sofa"
-
-        let location2 = InventoryLocation(name: "Kitchen", desc: "Cooking area")
-        location2.home = home
-        location2.sfSymbolName = "fork.knife"
-
-        container.mainContext.insert(location1)
-        container.mainContext.insert(location2)
-
-        return NavigationStack {
-            LocationSettingsView(home: home)
-                .modelContainer(container)
-                .environmentObject(SettingsManager())
-        }
-    } catch {
-        return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundStyle(.red)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    NavigationStack {
+        LocationSettingsView()
+            .environmentObject(SettingsManager())
     }
 }

@@ -5,10 +5,13 @@
 //  Created by Claude on 8/8/25.
 //
 
+import Dependencies
+import SQLiteData
 import SwiftData
 import SwiftUI
 
 struct BatchAnalysisView: View {
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var settings: SettingsManager
 
@@ -291,7 +294,7 @@ struct BatchAnalysisView: View {
         let imageDetails = try await openAI.getImageDetails(
             from: images,
             settings: settings,
-            modelContext: modelContext
+            database: database
         )
 
         // Update the item with analysis results

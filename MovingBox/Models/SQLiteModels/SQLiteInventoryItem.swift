@@ -62,4 +62,10 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
     // MARK: - Foreign Keys
     var locationID: SQLiteInventoryLocation.ID?
     var homeID: SQLiteHome.ID?
+
+    var thumbnailURL: URL? {
+        guard let imageURL = imageURL else { return nil }
+        let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
+        return OptimizedImageManager.shared.getThumbnailURL(for: id)
+    }
 }

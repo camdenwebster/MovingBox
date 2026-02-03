@@ -146,65 +146,6 @@ struct MovingBoxApp: App {
         ProcessInfo.processInfo.arguments.contains("Disable-Animations")
     }
 
-    private func destinationView(
-        for destination: Router.Destination, navigationPath: Binding<NavigationPath>
-    ) -> AnyView {
-        AnyView(
-            Group {
-                switch destination {
-                case .dashboardView:
-                    DashboardView()
-                case .locationsListView(let showAllHomes):
-                    LocationsListView(showAllHomes: showAllHomes)
-                case .labelsListView(let showAllHomes):
-                    LabelsListView(showAllHomes: showAllHomes)
-                case .settingsView:
-                    SettingsView()
-                case .aISettingsView:
-                    AISettingsView()
-                case .inventoryListView(let location, let showAllHomes):
-                    InventoryListView(location: location, showAllHomes: showAllHomes)
-                case .inventoryListViewForLabel(let label):
-                    InventoryListView(location: nil, filterLabel: label)
-                case .editLocationView(let location, let isEditing):
-                    EditLocationView(location: location, isEditing: isEditing)
-                case .editLabelView(let label, let isEditing):
-                    EditLabelView(label: label, isEditing: isEditing)
-                case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-                    InventoryDetailView(
-                        inventoryItemToDisplay: item, navigationPath: navigationPath,
-                        showSparklesButton: showSparklesButton, isEditing: isEditing)
-                case .locationsSettingsView:
-                    LocationSettingsView()
-                case .subscriptionSettingsView:
-                    SubscriptionSettingsView()
-                case .syncDataSettingsView:
-                    SyncDataSettingsView()
-                case .importDataView:
-                    ImportDataView()
-                case .exportDataView:
-                    ExportDataView()
-                case .deleteDataView:
-                    DataDeletionView()
-                case .aboutView:
-                    AboutView()
-                case .featureRequestView:
-                    FeatureRequestView()
-                case .homeListView:
-                    HomeListView()
-                case .addHomeView:
-                    AddHomeView()
-                case .globalLabelSettingsView:
-                    GlobalLabelSettingsView()
-                case .insurancePolicyListView:
-                    InsurancePolicyListView()
-                case .insurancePolicyDetailView(let policy):
-                    InsurancePolicyDetailView(policy: policy)
-                }
-            }
-        )
-    }
-
     var body: some Scene {
         WindowGroup {
             Group {

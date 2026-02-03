@@ -7,20 +7,27 @@
 
 import PhotosUI
 import RevenueCatUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 import WhatsNewKit
 
 @MainActor
 struct DashboardView: View {
-    let specificHome: Home?
+    let specificHomeID: UUID?
 
-    @Environment(\.modelContext) var modelContext
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-    @Query private var allItems: [InventoryItem]
-    @Query(sort: [SortDescriptor(\InventoryItem.createdAt, order: .reverse)]) private var allRecentItems:
-        [InventoryItem]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
+
+    @FetchAll(SQLiteInventoryItemLabel.all, animation: .default)
+    private var allItemLabels: [SQLiteInventoryItemLabel]
+
+    @FetchAll(SQLiteInventoryLabel.all, animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
@@ -30,7 +37,6 @@ struct DashboardView: View {
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
-    @State private var homeInstance = Home()
     @State private var cachedImageURL: URL?
     @State private var loadingStartDate: Date? = nil
     @State private var showingPaywall = false
@@ -38,40 +44,63 @@ struct DashboardView: View {
 
     // MARK: - Initializer
 
-    init(home: Home? = nil) {
-        self.specificHome = home
+    init(homeID: UUID? = nil) {
+        self.specificHomeID = homeID
     }
 
     // MARK: - Computed Properties
 
-    private var displayHome: Home? {
-        specificHome ?? homes.first { $0.isPrimary } ?? homes.last
+    private var displayHome: SQLiteHome? {
+        if let specificHomeID = specificHomeID {
+            return homes.first { $0.id == specificHomeID }
+        }
+        return homes.first { $0.isPrimary } ?? homes.last
     }
 
-    private var home: Home? {
+    private var home: SQLiteHome? {
         return displayHome
     }
 
-    private var items: [InventoryItem] {
+    private var items: [SQLiteInventoryItem] {
         guard let displayHome = displayHome else {
             return allItems
         }
-        return allItems.filter { $0.effectiveHome?.id == displayHome.id }
+        return allItems.filter { $0.homeID == displayHome.id }
     }
 
-    private var recentItems: [InventoryItem] {
-        guard let displayHome = displayHome else {
-            return allRecentItems
+    private var recentItems: [SQLiteInventoryItem] {
+        let homeFiltered: [SQLiteInventoryItem]
+        if let displayHome = displayHome {
+            homeFiltered = allItems.filter { $0.homeID == displayHome.id }
+        } else {
+            homeFiltered = allItems
         }
-        return allRecentItems.filter { $0.effectiveHome?.id == displayHome.id }
+        return homeFiltered.sorted { $0.createdAt > $1.createdAt }
     }
 
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
     }
 
-    private var topRecentItems: [InventoryItem] {
+    private var topRecentItems: [SQLiteInventoryItem] {
         Array(recentItems.prefix(3))
+    }
+
+    // Lookup for item labels
+    private var labelsByItemID: [UUID: [SQLiteInventoryLabel]] {
+        let labelsById = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
+        var result: [UUID: [SQLiteInventoryLabel]] = [:]
+        for itemLabel in allItemLabels {
+            if let label = labelsById[itemLabel.inventoryLabelID] {
+                result[itemLabel.inventoryItemID, default: []].append(label)
+            }
+        }
+        return result
+    }
+
+    // Lookup for home names
+    private var homeNameByID: [UUID: String] {
+        Dictionary(uniqueKeysWithValues: homes.map { ($0.id, $0.displayName) })
     }
 
     private let columns = [
@@ -105,7 +134,7 @@ struct DashboardView: View {
                 // MARK: - Inventory Statistics
                 VStack(alignment: .leading, spacing: 16) {
                     Button {
-                        router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
+                        router.navigate(to: .inventoryListView(locationID: nil, showAllHomes: false))
                     } label: {
                         DashboardSectionLabel(text: "All Inventory")
                     }
@@ -144,12 +173,16 @@ struct DashboardView: View {
                         .padding(.horizontal)
                     } else {
                         VStack(spacing: 0) {
-                            ForEach(topRecentItems, id: \.persistentModelID) { item in
+                            ForEach(topRecentItems) { item in
                                 Button {
-                                    router.navigate(to: .inventoryDetailView(item: item, showSparklesButton: true))
+                                    router.navigate(to: .inventoryDetailView(itemID: item.id, showSparklesButton: true))
                                 } label: {
                                     HStack {
-                                        InventoryItemRow(item: item)
+                                        InventoryItemRow(
+                                            item: item,
+                                            homeName: item.homeID.flatMap { homeNameByID[$0] },
+                                            labels: labelsByItemID[item.id] ?? []
+                                        )
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .foregroundStyle(.tertiary)
@@ -173,7 +206,7 @@ struct DashboardView: View {
                                 .padding(.leading, 16)
 
                             Button {
-                                router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
+                                router.navigate(to: .inventoryListView(locationID: nil, showAllHomes: false))
                             } label: {
                                 HStack {
                                     Text("View All Items")
@@ -253,7 +286,7 @@ struct DashboardView: View {
             // User can switch modes via segmented control in camera
             EnhancedItemCreationFlowView(
                 captureMode: .singleItem,
-                location: nil
+                locationID: nil
             )
             .tint(.green)
         }
@@ -262,10 +295,11 @@ struct DashboardView: View {
             // Only sync activeHomeId when a specific home was explicitly passed to this view.
             // This prevents the default dashboard (showing primary home) from overwriting
             // the active home selection, which caused issues on iPhone navigation.
-            if let specificHome = specificHome {
-                let homeIdString = specificHome.id.uuidString
+            if let specificHomeID = specificHomeID {
+                let homeIdString = specificHomeID.uuidString
                 if settings.activeHomeId != homeIdString {
-                    print("🏠 DashboardView - Syncing activeHomeId to: \(specificHome.displayName) (\(homeIdString))")
+                    let homeName = homes.first(where: { $0.id == specificHomeID })?.displayName ?? "Unknown"
+                    print("🏠 DashboardView - Syncing activeHomeId to: \(homeName) (\(homeIdString))")
                     settings.activeHomeId = homeIdString
                 }
             }
@@ -306,7 +340,7 @@ struct DashboardView: View {
             }
 
             do {
-                let photo = try await home.photo
+                let photo = try await OptimizedImageManager.shared.loadImage(url: imageURL)
                 await MainActor.run {
                     loadedImage = photo
                 }
@@ -333,25 +367,7 @@ struct DashboardView: View {
 
                 Spacer()
 
-                if !isLoading {
-                    PhotoPickerView(
-                        model: Binding(
-                            get: { home ?? homeInstance },
-                            set: { newValue in
-                                if let existingHome = home {
-                                    existingHome.imageURL = newValue.imageURL
-                                    try? modelContext.save()
-                                } else {
-                                    homeInstance = newValue
-                                    modelContext.insert(homeInstance)
-                                    try? modelContext.save()
-                                }
-                            }
-                        ),
-                        loadedImage: $loadedImage,
-                        isLoading: $isLoading
-                    )
-                }
+                // PhotoPickerView will be migrated separately
             }
             //            .padding(.bottom)
         }
@@ -423,12 +439,10 @@ struct StatCard: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return DashboardView()
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    DashboardView()
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

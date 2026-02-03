@@ -186,7 +186,7 @@ extension SnapshotTests {
         let location = locations.first
 
         let view = configureViewForSnapshot(
-            InventoryListView(location: location)
+            InventoryListView(locationID: location?.id)
                 .modelContainer(container)
         )
 
@@ -239,7 +239,7 @@ extension SnapshotTests {
         let location = locations.first ?? InventoryLocation()
 
         let view = configureViewForSnapshot(
-            EditLocationView(location: location)
+            EditLocationView(locationID: location.id)
                 .modelContainer(container)
         )
 
@@ -268,7 +268,7 @@ extension SnapshotTests {
         let label = labels.first ?? InventoryLabel()
 
         let view = configureViewForSnapshot(
-            EditLabelView(label: label)
+            EditLabelView(labelID: label.id)
                 .modelContainer(container)
         )
 
@@ -297,7 +297,7 @@ extension SnapshotTests {
         let label = labels.first ?? InventoryLabel()
 
         let view = configureViewForSnapshot(
-            EditLabelView(label: label)
+            EditLabelView(labelID: label.id)
                 .modelContainer(container)
         )
 
@@ -373,7 +373,7 @@ extension SnapshotTests {
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                item: item,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: false
             )
@@ -406,7 +406,7 @@ extension SnapshotTests {
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                item: item,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: true
             )
@@ -444,7 +444,7 @@ extension SnapshotTests {
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                item: item,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: false
             )
@@ -484,7 +484,7 @@ extension SnapshotTests {
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                item: item,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: true
             )

@@ -1,10 +1,8 @@
-import SwiftData
 import SwiftUI
 import SwiftUIBackports
 import UniformTypeIdentifiers
 
 struct ImportDataView: View {
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var router: Router
     @State private var showFileImporter = false
     @State private var showPreviewView = false

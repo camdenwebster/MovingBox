@@ -5,8 +5,9 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import Dependencies
 import Foundation
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
@@ -18,11 +19,14 @@ class ItemCreationFlowViewModel: ObservableObject {
     /// Can be updated if user switches modes during camera capture
     @Published var captureMode: CaptureMode
 
-    /// Location to assign to created items
-    let location: InventoryLocation?
+    /// Location ID to assign to created items
+    let locationID: UUID?
 
-    /// SwiftData context for saving items
-    var modelContext: ModelContext?
+    /// Home ID to assign to created items (resolved from location or active home)
+    var homeID: UUID?
+
+    /// Database writer for sqlite-data operations
+    @Dependency(\.defaultDatabase) var database
 
     /// OpenAI service for image analysis (injected for testing)
     private let openAIService: OpenAIServiceProtocol?
@@ -76,8 +80,8 @@ class ItemCreationFlowViewModel: ObservableObject {
     /// Selected items from multi-item analysis
     @Published var selectedMultiItems: [DetectedInventoryItem] = []
 
-    /// Created inventory items
-    @Published var createdItems: [InventoryItem] = []
+    /// Created inventory items (saved to SQLite)
+    @Published var createdItems: [SQLiteInventoryItem] = []
 
     /// Unique transition ID for animations
     @Published var transitionId = UUID()
@@ -127,19 +131,14 @@ class ItemCreationFlowViewModel: ObservableObject {
 
     init(
         captureMode: CaptureMode,
-        location: InventoryLocation?,
-        modelContext: ModelContext? = nil,
+        locationID: UUID?,
+        homeID: UUID? = nil,
         openAIService: OpenAIServiceProtocol? = nil
     ) {
         self.captureMode = captureMode
-        self.location = location
-        self.modelContext = modelContext
+        self.locationID = locationID
+        self.homeID = homeID
         self.openAIService = openAIService
-    }
-
-    /// Update the model context (called after view initialization)
-    func updateModelContext(_ context: ModelContext) {
-        self.modelContext = context
     }
 
     /// Update the settings manager (called after view initialization)
@@ -200,39 +199,39 @@ class ItemCreationFlowViewModel: ObservableObject {
 
     // MARK: - Home Assignment
 
-    /// Assigns the appropriate home to an item if it doesn't already have one through its location.
-    /// Uses active home from settings, with fallback to primary home.
-    /// - Parameters:
-    ///   - item: The item to assign a home to
-    ///   - context: The model context for fetching homes
-    private func assignHomeToItemIfNeeded(_ item: InventoryItem, context: ModelContext) {
-        // Skip if item already has an effective home through its location
-        guard item.location == nil || item.location?.home == nil else {
-            return
+    /// Resolves the homeID for a new item: uses location's home, then active home, then primary home.
+    private func resolveHomeID() async -> UUID? {
+        // If homeID is already set (e.g., from the calling view), use it
+        if let homeID { return homeID }
+
+        // If location has a home, use it
+        if let locationID {
+            if let location = try? await database.read({ db in
+                try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+            }), let locationHomeID = location.homeID {
+                return locationHomeID
+            }
         }
 
-        // Try active home from settings first
+        // Try active home from settings
         if let activeHomeIdString = settingsManager?.activeHomeId,
             let activeHomeId = UUID(uuidString: activeHomeIdString)
         {
-            let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
-            if let activeHome = try? context.fetch(homeDescriptor).first {
-                item.home = activeHome
-                return
+            if (try? await database.read({ db in
+                try SQLiteHome.find(activeHomeId).fetchOne(db)
+            })) != nil {
+                return activeHomeId
             }
         }
 
         // Fallback to primary home
-        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-        if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
-            item.home = primaryHome
-            return
+        if let primaryHome = try? await database.read({ db in
+            try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)
+        }) {
+            return primaryHome.id
         }
 
-        // Log warning if no home could be assigned
-        print(
-            "⚠️ ItemCreationFlowViewModel - Could not assign home to item '\(item.title)'. No active or primary home found."
-        )
+        return nil
     }
 
     // MARK: - Image Processing
@@ -271,39 +270,28 @@ class ItemCreationFlowViewModel: ObservableObject {
     }
 
     /// Create a single inventory item (for single item mode)
-    func createSingleInventoryItem() async throws -> InventoryItem? {
+    func createSingleInventoryItem() async throws -> SQLiteInventoryItem? {
         guard !capturedImages.isEmpty else {
             throw InventoryItemCreationError.noImagesProvided
         }
 
-        let newItem = InventoryItem(
-            title: "",
-            quantityString: "1",
-            quantityInt: 1,
-            desc: "",
-            serial: "",
-            model: "",
-            make: "",
-            location: location,
-            labels: [],
-            price: Decimal.zero,
-            insured: false,
-            assetId: "",
-            notes: "",
-            showInvalidQuantityAlert: false
-        )
+        let newID = UUID()
+        let itemId = newID.uuidString
+        let resolvedHomeID = await resolveHomeID()
 
-        // Generate unique ID for this item
-        let itemId = UUID().uuidString
+        var newItem = SQLiteInventoryItem(
+            id: newID,
+            assetId: itemId,
+            locationID: locationID,
+            homeID: resolvedHomeID
+        )
 
         do {
             if let primaryImage = capturedImages.first {
-                // Save the primary image
                 let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
                     primaryImage, id: itemId)
                 newItem.imageURL = primaryImageURL
 
-                // Save secondary images if there are more than one
                 if capturedImages.count > 1 {
                     let secondaryImages = Array(capturedImages.dropFirst())
                     let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
@@ -312,15 +300,13 @@ class ItemCreationFlowViewModel: ObservableObject {
                 }
             }
 
-            await MainActor.run {
-                if let context = modelContext {
-                    assignHomeToItemIfNeeded(newItem, context: context)
-                    context.insert(newItem)
-                    try? context.save()
-                }
-                TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
+            // Insert into SQLite
+            let itemToInsert = newItem
+            try await database.write { db in
+                try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
             }
 
+            TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
             return newItem
 
         } catch {
@@ -332,7 +318,7 @@ class ItemCreationFlowViewModel: ObservableObject {
 
     /// Perform image analysis (single item mode)
     func performAnalysis() async {
-        guard let item = createdItems.first else { return }
+        guard var item = createdItems.first else { return }
 
         await MainActor.run {
             analysisComplete = false
@@ -341,14 +327,6 @@ class ItemCreationFlowViewModel: ObservableObject {
         }
 
         do {
-            guard let context = modelContext else {
-                await MainActor.run {
-                    errorMessage = "Model context not available"
-                    processingImage = false
-                }
-                return
-            }
-
             guard let settings = settingsManager else {
                 await MainActor.run {
                     errorMessage = "Settings manager not available"
@@ -362,19 +340,73 @@ class ItemCreationFlowViewModel: ObservableObject {
             let imageDetails = try await openAi.getImageDetails(
                 from: capturedImages,
                 settings: settings,
-                modelContext: context
+                database: database
             )
 
+            // Load labels and locations from SQLite
+            let labels =
+                (try? await database.read { db in
+                    try SQLiteInventoryLabel.all.fetchAll(db)
+                }) ?? []
+            let locations =
+                (try? await database.read { db in
+                    try SQLiteInventoryLocation.all.fetchAll(db)
+                }) ?? []
+
+            // Update item from AI results
+            updateItemFromImageDetails(&item, imageDetails: imageDetails, labels: labels, locations: locations)
+
+            // Save updated item to SQLite
+            let updatedItem = item
+            try? await database.write { db in
+                try SQLiteInventoryItem.find(updatedItem.id).update {
+                    $0.title = updatedItem.title
+                    $0.quantityString = updatedItem.quantityString
+                    $0.quantityInt = updatedItem.quantityInt
+                    $0.desc = updatedItem.desc
+                    $0.serial = updatedItem.serial
+                    $0.model = updatedItem.model
+                    $0.make = updatedItem.make
+                    $0.price = updatedItem.price
+                    $0.condition = updatedItem.condition
+                    $0.color = updatedItem.color
+                    $0.purchaseLocation = updatedItem.purchaseLocation
+                    $0.replacementCost = updatedItem.replacementCost
+                    $0.depreciationRate = updatedItem.depreciationRate
+                    $0.storageRequirements = updatedItem.storageRequirements
+                    $0.isFragile = updatedItem.isFragile
+                    $0.dimensionLength = updatedItem.dimensionLength
+                    $0.dimensionWidth = updatedItem.dimensionWidth
+                    $0.dimensionHeight = updatedItem.dimensionHeight
+                    $0.dimensionUnit = updatedItem.dimensionUnit
+                    $0.weightValue = updatedItem.weightValue
+                    $0.weightUnit = updatedItem.weightUnit
+                    $0.hasUsedAI = updatedItem.hasUsedAI
+                    $0.locationID = updatedItem.locationID
+                }.execute(db)
+
+                // Save matched labels
+                let categoriesToMatch =
+                    imageDetails.categories.isEmpty
+                    ? [imageDetails.category] : imageDetails.categories
+                for categoryName in categoriesToMatch {
+                    if let matchedLabel = labels.first(where: {
+                        $0.name.lowercased() == categoryName.lowercased()
+                    }) {
+                        try SQLiteInventoryItemLabel.insert {
+                            SQLiteInventoryItemLabel(
+                                id: UUID(),
+                                inventoryItemID: updatedItem.id,
+                                inventoryLabelID: matchedLabel.id
+                            )
+                        }.execute(db)
+                    }
+                }
+            }
+
             await MainActor.run {
-                // Get all labels and locations for the unified update
-                let labels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-                let locations = (try? context.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                createdItems = [item]
 
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
-                try? context.save()
-
-                // For single-item mode, also create a MultiItemAnalysisResponse
-                // This allows routing through multi-item selection view for consistency
                 let detectedItem = DetectedInventoryItem(
                     id: UUID().uuidString,
                     title: imageDetails.title,
@@ -383,7 +415,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                     make: imageDetails.make,
                     model: imageDetails.model,
                     estimatedPrice: imageDetails.price,
-                    confidence: 0.95  // Single item AI analysis is highly confident
+                    confidence: 0.95
                 )
 
                 multiItemAnalysisResponse = MultiItemAnalysisResponse(
@@ -420,14 +452,6 @@ class ItemCreationFlowViewModel: ObservableObject {
         }
 
         do {
-            guard let context = modelContext else {
-                await MainActor.run {
-                    errorMessage = "Model context not available"
-                    processingImage = false
-                }
-                return
-            }
-
             guard let settings = settingsManager else {
                 await MainActor.run {
                     errorMessage = "Settings manager not available"
@@ -445,7 +469,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             let response = try await openAi.getMultiItemDetails(
                 from: capturedImages,
                 settings: settings,
-                modelContext: context
+                database: database
             )
 
             // Restore original setting
@@ -476,96 +500,77 @@ class ItemCreationFlowViewModel: ObservableObject {
     // MARK: - Multi-Item Processing
 
     /// Process selected multi-items and create inventory items
-    func processSelectedMultiItems() async throws -> [InventoryItem] {
+    func processSelectedMultiItems() async throws -> [SQLiteInventoryItem] {
         guard !selectedMultiItems.isEmpty else { return [] }
         guard !capturedImages.isEmpty else {
             throw InventoryItemCreationError.noImagesProvided
         }
 
-        // Note: Primary image is saved per-item to ensure unique URLs
-        // No pre-processing needed as OptimizedImageManager handles this efficiently
+        let resolvedHomeID = await resolveHomeID()
+        let existingLabels =
+            (try? await database.read { db in
+                try SQLiteInventoryLabel.all.fetchAll(db)
+            }) ?? []
 
-        var items: [InventoryItem] = []
+        var items: [SQLiteInventoryItem] = []
 
         for detectedItem in selectedMultiItems {
-            let inventoryItem = InventoryItem(
+            let newID = UUID()
+            let itemId = newID.uuidString
+
+            var inventoryItem = SQLiteInventoryItem(
+                id: newID,
                 title: detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title,
-                quantityString: "1",
-                quantityInt: 1,
                 desc: detectedItem.description,
-                serial: "",
                 model: detectedItem.model,
                 make: detectedItem.make,
-                location: location,
-                labels: [],
                 price: parsePrice(from: detectedItem.estimatedPrice),
-                insured: false,
-                assetId: "",
+                assetId: itemId,
                 notes:
                     "AI-detected \(detectedItem.category) with \(Int(detectedItem.confidence * 100))% confidence",
-                showInvalidQuantityAlert: false
+                hasUsedAI: true,
+                locationID: locationID,
+                homeID: resolvedHomeID
             )
 
-            // Generate unique ID for this item
-            let itemId = UUID().uuidString
-
             do {
-                // Save primary image
                 if let primaryImage = capturedImages.first {
                     let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
                         primaryImage, id: itemId)
                     inventoryItem.imageURL = primaryImageURL
                 }
-
                 items.append(inventoryItem)
-
             } catch {
                 throw InventoryItemCreationError.imageProcessingFailed
             }
         }
 
-        // Batch insert all items and save once for better performance
-        guard let context = modelContext else {
-            throw InventoryItemCreationError.imageProcessingFailed
-        }
+        // Batch insert all items into SQLite
+        do {
+            try await database.write { [selectedMultiItems] db in
+                for (index, item) in items.enumerated() {
+                    try SQLiteInventoryItem.insert { item }.execute(db)
 
-        // Auto-create labels based on AI categories and assign to items
-        await MainActor.run {
-            let existingLabels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+                    // Match label for this item's category
+                    let detectedCategory = selectedMultiItems[index].category
+                    if let existingLabel = existingLabels.first(where: {
+                        $0.name.lowercased() == detectedCategory.lowercased()
+                    }) {
+                        try SQLiteInventoryItemLabel.insert {
+                            SQLiteInventoryItemLabel(
+                                id: UUID(),
+                                inventoryItemID: item.id,
+                                inventoryLabelID: existingLabel.id
+                            )
+                        }.execute(db)
+                    }
 
-            for (index, item) in items.enumerated() {
-                let detectedCategory = selectedMultiItems[index].category
-
-                // Find or create label for this category
-                if let existingLabel = existingLabels.first(where: {
-                    $0.name.lowercased() == detectedCategory.lowercased()
-                }) {
-                    item.labels = [existingLabel]
-                } else if !detectedCategory.isEmpty && detectedCategory.lowercased() != "unknown" {
-                    // Create new label for this category
-                    let colorString = assignColorForCategory(detectedCategory)
-                    // Convert hex string to UIColor via Color extension
-                    let hexValue =
-                        UInt(colorString.replacingOccurrences(of: "#", with: ""), radix: 16) ?? 0x007AFF
-                    let color = Color(hex: hexValue)
-                    let uiColor = UIColor(color)
-                    let newLabel = InventoryLabel(name: detectedCategory, color: uiColor)
-                    context.insert(newLabel)
-                    item.labels = [newLabel]
+                    TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
                 }
             }
+        } catch {
+            throw InventoryItemCreationError.contextSaveFailure
         }
-
-        // Insert all items in batch
-        for item in items {
-            assignHomeToItemIfNeeded(item, context: context)
-            context.insert(item)
-            // Track telemetry for each item
-            TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
-        }
-
-        // Single save operation for all items
-        try context.save()
 
         await MainActor.run {
             createdItems = items
@@ -599,7 +604,7 @@ class ItemCreationFlowViewModel: ObservableObject {
     }
 
     /// Handle multi-item selection completion
-    func handleMultiItemSelection(_ items: [InventoryItem]) {
+    func handleMultiItemSelection(_ items: [SQLiteInventoryItem]) {
         createdItems = items
         goToNextStep()  // Move to details step
     }
@@ -668,5 +673,84 @@ class ItemCreationFlowViewModel: ObservableObject {
             // Don't allow back navigation from details in multi-item mode (success state)
             return captureMode == .singleItem
         }
+    }
+
+    // MARK: - AI Update Helper
+
+    private func updateItemFromImageDetails(
+        _ item: inout SQLiteInventoryItem,
+        imageDetails: ImageDetails,
+        labels: [SQLiteInventoryLabel],
+        locations: [SQLiteInventoryLocation]
+    ) {
+        item.title = imageDetails.title
+        item.quantityString = imageDetails.quantity
+        if let quantity = Int(imageDetails.quantity) {
+            item.quantityInt = quantity
+        }
+        item.desc = imageDetails.description
+        item.make = imageDetails.make
+        item.model = imageDetails.model
+        item.serial = imageDetails.serialNumber
+
+        let priceString = imageDetails.price
+            .replacingOccurrences(of: "$", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if let price = Decimal(string: priceString) {
+            item.price = price
+        }
+
+        // Location handling - NEVER overwrite existing location
+        if item.locationID == nil {
+            if let matchedLocation = locations.first(where: { $0.name == imageDetails.location }) {
+                item.locationID = matchedLocation.id
+            }
+        }
+
+        if let condition = imageDetails.condition, !condition.isEmpty {
+            item.condition = condition
+        }
+        if let color = imageDetails.color, !color.isEmpty {
+            item.color = color
+        }
+        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
+            item.purchaseLocation = purchaseLocation
+        }
+        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
+            let cleaned =
+                replacementCostString
+                .replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            if let val = Decimal(string: cleaned) { item.replacementCost = val }
+        }
+        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
+            let cleaned =
+                depreciationRateString
+                .replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+            if let val = Double(cleaned) { item.depreciationRate = val / 100.0 }
+        }
+        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
+            item.storageRequirements = storageRequirements
+        }
+        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
+            item.isFragile = isFragileString.lowercased() == "true"
+        }
+        if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
+            item.dimensionLength = dimensionLength
+        }
+        if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
+            item.dimensionWidth = dimensionWidth
+        }
+        if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
+            item.dimensionHeight = dimensionHeight
+        }
+        if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
+            item.dimensionUnit = dimensionUnit
+        }
+        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
+            item.weightValue = weightValue
+            item.weightUnit = imageDetails.weightUnit ?? "lbs"
+        }
+
+        item.hasUsedAI = true
     }
 }

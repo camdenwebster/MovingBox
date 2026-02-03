@@ -5,7 +5,6 @@
 //  Created by Claude Code on 9/25/25.
 //
 
-import SwiftData
 import SwiftUI
 import Testing
 
@@ -16,14 +15,11 @@ struct BatchItemCreationTests {
 
     // MARK: - Test Infrastructure
 
-    private func createTestContainer() throws -> ModelContainer {
-        let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-        ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [configuration])
+    /// Creates an in-memory SQLite database with all migrations applied and registers
+    /// it as the default database dependency for the current test scope.
+    private func createTestDatabase() throws -> DatabaseQueue {
+        let db = try makeInMemoryDatabase()
+        return db
     }
 
     private func createTestImages() -> [UIImage] {
@@ -32,9 +28,15 @@ struct BatchItemCreationTests {
         return [image1, image2]
     }
 
-    @MainActor
-    private func createTestLocation() -> InventoryLocation {
-        return InventoryLocation(name: "Test Room", desc: "Test room description")
+    /// Creates a test location in the SQLite database and returns its UUID.
+    private func createTestLocation(in db: DatabaseQueue) throws -> UUID {
+        let locationID = UUID()
+        try db.write { database in
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(id: locationID, name: "Test Room", desc: "Test room description")
+            }.execute(database)
+        }
+        return locationID
     }
 
     private func createTestDetectedItems() -> [DetectedInventoryItem] {
@@ -135,21 +137,19 @@ struct BatchItemCreationTests {
     @Test("Batch create inventory items from detected items")
     @MainActor
     func testBatchCreateInventoryItems() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
+
+        let locationID = try createTestLocation(in: db)
         let detectedItems = createTestDetectedItems()
         let images = createTestImages()
 
-        // Insert test location
-        modelContext.insert(location)
-        try modelContext.save()
-
         // Create ViewModel for batch creation
-        let viewModel = await ItemCreationFlowViewModel(
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID
         )
 
         // Set up detected items for batch creation
@@ -170,7 +170,7 @@ struct BatchItemCreationTests {
         #expect(createdItems[0].title == "MacBook Pro")
         #expect(createdItems[0].make == "Apple")
         #expect(createdItems[0].model == "MacBook Pro 14-inch")
-        #expect(createdItems[0].location?.name == "Test Room")
+        #expect(createdItems[0].locationID == locationID)
 
         #expect(createdItems[1].title == "iPhone")
         #expect(createdItems[1].make == "Apple")
@@ -180,22 +180,26 @@ struct BatchItemCreationTests {
         #expect(createdItems[2].make == "Apple")
         #expect(createdItems[2].model == "iPad Pro")
 
-        // Verify all items were saved to context
-        let savedItems = try modelContext.fetch(FetchDescriptor<InventoryItem>())
+        // Verify all items were saved to database
+        let savedItems = try await db.read { database in
+            try SQLiteInventoryItem.all.fetchAll(database)
+        }
         #expect(savedItems.count == 3)
     }
 
     @Test("Batch creation with empty selection")
     @MainActor
     func testBatchCreationWithEmptySelection() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
 
-        let viewModel = await ItemCreationFlowViewModel(
+        let locationID = try createTestLocation(in: db)
+
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID
         )
 
         // Empty selection should return empty array
@@ -209,15 +213,17 @@ struct BatchItemCreationTests {
     @Test("Batch creation without images fails")
     @MainActor
     func testBatchCreationWithoutImages() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
+
+        let locationID = try createTestLocation(in: db)
         let detectedItems = createTestDetectedItems()
 
-        let viewModel = await ItemCreationFlowViewModel(
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID
         )
 
         viewModel.selectedMultiItems = detectedItems
@@ -244,10 +250,13 @@ struct BatchItemCreationTests {
             ("$2,999", 2999),
         ]
 
-        // Create a single container and context for all test cases to avoid overhead
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        // Create a single database for all test cases to avoid overhead
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
+
+        let locationID = try createTestLocation(in: db)
 
         // Create one set of test images to reuse
         let testImages = createTestImages()
@@ -265,10 +274,9 @@ struct BatchItemCreationTests {
                 confidence: 0.85
             )
 
-            let viewModel = await ItemCreationFlowViewModel(
+            let viewModel = ItemCreationFlowViewModel(
                 captureMode: .multiItem,
-                location: location,
-                modelContext: modelContext
+                locationID: locationID
             )
 
             viewModel.selectedMultiItems = [detectedItem]
@@ -283,18 +291,22 @@ struct BatchItemCreationTests {
 
             // Clean up immediately after each test to keep memory usage low
             for item in createdItems {
-                modelContext.delete(item)
+                try await db.write { database in
+                    try SQLiteInventoryItem.find(item.id).delete().execute(database)
+                }
             }
-            try modelContext.save()
         }
     }
 
     @Test("Batch creation preserves item order")
     @MainActor
     func testBatchCreationPreservesOrder() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
+
+        let locationID = try createTestLocation(in: db)
 
         // Create items with specific order
         let orderedItems = [
@@ -309,10 +321,9 @@ struct BatchItemCreationTests {
                 estimatedPrice: "", confidence: 0.7),
         ]
 
-        let viewModel = await ItemCreationFlowViewModel(
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID
         )
 
         viewModel.selectedMultiItems = orderedItems
@@ -329,9 +340,12 @@ struct BatchItemCreationTests {
     @Test("Batch creation with confidence notes")
     @MainActor
     func testBatchCreationWithConfidenceNotes() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
+
+        let locationID = try createTestLocation(in: db)
 
         let highConfidenceItem = DetectedInventoryItem(
             id: "high-conf",
@@ -355,10 +369,9 @@ struct BatchItemCreationTests {
             confidence: 0.45
         )
 
-        let viewModel = await ItemCreationFlowViewModel(
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID
         )
 
         viewModel.selectedMultiItems = [highConfidenceItem, lowConfidenceItem]
@@ -376,21 +389,19 @@ struct BatchItemCreationTests {
     @Test("Full multi-item workflow integration")
     @MainActor
     func testFullMultiItemWorkflow() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
+
+        let locationID = try createTestLocation(in: db)
         let detectedItems = createTestDetectedItems()
         let images = createTestImages()
 
-        // Insert test location
-        modelContext.insert(location)
-        try modelContext.save()
-
         // Create ViewModel
-        let viewModel = await ItemCreationFlowViewModel(
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID
         )
 
         // Step 1: Handle captured images
@@ -406,40 +417,46 @@ struct BatchItemCreationTests {
         )
         viewModel.analysisComplete = true
 
-        // Step 3: Navigate to selection step
-        #expect(viewModel.isReadyForNextStep == true)
-        viewModel.goToNextStep()
+        // Step 3: Navigate to analyzing then to selection step
+        // In multi-item mode with analysisComplete and response set, analyzing is ready
+        viewModel.capturedImages = images  // Ensure images are set for camera step readiness
+        viewModel.goToNextStep()  // camera -> analyzing
+        #expect(viewModel.currentStep == .analyzing)
+
+        viewModel.goToNextStep()  // analyzing -> multiItemSelection
         #expect(viewModel.currentStep == .multiItemSelection)
 
-        // Step 4: Select items for creation
+        // Step 4: Select items for creation and process them
         viewModel.selectedMultiItems = Array(detectedItems.prefix(2))  // Select first 2 items
-        #expect(viewModel.isReadyForNextStep == true)
 
-        // Step 5: Process selected items
+        // Step 5: Process selected items (this sets createdItems which enables navigation)
         let createdItems = try await viewModel.processSelectedMultiItems()
         #expect(createdItems.count == 2)
         #expect(!viewModel.createdItems.isEmpty)
 
-        // Step 6: Navigate to details
+        // Step 6: Navigate to details (now possible since createdItems is non-empty)
         viewModel.goToNextStep()
         #expect(viewModel.currentStep == .details)
 
-        // Verify final state
-        let savedItems = try modelContext.fetch(FetchDescriptor<InventoryItem>())
+        // Verify final state in SQLite database
+        let savedItems = try await db.read { database in
+            try SQLiteInventoryItem.all.fetchAll(database)
+        }
         #expect(savedItems.count == 2)
-        #expect(savedItems.allSatisfy { $0.location?.name == "Test Room" })
+        #expect(savedItems.allSatisfy { $0.locationID == locationID })
     }
 
     @Test("Error handling in batch creation")
     @MainActor
     func testErrorHandlingInBatchCreation() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
 
-        let viewModel = await ItemCreationFlowViewModel(
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: nil,  // No location
-            modelContext: modelContext
+            locationID: nil  // No location
         )
 
         let detectedItems = createTestDetectedItems()
@@ -449,15 +466,18 @@ struct BatchItemCreationTests {
         // Should handle missing location gracefully
         let createdItems = try await viewModel.processSelectedMultiItems()
         #expect(createdItems.count == 3)
-        #expect(createdItems.allSatisfy { $0.location == nil })
+        #expect(createdItems.allSatisfy { $0.locationID == nil })
     }
 
     @Test("Batch creation performance with many items")
     @MainActor
     func testBatchCreationPerformance() async throws {
-        let container = try createTestContainer()
-        let modelContext = container.mainContext
-        let location = createTestLocation()
+        let db = try createTestDatabase()
+        try prepareDependencies {
+            $0.defaultDatabase = db
+        }
+
+        let locationID = try createTestLocation(in: db)
 
         // Create many detected items (simulate complex photo)
         let manyItems = (1...20).map { index in
@@ -473,10 +493,9 @@ struct BatchItemCreationTests {
             )
         }
 
-        let viewModel = await ItemCreationFlowViewModel(
+        let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID
         )
 
         viewModel.selectedMultiItems = manyItems
@@ -490,8 +509,10 @@ struct BatchItemCreationTests {
         #expect(createdItems.count == 20)
         #expect(timeElapsed < 5.0)  // Should complete within 5 seconds
 
-        // Verify all items were saved
-        let savedItems = try modelContext.fetch(FetchDescriptor<InventoryItem>())
+        // Verify all items were saved to database
+        let savedItems = try await db.read { database in
+            try SQLiteInventoryItem.all.fetchAll(database)
+        }
         #expect(savedItems.count == 20)
     }
 }

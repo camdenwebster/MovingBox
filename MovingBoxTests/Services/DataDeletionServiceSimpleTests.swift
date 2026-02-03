@@ -20,7 +20,8 @@ struct DataDeletionServiceSimpleTests {
     func testInitialization() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
-        let service = DataDeletionService(modelContext: context)
+        let database = try makeInMemoryDatabase()
+        let service = DataDeletionService(modelContext: context, database: database)
 
         #expect(!service.isDeleting)
         #expect(service.lastError == nil)
@@ -31,10 +32,11 @@ struct DataDeletionServiceSimpleTests {
     func testDeleteEmptyDatabase() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
-        let service = DataDeletionService(modelContext: context)
+        let database = try makeInMemoryDatabase()
+        let service = DataDeletionService(modelContext: context, database: database)
 
         // Perform deletion on empty database
-        await service.deleteAllData(scope: .localOnly)
+        await service.deleteAllData(scope: DeletionScope.localOnly)
 
         // Should complete successfully even with no data
         #expect(!service.isDeleting)
@@ -46,7 +48,8 @@ struct DataDeletionServiceSimpleTests {
     func testStateManagement() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
-        let service = DataDeletionService(modelContext: context)
+        let database = try makeInMemoryDatabase()
+        let service = DataDeletionService(modelContext: context, database: database)
 
         // Initial state
         #expect(!service.isDeleting)
@@ -54,7 +57,7 @@ struct DataDeletionServiceSimpleTests {
         #expect(service.lastError == nil)
 
         // Perform deletion
-        await service.deleteAllData(scope: .localOnly)
+        await service.deleteAllData(scope: DeletionScope.localOnly)
 
         // Final state
         #expect(!service.isDeleting)

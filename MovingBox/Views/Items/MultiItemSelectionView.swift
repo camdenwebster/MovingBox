@@ -5,7 +5,7 @@
 //  Created by Claude Code on 9/19/25.
 //
 
-import SwiftData
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 
@@ -17,14 +17,14 @@ struct MultiItemSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var settingsManager: SettingsManager
 
-    let onItemsSelected: ([InventoryItem]) -> Void
+    let onItemsSelected: ([SQLiteInventoryItem]) -> Void
     let onCancel: () -> Void
     let onReanalyze: (() -> Void)?
 
     // MARK: - State Properties
 
-    @State private var selectedLocation: InventoryLocation?
-    @State private var selectedHome: Home?
+    @State private var selectedLocation: SQLiteInventoryLocation?
+    @State private var selectedHome: SQLiteHome?
     @State private var showingLocationPicker = false
 
     // MARK: - Animation Properties
@@ -37,24 +37,22 @@ struct MultiItemSelectionView: View {
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
-        location: InventoryLocation?,
-        modelContext: ModelContext,
-        onItemsSelected: @escaping ([InventoryItem]) -> Void,
+        locationID: UUID?,
+        homeID: UUID? = nil,
+        onItemsSelected: @escaping ([SQLiteInventoryItem]) -> Void,
         onCancel: @escaping () -> Void,
         onReanalyze: (() -> Void)? = nil
     ) {
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: location,
-            modelContext: modelContext
+            locationID: locationID,
+            homeID: homeID
         )
         self._viewModel = State(initialValue: viewModel)
         self.onItemsSelected = onItemsSelected
         self.onCancel = onCancel
         self.onReanalyze = onReanalyze
-        // Use passed location as default
-        self._selectedLocation = State(initialValue: location)
     }
 
     // MARK: - Body
@@ -341,9 +339,7 @@ struct MultiItemSelectionView: View {
             )
         }
         .onAppear {
-            if selectedHome == nil {
-                selectedHome = selectedLocation?.home
-            }
+            // selectedHome will be set by LocationSelectionView when user picks a location
         }
     }
 
@@ -374,7 +370,7 @@ struct MultiItemSelectionView: View {
         Task {
             do {
                 // Update the location in view model before creating items
-                viewModel.updateSelectedLocation(selectedLocation)
+                viewModel.updateSelectedLocationID(selectedLocation?.id)
                 let createdItems = try await viewModel.createSelectedInventoryItems()
                 onItemsSelected(createdItems)
             } catch {
@@ -390,7 +386,7 @@ struct MultiItemSelectionView: View {
 struct DetectedItemCard: View {
     let item: DetectedInventoryItem
     let isSelected: Bool
-    let matchedLabel: InventoryLabel?
+    let matchedLabel: SQLiteInventoryLabel?
     let onToggleSelection: () -> Void
 
     var body: some View {
@@ -512,9 +508,9 @@ struct DetectedItemCard: View {
 // MARK: - Preview
 
 #Preview {
-    let container = try! ModelContainer(
-        for: InventoryItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    let context = ModelContext(container)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
 
     let mockResponse = MultiItemAnalysisResponse(
         items: [
@@ -554,11 +550,10 @@ struct DetectedItemCard: View {
         confidence: 0.82
     )
 
-    return MultiItemSelectionView(
+    MultiItemSelectionView(
         analysisResponse: mockResponse,
         images: [UIImage()],
-        location: nil,
-        modelContext: context,
+        locationID: nil,
         onItemsSelected: { items in
             print("Selected \(items.count) items")
         },
@@ -569,5 +564,5 @@ struct DetectedItemCard: View {
             print("Re-analyze requested")
         }
     )
-    .modelContainer(container)
+    .environmentObject(SettingsManager())
 }

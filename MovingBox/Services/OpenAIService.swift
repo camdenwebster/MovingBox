@@ -8,7 +8,7 @@
 import AIProxy
 import CryptoKit
 import Foundation
-import SwiftData
+import SQLiteData
 import UIKit
 
 // MARK: - Mock Service for Testing
@@ -66,7 +66,8 @@ import UIKit
             confidence: 0.92
         )
 
-        func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+        func getImageDetails(from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter)
+            async throws
             -> ImageDetails
         {
             print("🧪 MockOpenAIService: getImageDetails called with \(images.count) images")
@@ -82,7 +83,7 @@ import UIKit
             return mockResponse
         }
 
-        func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext)
+        func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter)
             async throws -> MultiItemAnalysisResponse
         {
             print("🧪 MockOpenAIService: getMultiItemDetails called with \(images.count) images")
@@ -175,9 +176,10 @@ struct DetectedInventoryItem: Codable, Identifiable {
 // MARK: - Service Protocols
 
 protocol OpenAIServiceProtocol {
-    func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+    func getImageDetails(from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter) async throws
         -> ImageDetails
-    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter)
+        async throws
         -> MultiItemAnalysisResponse
     func cancelCurrentRequest()
 }
@@ -215,32 +217,34 @@ struct OpenAIRequestBuilder {
     func buildRequestBody(
         with images: [UIImage],
         settings: SettingsManager,
-        modelContext: ModelContext
+        database: any DatabaseWriter
     ) async -> OpenAIChatCompletionRequestBody {
-        return await buildRequestBody(with: images, settings: settings, modelContext: modelContext, isMultiItem: false)
+        return await buildRequestBody(with: images, settings: settings, database: database, isMultiItem: false)
     }
 
     @MainActor
     func buildMultiItemRequestBody(
         with images: [UIImage],
         settings: SettingsManager,
-        modelContext: ModelContext
+        database: any DatabaseWriter
     ) async -> OpenAIChatCompletionRequestBody {
-        return await buildRequestBody(with: images, settings: settings, modelContext: modelContext, isMultiItem: true)
+        return await buildRequestBody(with: images, settings: settings, database: database, isMultiItem: true)
     }
 
     @MainActor
     private func buildRequestBody(
         with images: [UIImage],
         settings: SettingsManager,
-        modelContext: ModelContext,
+        database: any DatabaseWriter,
         isMultiItem: Bool
     ) async -> OpenAIChatCompletionRequestBody {
-        // Get active home to filter labels and locations
-        let homeDescriptor = FetchDescriptor<Home>(sortBy: [SortDescriptor(\Home.purchaseDate)])
-        let homes = (try? modelContext.fetch(homeDescriptor)) ?? []
+        // Get active home to filter locations
+        let homes =
+            (try? await database.read { db in
+                try SQLiteHome.order(by: \.purchaseDate).fetchAll(db)
+            }) ?? []
 
-        let activeHome: Home?
+        let activeHome: SQLiteHome?
         if let activeIdString = settings.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         {
@@ -249,20 +253,20 @@ struct OpenAIRequestBuilder {
             activeHome = homes.first { $0.isPrimary }
         }
 
-        // Get all labels and locations, then filter by active home
-        let allCategories = DefaultDataManager.getAllLabels(from: modelContext)
-        let allLocations = DefaultDataManager.getAllLocations(from: modelContext)
-
-        // Fetch actual label and location objects to filter by home
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let allLabelObjects = (try? modelContext.fetch(labelDescriptor)) ?? []
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        let allLocationObjects = (try? modelContext.fetch(locationDescriptor)) ?? []
+        // Fetch all labels and locations from sqlite-data
+        let allLabelObjects =
+            (try? await database.read { db in
+                try SQLiteInventoryLabel.all.fetchAll(db)
+            }) ?? []
+        let allLocationObjects =
+            (try? await database.read { db in
+                try SQLiteInventoryLocation.all.fetchAll(db)
+            }) ?? []
 
         // Filter locations by active home (labels are global)
         let filteredLocationObjects =
             activeHome != nil
-            ? allLocationObjects.filter { $0.home?.id == activeHome?.id }
+            ? allLocationObjects.filter { $0.homeID == activeHome?.id }
             : allLocationObjects
 
         // Convert to name arrays, including "None" as first option
@@ -1014,7 +1018,7 @@ class OpenAIService: OpenAIServiceProtocol {
         // Stateless service - no stored properties needed
     }
 
-    func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+    func getImageDetails(from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter) async throws
         -> ImageDetails
     {
         // Cancel any existing request
@@ -1022,7 +1026,7 @@ class OpenAIService: OpenAIServiceProtocol {
 
         // Create new task for this request
         currentTask = Task {
-            return try await performRequestWithRetry(images: images, settings: settings, modelContext: modelContext)
+            return try await performRequestWithRetry(images: images, settings: settings, database: database)
         }
 
         defer {
@@ -1032,7 +1036,8 @@ class OpenAIService: OpenAIServiceProtocol {
         return try await currentTask!.value
     }
 
-    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter)
+        async throws
         -> MultiItemAnalysisResponse
     {
         // Cancel any existing request
@@ -1041,7 +1046,7 @@ class OpenAIService: OpenAIServiceProtocol {
         // Create new task for this request (reusing the same cancellation mechanism)
         let multiItemTask = Task<MultiItemAnalysisResponse, Error> {
             return try await performMultiItemStructuredResponseWithRetry(
-                images: images, settings: settings, modelContext: modelContext)
+                images: images, settings: settings, database: database)
         }
 
         defer {
@@ -1059,7 +1064,7 @@ class OpenAIService: OpenAIServiceProtocol {
     // MARK: - Multi-Item Structured Response Implementation
 
     private func performMultiItemStructuredResponseWithRetry(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3
+        images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, maxAttempts: Int = 3
     ) async throws -> MultiItemAnalysisResponse {
         var lastError: Error?
 
@@ -1069,7 +1074,7 @@ class OpenAIService: OpenAIServiceProtocol {
 
             do {
                 return try await performSingleMultiItemStructuredRequest(
-                    images: images, settings: settings, modelContext: modelContext, attempt: attempt,
+                    images: images, settings: settings, database: database, attempt: attempt,
                     maxAttempts: maxAttempts)
             } catch {
                 lastError = error
@@ -1147,7 +1152,7 @@ class OpenAIService: OpenAIServiceProtocol {
     }
 
     private func performSingleMultiItemStructuredRequest(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int
+        images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, attempt: Int, maxAttempts: Int
     ) async throws -> MultiItemAnalysisResponse {
         let startTime = Date()
         let imageCount = images.count
@@ -1224,7 +1229,7 @@ class OpenAIService: OpenAIServiceProtocol {
         let baseRequestBody = await requestBuilder.buildMultiItemRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            database: database
         )
 
         // Calculate token limit
@@ -1292,7 +1297,7 @@ class OpenAIService: OpenAIServiceProtocol {
 
     // MARK: - Deprecated Function Calling Implementation (Temporarily Disabled)
     /*
-    private func performMultiItemRequestWithRetry(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3) async throws -> MultiItemAnalysisResponse {
+    private func performMultiItemRequestWithRetry(images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, maxAttempts: Int = 3) async throws -> MultiItemAnalysisResponse {
         var lastError: Error?
     
         for attempt in 1...maxAttempts {
@@ -1300,7 +1305,7 @@ class OpenAIService: OpenAIServiceProtocol {
             try Task.checkCancellation()
     
             do {
-                return try await performSingleMultiItemRequest(images: images, settings: settings, modelContext: modelContext, attempt: attempt, maxAttempts: maxAttempts)
+                return try await performSingleMultiItemRequest(images: images, settings: settings, database: database, attempt: attempt, maxAttempts: maxAttempts)
             } catch {
                 lastError = error
     
@@ -1360,7 +1365,7 @@ class OpenAIService: OpenAIServiceProtocol {
         throw lastError ?? OpenAIError.invalidData
     }
     
-    private func performRequestWithRetry(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3) async throws -> ImageDetails {
+    private func performRequestWithRetry(images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, maxAttempts: Int = 3) async throws -> ImageDetails {
         var lastError: Error?
     
         for attempt in 1...maxAttempts {
@@ -1368,7 +1373,7 @@ class OpenAIService: OpenAIServiceProtocol {
             try Task.checkCancellation()
     
             do {
-                return try await performSingleRequest(images: images, settings: settings, modelContext: modelContext, attempt: attempt, maxAttempts: maxAttempts)
+                return try await performSingleRequest(images: images, settings: settings, database: database, attempt: attempt, maxAttempts: maxAttempts)
             } catch {
                 lastError = error
     
@@ -1497,7 +1502,7 @@ class OpenAIService: OpenAIServiceProtocol {
         throw lastError ?? OpenAIError.serverError("Maximum retry attempts exceeded")
     }
     
-    private func performSingleRequest(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int) async throws -> ImageDetails {
+    private func performSingleRequest(images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, attempt: Int, maxAttempts: Int) async throws -> ImageDetails {
         guard !images.isEmpty else {
             throw OpenAIError.invalidData
         }
@@ -1507,7 +1512,7 @@ class OpenAIService: OpenAIServiceProtocol {
         let requestBody = await requestBuilder.buildRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            database: database
         )
     
         let imageCount = images.count
@@ -1601,7 +1606,7 @@ class OpenAIService: OpenAIServiceProtocol {
         }
     }
     
-    private func performSingleMultiItemRequest(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int) async throws -> MultiItemAnalysisResponse {
+    private func performSingleMultiItemRequest(images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, attempt: Int, maxAttempts: Int) async throws -> MultiItemAnalysisResponse {
         guard !images.isEmpty else {
             throw OpenAIError.invalidData
         }
@@ -1610,7 +1615,7 @@ class OpenAIService: OpenAIServiceProtocol {
         let requestBody = await requestBuilder.buildMultiItemRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            database: database
         )
     
         let imageCount = images.count
@@ -1816,7 +1821,7 @@ class OpenAIService: OpenAIServiceProtocol {
     // MARK: - Single-Item Analysis (Function Calling - Working)
 
     private func performRequestWithRetry(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3
+        images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, maxAttempts: Int = 3
     ) async throws -> ImageDetails {
         var lastError: Error?
 
@@ -1826,7 +1831,7 @@ class OpenAIService: OpenAIServiceProtocol {
 
             do {
                 return try await performSingleRequest(
-                    images: images, settings: settings, modelContext: modelContext, attempt: attempt,
+                    images: images, settings: settings, database: database, attempt: attempt,
                     maxAttempts: maxAttempts)
             } catch {
                 lastError = error
@@ -1936,7 +1941,7 @@ class OpenAIService: OpenAIServiceProtocol {
     }
 
     private func performSingleRequest(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int
+        images: [UIImage], settings: SettingsManager, database: any DatabaseWriter, attempt: Int, maxAttempts: Int
     ) async throws -> ImageDetails {
         let startTime = Date()
         let imageCount = images.count
@@ -1946,7 +1951,7 @@ class OpenAIService: OpenAIServiceProtocol {
         let requestBody = await requestBuilder.buildRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            database: database
         )
 
         if attempt == 1 {

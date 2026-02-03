@@ -11,4 +11,10 @@ nonisolated struct SQLiteInventoryLocation: Hashable, Identifiable {
     @Column(as: JSONArrayRepresentation<String>.self)
     var secondaryPhotoURLs: [String] = []
     var homeID: SQLiteHome.ID?
+
+    var thumbnailURL: URL? {
+        guard let imageURL = imageURL else { return nil }
+        let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
+        return OptimizedImageManager.shared.getThumbnailURL(for: id)
+    }
 }

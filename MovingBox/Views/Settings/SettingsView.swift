@@ -5,9 +5,10 @@
 //  Created by Camden Webster on 6/4/24.
 //
 
+import Dependencies
+import SQLiteData
 import Sentry
 import StoreKit
-import SwiftData
 import SwiftUI
 import SwiftUIBackports
 
@@ -28,12 +29,13 @@ struct SettingsView: View {
     @EnvironmentObject private var settingsManager: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
     @EnvironmentObject var router: Router
-    @Environment(\.modelContext) private var modelContext
     @State private var selectedSection: SettingsSection? = .categories  // Default selection
     @State private var showingPaywall = false
     @State private var showingICloudAlert = false
     @State private var analyzedItemsCount: Int = 0
-    @Query private var allItems: [InventoryItem]
+
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
 
     private let externalLinks: [String: ExternalLink] = [
         "knowledgeBase": ExternalLink(
@@ -354,7 +356,7 @@ struct SettingsView: View {
             case .featureRequestView: FeatureRequestView()
             case .globalLabelSettingsView: GlobalLabelSettingsView()
             case .insurancePolicyListView: InsurancePolicyListView()
-            case .insurancePolicyDetailView(let policy): InsurancePolicyDetailView(policy: policy)
+            case .insurancePolicyDetailView(let policyID): InsurancePolicyDetailView(policyID: policyID)
             default: EmptyView()
             }
         }
@@ -376,7 +378,7 @@ struct SettingsView: View {
     }
 
     private func updateAnalyzedItemsCount() {
-        analyzedItemsCount = allItems.filter { $0.hasUsedAI == true }.count
+        analyzedItemsCount = allItems.filter { $0.hasUsedAI }.count
     }
 
     private struct FeatureRow: View {
@@ -515,30 +517,14 @@ struct AISettingsView: View {
 }
 
 struct LabelSettingsView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var router: Router
-    @EnvironmentObject var settings: SettingsManager
-    @Query(sort: [
-        SortDescriptor(\InventoryLabel.name)
-    ]) var allLabels: [InventoryLabel]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
 
-    private var activeHome: Home? {
-        guard let activeIdString = settings.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
-        else {
-            return homes.first { $0.isPrimary }
-        }
-        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
-    }
-
-    // Labels are global (not filtered by home)
-    private var labels: [InventoryLabel] {
-        allLabels
-    }
+    @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
 
     var body: some View {
-        if labels.isEmpty {
+        if allLabels.isEmpty {
             ContentUnavailableView(
                 "No Labels",
                 systemImage: "tag",
@@ -546,9 +532,9 @@ struct LabelSettingsView: View {
             )
         } else {
             List {
-                ForEach(labels) { label in
+                ForEach(allLabels) { label in
                     NavigationLink {
-                        EditLabelView(label: label)
+                        EditLabelView(labelID: label.id)
                     } label: {
                         Text(label.emoji)
                             .padding(7)
@@ -567,7 +553,7 @@ struct LabelSettingsView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        router.navigate(to: .editLabelView(label: nil, isEditing: true))
+                        router.navigate(to: .editLabelView(labelID: nil, isEditing: true))
                     } label: {
                         Label("Add Label", systemImage: "plus")
                     }
@@ -578,35 +564,28 @@ struct LabelSettingsView: View {
 
     func deleteLabel(at offsets: IndexSet) {
         for index in offsets {
-            let labelToDelete = labels[index]
-            modelContext.delete(labelToDelete)
-            print("Deleting label: \(labelToDelete.name)")
-            TelemetryManager.shared.trackLabelDeleted()
+            let labelToDelete = allLabels[index]
+            do {
+                try database.write { db in
+                    try SQLiteInventoryLabel.find(labelToDelete.id).delete().execute(db)
+                }
+                print("Deleting label: \(labelToDelete.name)")
+                TelemetryManager.shared.trackLabelDeleted()
+            } catch {
+                print("Failed to delete label: \(error)")
+            }
         }
     }
 }
 
 #Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: InventoryLocation.self, configurations: config)
-
-        let location1 = InventoryLocation(name: "Living Room")
-        let location2 = InventoryLocation(name: "Kitchen")
-        let location3 = InventoryLocation(name: "Master Bedroom")
-
-        container.mainContext.insert(location1)
-        container.mainContext.insert(location2)
-        container.mainContext.insert(location3)
-
-        return NavigationStack {
-            SettingsView()
-                .modelContainer(container)
-                .environmentObject(Router())
-                .environmentObject(RevenueCatManager.shared)
-        }
-    } catch {
-        return Text("Failed to set up preview")
-            .foregroundColor(.red)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    NavigationStack {
+        SettingsView()
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
+            .environmentObject(RevenueCatManager.shared)
     }
 }

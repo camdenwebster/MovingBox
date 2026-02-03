@@ -5,9 +5,10 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import Dependencies
 import RevenueCatUI
+import SQLiteData
 import SentrySwiftUI
-import SwiftData
 import SwiftUI
 import SwiftUIBackports
 
@@ -16,24 +17,35 @@ enum Options: Hashable {
 }
 
 struct InventoryListView: View {
-    @Environment(\.modelContext) var modelContext
-    @Environment(ModelContainerManager.self) private var containerManager
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
+
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    private var allLocations: [SQLiteInventoryLocation]
+
+    @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+
+    @FetchAll(SQLiteInventoryItemLabel.all, animation: .default)
+    private var allItemLabels: [SQLiteInventoryItemLabel]
 
     @State private var path = NavigationPath()
-    @State private var sortOrder = [SortDescriptor(\InventoryItem.title)]
     @State private var searchText = ""
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
-    @State private var isContextValid = true
 
     // Sorting state
-    enum SortField {
+    enum SortField: Hashable {
         case title, date, value
     }
     @State private var currentSortField: SortField = .title
@@ -43,28 +55,25 @@ struct InventoryListView: View {
 
     // Selection state - using native SwiftUI selection
     @State private var editMode: EditMode = .inactive
-    @State private var selectedItemIDs: Set<PersistentIdentifier> = []
+    @State private var selectedItemIDs: Set<UUID> = []
     @State private var isSearchPresented = false
-    @State private var showingBatchAnalysis = false
     @State private var showingDeleteConfirmation = false
 
-    // State for new toolbar functionality
+    // State for batch operations
     @State private var showingLocationPicker = false
     @State private var showingLabelPicker = false
     @State private var showingLocationChangeConfirmation = false
     @State private var showingLabelChangeConfirmation = false
-    @State private var selectedNewLocation: InventoryLocation?
-    @State private var selectedNewLabel: InventoryLabel?
+    @State private var selectedNewLocation: SQLiteInventoryLocation?
+    @State private var selectedNewLabel: SQLiteInventoryLabel?
     @State private var exportCoordinator = ExportCoordinator()
 
-    @Query private var allItems: [InventoryItem]
-
-    let location: InventoryLocation?
-    let filterLabel: InventoryLabel?
+    let locationID: UUID?
+    let filterLabelID: UUID?
     let showOnlyUnassigned: Bool
     let showAllHomes: Bool
 
-    private var activeHome: Home? {
+    private var activeHome: SQLiteHome? {
         guard let activeIdString = settings.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         else {
@@ -74,11 +83,13 @@ struct InventoryListView: View {
     }
 
     init(
-        location: InventoryLocation?, filterLabel: InventoryLabel? = nil, showOnlyUnassigned: Bool = false,
+        locationID: UUID?,
+        filterLabelID: UUID? = nil,
+        showOnlyUnassigned: Bool = false,
         showAllHomes: Bool = false
     ) {
-        self.location = location
-        self.filterLabel = filterLabel
+        self.locationID = locationID
+        self.filterLabelID = filterLabelID
         self.showOnlyUnassigned = showOnlyUnassigned
         self.showAllHomes = showAllHomes
     }
@@ -88,32 +99,31 @@ struct InventoryListView: View {
         editMode == .active
     }
 
-    // Cache for selected items to avoid repeated expensive filtering
-    @State private var cachedSelectedItems: [InventoryItem] = []
-    @State private var cachedSelectionIDs: Set<PersistentIdentifier> = []
-
-    // Optimized: Use cached selected items with lazy computation
-    private var selectedItems: [InventoryItem] {
-        guard !selectedItemIDs.isEmpty else {
-            if !cachedSelectedItems.isEmpty {
-                cachedSelectedItems = []
-                cachedSelectionIDs = []
-            }
-            return []
-        }
-
-        // Only recompute if selection changed
-        if cachedSelectionIDs != selectedItemIDs {
-            cachedSelectedItems = allItems.filter { selectedItemIDs.contains($0.persistentModelID) }
-            cachedSelectionIDs = selectedItemIDs
-        }
-
-        return cachedSelectedItems
-    }
-
-    // Memoized count for toolbar performance
     private var selectedCount: Int {
         selectedItemIDs.count
+    }
+
+    // Derived sort values for InventoryListSubView
+    private var sortAscending: Bool {
+        switch currentSortField {
+        case .title: return titleAscending
+        case .date: return !dateNewestFirst
+        case .value: return !valueGreatestFirst
+        }
+    }
+
+    // Navigation title
+    private var navigationTitle: String {
+        if showOnlyUnassigned {
+            return "No Location"
+        }
+        if let filterLabelID = filterLabelID {
+            return allLabels.first { $0.id == filterLabelID }?.name ?? "All Items"
+        }
+        if let locationID = locationID {
+            return allLocations.first { $0.id == locationID }?.name ?? "All Items"
+        }
+        return "All Items"
     }
 
     // Version-appropriate menu icon
@@ -125,45 +135,30 @@ struct InventoryListView: View {
         }
     }
 
+    // Locations filtered by active home
+    private var locationsForActiveHome: [SQLiteInventoryLocation] {
+        guard let activeHome = activeHome else { return allLocations }
+        return allLocations.filter { $0.homeID == activeHome.id }
+    }
+
     private var inventoryListContent: some View {
-        // Create a unique view based on sort order to force recreation when sort changes
-        // This is necessary because @Query can't dynamically update its sort descriptor
-        switch sortOrder.first?.order {
-        case .reverse:
-            InventoryListSubView(
-                location: location,
-                filterLabel: filterLabel,
-                searchString: searchText,
-                sortOrder: sortOrder,
-                showOnlyUnassigned: showOnlyUnassigned,
-                showAllHomes: showAllHomes,
-                activeHome: activeHome,
-                selectedItemIDs: $selectedItemIDs
-            )
-            .id("reverse-\(sortOrder.hashValue)")
-        default:
-            InventoryListSubView(
-                location: location,
-                filterLabel: filterLabel,
-                searchString: searchText,
-                sortOrder: sortOrder,
-                showOnlyUnassigned: showOnlyUnassigned,
-                showAllHomes: showAllHomes,
-                activeHome: activeHome,
-                selectedItemIDs: $selectedItemIDs
-            )
-            .id("forward-\(sortOrder.hashValue)")
-        }
+        InventoryListSubView(
+            locationID: locationID,
+            filterLabelID: filterLabelID,
+            searchString: searchText,
+            showOnlyUnassigned: showOnlyUnassigned,
+            showAllHomes: showAllHomes,
+            activeHomeID: activeHome?.id,
+            sortField: currentSortField,
+            sortAscending: sortAscending,
+            selectedItemIDs: $selectedItemIDs
+        )
     }
 
     var body: some View {
         inventoryListContent
             .environment(\.editMode, $editMode)
-            .navigationTitle(showOnlyUnassigned ? "No Location" : (filterLabel?.name ?? location?.name ?? "All Items"))
-            .navigationDestination(for: InventoryItem.self) { inventoryItem in
-                InventoryDetailView(
-                    inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
-            }
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.large)
             .navigationBarBackButtonHidden(isSelectionMode)
             .searchable(text: $searchText, isPresented: $isSearchPresented)
@@ -171,11 +166,10 @@ struct InventoryListView: View {
             .toolbar(content: bottomToolbarContent)
             .sheet(isPresented: $showingPaywall, content: paywallSheet)
             .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
-            .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
             .fullScreenCover(isPresented: $showItemCreationFlow) {
                 EnhancedItemCreationFlowView(
                     captureMode: .singleItem,
-                    location: location
+                    locationID: nil
                 ) {
                     // Optional callback when item creation is complete
                 }
@@ -213,7 +207,7 @@ struct InventoryListView: View {
                 }
                 Button("Change") {
                     if let newLocation = selectedNewLocation {
-                        changeSelectedItemsLocation(to: newLocation)
+                        changeSelectedItemsLocation(to: newLocation.id)
                     }
                     selectedNewLocation = nil
                 }
@@ -360,13 +354,6 @@ struct InventoryListView: View {
                     Label("Label (\(selectedCount))", systemImage: "tag")
                 }
                 .disabled(selectedCount == 0)
-
-                // TODO: Fix the Batch Analysis flow
-                // Analyze with AI Button
-                //                Button(action: analyzeSelectedItems) {
-                //                    Label("Analyze (\(selectedCount))", systemImage: "sparkles")
-                //                }
-                //                .disabled(selectedCount == 0 || !hasImagesInSelection())
             }
 
             if #available(iOS 26.0, *) {
@@ -419,23 +406,7 @@ struct InventoryListView: View {
             isPresented: $showingPaywall,
             onCompletion: {
                 settings.isPro = true
-                let newItem = InventoryItem(
-                    title: "",
-                    quantityString: "1",
-                    quantityInt: 1,
-                    desc: "",
-                    serial: "",
-                    model: "",
-                    make: "",
-                    location: location,
-                    labels: [],
-                    price: Decimal.zero,
-                    insured: false,
-                    assetId: "",
-                    notes: "",
-                    showInvalidQuantityAlert: false
-                )
-                router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+                createManualItem()
             },
             onDismiss: nil
         )
@@ -452,21 +423,9 @@ struct InventoryListView: View {
     }
 
     @ViewBuilder
-    private func batchAnalysisSheet() -> some View {
-        BatchAnalysisView(
-            selectedItems: selectedItems,
-            onDismiss: {
-                showingBatchAnalysis = false
-                editMode = .inactive
-                selectedItemIDs.removeAll()
-            }
-        )
-    }
-
-    @ViewBuilder
     private func locationPickerSheet() -> some View {
         PickerSheet.locationPicker(
-            locations: getAllLocations(),
+            locations: locationsForActiveHome,
             onSelect: { location in
                 selectedNewLocation = location
                 showingLocationPicker = false
@@ -481,7 +440,7 @@ struct InventoryListView: View {
     @ViewBuilder
     private func labelPickerSheet() -> some View {
         PickerSheet.labelPicker(
-            labels: getAllLabels(),
+            labels: allLabels,
             onSelect: { label in
                 selectedNewLabel = label
                 showingLabelPicker = false
@@ -495,32 +454,26 @@ struct InventoryListView: View {
 
     private func createManualItem() {
         print("📱 InventoryListView - Add Manual Item button tapped")
-        print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
-        print("📱 InventoryListView - Items count: \(allItems.count)")
-        print("📱 InventoryListView - Creating new item")
-        let newItem = InventoryItem(
-            title: "",
-            quantityString: "1",
-            quantityInt: 1,
-            desc: "",
-            serial: "",
-            model: "",
-            make: "",
-            location: location,
-            labels: [],
-            price: Decimal.zero,
-            insured: false,
-            assetId: "",
-            notes: "",
-            showInvalidQuantityAlert: false
-        )
-        router.navigate(to: .inventoryDetailView(item: newItem, showSparklesButton: true, isEditing: true))
+        let newID = UUID()
+        do {
+            try database.write { db in
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(
+                        id: newID,
+                        locationID: locationID,
+                        homeID: activeHome?.id
+                    )
+                }.execute(db)
+            }
+            router.navigate(
+                to: .inventoryDetailView(itemID: newID, showSparklesButton: true, isEditing: true))
+        } catch {
+            print("Failed to create new item: \(error)")
+        }
     }
 
     private func createFromPhoto() {
-        print("📱 InventoryListView - Add Manual Item button tapped")
-        print("📱 InventoryListView - Settings.isPro: \(settings.isPro)")
-        print("📱 InventoryListView - Items count: \(allItems.count)")
+        print("📱 InventoryListView - Add from Photo button tapped")
         if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI }).count) {
             showingPaywall = true
         } else {
@@ -536,7 +489,7 @@ struct InventoryListView: View {
 
     // MARK: - Selection Functions
     func selectAllItems() {
-        selectedItemIDs = Set(allItems.map { $0.persistentModelID })
+        selectedItemIDs = Set(allItems.map { $0.id })
     }
 
     func selectNoItems() {
@@ -544,207 +497,107 @@ struct InventoryListView: View {
     }
 
     func deleteSelectedItems() {
-        Task { @MainActor in
-            let itemsToDelete = selectedItems
-
-            for item in itemsToDelete {
-                modelContext.delete(item)
-            }
-
-            do {
-                try modelContext.save()
-
-                // Small delay to allow SwiftData to update @Query
-                try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
-
-                // Exit selection mode after deletion
-                selectedItemIDs.removeAll()
-                editMode = .inactive
-
-            } catch {
-                // Don't exit selection mode if delete failed
-                // Error will be handled by SwiftData's built-in error handling
-            }
-        }
-    }
-
-    func moveSelectedItems(to location: InventoryLocation) {
-        for item in selectedItems {
-            item.location = location
-        }
-        try? modelContext.save()
-        selectedItemIDs.removeAll()
-        editMode = .inactive
-    }
-
-    func updateSelectedItemsLabel(to label: InventoryLabel?) {
-        for item in selectedItems {
-            item.labels = label.map { [$0] } ?? []
-        }
-        try? modelContext.save()
-        selectedItemIDs.removeAll()
-        editMode = .inactive
-    }
-
-    func getAllLocations() -> [InventoryLocation] {
+        guard !selectedItemIDs.isEmpty else { return }
         do {
-            let descriptor = FetchDescriptor<InventoryLocation>(sortBy: [SortDescriptor(\InventoryLocation.name)])
-            let allLocations = try modelContext.fetch(descriptor)
-
-            // Filter by active home if one is set
-            if let activeHomeIdString = settings.activeHomeId,
-                let activeHomeId = UUID(uuidString: activeHomeIdString)
-            {
-                return allLocations.filter { location in
-                    location.home?.id == activeHomeId
+            try database.write { db in
+                for itemID in selectedItemIDs {
+                    try SQLiteInventoryItem.find(itemID).delete().execute(db)
                 }
             }
-
-            // Return all locations if no active home is set
-            return allLocations
+            selectedItemIDs.removeAll()
+            editMode = .inactive
         } catch {
-            print("Error fetching locations: \(error)")
-            return []
+            print("Failed to delete items: \(error)")
         }
     }
 
-    func getAllLabels() -> [InventoryLabel] {
+    func changeSelectedItemsLocation(to locationID: UUID?) {
+        guard !selectedItemIDs.isEmpty else { return }
         do {
-            // Labels are global (not filtered by home)
-            let descriptor = FetchDescriptor<InventoryLabel>(sortBy: [SortDescriptor(\InventoryLabel.name)])
-            return try modelContext.fetch(descriptor)
+            try database.write { db in
+                for itemID in selectedItemIDs {
+                    try SQLiteInventoryItem.find(itemID)
+                        .update { $0.locationID = locationID }
+                        .execute(db)
+                }
+            }
+            selectedItemIDs.removeAll()
+            editMode = .inactive
         } catch {
-            print("Error fetching labels: \(error)")
-            return []
+            print("Failed to change location: \(error)")
         }
     }
 
-    // MARK: - New Selection Functions
-    func hasImagesInSelection() -> Bool {
-        guard !selectedItemIDs.isEmpty else { return false }
-        return allItems.contains { item in
-            guard selectedItemIDs.contains(item.persistentModelID) else { return false }
-            return hasAnalyzableImage(item)
-        }
-    }
+    func changeSelectedItemsLabel(to label: SQLiteInventoryLabel?) {
+        guard !selectedItemIDs.isEmpty else { return }
+        do {
+            try database.write { db in
+                for itemID in selectedItemIDs {
+                    // Remove existing label associations for this item
+                    try SQLiteInventoryItemLabel
+                        .where { $0.inventoryItemID == itemID }
+                        .delete()
+                        .execute(db)
 
-    private func hasAnalyzableImage(_ item: InventoryItem) -> Bool {
-        // Check primary image URL
-        if let imageURL = item.imageURL,
-            !imageURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return true
-        }
-
-        // Check secondary photo URLs (filter out empty strings)
-        if !item.secondaryPhotoURLs.isEmpty {
-            let validURLs = item.secondaryPhotoURLs.filter { url in
-                !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    // Add new label if provided
+                    if let label = label {
+                        try SQLiteInventoryItemLabel.insert {
+                            SQLiteInventoryItemLabel(
+                                id: UUID(),
+                                inventoryItemID: itemID,
+                                inventoryLabelID: label.id
+                            )
+                        }.execute(db)
+                    }
+                }
             }
-            if !validURLs.isEmpty {
-                return true
-            }
+            selectedItemIDs.removeAll()
+            editMode = .inactive
+        } catch {
+            print("Failed to change labels: \(error)")
         }
-
-        // Check legacy data property (for items that haven't migrated yet)
-        if let data = item.data, !data.isEmpty {
-            return true
-        }
-
-        return false
-    }
-
-    func analyzeSelectedItems() {
-        showingBatchAnalysis = true
     }
 
     func exportSelectedItems() {
-        guard !selectedItems.isEmpty else { return }
-
-        Task { @MainActor in
-            await exportCoordinator.exportSpecificItems(
-                items: selectedItems,
-                modelContainer: containerManager.container
-            )
-        }
-    }
-
-    func changeSelectedItemsLocation(to location: InventoryLocation) {
-        for item in selectedItems {
-            item.location = location
-        }
-        try? modelContext.save()
-        selectedItemIDs.removeAll()
-        editMode = .inactive
-    }
-
-    func changeSelectedItemsLabel(to label: InventoryLabel?) {
-        for item in selectedItems {
-            item.labels = label.map { [$0] } ?? []
-        }
-        try? modelContext.save()
-        selectedItemIDs.removeAll()
-        editMode = .inactive
+        // TODO: Migrate ExportCoordinator to use sqlite-data types
+        // ExportCoordinator currently requires [InventoryItem] and ModelContainer
+        print("⚠️ Export not yet migrated to sqlite-data")
     }
 
     // MARK: - Sorting Functions
     private func sortByTitle() {
         if currentSortField == .title {
-            // Toggle direction
             titleAscending.toggle()
         } else {
-            // Switch to title sorting with default direction (A-Z)
             currentSortField = .title
             titleAscending = true
         }
-        updateSortOrder()
     }
 
     private func sortByDate() {
         if currentSortField == .date {
-            // Toggle direction
             dateNewestFirst.toggle()
         } else {
-            // Switch to date sorting with default direction (newest first)
             currentSortField = .date
             dateNewestFirst = true
         }
-        updateSortOrder()
     }
 
     private func sortByValue() {
         if currentSortField == .value {
-            // Toggle direction
             valueGreatestFirst.toggle()
         } else {
-            // Switch to value sorting with default direction (greatest first)
             currentSortField = .value
             valueGreatestFirst = true
-        }
-        updateSortOrder()
-    }
-
-    private func updateSortOrder() {
-        switch currentSortField {
-        case .title:
-            sortOrder = [SortDescriptor(\InventoryItem.title, order: titleAscending ? .forward : .reverse)]
-        case .date:
-            sortOrder = [SortDescriptor(\InventoryItem.createdAt, order: dateNewestFirst ? .reverse : .forward)]
-        case .value:
-            sortOrder = [SortDescriptor(\InventoryItem.price, order: valueGreatestFirst ? .reverse : .forward)]
         }
     }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return InventoryListView(location: previewer.location)
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-            .environmentObject(RevenueCatManager.shared)
-    } catch {
-        return Text("Preview Error: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    InventoryListView(locationID: nil)
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

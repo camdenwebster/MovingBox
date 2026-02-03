@@ -7,8 +7,10 @@
 
 // NOTE: THIS IS NOT IN USE YET - ALL BUSINESS LOGIC IS IN InventoryDetailView.swift
 
+import Dependencies
 import Foundation
 import PhotosUI
+import SQLiteData
 import StoreKit
 import SwiftData
 import SwiftUI
@@ -19,6 +21,7 @@ final class InventoryDetailViewModel {
 
     // MARK: - Dependencies
 
+    @ObservationIgnored @Dependency(\.defaultDatabase) var database
     private let openAIService: OpenAIServiceProtocol
     private let imageManager: ImageManagerProtocol
     private let settings: SettingsManager
@@ -98,7 +101,7 @@ final class InventoryDetailViewModel {
         let imageDetails = try await openAIService.getImageDetails(
             from: loadedImages,
             settings: settings,
-            modelContext: modelContext
+            database: database
         )
 
         TelemetryManager.shared.trackCameraAnalysisUsed()

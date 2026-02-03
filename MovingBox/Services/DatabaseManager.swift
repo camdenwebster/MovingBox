@@ -1,6 +1,7 @@
+@_exported import Dependencies
 import Foundation
 import OSLog
-import SQLiteData
+@_exported import SQLiteData
 
 private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "Database")
 

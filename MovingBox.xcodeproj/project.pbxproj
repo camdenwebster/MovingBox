@@ -51,9 +51,9 @@
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F30A022F3100A2003DF002 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A012F3100A1003DF001 /* DatabaseManager.swift */; };
 		19F30A042F3100A4003DF004 /* SQLiteMigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */; };
+		19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
-		19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -127,10 +127,10 @@
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
 		19F30A012F3100A1003DF001 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteMigrationCoordinator.swift; sourceTree = "<group>"; };
+		19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabaseHelper.swift; sourceTree = "<group>"; };
 		19F765D42DAB558000AE287D /* OptimizedImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedImageManager.swift; sourceTree = "<group>"; };
 		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
 		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
-		19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabaseHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */

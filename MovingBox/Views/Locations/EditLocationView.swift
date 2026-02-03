@@ -5,41 +5,40 @@
 //  Created by Camden Webster on 5/18/24.
 //
 
+import Dependencies
 import PhotosUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
 struct EditLocationView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settingsManager: SettingsManager
-    var location: InventoryLocation?
+
+    let locationID: UUID?
     var presentedInSheet: Bool
     var onDismiss: (() -> Void)?
-    var home: Home?
-    @State private var locationInstance = InventoryLocation()
+    var homeID: UUID?
+
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
+    // Form state
     @State private var locationName: String
     @State private var locationDesc: String
+    @State private var selectedSFSymbol: String?
+    @State private var imageURL: URL?
     @State private var isEditing = false
-    @Query(sort: [
-        SortDescriptor(\InventoryLocation.name)
-    ]) private var locations: [InventoryLocation]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-    @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
     @State private var loadingError: Error?
-    @State private var cachedImageURL: URL?
-    @State private var showPhotoSourceAlert = false
-    @State private var selectedSFSymbol: String?
-    @State private var showSymbolPicker = false
+    @State private var selectedPhoto: PhotosPickerItem?
 
-    private var activeHome: Home? {
-        // Use explicitly provided home if available
-        if let home = home {
-            return home
+    private var activeHome: SQLiteHome? {
+        if let homeID = homeID {
+            return homes.first { $0.id == homeID }
         }
         guard let activeIdString = settingsManager.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
@@ -50,27 +49,26 @@ struct EditLocationView: View {
     }
 
     init(
-        location: InventoryLocation? = nil,
+        locationID: UUID? = nil,
         isEditing: Bool = false,
         presentedInSheet: Bool = false,
-        home: Home? = nil,
+        homeID: UUID? = nil,
         onDismiss: (() -> Void)? = nil
     ) {
-        self.location = location
+        self.locationID = locationID
         self.presentedInSheet = presentedInSheet
-        self.home = home
+        self.homeID = homeID
         self.onDismiss = onDismiss
-        if let location = location {
-            self._locationInstance = State(initialValue: location)
-        }
-        _locationName = State(initialValue: location?.name ?? "")
-        _locationDesc = State(initialValue: location?.desc ?? "")
-        _selectedSFSymbol = State(initialValue: location?.sfSymbolName)
+        // State will be loaded in .task from the database if locationID is provided
+        _locationName = State(initialValue: "")
+        _locationDesc = State(initialValue: "")
+        _selectedSFSymbol = State(initialValue: nil)
+        _isEditing = State(initialValue: isEditing)
     }
 
     // Computed properties
     private var isNewLocation: Bool {
-        location == nil
+        locationID == nil
     }
 
     private var isEditingEnabled: Bool {
@@ -79,9 +77,10 @@ struct EditLocationView: View {
 
     var body: some View {
         Form {
+            // Photo section
             if isEditingEnabled || loadedImage != nil {
                 Section(header: EmptyView()) {
-                    if let uiImage = tempUIImage ?? loadedImage {
+                    if let uiImage = loadedImage {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
@@ -91,11 +90,7 @@ struct EditLocationView: View {
                             .listRowInsets(EdgeInsets())
                             .overlay(alignment: .bottomTrailing) {
                                 if isEditingEnabled {
-                                    PhotoPickerView(
-                                        model: $locationInstance,
-                                        loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
-                                        isLoading: $isLoading
-                                    )
+                                    photoPickerButton
                                 }
                             }
                     } else if isLoading {
@@ -103,18 +98,9 @@ struct EditLocationView: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
                     } else if isEditingEnabled {
-                        PhotoPickerView(
-                            model: $locationInstance,
-                            loadedImage: isNewLocation ? $tempUIImage : $loadedImage,
-                            isLoading: $isLoading
-                        ) { showPhotoSourceAlert in
-                            AddPhotoButton {
-                                showPhotoSourceAlert.wrappedValue = true
-                            }
+                        photoPickerButton
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3)
-                            .foregroundStyle(.secondary)
-                        }
                     }
                 }
             }
@@ -127,9 +113,6 @@ struct EditLocationView: View {
             )
             .disabled(!isEditingEnabled)
             .accessibilityIdentifier("location-name-field")
-            .onChange(of: locationName) { _, newValue in
-                locationInstance.name = newValue
-            }
 
             if isEditingEnabled || selectedSFSymbol != nil {
                 Section {
@@ -161,15 +144,12 @@ struct EditLocationView: View {
                 Section(header: Text("Description")) {
                     TextEditor(text: $locationDesc)
                         .disabled(!isEditingEnabled)
-                        .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                        .foregroundStyle(isEditingEnabled ? .primary : .secondary)
                         .frame(height: 100)
-                        .onChange(of: locationDesc) { _, newValue in
-                            locationInstance.desc = newValue
-                        }
                 }
             }
         }
-        .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "Location")")
+        .navigationTitle(isNewLocation ? "New Location" : locationName.isEmpty ? "Location" : locationName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if presentedInSheet {
@@ -188,13 +168,7 @@ struct EditLocationView: View {
                 if !isNewLocation {
                     Button(isEditing ? "Save" : "Edit") {
                         if isEditing {
-                            if let existingLocation = location {
-                                existingLocation.name = locationInstance.name
-                                existingLocation.desc = locationInstance.desc
-                                existingLocation.imageURL = locationInstance.imageURL
-                                existingLocation.sfSymbolName = locationInstance.sfSymbolName
-                                try? modelContext.save()
-                            }
+                            saveExistingLocation()
                             isEditing = false
                             if presentedInSheet {
                                 dismissView()
@@ -207,21 +181,7 @@ struct EditLocationView: View {
                 } else {
                     Button("Save") {
                         Task {
-                            if let uiImage = tempUIImage {
-                                let id = UUID().uuidString
-                                if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                                    locationInstance.imageURL = imageURL
-                                }
-                            }
-
-                            // Assign active home to new location
-                            locationInstance.home = activeHome
-
-                            modelContext.insert(locationInstance)
-                            TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
-                            print("EditLocationView: Created new location - \(locationInstance.name)")
-                            print("EditLocationView: Assigned to home - \(activeHome?.name ?? "nil")")
-                            print("EditLocationView: Total number of locations after save: \(locations.count)")
+                            await saveNewLocation()
                             dismissView()
                         }
                     }
@@ -231,52 +191,134 @@ struct EditLocationView: View {
                 }
             }
         }
-        .onChange(of: selectedSFSymbol) { _, newValue in
-            locationInstance.sfSymbolName = newValue
-        }
         .sheet(isPresented: $showSymbolPicker) {
             SFSymbolPickerView(selectedSymbol: $selectedSFSymbol)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .task(id: location?.imageURL) {
-            guard let location = location,
-                let imageURL = location.imageURL,
-                !isLoading
+        .task(id: locationID) {
+            await loadLocationData()
+        }
+        .onChange(of: selectedPhoto) { _, newItem in
+            Task {
+                if let data = try? await newItem?.loadTransferable(type: Data.self),
+                    let image = UIImage(data: data)
+                {
+                    loadedImage = image
+                }
+            }
+        }
+    }
+
+    @State private var showSymbolPicker = false
+
+    @ViewBuilder
+    private var photoPickerButton: some View {
+        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+            if loadedImage != nil {
+                Image(systemName: "photo.badge.arrow.down")
+                    .font(.title2)
+                    .padding(12)
+                    .background(.ultraThinMaterial, in: Circle())
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.title)
+                    Text("Add Photo")
+                        .font(.subheadline)
+                }
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func loadLocationData() async {
+        guard let locationID = locationID else { return }
+        do {
+            guard
+                let location = try await database.read({ db in
+                    try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+                })
             else { return }
 
-            // If the imageURL changed, clear the cached image
-            if cachedImageURL != imageURL {
-                await MainActor.run {
-                    loadedImage = nil
-                    cachedImageURL = imageURL
-                }
-            }
+            locationName = location.name
+            locationDesc = location.desc
+            selectedSFSymbol = location.sfSymbolName
+            imageURL = location.imageURL
 
-            // Only load if we don't have a cached image for this URL
-            guard loadedImage == nil else { return }
-
-            await MainActor.run {
+            // Load photo
+            if let url = location.imageURL {
                 isLoading = true
-            }
-
-            defer {
-                Task { @MainActor in
-                    isLoading = false
-                }
-            }
-
-            do {
-                let photo = try await location.photo
-                await MainActor.run {
+                do {
+                    let photo = try await OptimizedImageManager.shared.loadImage(url: url)
                     loadedImage = photo
-                }
-            } catch {
-                await MainActor.run {
+                } catch {
                     loadingError = error
                     print("Failed to load image: \(error)")
                 }
+                isLoading = false
             }
+        } catch {
+            print("Failed to load location: \(error)")
+        }
+    }
+
+    private func saveExistingLocation() {
+        guard let locationID = locationID else { return }
+        // Capture state values for the closure
+        let name = locationName
+        let desc = locationDesc
+        let symbol = selectedSFSymbol
+        let url = imageURL
+        do {
+            try database.write { db in
+                try SQLiteInventoryLocation.find(locationID)
+                    .update {
+                        $0.name = name
+                        $0.desc = desc
+                        $0.sfSymbolName = symbol
+                        $0.imageURL = url
+                    }
+                    .execute(db)
+            }
+        } catch {
+            print("Failed to save location: \(error)")
+        }
+    }
+
+    private func saveNewLocation() async {
+        let newID = UUID()
+
+        // Save photo if one was selected
+        var savedImageURL: URL?
+        if let image = loadedImage {
+            let id = UUID().uuidString
+            savedImageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id)
+        }
+
+        // Capture state values for the closure
+        let name = locationName
+        let desc = locationDesc
+        let symbol = selectedSFSymbol
+        let homeId = activeHome?.id
+
+        do {
+            try await database.write { db in
+                try SQLiteInventoryLocation.insert {
+                    SQLiteInventoryLocation(
+                        id: newID,
+                        name: name,
+                        desc: desc,
+                        sfSymbolName: symbol,
+                        imageURL: savedImageURL,
+                        homeID: homeId
+                    )
+                }.execute(db)
+            }
+            TelemetryManager.shared.trackLocationCreated(name: name)
+            print("EditLocationView: Created new location - \(name)")
+        } catch {
+            print("Failed to create location: \(error)")
         }
     }
 
@@ -291,14 +333,10 @@ struct EditLocationView: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-
-        return EditLocationView(location: previewer.location)
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    EditLocationView(isEditing: true, presentedInSheet: true)
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

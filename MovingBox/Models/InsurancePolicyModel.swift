@@ -10,6 +10,7 @@ import SwiftData
 
 @Model
 class InsurancePolicy {
+    var id: UUID = UUID()
     // Properties with default values
     var providerName: String = ""
     var policyNumber: String = ""

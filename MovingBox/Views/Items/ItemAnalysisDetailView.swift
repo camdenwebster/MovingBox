@@ -1,13 +1,14 @@
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct ItemAnalysisDetailView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.isOnboarding) private var isOnboarding
     @EnvironmentObject private var settings: SettingsManager
     @Environment(\.dismiss) private var dismiss
 
-    let item: InventoryItem?
+    @State private var item: SQLiteInventoryItem?
     let image: UIImage
     let onSave: () -> Void
 
@@ -16,6 +17,12 @@ struct ItemAnalysisDetailView: View {
     @State private var showError = false
     @State private var errorMessage = ""
 
+    init(item: SQLiteInventoryItem?, image: UIImage, onSave: @escaping () -> Void) {
+        self._item = State(initialValue: item)
+        self.image = image
+        self.onSave = onSave
+    }
+
     var body: some View {
         if isOnboarding {
             NavigationStack(path: $navigationPath) {
@@ -23,7 +30,7 @@ struct ItemAnalysisDetailView: View {
                     .navigationDestination(for: String.self) { route in
                         if route == "detail", let currentItem = item {
                             InventoryDetailView(
-                                inventoryItemToDisplay: currentItem,
+                                itemID: currentItem.id,
                                 navigationPath: $navigationPath,
                                 isEditing: true,
                                 onSave: onSave
@@ -60,7 +67,6 @@ struct ItemAnalysisDetailView: View {
                 }
                 .environment(\.isOnboarding, isOnboarding)
             } else if !isOnboarding {
-                // Show empty view when analysis is complete in non-onboarding flow
                 Color.clear
             }
         }
@@ -76,13 +82,13 @@ struct ItemAnalysisDetailView: View {
     private func performAnalysis() async throws {
         let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
         guard
-            let base64ForAI = await OptimizedImageManager.shared.prepareImageForAI(
-                from: image, useHighQuality: useHighQuality)
+            await OptimizedImageManager.shared.prepareImageForAI(
+                from: image, useHighQuality: useHighQuality) != nil
         else {
             throw AnalysisError.imagePreparationFailed
         }
 
-        guard let itemToUpdate = item else {
+        guard item != nil else {
             throw AnalysisError.itemNotFound
         }
 
@@ -91,137 +97,118 @@ struct ItemAnalysisDetailView: View {
         let imageDetails = try await openAi.getImageDetails(
             from: [image],
             settings: settings,
-            modelContext: modelContext
+            database: database
         )
 
+        let labels =
+            (try? await database.read { db in
+                try SQLiteInventoryLabel.all.fetchAll(db)
+            }) ?? []
+
         await MainActor.run {
-            updateUIWithImageDetails(imageDetails, for: itemToUpdate)
+            updateItemFromImageDetails(imageDetails, labels: labels)
             TelemetryManager.shared.trackCameraAnalysisUsed()
+        }
+
+        // Save updated item to SQLite
+        if let currentItem = item {
+            let itemToSave = currentItem
+            try? await database.write { db in
+                try SQLiteInventoryItem.find(itemToSave.id).update {
+                    $0.title = itemToSave.title
+                    $0.desc = itemToSave.desc
+                    $0.model = itemToSave.model
+                    $0.make = itemToSave.make
+                    $0.price = itemToSave.price
+                    $0.serial = itemToSave.serial
+                    $0.condition = itemToSave.condition
+                    $0.color = itemToSave.color
+                    $0.dimensionLength = itemToSave.dimensionLength
+                    $0.dimensionWidth = itemToSave.dimensionWidth
+                    $0.dimensionHeight = itemToSave.dimensionHeight
+                    $0.dimensionUnit = itemToSave.dimensionUnit
+                    $0.weightValue = itemToSave.weightValue
+                    $0.weightUnit = itemToSave.weightUnit
+                    $0.purchaseLocation = itemToSave.purchaseLocation
+                    $0.replacementCost = itemToSave.replacementCost
+                    $0.storageRequirements = itemToSave.storageRequirements
+                    $0.isFragile = itemToSave.isFragile
+                    $0.hasUsedAI = itemToSave.hasUsedAI
+                }.execute(db)
+            }
         }
     }
 
-    private func updateUIWithImageDetails(_ imageDetails: ImageDetails, for item: InventoryItem) {
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        guard let labels: [InventoryLabel] = try? modelContext.fetch(labelDescriptor) else { return }
+    private func updateItemFromImageDetails(
+        _ imageDetails: ImageDetails,
+        labels: [SQLiteInventoryLabel]
+    ) {
+        guard var currentItem = item else { return }
 
-        // Core properties
-        item.title = imageDetails.title
-        item.quantityString = imageDetails.quantity
-        if let matchedLabel = labels.first(where: { $0.name.lowercased() == imageDetails.category.lowercased() }) {
-            item.labels = [matchedLabel]
-        }
-        item.desc = imageDetails.description
-        item.make = imageDetails.make
-        item.model = imageDetails.model
-        item.serial = imageDetails.serialNumber
-        item.hasUsedAI = true
+        if !imageDetails.title.isEmpty { currentItem.title = imageDetails.title }
+        if !imageDetails.make.isEmpty { currentItem.make = imageDetails.make }
+        if !imageDetails.model.isEmpty { currentItem.model = imageDetails.model }
+        if !imageDetails.description.isEmpty { currentItem.desc = imageDetails.description }
+        if !imageDetails.serialNumber.isEmpty { currentItem.serial = imageDetails.serialNumber }
 
-        // Price handling
         let priceString = imageDetails.price.replacingOccurrences(of: "$", with: "").trimmingCharacters(
             in: .whitespaces)
-        item.price = Decimal(string: priceString) ?? 0
+        if let price = Decimal(string: priceString), price > 0 {
+            currentItem.price = price
+        }
 
-        // Extended properties (if provided by AI)
         if let condition = imageDetails.condition, !condition.isEmpty {
-            item.condition = condition
+            currentItem.condition = condition
         }
 
         if let color = imageDetails.color, !color.isEmpty {
-            item.color = color
+            currentItem.color = color
         }
 
         if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
-            // Parse consolidated dimensions like "9.4" x 6.6" x 0.29"" into separate fields
-            parseDimensions(dimensions, for: item)
+            let cleanedString = dimensions.replacingOccurrences(of: "\"", with: " inches")
+            let components = cleanedString.components(separatedBy: " x ").compactMap {
+                $0.trimmingCharacters(in: .whitespaces)
+            }
+            if components.count >= 3 {
+                currentItem.dimensionLength = components[0].replacingOccurrences(
+                    of: "[^0-9.]", with: "", options: .regularExpression)
+                currentItem.dimensionWidth = components[1].replacingOccurrences(
+                    of: "[^0-9.]", with: "", options: .regularExpression)
+                currentItem.dimensionHeight = components[2].replacingOccurrences(
+                    of: "[^0-9.]", with: "", options: .regularExpression)
+                if dimensions.contains("cm") || dimensions.contains("centimeter") {
+                    currentItem.dimensionUnit = "cm"
+                } else if dimensions.contains("mm") || dimensions.contains("millimeter") {
+                    currentItem.dimensionUnit = "mm"
+                } else {
+                    currentItem.dimensionUnit = "inches"
+                }
+            }
         }
 
         if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
-            item.purchaseLocation = purchaseLocation
+            currentItem.purchaseLocation = purchaseLocation
         }
 
         if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
             let cleanedString = replacementCostString.replacingOccurrences(of: "$", with: "")
                 .trimmingCharacters(in: .whitespaces)
             if let replacementCost = Decimal(string: cleanedString) {
-                item.replacementCost = replacementCost
+                currentItem.replacementCost = replacementCost
             }
         }
 
         if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
-            item.storageRequirements = storageRequirements
+            currentItem.storageRequirements = storageRequirements
         }
 
         if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
-            item.isFragile = isFragileString.lowercased() == "true"
+            currentItem.isFragile = isFragileString.lowercased() == "true"
         }
 
-        try? modelContext.save()
-    }
-
-    private func parseDimensions(_ dimensionsString: String, for item: InventoryItem) {
-        // Parse formats like "9.4\" x 6.6\" x 0.29\"" or "12 x 8 x 4 inches"
-        let cleanedString = dimensionsString.replacingOccurrences(of: "\"", with: " inches")
-        let components = cleanedString.components(separatedBy: " x ").compactMap {
-            $0.trimmingCharacters(in: .whitespaces)
-        }
-
-        if components.count >= 3 {
-            // Extract numeric values
-            let lengthStr = components[0].replacingOccurrences(
-                of: "[^0-9.]", with: "", options: .regularExpression)
-            let widthStr = components[1].replacingOccurrences(
-                of: "[^0-9.]", with: "", options: .regularExpression)
-            let heightStr = components[2].replacingOccurrences(
-                of: "[^0-9.]", with: "", options: .regularExpression)
-
-            item.dimensionLength = lengthStr
-            item.dimensionWidth = widthStr
-            item.dimensionHeight = heightStr
-
-            // Determine unit from the original string
-            if dimensionsString.contains("cm") || dimensionsString.contains("centimeter") {
-                item.dimensionUnit = "cm"
-            } else if dimensionsString.contains("mm") || dimensionsString.contains("millimeter") {
-                item.dimensionUnit = "mm"
-            } else if dimensionsString.contains("m") && !dimensionsString.contains("mm")
-                && !dimensionsString.contains("cm")
-            {
-                item.dimensionUnit = "m"
-            } else {
-                item.dimensionUnit = "inches"  // Default to inches
-            }
-        }
-    }
-
-    private func parseWeight(_ weightString: String, for item: InventoryItem) {
-        // Parse formats like "1.03 lbs" or "2.5 kg"
-        let components = weightString.trimmingCharacters(in: .whitespaces).components(separatedBy: " ")
-
-        if components.count >= 2 {
-            let valueStr = components[0].replacingOccurrences(
-                of: "[^0-9.]", with: "", options: .regularExpression)
-            let unitStr = components[1].lowercased()
-
-            item.weightValue = valueStr
-
-            if unitStr.contains("kg") || unitStr.contains("kilogram") {
-                item.weightUnit = "kg"
-            } else if unitStr.contains("g") && !unitStr.contains("kg") {
-                item.weightUnit = "g"
-            } else if unitStr.contains("oz") || unitStr.contains("ounce") {
-                item.weightUnit = "oz"
-            } else {
-                item.weightUnit = "lbs"  // Default to lbs
-            }
-        } else if components.count == 1 {
-            // Only a value, no unit specified - use the numeric part
-            let valueStr = components[0].replacingOccurrences(
-                of: "[^0-9.]", with: "", options: .regularExpression)
-            if !valueStr.isEmpty {
-                item.weightValue = valueStr
-                item.weightUnit = "lbs"  // Default unit
-            }
-        }
+        currentItem.hasUsedAI = true
+        item = currentItem
     }
 
     private enum AnalysisError: LocalizedError {

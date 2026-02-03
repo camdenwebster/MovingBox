@@ -1,18 +1,22 @@
+import Dependencies
 import PhotosUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
 struct OnboardingLocationView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
 
-    @Query private var locations: [InventoryLocation]
+    @FetchAll(SQLiteInventoryLocation.all, animation: .default)
+    private var locations: [SQLiteInventoryLocation]
 
-    @State private var locationInstance = InventoryLocation()
+    // InventoryLocation() used only as PhotoManageable bridge for PhotoPickerView
+    @State private var locationPhotoAdapter = InventoryLocation()
     @State private var locationName = ""
     @State private var locationDesc = ""
+    @State private var imageURL: URL?
     @State private var tempUIImage: UIImage?
     @State private var isLoading = false
 
@@ -20,15 +24,34 @@ struct OnboardingLocationView: View {
         if let existingLocation = locations.first {
             locationName = existingLocation.name
             locationDesc = existingLocation.desc
-            locationInstance = existingLocation
-            do {
-                if let photo = try await existingLocation.photo {
-                    tempUIImage = photo
+            imageURL = existingLocation.imageURL
+
+            if let url = existingLocation.imageURL {
+                do {
+                    let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: url)
+                    tempUIImage = thumbnail
+                } catch {
+                    do {
+                        let photo = try await OptimizedImageManager.shared.loadImage(url: url)
+                        tempUIImage = photo
+                    } catch {
+                        print("Failed to load location photo: \(error)")
+                    }
                 }
-            } catch {
-                print("Failed to load location photo: \(error)")
             }
         }
+    }
+
+    private var photoAdapterBinding: Binding<InventoryLocation> {
+        Binding(
+            get: {
+                locationPhotoAdapter.imageURL = imageURL
+                return locationPhotoAdapter
+            },
+            set: { newValue in
+                imageURL = newValue.imageURL
+            }
+        )
     }
 
     var body: some View {
@@ -56,7 +79,7 @@ struct OnboardingLocationView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
-                                                model: $locationInstance,
+                                                model: photoAdapterBinding,
                                                 loadedImage: $tempUIImage,
                                                 isLoading: $isLoading
                                             )
@@ -67,7 +90,7 @@ struct OnboardingLocationView: View {
                                         .frame(height: UIScreen.main.bounds.height / 3)
                                 } else {
                                     PhotoPickerView(
-                                        model: $locationInstance,
+                                        model: photoAdapterBinding,
                                         loadedImage: $tempUIImage,
                                         isLoading: $isLoading
                                     ) { showPhotoSourceAlert in
@@ -91,17 +114,11 @@ struct OnboardingLocationView: View {
                                 TextField("Location Name", text: $locationName)
                                     .accessibilityIdentifier("onboarding-location-name-field")
                                     .textFieldStyle(.roundedBorder)
-                                    .onChange(of: locationName) { _, newValue in
-                                        locationInstance.name = newValue
-                                    }
 
                                 TextField("Description", text: $locationDesc, axis: .vertical)
                                     .accessibilityIdentifier("onboarding-location-description-field")
                                     .textFieldStyle(.roundedBorder)
                                     .lineLimit(3...)
-                                    .onChange(of: locationDesc) { _, newValue in
-                                        locationInstance.desc = newValue
-                                    }
                             }
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                         }
@@ -140,27 +157,43 @@ struct OnboardingLocationView: View {
     }
 
     private func saveLocationAndContinue() async throws {
+        let saveName = locationName
+        let saveDesc = locationDesc
+        let saveImageURL = imageURL
+
         if let existingLocation = locations.first {
-            existingLocation.name = locationInstance.name
-            existingLocation.desc = locationInstance.desc
-            existingLocation.imageURL = locationInstance.imageURL
-            try modelContext.save()
+            try await database.write { db in
+                try SQLiteInventoryLocation.find(existingLocation.id).update {
+                    $0.name = saveName
+                    $0.desc = saveDesc
+                    $0.imageURL = saveImageURL
+                }.execute(db)
+            }
         } else {
-            modelContext.insert(locationInstance)
-            try modelContext.save()
-            TelemetryManager.shared.trackLocationCreated(name: locationInstance.name)
+            // Get the active home ID for the new location
+            let homeID: UUID? = settings.activeHomeId.flatMap { UUID(uuidString: $0) }
+
+            try await database.write { db in
+                try SQLiteInventoryLocation.insert {
+                    SQLiteInventoryLocation(
+                        id: UUID(),
+                        name: saveName,
+                        desc: saveDesc,
+                        imageURL: saveImageURL,
+                        homeID: homeID
+                    )
+                }.execute(db)
+            }
+            TelemetryManager.shared.trackLocationCreated(name: saveName)
         }
     }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-
-        return OnboardingLocationView()
-            .environmentObject(OnboardingManager())
-            .modelContainer(previewer.container)
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    OnboardingLocationView()
+        .environmentObject(OnboardingManager())
+        .environmentObject(SettingsManager())
 }

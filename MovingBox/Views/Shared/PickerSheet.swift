@@ -5,7 +5,7 @@
 //  Created by Claude on 8/19/25.
 //
 
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct PickerSheet<T: Hashable & Identifiable>: View {
@@ -44,9 +44,9 @@ struct PickerSheet<T: Hashable & Identifiable>: View {
                     }) {
                         HStack {
                             Image(systemName: "minus.circle")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text(noSelectionLabel)
-                                .foregroundColor(.primary)
+                                .foregroundStyle(.primary)
                         }
                     }
                     .buttonStyle(.plain)
@@ -74,12 +74,12 @@ struct PickerSheet<T: Hashable & Identifiable>: View {
 
 // MARK: - Convenience extensions for common picker types
 
-extension PickerSheet where T == InventoryLocation {
+extension PickerSheet where T == SQLiteInventoryLocation {
     static func locationPicker(
-        locations: [InventoryLocation],
-        onSelect: @escaping (InventoryLocation?) -> Void,
+        locations: [SQLiteInventoryLocation],
+        onSelect: @escaping (SQLiteInventoryLocation?) -> Void,
         onCancel: @escaping () -> Void
-    ) -> PickerSheet<InventoryLocation> {
+    ) -> PickerSheet<SQLiteInventoryLocation> {
         PickerSheet(
             title: "Select Location",
             items: locations,
@@ -90,11 +90,11 @@ extension PickerSheet where T == InventoryLocation {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(location.name)
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                     if !location.desc.isEmpty {
                         Text(location.desc)
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,12 +103,12 @@ extension PickerSheet where T == InventoryLocation {
     }
 }
 
-extension PickerSheet where T == InventoryLabel {
+extension PickerSheet where T == SQLiteInventoryLabel {
     static func labelPicker(
-        labels: [InventoryLabel],
-        onSelect: @escaping (InventoryLabel?) -> Void,
+        labels: [SQLiteInventoryLabel],
+        onSelect: @escaping (SQLiteInventoryLabel?) -> Void,
         onCancel: @escaping () -> Void
-    ) -> PickerSheet<InventoryLabel> {
+    ) -> PickerSheet<SQLiteInventoryLabel> {
         PickerSheet(
             title: "Select Label",
             items: labels,
@@ -120,13 +120,13 @@ extension PickerSheet where T == InventoryLabel {
             AnyView(
                 HStack {
                     Circle()
-                        .fill(Color(label.color ?? .systemBlue))
+                        .fill(Color(label.color ?? .blue))
                         .frame(width: 16, height: 16)
                     if !label.emoji.isEmpty {
                         Text(label.emoji)
                     }
                     Text(label.name)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                 }
             )
         }

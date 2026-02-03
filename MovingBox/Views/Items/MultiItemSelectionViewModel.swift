@@ -5,8 +5,9 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import Dependencies
 import Foundation
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 // MARK: - Supporting Types
@@ -44,11 +45,14 @@ final class MultiItemSelectionViewModel {
     /// Images used for analysis
     var images: [UIImage]
 
-    /// Location to assign to created items
-    var location: InventoryLocation?
+    /// Location ID to assign to created items
+    var locationID: UUID?
 
-    /// SwiftData context for saving items
-    let modelContext: ModelContext
+    /// Home ID to assign to created items
+    var homeID: UUID?
+
+    /// Database writer for sqlite-data operations
+    @ObservationIgnored @Dependency(\.defaultDatabase) var database
 
     /// Settings manager for accessing active home
     var settingsManager: SettingsManager?
@@ -106,20 +110,20 @@ final class MultiItemSelectionViewModel {
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
-        location: InventoryLocation?,
-        modelContext: ModelContext
+        locationID: UUID?,
+        homeID: UUID? = nil
     ) {
         self.analysisResponse = analysisResponse
         self.images = images
-        self.location = location
-        self.modelContext = modelContext
+        self.locationID = locationID
+        self.homeID = homeID
     }
 
     // MARK: - Location Management
 
     /// Update the selected location for items
-    func updateSelectedLocation(_ newLocation: InventoryLocation?) {
-        self.location = newLocation
+    func updateSelectedLocationID(_ locationID: UUID?) {
+        self.locationID = locationID
     }
 
     // MARK: - Card Navigation
@@ -170,8 +174,8 @@ final class MultiItemSelectionViewModel {
 
     // MARK: - Item Creation
 
-    /// Create InventoryItems from selected detected items
-    func createSelectedInventoryItems() async throws -> [InventoryItem] {
+    /// Create SQLiteInventoryItems from selected detected items
+    func createSelectedInventoryItems() async throws -> [SQLiteInventoryItem] {
         guard !images.isEmpty else {
             throw InventoryItemCreationError.noImagesProvided
         }
@@ -184,42 +188,34 @@ final class MultiItemSelectionViewModel {
         creationProgress = 0.0
         errorMessage = nil
 
-        // Fetch existing labels to match against categories
-        let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+        let existingLabels =
+            (try? await database.read { db in
+                try SQLiteInventoryLabel.all.fetchAll(db)
+            }) ?? []
 
-        var createdItems: [InventoryItem] = []
+        let resolvedHomeID = await resolveHomeID()
+
+        var createdItems: [SQLiteInventoryItem] = []
         let selectedDetectedItems = detectedItems.filter { selectedItems.contains($0.id) }
         let totalItems = selectedDetectedItems.count
 
         do {
             for (index, detectedItem) in selectedDetectedItems.enumerated() {
-                // Update progress
                 creationProgress = Double(index) / Double(totalItems)
 
-                // Find matching label for this item's category
                 let matchingLabel = findMatchingLabel(for: detectedItem.category, in: existingLabels)
-
-                // Create inventory item with matched label
-                let inventoryItem = try await createInventoryItem(from: detectedItem, label: matchingLabel)
+                let inventoryItem = try await createInventoryItem(
+                    from: detectedItem, label: matchingLabel, resolvedHomeID: resolvedHomeID)
                 createdItems.append(inventoryItem)
 
-                // Small delay for UI feedback
-                try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
+                try await Task.sleep(for: .milliseconds(100))
             }
 
-            // Final progress update
             creationProgress = 1.0
-
-            // Save all items to context
-            try modelContext.save()
-
-            // Reset processing flag on success
             isProcessingSelection = false
-
             return createdItems
 
         } catch {
-            // Provide user-friendly error message
             let userMessage: String
             if let imageError = error as? OptimizedImageManager.ImageError {
                 switch imageError {
@@ -234,7 +230,6 @@ final class MultiItemSelectionViewModel {
                     userMessage = "Storage configuration error. Please restart the app."
                 }
             } else if let nsError = error as NSError? {
-                // File system errors
                 if nsError.domain == NSCocoaErrorDomain {
                     switch nsError.code {
                     case NSFileWriteOutOfSpaceError:
@@ -263,40 +258,36 @@ final class MultiItemSelectionViewModel {
 
     // MARK: - Private Methods
 
-    /// Create a single InventoryItem from a DetectedInventoryItem
-    private func createInventoryItem(from detectedItem: DetectedInventoryItem, label: InventoryLabel?)
-        async throws -> InventoryItem
-    {
-        // Create new inventory item
-        let inventoryItem = InventoryItem(
+    /// Create a single SQLiteInventoryItem from a DetectedInventoryItem
+    private func createInventoryItem(
+        from detectedItem: DetectedInventoryItem,
+        label: SQLiteInventoryLabel?,
+        resolvedHomeID: UUID?
+    ) async throws -> SQLiteInventoryItem {
+        let newID = UUID()
+        let itemId = newID.uuidString
+
+        var inventoryItem = SQLiteInventoryItem(
+            id: newID,
             title: detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title,
-            quantityString: "1",
-            quantityInt: 1,
             desc: detectedItem.description,
-            serial: "",
             model: detectedItem.model,
             make: detectedItem.make,
-            location: location,
-            labels: label.map { [$0] } ?? [],
             price: parsePrice(from: detectedItem.estimatedPrice),
-            insured: false,
-            assetId: "",
+            assetId: itemId,
             notes: "Detected via AI with \(formattedConfidence(detectedItem.confidence)) confidence",
-            showInvalidQuantityAlert: false
+            hasUsedAI: true,
+            locationID: locationID,
+            homeID: resolvedHomeID
         )
 
-        // Generate unique ID for this item
-        let itemId = UUID().uuidString
-
         do {
-            // Save primary image
             if let primaryImage = images.first {
                 let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
                     primaryImage, id: itemId)
                 inventoryItem.imageURL = primaryImageURL
             }
 
-            // Save secondary images if available
             if images.count > 1 {
                 let secondaryImages = Array(images.dropFirst())
                 let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
@@ -304,43 +295,56 @@ final class MultiItemSelectionViewModel {
                 inventoryItem.secondaryPhotoURLs = secondaryURLs
             }
 
-            // Assign active home if item has no location or location has no home
-            if inventoryItem.location == nil || inventoryItem.location?.home == nil {
-                // Get active home from SettingsManager
-                if let activeHomeIdString = settingsManager?.activeHomeId,
-                    let activeHomeId = UUID(uuidString: activeHomeIdString)
-                {
-                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
-                    if let activeHome = try? modelContext.fetch(homeDescriptor).first {
-                        inventoryItem.home = activeHome
-                    } else {
-                        // Fallback to primary home
-                        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-                        if let primaryHome = try? modelContext.fetch(primaryHomeDescriptor).first {
-                            inventoryItem.home = primaryHome
-                        }
-                    }
-                } else {
-                    // Fallback to primary home
-                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-                    if let primaryHome = try? modelContext.fetch(homeDescriptor).first {
-                        inventoryItem.home = primaryHome
-                    }
+            // Insert into SQLite
+            let itemToInsert = inventoryItem
+            try await database.write { db in
+                try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
+
+                // Insert label join if matched
+                if let label {
+                    try SQLiteInventoryItemLabel.insert {
+                        SQLiteInventoryItemLabel(
+                            id: UUID(),
+                            inventoryItemID: itemToInsert.id,
+                            inventoryLabelID: label.id
+                        )
+                    }.execute(db)
                 }
             }
 
-            // Insert into context
-            modelContext.insert(inventoryItem)
-
-            // Track telemetry
             TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItem.title)
-
             return inventoryItem
 
         } catch {
-            // Preserve the actual error message for better debugging
             print("❌ Failed to save images for item: \(error.localizedDescription)")
             throw error
+        }
+    }
+
+    /// Resolves the homeID for a new item
+    private func resolveHomeID() async -> UUID? {
+        if let homeID { return homeID }
+
+        if let locationID {
+            if let location = try? await database.read({ db in
+                try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+            }), let locationHomeID = location.homeID {
+                return locationHomeID
+            }
+        }
+
+        if let activeHomeIdString = settingsManager?.activeHomeId,
+            let activeHomeId = UUID(uuidString: activeHomeIdString)
+        {
+            if (try? await database.read({ db in
+                try SQLiteHome.find(activeHomeId).fetchOne(db)
+            })) != nil {
+                return activeHomeId
+            }
+        }
+
+        return try? await database.read { db in
+            try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)?.id
         }
     }
 
@@ -365,17 +369,26 @@ final class MultiItemSelectionViewModel {
     }
 
     /// Find matching label for a given category from existing labels
-    private func findMatchingLabel(for category: String, in labels: [InventoryLabel])
-        -> InventoryLabel?
+    private func findMatchingLabel(for category: String, in labels: [SQLiteInventoryLabel])
+        -> SQLiteInventoryLabel?
     {
         guard !category.isEmpty else { return nil }
         return labels.first { $0.name.lowercased() == category.lowercased() }
     }
 
     /// Get the label that would be matched for a detected item (for preview in card)
-    func getMatchingLabel(for item: DetectedInventoryItem) -> InventoryLabel? {
-        let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-        return findMatchingLabel(for: item.category, in: existingLabels)
+    func getMatchingLabel(for item: DetectedInventoryItem) -> SQLiteInventoryLabel? {
+        // This is called from the UI thread, use a synchronous approach
+        var result: SQLiteInventoryLabel?
+        let category = item.category
+        Task {
+            let existingLabels =
+                (try? await database.read { db in
+                    try SQLiteInventoryLabel.all.fetchAll(db)
+                }) ?? []
+            result = findMatchingLabel(for: category, in: existingLabels)
+        }
+        return result
     }
 }
 

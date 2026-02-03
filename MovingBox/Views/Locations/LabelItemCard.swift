@@ -5,17 +5,13 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
+import SQLiteData
 import SwiftUI
 
 struct LabelItemCard: View {
-    var label: InventoryLabel
-    var showCost: Bool = false
-    @State private var thumbnail: UIImage?
-    @State private var loadingError: Error?
-
-    private var totalReplacementCost: Decimal {
-        label.inventoryItems.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
-    }
+    var label: SQLiteInventoryLabel
+    var itemCount: Int = 0
+    var totalValue: Decimal = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +35,7 @@ struct LabelItemCard: View {
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
-                    Text("\(label.inventoryItems.count)")
+                    Text("\(itemCount)")
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
                 }
@@ -48,7 +44,7 @@ struct LabelItemCard: View {
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
-                    Text(CurrencyFormatter.format(totalReplacementCost))
+                    Text(CurrencyFormatter.format(totalValue))
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
@@ -68,11 +64,12 @@ struct LabelItemCard: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return LabelItemCard(label: previewer.label)
-            .modelContainer(previewer.container)
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    LabelItemCard(
+        label: SQLiteInventoryLabel(id: UUID(), name: "Electronics", color: .blue, emoji: "💻"),
+        itemCount: 5,
+        totalValue: 2500
+    )
 }

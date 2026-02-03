@@ -6,11 +6,10 @@
 //
 
 import AVFoundation
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct EnhancedItemCreationFlowView: View {
-    @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
     @EnvironmentObject var router: Router
@@ -23,25 +22,24 @@ struct EnhancedItemCreationFlowView: View {
     private let transitionAnimation = Animation.easeInOut(duration: 0.3)
 
     let captureMode: CaptureMode
-    let location: InventoryLocation?
+    let locationID: UUID?
     let onComplete: (() -> Void)?
 
     // MARK: - Initialization
 
     init(
         captureMode: CaptureMode,
-        location: InventoryLocation?,
+        locationID: UUID?,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
-        self.location = location
+        self.locationID = locationID
         self.onComplete = onComplete
 
-        // Initialize StateObject with nil context - will be set in onAppear
         self._viewModel = StateObject(
             wrappedValue: ItemCreationFlowViewModel(
                 captureMode: captureMode,
-                location: location
+                locationID: locationID
             ))
     }
 
@@ -79,8 +77,6 @@ struct EnhancedItemCreationFlowView: View {
             }
         }
         .onAppear {
-            // Update viewModel with actual modelContext and settingsManager
-            viewModel.updateModelContext(modelContext)
             viewModel.updateSettingsManager(settings)
 
             // Verify Pro status for multi-item mode
@@ -202,8 +198,7 @@ struct EnhancedItemCreationFlowView: View {
             MultiItemSelectionView(
                 analysisResponse: analysisResponse,
                 images: viewModel.capturedImages,
-                location: location,
-                modelContext: modelContext,
+                locationID: locationID,
                 onItemsSelected: { items in
                     viewModel.handleMultiItemSelection(items)
                 },
@@ -272,7 +267,7 @@ struct EnhancedItemCreationFlowView: View {
         } else if let item = viewModel.createdItems.first {
             // Single item details
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                itemID: item.id,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: true,
                 onSave: {
@@ -391,9 +386,9 @@ struct EnhancedItemCreationFlowView: View {
 // MARK: - Supporting Views
 
 struct MultiItemSummaryView: View {
-    let items: [InventoryItem]
+    let items: [SQLiteInventoryItem]
     let onComplete: () -> Void
-    let onEditItem: (InventoryItem) -> Void
+    let onEditItem: (SQLiteInventoryItem) -> Void
 
     @State private var showConfetti = false
 
@@ -512,7 +507,7 @@ private struct SummaryConfettiPiece: Identifiable {
 // MARK: - Item Summary Card
 
 struct ItemSummaryCard: View {
-    let item: InventoryItem
+    let item: SQLiteInventoryItem
     let onTap: () -> Void
 
     var body: some View {
@@ -575,20 +570,15 @@ struct ItemSummaryCard: View {
 // MARK: - Preview
 
 #Preview {
-    let schema = Schema([
-        InventoryItem.self,
-        InventoryLocation.self,
-        InventoryLabel.self,
-        Home.self,
-    ])
-    let container = try! ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
 
-    return EnhancedItemCreationFlowView(
+    EnhancedItemCreationFlowView(
         captureMode: .multiItem,
-        location: nil,
+        locationID: nil,
         onComplete: nil
     )
-    .modelContainer(container)
     .environmentObject(Router())
     .environmentObject(SettingsManager())
 }

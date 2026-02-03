@@ -5,36 +5,38 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import Dependencies
 import RevenueCatUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct LocationsListView: View {
     let showAllHomes: Bool
 
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @State private var sortOrder = [SortDescriptor(\InventoryLocation.name)]
     @State private var showingCamera = false
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
     @State private var searchText = ""
     @State private var showAddLocationSheet = false
     @State private var isEditing = false
-    @State private var locationToDelete: InventoryLocation?
+    @State private var locationToDelete: SQLiteInventoryLocation?
 
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
 
-    // Use @Query with sort descriptor for efficient loading
-    @Query(sort: [
-        SortDescriptor(\InventoryLocation.name)
-    ]) private var allLocations: [InventoryLocation]
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    private var allLocations: [SQLiteInventoryLocation]
 
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
 
-    private var activeHome: Home? {
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
+
+    private var activeHome: SQLiteHome? {
         guard let activeIdString = settings.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         else {
@@ -44,20 +46,18 @@ struct LocationsListView: View {
     }
 
     // Filter locations by active home
-    private var locations: [InventoryLocation] {
+    private var locations: [SQLiteInventoryLocation] {
         guard !showAllHomes, let activeHome = activeHome else {
             return allLocations
         }
-        return allLocations.filter { $0.home?.id == activeHome.id }
+        return allLocations.filter { $0.homeID == activeHome.id }
     }
 
-    // Query for items without location
-    @Query(
-        filter: #Predicate<InventoryItem> { item in
-            item.location == nil
-        }) private var unassignedItems: [InventoryItem]
+    // Unassigned items (no locationID)
+    private var unassignedItems: [SQLiteInventoryItem] {
+        allItems.filter { $0.locationID == nil }
+    }
 
-    // Computed property for unassigned items count and total value
     private var unassignedItemsCount: Int {
         unassignedItems.count
     }
@@ -66,8 +66,25 @@ struct LocationsListView: View {
         unassignedItems.reduce(0) { $0 + $1.price }
     }
 
+    // Precomputed lookup for item counts/values per location
+    private var locationItemData: [UUID: (count: Int, value: Decimal)] {
+        var result: [UUID: (count: Int, value: Decimal)] = [:]
+        for item in allItems {
+            guard let locationID = item.locationID else { continue }
+            let price = item.price * Decimal(item.quantityInt)
+            if var existing = result[locationID] {
+                existing.count += 1
+                existing.value += price
+                result[locationID] = existing
+            } else {
+                result[locationID] = (count: 1, value: price)
+            }
+        }
+        return result
+    }
+
     // Filtered locations based on search
-    private var filteredLocations: [InventoryLocation] {
+    private var filteredLocations: [SQLiteInventoryLocation] {
         if searchText.isEmpty {
             return locations
         }
@@ -174,22 +191,33 @@ struct LocationsListView: View {
                                 Button {
                                     locationToDelete = location
                                 } label: {
-                                    LocationItemCard(location: location)
-                                        .frame(maxWidth: 180)
-                                        .overlay(alignment: .topLeading) {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.title)
-                                                .symbolRenderingMode(.palette)
-                                                .foregroundStyle(.white, .red)
-                                                .offset(x: -8, y: -8)
-                                        }
+                                    LocationItemCard(
+                                        location: location,
+                                        itemCount: locationItemData[location.id]?.count ?? 0,
+                                        totalValue: locationItemData[location.id]?.value ?? 0
+                                    )
+                                    .frame(maxWidth: 180)
+                                    .overlay(alignment: .topLeading) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.title)
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(.white, .red)
+                                            .offset(x: -8, y: -8)
+                                    }
                                 }
                                 .accessibilityIdentifier("location-delete-\(location.name)")
                                 .buttonStyle(.plain)
                             } else {
-                                NavigationLink(value: location) {
-                                    LocationItemCard(location: location)
-                                        .frame(maxWidth: 180)
+                                NavigationLink(
+                                    value: Router.Destination.inventoryListView(
+                                        locationID: location.id, showAllHomes: false)
+                                ) {
+                                    LocationItemCard(
+                                        location: location,
+                                        itemCount: locationItemData[location.id]?.count ?? 0,
+                                        totalValue: locationItemData[location.id]?.value ?? 0
+                                    )
+                                    .frame(maxWidth: 180)
                                 }
                             }
                         }
@@ -219,16 +247,13 @@ struct LocationsListView: View {
                 }
             }
         }
-        .navigationDestination(for: InventoryLocation.self) { location in
-            InventoryListView(location: location)
-        }
         .navigationTitle("Locations")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "Search locations")
         .background(Color(.systemGroupedBackground))
         .sheet(isPresented: $showAddLocationSheet) {
             NavigationStack {
-                EditLocationView(location: nil, isEditing: true, presentedInSheet: true)
+                EditLocationView(locationID: nil, isEditing: true, presentedInSheet: true)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -253,23 +278,25 @@ struct LocationsListView: View {
         }
     }
 
-    private func deleteLocation(_ location: InventoryLocation) {
+    private func deleteLocation(_ location: SQLiteInventoryLocation) {
         withAnimation {
-            modelContext.delete(location)
-            TelemetryManager.shared.trackLocationDeleted()
-            try? modelContext.save()
+            do {
+                try database.write { db in
+                    try SQLiteInventoryLocation.find(location.id).delete().execute(db)
+                }
+                TelemetryManager.shared.trackLocationDeleted()
+            } catch {
+                print("Failed to delete location: \(error)")
+            }
         }
     }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return LocationsListView(showAllHomes: false)
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    LocationsListView(showAllHomes: false)
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

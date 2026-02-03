@@ -1,3 +1,5 @@
+import Dependencies
+import SQLiteData
 import SwiftData
 import SwiftUI
 import SwiftUIBackports
@@ -22,9 +24,11 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     private(set) var deletionCompleted = false
 
     private let modelContext: ModelContext
+    private let database: any DatabaseWriter
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, database: any DatabaseWriter) {
         self.modelContext = modelContext
+        self.database = database
     }
 
     func deleteAllData(scope: DeletionScope) async {
@@ -39,10 +43,8 @@ final class DataDeletionService: DataDeletionServiceProtocol {
         do {
             try await performDeletion(scope: scope)
 
-            // Give SwiftData time to process all deletions and refresh queries
-            // This is critical to prevent crashes from stale @Query results
-            // Views like DashboardView, LabelStatisticsView, LocationStatisticsView all have @Query
-            try await Task.sleep(nanoseconds: 1_000_000_000)  // 1.0 second
+            // Brief delay to let @FetchAll and remaining @Query results refresh
+            try await Task.sleep(for: .seconds(1))
 
             deletionCompleted = true
         } catch {
@@ -57,12 +59,11 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     }
 
     private func performDeletion(scope: DeletionScope) async throws {
+        try await deleteSQLiteContent()
         try await deleteSwiftDataContent()
         await clearImageCache()
         try await createInitialHome()
 
-        // Force model context to process all pending changes
-        // This helps ensure @Query results refresh before views render
         try modelContext.save()
 
         if scope == .localAndICloud {
@@ -73,14 +74,43 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     }
 
     private func createInitialHome() async throws {
+        // SwiftData home (for views not yet migrated)
         let newHome = Home(name: "My Home")
         newHome.isPrimary = true
         modelContext.insert(newHome)
         try modelContext.save()
 
-        UserDefaults.standard.set(newHome.id.uuidString, forKey: "activeHomeId")
+        // SQLite home (primary store)
+        let newHomeID = UUID()
+        try await database.write { db in
+            try SQLiteHome.insert {
+                SQLiteHome(
+                    id: newHomeID,
+                    name: "My Home",
+                    imageURL: nil,
+                    isPrimary: true,
+                    colorName: "green"
+                )
+            }.execute(db)
+        }
 
+        UserDefaults.standard.set(newHomeID.uuidString, forKey: "activeHomeId")
         print("🏠 Created initial home after data deletion")
+    }
+
+    private func deleteSQLiteContent() async throws {
+        try await database.write { db in
+            // Delete join tables first (foreign key safety)
+            try SQLiteInventoryItemLabel.delete().execute(db)
+            try SQLiteHomeInsurancePolicy.delete().execute(db)
+            // Then child tables
+            try SQLiteInventoryItem.delete().execute(db)
+            try SQLiteInventoryLocation.delete().execute(db)
+            try SQLiteInventoryLabel.delete().execute(db)
+            try SQLiteInsurancePolicy.delete().execute(db)
+            // Then parent table
+            try SQLiteHome.delete().execute(db)
+        }
     }
 
     private func deleteSwiftDataContent() async throws {
@@ -163,6 +193,7 @@ enum DeletionScope: String, CaseIterable {
 }
 
 struct DataDeletionView: View {
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var router: Router
@@ -205,7 +236,7 @@ struct DataDeletionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if deletionService == nil {
-                deletionService = DataDeletionService(modelContext: modelContext)
+                deletionService = DataDeletionService(modelContext: modelContext, database: database)
             }
         }
         .alert("Final Confirmation", isPresented: $showFinalConfirmation) {
@@ -368,6 +399,9 @@ struct DataDeletionView: View {
 }
 
 #Preview {
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
     NavigationStack {
         DataDeletionView()
             .environmentObject(Router())

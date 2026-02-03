@@ -5,18 +5,21 @@
 //  Created by Camden Webster on 3/20/25.
 //
 
+import Dependencies
 import PhotosUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
 struct EditHomeView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
-    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
 
-    var home: Home?
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
+    var homeID: UUID?
     var presentedInSheet: Bool
     var onDismiss: (() -> Void)?
 
@@ -25,39 +28,47 @@ struct EditHomeView: View {
     @State private var loadingError: Error?
     @State private var isLoading = false
     @State private var cachedImageURL: URL?
+    @State private var isDataLoaded = false
 
-    @State private var tempHome = {
-        var home = Home()
-        home.country = Locale.current.region?.identifier ?? "US"
-        return home
-    }()
+    // Form state
+    @State private var name: String = ""
+    @State private var address1: String = ""
+    @State private var address2: String = ""
+    @State private var city: String = ""
+    @State private var state: String = ""
+    @State private var zip: String = ""
+    @State private var country: String = ""
+    @State private var imageURL: URL?
+
+    // PhotoPickerView adapter — Home() used only as PhotoManageable bridge
+    @State private var photoAdapter = Home()
 
     init(
-        home: Home? = nil,
+        homeID: UUID? = nil,
         presentedInSheet: Bool = false,
         onDismiss: (() -> Void)? = nil
     ) {
-        self.home = home
+        self.homeID = homeID
         self.presentedInSheet = presentedInSheet
         self.onDismiss = onDismiss
     }
 
+    private var activeHome: SQLiteHome? {
+        if let homeID {
+            return homes.first { $0.id == homeID }
+        }
+        return homes.last
+    }
+
     private var isNewHome: Bool {
         if presentedInSheet {
-            return home == nil
+            return homeID == nil
         }
         return homes.isEmpty
     }
 
     private var isEditingEnabled: Bool {
         isNewHome || isEditing
-    }
-
-    private var activeHome: Home? {
-        if presentedInSheet {
-            return home
-        }
-        return home ?? homes.last
     }
 
     private func countryName(for code: String) -> String {
@@ -73,24 +84,14 @@ struct EditHomeView: View {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
-                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 200)
                             .clipped()
                             .listRowInsets(EdgeInsets())
                             .overlay(alignment: .bottomTrailing) {
                                 if isEditingEnabled {
                                     PhotoPickerView(
-                                        model: Binding(
-                                            get: { activeHome ?? tempHome },
-                                            set: { newValue in
-                                                if let existingHome = activeHome {
-                                                    existingHome.imageURL = newValue.imageURL
-                                                    try? modelContext.save()
-                                                } else {
-                                                    tempHome = newValue
-                                                }
-                                            }
-                                        ),
+                                        model: photoAdapterBinding,
                                         loadedImage: $loadedImage,
                                         isLoading: $isLoading
                                     )
@@ -99,20 +100,10 @@ struct EditHomeView: View {
                     } else if isLoading {
                         ProgressView()
                             .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .frame(height: 200)
                     } else if isEditingEnabled {
                         PhotoPickerView(
-                            model: Binding(
-                                get: { activeHome ?? tempHome },
-                                set: { newValue in
-                                    if let existingHome = activeHome {
-                                        existingHome.imageURL = newValue.imageURL
-                                        try? modelContext.save()
-                                    } else {
-                                        tempHome = newValue
-                                    }
-                                }
-                            ),
+                            model: photoAdapterBinding,
                             loadedImage: $loadedImage,
                             isLoading: $isLoading
                         ) { isPresented in
@@ -120,51 +111,50 @@ struct EditHomeView: View {
                                 isPresented.wrappedValue = true
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .frame(height: 200)
                             .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
 
-            if isEditingEnabled || !tempHome.name.isEmpty {
+            if isEditingEnabled || !name.isEmpty {
                 Section("Home Nickname") {
-                    TextField("Enter a nickname", text: $tempHome.name)
+                    TextField("Enter a nickname", text: $name)
                         .disabled(!isEditingEnabled)
-                        .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                        .foregroundStyle(isEditingEnabled ? .primary : .secondary)
                 }
             }
 
             Section("Home Address") {
-                TextField("Street Address", text: $tempHome.address1)
+                TextField("Street Address", text: $address1)
                     .textContentType(.streetAddressLine1)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                    .foregroundStyle(isEditingEnabled ? .primary : .secondary)
 
-                TextField("Apt, Suite, Unit", text: $tempHome.address2)
+                TextField("Apt, Suite, Unit", text: $address2)
                     .textContentType(.streetAddressLine2)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                    .foregroundStyle(isEditingEnabled ? .primary : .secondary)
 
-                TextField("City", text: $tempHome.city)
+                TextField("City", text: $city)
                     .textContentType(.addressCity)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                    .foregroundStyle(isEditingEnabled ? .primary : .secondary)
 
-                TextField("State/Province", text: $tempHome.state)
+                TextField("State/Province", text: $state)
                     .textContentType(.addressState)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                    .foregroundStyle(isEditingEnabled ? .primary : .secondary)
 
-                TextField("ZIP/Postal Code", text: $tempHome.zip)
+                TextField("ZIP/Postal Code", text: $zip)
                     .textContentType(.postalCode)
                     .keyboardType(.numberPad)
                     .disabled(!isEditingEnabled)
-                    .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                    .foregroundStyle(isEditingEnabled ? .primary : .secondary)
 
                 if isEditingEnabled {
-                    Picker("Country", selection: $tempHome.country) {
-                        // Current user's country at the top
+                    Picker("Country", selection: $country) {
                         if let userCountry = Locale.current.region?.identifier {
                             Text(countryName(for: userCountry))
                                 .tag(userCountry)
@@ -172,7 +162,6 @@ struct EditHomeView: View {
                             Divider()
                         }
 
-                        // All other countries, sorted alphabetically
                         ForEach(
                             Locale.Region.isoRegions.filter { $0.identifier != Locale.current.region?.identifier }
                                 .sorted(by: { countryName(for: $0.identifier) < countryName(for: $1.identifier) }),
@@ -186,64 +175,51 @@ struct EditHomeView: View {
                     HStack {
                         Text("Country")
                         Spacer()
-                        Text(countryName(for: tempHome.country))
-                            .foregroundColor(.secondary)
+                        Text(countryName(for: country))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
         }
         .navigationTitle(isNewHome ? "New Home" : (activeHome?.displayName ?? "Home"))
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: activeHome?.imageURL) {
-            guard let home = activeHome,
-                let imageURL = home.imageURL,
-                !isLoading
-            else { return }
+        .task(id: imageURL) {
+            guard let url = imageURL, !isLoading else { return }
 
-            // If the imageURL changed, clear the cached image
-            if cachedImageURL != imageURL {
-                await MainActor.run {
-                    loadedImage = nil
-                    cachedImageURL = imageURL
-                }
+            if cachedImageURL != url {
+                loadedImage = nil
+                cachedImageURL = url
             }
 
-            // Only load if we don't have a cached image for this URL
             guard loadedImage == nil else { return }
 
-            await MainActor.run {
-                isLoading = true
-            }
-
-            defer {
-                Task { @MainActor in
-                    isLoading = false
-                }
-            }
+            isLoading = true
+            defer { isLoading = false }
 
             do {
-                let photo = try await home.photo
-                await MainActor.run {
-                    loadedImage = photo
-                }
+                let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: url)
+                loadedImage = thumbnail
             } catch {
-                await MainActor.run {
+                do {
+                    let photo = try await OptimizedImageManager.shared.loadImage(url: url)
+                    loadedImage = photo
+                } catch {
                     loadingError = error
                     print("Failed to load image: \(error)")
                 }
             }
         }
         .onAppear {
+            guard !isDataLoaded else { return }
             if let existingHome = activeHome {
-                tempHome = existingHome
+                loadFromHome(existingHome)
             } else {
-                // Set default country for new homes
-                tempHome.country = Locale.current.region?.identifier ?? "US"
+                country = Locale.current.region?.identifier ?? "US"
             }
-            // When presented in a sheet, start in editing mode
             if presentedInSheet {
                 isEditing = true
             }
+            isDataLoaded = true
         }
         .toolbar {
             if presentedInSheet {
@@ -262,15 +238,7 @@ struct EditHomeView: View {
                 if !isNewHome {
                     Button(isEditing ? "Save" : "Edit") {
                         if isEditing {
-                            if let existingHome = activeHome {
-                                existingHome.name = tempHome.name
-                                existingHome.address1 = tempHome.address1
-                                existingHome.address2 = tempHome.address2
-                                existingHome.city = tempHome.city
-                                existingHome.state = tempHome.state
-                                existingHome.zip = tempHome.zip
-                                existingHome.country = tempHome.country
-                            }
+                            saveExistingHome()
                             isEditing = false
                             if presentedInSheet {
                                 dismissView()
@@ -283,33 +251,121 @@ struct EditHomeView: View {
                 } else {
                     Button("Save") {
                         Task {
-                            do {
-                                let newHome = try await DefaultDataManager.getOrCreateHome(modelContext: modelContext)
-
-                                newHome.name = tempHome.name
-                                newHome.address1 = tempHome.address1
-                                newHome.address2 = tempHome.address2
-                                newHome.city = tempHome.city
-                                newHome.state = tempHome.state
-                                newHome.zip = tempHome.zip
-                                newHome.country = tempHome.country
-                                newHome.purchaseDate = Date()
-                                newHome.imageURL = tempHome.imageURL
-
-                                TelemetryManager.shared.trackLocationCreated(name: newHome.address1)
-                                print("EditHomeView: Created home - \(newHome.name)")
-
-                                try modelContext.save()
-                                dismissView()
-                            } catch {
-                                print("❌ Error saving home: \(error)")
-                            }
+                            await createNewHome()
                         }
                     }
-                    .disabled(tempHome.address1.isEmpty)
+                    .disabled(address1.isEmpty)
                     .bold()
                 }
             }
+        }
+    }
+
+    // MARK: - Photo Adapter
+
+    private var photoAdapterBinding: Binding<Home> {
+        Binding(
+            get: {
+                photoAdapter.imageURL = imageURL
+                return photoAdapter
+            },
+            set: { newValue in
+                imageURL = newValue.imageURL
+            }
+        )
+    }
+
+    // MARK: - Data Operations
+
+    private func loadFromHome(_ home: SQLiteHome) {
+        name = home.name
+        address1 = home.address1
+        address2 = home.address2
+        city = home.city
+        state = home.state
+        zip = home.zip
+        country = home.country
+        imageURL = home.imageURL
+    }
+
+    private func saveExistingHome() {
+        guard let home = activeHome else { return }
+
+        let saveName = name
+        let saveAddr1 = address1
+        let saveAddr2 = address2
+        let saveCity = city
+        let saveState = state
+        let saveZip = zip
+        let saveCountry = country
+        let saveImageURL = imageURL
+
+        do {
+            try database.write { db in
+                try SQLiteHome.find(home.id).update {
+                    $0.name = saveName
+                    $0.address1 = saveAddr1
+                    $0.address2 = saveAddr2
+                    $0.city = saveCity
+                    $0.state = saveState
+                    $0.zip = saveZip
+                    $0.country = saveCountry
+                    $0.imageURL = saveImageURL
+                }.execute(db)
+            }
+        } catch {
+            print("Failed to save home: \(error)")
+        }
+    }
+
+    private func createNewHome() async {
+        let newHomeID = UUID()
+        let saveName = name
+        let saveAddr1 = address1
+        let saveAddr2 = address2
+        let saveCity = city
+        let saveState = state
+        let saveZip = zip
+        let saveCountry = country
+        let saveImageURL = imageURL
+        let shouldBePrimary = homes.isEmpty
+
+        do {
+            try await database.write { db in
+                try SQLiteHome.insert {
+                    SQLiteHome(
+                        id: newHomeID,
+                        name: saveName,
+                        address1: saveAddr1,
+                        address2: saveAddr2,
+                        city: saveCity,
+                        state: saveState,
+                        zip: saveZip,
+                        country: saveCountry,
+                        imageURL: saveImageURL,
+                        isPrimary: shouldBePrimary,
+                        colorName: "green"
+                    )
+                }.execute(db)
+
+                // Create default locations
+                for roomData in TestData.defaultRooms {
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(
+                            id: UUID(),
+                            name: roomData.name,
+                            desc: roomData.desc,
+                            sfSymbolName: roomData.sfSymbol,
+                            homeID: newHomeID
+                        )
+                    }.execute(db)
+                }
+            }
+
+            TelemetryManager.shared.trackLocationCreated(name: saveAddr1)
+            dismissView()
+        } catch {
+            print("Error saving home: \(error)")
         }
     }
 
@@ -323,13 +379,12 @@ struct EditHomeView: View {
     }
 }
 
-//#Preview {
-//    do {
-//        let previewer = try Previewer()
-//
-//        return EditHomeView()
-//            .modelContainer(previewer.container)
-//    } catch {
-//        return Text("Failed to create preview: \(error.localizedDescription)")
-//    }
-//}
+#Preview {
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    NavigationStack {
+        EditHomeView()
+            .environmentObject(Router())
+    }
+}

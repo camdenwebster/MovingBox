@@ -1,20 +1,27 @@
+import Dependencies
 import PhotosUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
 struct OnboardingHomeView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
-    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
+
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
     @State private var homeName = ""
+    @State private var imageURL: URL?
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
-    @State private var tempHome = Home()
 
-    private var activeHome: Home? {
+    // PhotoPickerView adapter — Home() used only as PhotoManageable bridge
+    @State private var photoAdapter = Home()
+
+    private var activeHome: SQLiteHome? {
         homes.last
     }
 
@@ -22,13 +29,35 @@ struct OnboardingHomeView: View {
     private func loadExistingData() async {
         if let existingHome = activeHome {
             homeName = existingHome.name
-            do {
-                loadedImage = try await existingHome.photo
-            } catch {
-                loadingError = error
-                print("Failed to load home photo: \(error)")
+            imageURL = existingHome.imageURL
+
+            if let url = existingHome.imageURL {
+                do {
+                    let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: url)
+                    loadedImage = thumbnail
+                } catch {
+                    do {
+                        let photo = try await OptimizedImageManager.shared.loadImage(url: url)
+                        loadedImage = photo
+                    } catch {
+                        loadingError = error
+                        print("Failed to load home photo: \(error)")
+                    }
+                }
             }
         }
+    }
+
+    private var photoAdapterBinding: Binding<Home> {
+        Binding(
+            get: {
+                photoAdapter.imageURL = imageURL
+                return photoAdapter
+            },
+            set: { newValue in
+                imageURL = newValue.imageURL
+            }
+        )
     }
 
     var body: some View {
@@ -52,12 +81,7 @@ struct OnboardingHomeView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
-                                                model: Binding(
-                                                    get: { activeHome ?? tempHome },
-                                                    set: { newValue in
-                                                        tempHome = newValue
-                                                    }
-                                                ),
+                                                model: photoAdapterBinding,
                                                 loadedImage: $loadedImage,
                                                 isLoading: $isLoading
                                             )
@@ -68,12 +92,7 @@ struct OnboardingHomeView: View {
                                         .frame(height: UIScreen.main.bounds.height / 3)
                                 } else {
                                     PhotoPickerView(
-                                        model: Binding(
-                                            get: { activeHome ?? tempHome },
-                                            set: { newValue in
-                                                tempHome = newValue
-                                            }
-                                        ),
+                                        model: photoAdapterBinding,
                                         loadedImage: $loadedImage,
                                         isLoading: $isLoading
                                     ) { isPresented in
@@ -138,26 +157,39 @@ struct OnboardingHomeView: View {
 
     @MainActor
     private func saveHomeAndContinue() async throws {
+        let saveName = homeName
+        let saveImageURL = imageURL
+
         if let existingHome = activeHome {
-            existingHome.name = homeName
-            try modelContext.save()
+            try await database.write { db in
+                try SQLiteHome.find(existingHome.id).update {
+                    $0.name = saveName
+                    $0.imageURL = saveImageURL
+                }.execute(db)
+            }
         } else {
-            let home = Home()
-            home.name = homeName
-            modelContext.insert(home)
-            try modelContext.save()
+            let newHomeID = UUID()
+            try await database.write { db in
+                try SQLiteHome.insert {
+                    SQLiteHome(
+                        id: newHomeID,
+                        name: saveName,
+                        imageURL: saveImageURL,
+                        isPrimary: true,
+                        colorName: "green"
+                    )
+                }.execute(db)
+            }
+            settings.activeHomeId = newHomeID.uuidString
         }
     }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-
-        return OnboardingHomeView()
-            .environmentObject(OnboardingManager())
-            .modelContainer(previewer.container)
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    OnboardingHomeView()
+        .environmentObject(OnboardingManager())
+        .environmentObject(SettingsManager())
 }

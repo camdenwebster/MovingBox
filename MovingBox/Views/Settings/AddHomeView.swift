@@ -5,15 +5,18 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct AddHomeView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @Query private var existingHomes: [Home]
+
+    @FetchAll(SQLiteHome.order(by: \.name), animation: .default)
+    private var existingHomes: [SQLiteHome]
 
     @State private var homeName = ""
     @State private var isCreating = false
@@ -33,7 +36,7 @@ struct AddHomeView: View {
             if let error = error {
                 Section {
                     Text(error)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                         .font(.caption)
                 }
             }
@@ -75,50 +78,52 @@ struct AddHomeView: View {
 
         do {
             let trimmedName = homeName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let newHomeID = UUID()
+            let shouldBePrimary = existingHomes.isEmpty
 
-            // Create new home with default locations and labels
-            let newHome = try await DefaultDataManager.createNewHome(
-                name: trimmedName,
-                modelContext: modelContext
-            )
+            try await database.write { db in
+                try SQLiteHome.insert {
+                    SQLiteHome(
+                        id: newHomeID,
+                        name: trimmedName,
+                        isPrimary: shouldBePrimary,
+                        colorName: "green"
+                    )
+                }.execute(db)
 
-            // If this is the first home, make it primary
-            if existingHomes.isEmpty {
-                newHome.isPrimary = true
-                settings.activeHomeId = newHome.id.uuidString
+                // Create default locations for the new home
+                for roomData in TestData.defaultRooms {
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(
+                            id: UUID(),
+                            name: roomData.name,
+                            desc: roomData.desc,
+                            sfSymbolName: roomData.sfSymbol,
+                            homeID: newHomeID
+                        )
+                    }.execute(db)
+                }
             }
 
-            // Save context
-            try modelContext.save()
+            if shouldBePrimary {
+                settings.activeHomeId = newHomeID.uuidString
+            }
 
-            // Track telemetry
             TelemetryManager.shared.trackHomeCreated(name: trimmedName)
 
-            // Navigate back
-            await MainActor.run {
-                router.navigateBack()
-            }
+            router.navigateBack()
         } catch {
-            await MainActor.run {
-                self.error = "Failed to create home: \(error.localizedDescription)"
-                isCreating = false
-            }
+            self.error = "Failed to create home: \(error.localizedDescription)"
+            isCreating = false
         }
     }
 }
 
 #Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Home.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
-
-        return AddHomeView()
-            .modelContainer(container)
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-    } catch {
-        return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundColor(.red)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    AddHomeView()
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

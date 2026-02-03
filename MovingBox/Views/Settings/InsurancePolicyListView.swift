@@ -5,13 +5,19 @@
 //  Created by Claude on 1/18/26.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct InsurancePolicyListView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var router: Router
-    @Query(sort: \InsurancePolicy.providerName) private var allPolicies: [InsurancePolicy]
+
+    @FetchAll(SQLiteInsurancePolicy.order(by: \.providerName), animation: .default)
+    private var allPolicies: [SQLiteInsurancePolicy]
+
+    @FetchAll(SQLiteHomeInsurancePolicy.all)
+    private var homePolicyJoins: [SQLiteHomeInsurancePolicy]
 
     var body: some View {
         List {
@@ -23,8 +29,11 @@ struct InsurancePolicyListView: View {
                 )
             } else {
                 ForEach(allPolicies) { policy in
-                    NavigationLink(value: Router.Destination.insurancePolicyDetailView(policy: policy)) {
-                        InsurancePolicyRow(policy: policy)
+                    NavigationLink(value: Router.Destination.insurancePolicyDetailView(policyID: policy.id)) {
+                        InsurancePolicyRow(
+                            policy: policy,
+                            homeCount: homePolicyJoins.filter { $0.insurancePolicyID == policy.id }.count
+                        )
                     }
                     .accessibilityIdentifier("policy-row-\(policy.id)")
                 }
@@ -37,7 +46,7 @@ struct InsurancePolicyListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Add", systemImage: "plus") {
-                    router.navigate(to: .insurancePolicyDetailView(policy: nil))
+                    router.navigate(to: .insurancePolicyDetailView(policyID: nil))
                 }
                 .accessibilityIdentifier("insurance-add-button")
             }
@@ -47,29 +56,32 @@ struct InsurancePolicyListView: View {
     private func deletePolicy(at offsets: IndexSet) {
         for index in offsets {
             let policyToDelete = allPolicies[index]
-            // Clear relationships from homes before deleting
-            for home in policyToDelete.insuredHomes {
-                home.insurancePolicies.removeAll { $0.id == policyToDelete.id }
+            try? database.write { db in
+                // Delete join table entries first
+                try SQLiteHomeInsurancePolicy
+                    .where { $0.insurancePolicyID == policyToDelete.id }
+                    .delete()
+                    .execute(db)
+                // Delete the policy
+                try SQLiteInsurancePolicy.find(policyToDelete.id).delete().execute(db)
             }
-            modelContext.delete(policyToDelete)
         }
-        try? modelContext.save()
     }
 }
 
 // MARK: - Policy Row Component
 private struct InsurancePolicyRow: View {
-    let policy: InsurancePolicy
+    let policy: SQLiteInsurancePolicy
+    let homeCount: Int
 
     private var homeCountText: String {
-        let count = policy.insuredHomes.count
-        switch count {
+        switch homeCount {
         case 0:
             return "No homes"
         case 1:
             return "1 home"
         default:
-            return "\(count) homes"
+            return "\(homeCount) homes"
         }
     }
 
@@ -109,6 +121,9 @@ private struct InsurancePolicyRow: View {
 }
 
 #Preview {
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
     NavigationStack {
         InsurancePolicyListView()
             .environmentObject(Router())

@@ -49,7 +49,7 @@ class MockOpenAIService: OpenAIServiceProtocol {
     )
 
     func getImageDetails(
-        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+        from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter
     ) async throws -> ImageDetails {
         if shouldFail {
             throw OpenAIError.invalidData
@@ -62,7 +62,7 @@ class MockOpenAIService: OpenAIServiceProtocol {
     }
 
     func getMultiItemDetails(
-        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+        from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter
     ) async throws -> MultiItemAnalysisResponse {
         if shouldFailMultiItem {
             throw OpenAIError.invalidData

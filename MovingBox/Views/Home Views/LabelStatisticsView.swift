@@ -5,29 +5,44 @@
 //  Created by AI Assistant on 1/10/25.
 //
 
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct LabelStatisticsView: View {
-    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var allLabels: [InventoryLabel]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+
+    @FetchAll(SQLiteInventoryItemLabel.all, animation: .default)
+    private var allItemLabels: [SQLiteInventoryItemLabel]
+
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
+
     @EnvironmentObject var router: Router
-    @EnvironmentObject var settingsManager: SettingsManager
 
     private let row = GridItem(.fixed(160))
 
-    private var activeHome: Home? {
-        guard let activeIdString = settingsManager.activeHomeId,
-            let activeId = UUID(uuidString: activeIdString)
-        else {
-            return homes.first { $0.isPrimary }
-        }
-        return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
+    // Labels are global (not filtered by home)
+    private var labels: [SQLiteInventoryLabel] {
+        allLabels
     }
 
-    // Labels are global (not filtered by home)
-    private var labels: [InventoryLabel] {
-        allLabels
+    // Precomputed lookup for item counts/values per label
+    private var labelItemData: [UUID: (count: Int, value: Decimal)] {
+        var result: [UUID: (count: Int, value: Decimal)] = [:]
+        let itemsByID = Dictionary(uniqueKeysWithValues: allItems.map { ($0.id, $0) })
+        for itemLabel in allItemLabels {
+            let item = itemsByID[itemLabel.inventoryItemID]
+            let price = item.map { $0.price * Decimal($0.quantityInt) } ?? 0
+            if var existing = result[itemLabel.inventoryLabelID] {
+                existing.count += 1
+                existing.value += price
+                result[itemLabel.inventoryLabelID] = existing
+            } else {
+                result[itemLabel.inventoryLabelID] = (count: 1, value: price)
+            }
+        }
+        return result
     }
 
     var body: some View {
@@ -47,7 +62,7 @@ struct LabelStatisticsView: View {
                     Text("Add labels to categorize your items")
                 } actions: {
                     Button("Add a Label") {
-                        router.navigate(to: .editLabelView(label: nil, isEditing: true))
+                        router.navigate(to: .editLabelView(labelID: nil, isEditing: true))
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -57,10 +72,14 @@ struct LabelStatisticsView: View {
                     LazyHGrid(rows: [row], spacing: 16) {
                         ForEach(labels) { label in
                             NavigationLink(
-                                value: Router.Destination.inventoryListViewForLabel(label: label)
+                                value: Router.Destination.inventoryListViewForLabel(labelID: label.id)
                             ) {
-                                LabelItemCard(label: label)
-                                    .frame(width: 180)
+                                LabelItemCard(
+                                    label: label,
+                                    itemCount: labelItemData[label.id]?.count ?? 0,
+                                    totalValue: labelItemData[label.id]?.value ?? 0
+                                )
+                                .frame(width: 180)
                             }
                         }
                     }
@@ -75,13 +94,10 @@ struct LabelStatisticsView: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return LabelStatisticsView()
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    LabelStatisticsView()
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }
