@@ -50,7 +50,7 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                 } label: {
                     Image(systemName: "photo")
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .padding(8)
                         .background(Circle().fill(.black.opacity(0.6)))
                         .padding(8)

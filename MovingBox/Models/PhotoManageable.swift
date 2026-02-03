@@ -2,7 +2,6 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-@MainActor
 protocol PhotoManageable {
     var imageURL: URL? { get set }
     var secondaryPhotoURLs: [String] { get set }

@@ -115,8 +115,12 @@ struct LocationSettingsView: View {
         let locationsToDelete = offsets.map { filteredLocations[$0] }
         for location in locationsToDelete {
             TelemetryManager.shared.trackLocationDeleted()
-            try? database.write { db in
-                try SQLiteInventoryLocation.find(location.id).delete().execute(db)
+            do {
+                try database.write { db in
+                    try SQLiteInventoryLocation.find(location.id).delete().execute(db)
+                }
+            } catch {
+                print("Error deleting location: \(error)")
             }
         }
     }

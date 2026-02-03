@@ -223,7 +223,7 @@ struct DataDeletionView: View {
 
                     // Give time for dismiss animation and SwiftData to process changes
                     // The 1s delay in the service + 500ms here = 1.5s total
-                    try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+                    try? await Task.sleep(for: .milliseconds(500))
 
                     // Clear navigation to go back to top-level settings view
                     // User can manually navigate to Dashboard when ready
@@ -240,11 +240,11 @@ struct DataDeletionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                         .font(.title2)
                     Text("Warning")
                         .font(.headline)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                 }
 
                 Text("This will permanently delete all your inventory data including:")
@@ -257,7 +257,7 @@ struct DataDeletionView: View {
                     Label("Home information and settings", systemImage: "house")
                 }
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             }
             .padding(.vertical, 8)
         }
@@ -301,7 +301,7 @@ struct DataDeletionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("To confirm deletion, type \"\(requiredConfirmationText)\" below:")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 TextField("Type \(requiredConfirmationText)", text: $confirmationText)
                     .textFieldStyle(.roundedBorder)
@@ -324,10 +324,10 @@ struct DataDeletionView: View {
                         }
                     }
                     .font(.headline)
-                    .foregroundColor(isConfirmationValid && !isDeleting ? Color.red : Color.gray)
+                    .foregroundStyle(isConfirmationValid && !isDeleting ? Color.red : Color.gray)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .cornerRadius(UIConstants.cornerRadius)
+                    .clipShape(.rect(cornerRadius: UIConstants.cornerRadius))
                 }
                 .backport.glassButtonStyle()
                 .disabled(!isConfirmationValid || isDeleting)
@@ -339,7 +339,7 @@ struct DataDeletionView: View {
                 "This action is irreversible. Make sure you have exported your data if you want to keep a backup."
             )
             .font(.footnote)
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
         }
     }
 

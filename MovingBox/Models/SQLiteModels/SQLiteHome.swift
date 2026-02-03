@@ -16,7 +16,7 @@ nonisolated struct SQLiteHome: Hashable, Identifiable {
     @Column(as: Decimal.TextRepresentation.self)
     var purchasePrice: Decimal = 0
     var imageURL: URL?
-    @Column(as: JSONArrayRepresentation<String>.self)
+    @Column(as: [String].JSONRepresentation.self)
     var secondaryPhotoURLs: [String] = []
     var isPrimary: Bool = false
     var colorName: String = "green"

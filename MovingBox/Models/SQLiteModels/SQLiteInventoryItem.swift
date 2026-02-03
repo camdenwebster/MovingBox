@@ -26,7 +26,7 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
 
     // MARK: - Images
     var imageURL: URL?
-    @Column(as: JSONArrayRepresentation<String>.self)
+    @Column(as: [String].JSONRepresentation.self)
     var secondaryPhotoURLs: [String] = []
 
     // MARK: - AI & Metadata
@@ -41,7 +41,7 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
     var hasWarranty: Bool = false
 
     // MARK: - Attachments
-    @Column(as: JSONArrayRepresentation<AttachmentInfo>.self)
+    @Column(as: [AttachmentInfo].JSONRepresentation.self)
     var attachments: [AttachmentInfo] = []
 
     // MARK: - Physical Properties

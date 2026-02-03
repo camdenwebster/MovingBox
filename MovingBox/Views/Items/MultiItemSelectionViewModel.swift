@@ -378,17 +378,11 @@ final class MultiItemSelectionViewModel {
 
     /// Get the label that would be matched for a detected item (for preview in card)
     func getMatchingLabel(for item: DetectedInventoryItem) -> SQLiteInventoryLabel? {
-        // This is called from the UI thread, use a synchronous approach
-        var result: SQLiteInventoryLabel?
-        let category = item.category
-        Task {
-            let existingLabels =
-                (try? await database.read { db in
-                    try SQLiteInventoryLabel.all.fetchAll(db)
-                }) ?? []
-            result = findMatchingLabel(for: category, in: existingLabels)
-        }
-        return result
+        let existingLabels =
+            (try? database.read { db in
+                try SQLiteInventoryLabel.fetchAll(db)
+            }) ?? []
+        return findMatchingLabel(for: item.category, in: existingLabels)
     }
 }
 

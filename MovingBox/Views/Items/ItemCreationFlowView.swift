@@ -328,24 +328,28 @@ struct ItemCreationFlowView: View {
             // Save updated item to SQLite
             if let currentItem = self.item {
                 let itemToSave = currentItem
-                try? await database.write { db in
-                    try SQLiteInventoryItem.find(itemToSave.id).update {
-                        $0.title = itemToSave.title
-                        $0.desc = itemToSave.desc
-                        $0.model = itemToSave.model
-                        $0.make = itemToSave.make
-                        $0.price = itemToSave.price
-                        $0.serial = itemToSave.serial
-                        $0.notes = itemToSave.notes
-                        $0.dimensionLength = itemToSave.dimensionLength
-                        $0.dimensionWidth = itemToSave.dimensionWidth
-                        $0.dimensionHeight = itemToSave.dimensionHeight
-                        $0.dimensionUnit = itemToSave.dimensionUnit
-                        $0.weightValue = itemToSave.weightValue
-                        $0.weightUnit = itemToSave.weightUnit
-                        $0.condition = itemToSave.condition
-                        $0.hasUsedAI = itemToSave.hasUsedAI
-                    }.execute(db)
+                do {
+                    try await database.write { db in
+                        try SQLiteInventoryItem.find(itemToSave.id).update {
+                            $0.title = itemToSave.title
+                            $0.desc = itemToSave.desc
+                            $0.model = itemToSave.model
+                            $0.make = itemToSave.make
+                            $0.price = itemToSave.price
+                            $0.serial = itemToSave.serial
+                            $0.notes = itemToSave.notes
+                            $0.dimensionLength = itemToSave.dimensionLength
+                            $0.dimensionWidth = itemToSave.dimensionWidth
+                            $0.dimensionHeight = itemToSave.dimensionHeight
+                            $0.dimensionUnit = itemToSave.dimensionUnit
+                            $0.weightValue = itemToSave.weightValue
+                            $0.weightUnit = itemToSave.weightUnit
+                            $0.condition = itemToSave.condition
+                            $0.hasUsedAI = itemToSave.hasUsedAI
+                        }.execute(db)
+                    }
+                } catch {
+                    print("Error saving analysis results: \(error)")
                 }
             }
         } catch let openAIError as OpenAIError {
@@ -409,24 +413,28 @@ struct ItemCreationFlowView: View {
             // Save updated item to SQLite
             if let currentItem = self.item {
                 let itemToSave = currentItem
-                try? await database.write { db in
-                    try SQLiteInventoryItem.find(itemToSave.id).update {
-                        $0.title = itemToSave.title
-                        $0.desc = itemToSave.desc
-                        $0.model = itemToSave.model
-                        $0.make = itemToSave.make
-                        $0.price = itemToSave.price
-                        $0.serial = itemToSave.serial
-                        $0.notes = itemToSave.notes
-                        $0.dimensionLength = itemToSave.dimensionLength
-                        $0.dimensionWidth = itemToSave.dimensionWidth
-                        $0.dimensionHeight = itemToSave.dimensionHeight
-                        $0.dimensionUnit = itemToSave.dimensionUnit
-                        $0.weightValue = itemToSave.weightValue
-                        $0.weightUnit = itemToSave.weightUnit
-                        $0.condition = itemToSave.condition
-                        $0.hasUsedAI = itemToSave.hasUsedAI
-                    }.execute(db)
+                do {
+                    try await database.write { db in
+                        try SQLiteInventoryItem.find(itemToSave.id).update {
+                            $0.title = itemToSave.title
+                            $0.desc = itemToSave.desc
+                            $0.model = itemToSave.model
+                            $0.make = itemToSave.make
+                            $0.price = itemToSave.price
+                            $0.serial = itemToSave.serial
+                            $0.notes = itemToSave.notes
+                            $0.dimensionLength = itemToSave.dimensionLength
+                            $0.dimensionWidth = itemToSave.dimensionWidth
+                            $0.dimensionHeight = itemToSave.dimensionHeight
+                            $0.dimensionUnit = itemToSave.dimensionUnit
+                            $0.weightValue = itemToSave.weightValue
+                            $0.weightUnit = itemToSave.weightUnit
+                            $0.condition = itemToSave.condition
+                            $0.hasUsedAI = itemToSave.hasUsedAI
+                        }.execute(db)
+                    }
+                } catch {
+                    print("Error saving analysis results: \(error)")
                 }
             }
         } catch let openAIError as OpenAIError {

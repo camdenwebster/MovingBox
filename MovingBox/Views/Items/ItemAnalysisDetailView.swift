@@ -113,28 +113,32 @@ struct ItemAnalysisDetailView: View {
         // Save updated item to SQLite
         if let currentItem = item {
             let itemToSave = currentItem
-            try? await database.write { db in
-                try SQLiteInventoryItem.find(itemToSave.id).update {
-                    $0.title = itemToSave.title
-                    $0.desc = itemToSave.desc
-                    $0.model = itemToSave.model
-                    $0.make = itemToSave.make
-                    $0.price = itemToSave.price
-                    $0.serial = itemToSave.serial
-                    $0.condition = itemToSave.condition
-                    $0.color = itemToSave.color
-                    $0.dimensionLength = itemToSave.dimensionLength
-                    $0.dimensionWidth = itemToSave.dimensionWidth
-                    $0.dimensionHeight = itemToSave.dimensionHeight
-                    $0.dimensionUnit = itemToSave.dimensionUnit
-                    $0.weightValue = itemToSave.weightValue
-                    $0.weightUnit = itemToSave.weightUnit
-                    $0.purchaseLocation = itemToSave.purchaseLocation
-                    $0.replacementCost = itemToSave.replacementCost
-                    $0.storageRequirements = itemToSave.storageRequirements
-                    $0.isFragile = itemToSave.isFragile
-                    $0.hasUsedAI = itemToSave.hasUsedAI
-                }.execute(db)
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryItem.find(itemToSave.id).update {
+                        $0.title = itemToSave.title
+                        $0.desc = itemToSave.desc
+                        $0.model = itemToSave.model
+                        $0.make = itemToSave.make
+                        $0.price = itemToSave.price
+                        $0.serial = itemToSave.serial
+                        $0.condition = itemToSave.condition
+                        $0.color = itemToSave.color
+                        $0.dimensionLength = itemToSave.dimensionLength
+                        $0.dimensionWidth = itemToSave.dimensionWidth
+                        $0.dimensionHeight = itemToSave.dimensionHeight
+                        $0.dimensionUnit = itemToSave.dimensionUnit
+                        $0.weightValue = itemToSave.weightValue
+                        $0.weightUnit = itemToSave.weightUnit
+                        $0.purchaseLocation = itemToSave.purchaseLocation
+                        $0.replacementCost = itemToSave.replacementCost
+                        $0.storageRequirements = itemToSave.storageRequirements
+                        $0.isFragile = itemToSave.isFragile
+                        $0.hasUsedAI = itemToSave.hasUsedAI
+                    }.execute(db)
+                }
+            } catch {
+                print("Error saving analysis results: \(error)")
             }
         }
     }

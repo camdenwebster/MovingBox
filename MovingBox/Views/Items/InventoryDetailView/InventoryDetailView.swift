@@ -1460,10 +1460,14 @@ struct InventoryDetailView: View {
     private func addLocation() {
         let locationID = UUID()
         Task {
-            try? await database.write { db in
-                try SQLiteInventoryLocation.insert {
-                    SQLiteInventoryLocation(id: locationID, name: "")
-                }.execute(db)
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(id: locationID, name: "")
+                    }.execute(db)
+                }
+            } catch {
+                print("Error creating location: \(error)")
             }
             TelemetryManager.shared.trackLocationCreated(name: "")
             item.locationID = locationID
@@ -1474,10 +1478,14 @@ struct InventoryDetailView: View {
     private func addLabel() {
         let labelID = UUID()
         Task {
-            try? await database.write { db in
-                try SQLiteInventoryLabel.insert {
-                    SQLiteInventoryLabel(id: labelID, name: "")
-                }.execute(db)
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryLabel.insert {
+                        SQLiteInventoryLabel(id: labelID, name: "")
+                    }.execute(db)
+                }
+            } catch {
+                print("Error creating label: \(error)")
             }
             sqliteSelectedLabels = [SQLiteInventoryLabel(id: labelID, name: "")]
             router.navigate(to: .editLabelView(labelID: labelID, isEditing: true))
@@ -1690,9 +1698,13 @@ struct InventoryDetailView: View {
 
             // Delete from SQLite
             let id = item.id
-            try? await database.write { db in
-                try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
-                try SQLiteInventoryItem.find(id).delete().execute(db)
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
+                    try SQLiteInventoryItem.find(id).delete().execute(db)
+                }
+            } catch {
+                print("Error deleting item: \(error)")
             }
 
             onCancel?()
@@ -1719,9 +1731,13 @@ struct InventoryDetailView: View {
 
         // Delete from SQLite
         let id = item.id
-        try? await database.write { db in
-            try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
-            try SQLiteInventoryItem.find(id).delete().execute(db)
+        do {
+            try await database.write { db in
+                try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
+                try SQLiteInventoryItem.find(id).delete().execute(db)
+            }
+        } catch {
+            print("Error deleting item: \(error)")
         }
 
         dismiss()
@@ -1732,53 +1748,58 @@ struct InventoryDetailView: View {
     private func loadItemFromSQLite() async {
         let id = itemID
 
-        // Load the item
-        if let loadedItem = try? await database.read({ db in
-            try SQLiteInventoryItem.find(id).fetchOne(db)
-        }) {
-            item = loadedItem
-            displayPriceString = formatInitialPrice(loadedItem.price)
-        }
+        do {
+            let result = try await database.read {
+                db -> (
+                    item: SQLiteInventoryItem?,
+                    location: SQLiteInventoryLocation?,
+                    home: SQLiteHome?,
+                    labels: [SQLiteInventoryLabel],
+                    aiCount: Int
+                ) in
+                let loadedItem = try SQLiteInventoryItem.find(id).fetchOne(db)
 
-        // Load related location
-        if let locationID = item.locationID {
-            sqliteSelectedLocation = try? await database.read { db in
-                try SQLiteInventoryLocation.find(locationID).fetchOne(db)
-            }
-        }
+                let location: SQLiteInventoryLocation? =
+                    if let locationID = loadedItem?.locationID {
+                        try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+                    } else {
+                        nil
+                    }
 
-        // Load related home
-        if let homeID = item.homeID {
-            sqliteSelectedHome = try? await database.read { db in
-                try SQLiteHome.find(homeID).fetchOne(db)
-            }
-        }
+                let home: SQLiteHome? =
+                    if let homeID = loadedItem?.homeID {
+                        try SQLiteHome.find(homeID).fetchOne(db)
+                    } else {
+                        nil
+                    }
 
-        // Load labels via join table
-        let joinRows =
-            (try? await database.read { db in
-                try SQLiteInventoryItemLabel
+                let joinRows =
+                    try SQLiteInventoryItemLabel
                     .where { $0.inventoryItemID == id }
                     .fetchAll(db)
-            }) ?? []
+                let labels: [SQLiteInventoryLabel] = try joinRows.compactMap { join in
+                    try SQLiteInventoryLabel.find(join.inventoryLabelID).fetchOne(db)
+                }
 
-        if !joinRows.isEmpty {
-            let labelIDs = joinRows.map(\.inventoryLabelID)
-            sqliteSelectedLabels =
-                (try? await database.read { db in
-                    try labelIDs.compactMap { labelID in
-                        try SQLiteInventoryLabel.find(labelID).fetchOne(db)
-                    }
-                }) ?? []
-        }
-
-        // Load AI analysis count for paywall logic
-        aiAnalysisCount =
-            (try? await database.read { db in
-                try SQLiteInventoryItem
+                let aiCount =
+                    try SQLiteInventoryItem
                     .where { $0.hasUsedAI == true }
-                    .fetchAll(db).count
-            }) ?? 0
+                    .fetchCount(db)
+
+                return (loadedItem, location, home, labels, aiCount)
+            }
+
+            if let loadedItem = result.item {
+                item = loadedItem
+                displayPriceString = formatInitialPrice(loadedItem.price)
+            }
+            sqliteSelectedLocation = result.location
+            sqliteSelectedHome = result.home
+            sqliteSelectedLabels = result.labels
+            aiAnalysisCount = result.aiCount
+        } catch {
+            print("Error loading item data: \(error)")
+        }
 
         // Load images
         await loadAllImages()

@@ -1288,34 +1288,39 @@ actor DataManager {
                 .order(by: \.title)
                 .fetchAll(db)
 
+            // Pre-fetch all related data into lookup dictionaries
+            let allLocations = try SQLiteInventoryLocation.fetchAll(db)
+            let locationsByID = Dictionary(uniqueKeysWithValues: allLocations.map { ($0.id, $0) })
+
+            let allHomes = try SQLiteHome.fetchAll(db)
+            let homesByID = Dictionary(uniqueKeysWithValues: allHomes.map { ($0.id, $0) })
+
+            let allItemLabels = try SQLiteInventoryItemLabel.fetchAll(db)
+            let itemLabelsByItemID = Dictionary(grouping: allItemLabels, by: \.inventoryItemID)
+
+            let allLabels = try SQLiteInventoryLabel.fetchAll(db)
+            let labelsByID = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
+
             var allItemData: [ItemData] = []
             var allPhotoURLs: [URL] = []
 
             for item in items {
-                // Get location name and home name via foreign keys
                 var locationName = ""
                 var homeName = ""
-                if let locationID = item.locationID {
-                    if let location = try SQLiteInventoryLocation.find(locationID).fetchOne(db) {
-                        locationName = location.name
-                        if let homeID = location.homeID {
-                            if let home = try SQLiteHome.find(homeID).fetchOne(db) {
-                                homeName = home.name
-                            }
-                        }
+                if let locationID = item.locationID,
+                    let location = locationsByID[locationID]
+                {
+                    locationName = location.name
+                    if let homeID = location.homeID, let home = homesByID[homeID] {
+                        homeName = home.name
                     }
                 }
 
-                // Get first label name via join table
                 var labelName = ""
-                let itemLabels =
-                    try SQLiteInventoryItemLabel
-                    .where { itemLabel in itemLabel.inventoryItemID == item.id }
-                    .fetchAll(db)
-                if let firstItemLabel = itemLabels.first {
-                    if let label = try SQLiteInventoryLabel.find(firstItemLabel.inventoryLabelID).fetchOne(db) {
-                        labelName = label.name
-                    }
+                if let firstItemLabel = itemLabelsByItemID[item.id]?.first,
+                    let label = labelsByID[firstItemLabel.inventoryLabelID]
+                {
+                    labelName = label.name
                 }
 
                 allItemData.append(

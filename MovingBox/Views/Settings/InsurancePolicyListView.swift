@@ -56,14 +56,18 @@ struct InsurancePolicyListView: View {
     private func deletePolicy(at offsets: IndexSet) {
         for index in offsets {
             let policyToDelete = allPolicies[index]
-            try? database.write { db in
-                // Delete join table entries first
-                try SQLiteHomeInsurancePolicy
-                    .where { $0.insurancePolicyID == policyToDelete.id }
-                    .delete()
-                    .execute(db)
-                // Delete the policy
-                try SQLiteInsurancePolicy.find(policyToDelete.id).delete().execute(db)
+            do {
+                try database.write { db in
+                    // Delete join table entries first
+                    try SQLiteHomeInsurancePolicy
+                        .where { $0.insurancePolicyID == policyToDelete.id }
+                        .delete()
+                        .execute(db)
+                    // Delete the policy
+                    try SQLiteInsurancePolicy.find(policyToDelete.id).delete().execute(db)
+                }
+            } catch {
+                print("Error deleting policy: \(error)")
             }
         }
     }

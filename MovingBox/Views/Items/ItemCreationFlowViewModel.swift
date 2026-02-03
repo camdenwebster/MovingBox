@@ -358,50 +358,54 @@ class ItemCreationFlowViewModel: ObservableObject {
 
             // Save updated item to SQLite
             let updatedItem = item
-            try? await database.write { db in
-                try SQLiteInventoryItem.find(updatedItem.id).update {
-                    $0.title = updatedItem.title
-                    $0.quantityString = updatedItem.quantityString
-                    $0.quantityInt = updatedItem.quantityInt
-                    $0.desc = updatedItem.desc
-                    $0.serial = updatedItem.serial
-                    $0.model = updatedItem.model
-                    $0.make = updatedItem.make
-                    $0.price = updatedItem.price
-                    $0.condition = updatedItem.condition
-                    $0.color = updatedItem.color
-                    $0.purchaseLocation = updatedItem.purchaseLocation
-                    $0.replacementCost = updatedItem.replacementCost
-                    $0.depreciationRate = updatedItem.depreciationRate
-                    $0.storageRequirements = updatedItem.storageRequirements
-                    $0.isFragile = updatedItem.isFragile
-                    $0.dimensionLength = updatedItem.dimensionLength
-                    $0.dimensionWidth = updatedItem.dimensionWidth
-                    $0.dimensionHeight = updatedItem.dimensionHeight
-                    $0.dimensionUnit = updatedItem.dimensionUnit
-                    $0.weightValue = updatedItem.weightValue
-                    $0.weightUnit = updatedItem.weightUnit
-                    $0.hasUsedAI = updatedItem.hasUsedAI
-                    $0.locationID = updatedItem.locationID
-                }.execute(db)
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryItem.find(updatedItem.id).update {
+                        $0.title = updatedItem.title
+                        $0.quantityString = updatedItem.quantityString
+                        $0.quantityInt = updatedItem.quantityInt
+                        $0.desc = updatedItem.desc
+                        $0.serial = updatedItem.serial
+                        $0.model = updatedItem.model
+                        $0.make = updatedItem.make
+                        $0.price = updatedItem.price
+                        $0.condition = updatedItem.condition
+                        $0.color = updatedItem.color
+                        $0.purchaseLocation = updatedItem.purchaseLocation
+                        $0.replacementCost = updatedItem.replacementCost
+                        $0.depreciationRate = updatedItem.depreciationRate
+                        $0.storageRequirements = updatedItem.storageRequirements
+                        $0.isFragile = updatedItem.isFragile
+                        $0.dimensionLength = updatedItem.dimensionLength
+                        $0.dimensionWidth = updatedItem.dimensionWidth
+                        $0.dimensionHeight = updatedItem.dimensionHeight
+                        $0.dimensionUnit = updatedItem.dimensionUnit
+                        $0.weightValue = updatedItem.weightValue
+                        $0.weightUnit = updatedItem.weightUnit
+                        $0.hasUsedAI = updatedItem.hasUsedAI
+                        $0.locationID = updatedItem.locationID
+                    }.execute(db)
 
-                // Save matched labels
-                let categoriesToMatch =
-                    imageDetails.categories.isEmpty
-                    ? [imageDetails.category] : imageDetails.categories
-                for categoryName in categoriesToMatch {
-                    if let matchedLabel = labels.first(where: {
-                        $0.name.lowercased() == categoryName.lowercased()
-                    }) {
-                        try SQLiteInventoryItemLabel.insert {
-                            SQLiteInventoryItemLabel(
-                                id: UUID(),
-                                inventoryItemID: updatedItem.id,
-                                inventoryLabelID: matchedLabel.id
-                            )
-                        }.execute(db)
+                    // Save matched labels
+                    let categoriesToMatch =
+                        imageDetails.categories.isEmpty
+                        ? [imageDetails.category] : imageDetails.categories
+                    for categoryName in categoriesToMatch {
+                        if let matchedLabel = labels.first(where: {
+                            $0.name.lowercased() == categoryName.lowercased()
+                        }) {
+                            try SQLiteInventoryItemLabel.insert {
+                                SQLiteInventoryItemLabel(
+                                    id: UUID(),
+                                    inventoryItemID: updatedItem.id,
+                                    inventoryLabelID: matchedLabel.id
+                                )
+                            }.execute(db)
+                        }
                     }
                 }
+            } catch {
+                print("Error saving analysis results: \(error)")
             }
 
             await MainActor.run {

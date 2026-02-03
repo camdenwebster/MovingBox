@@ -179,10 +179,14 @@ final class HomeDetailSettingsViewModel {
 
             // Update all other homes to not be primary
             for otherHome in allHomes where otherHome.id != homeID {
-                try? database.write { db in
-                    try SQLiteHome.find(otherHome.id).update {
-                        $0.isPrimary = false
-                    }.execute(db)
+                do {
+                    try database.write { db in
+                        try SQLiteHome.find(otherHome.id).update {
+                            $0.isPrimary = false
+                        }.execute(db)
+                    }
+                } catch {
+                    print("Error updating home primary status: \(error)")
                 }
             }
         } else {
@@ -190,10 +194,14 @@ final class HomeDetailSettingsViewModel {
             // Find another home to make primary
             let homeID = originalHomeID ?? UUID()
             if let firstOther = allHomes.first(where: { $0.id != homeID }) {
-                try? database.write { db in
-                    try SQLiteHome.find(firstOther.id).update {
-                        $0.isPrimary = true
-                    }.execute(db)
+                do {
+                    try database.write { db in
+                        try SQLiteHome.find(firstOther.id).update {
+                            $0.isPrimary = true
+                        }.execute(db)
+                    }
+                } catch {
+                    print("Error updating home primary status: \(error)")
                 }
                 settings.activeHomeId = firstOther.id.uuidString
             }
@@ -314,10 +322,14 @@ final class HomeDetailSettingsViewModel {
         // If deleting primary home, make another home primary first
         if isPrimary {
             if let firstOther = allHomes.first(where: { $0.id != originalHomeID }) {
-                try? database.write { db in
-                    try SQLiteHome.find(firstOther.id).update {
-                        $0.isPrimary = true
-                    }.execute(db)
+                do {
+                    try database.write { db in
+                        try SQLiteHome.find(firstOther.id).update {
+                            $0.isPrimary = true
+                        }.execute(db)
+                    }
+                } catch {
+                    print("Error updating home primary status: \(error)")
                 }
                 settings.activeHomeId = firstOther.id.uuidString
             }

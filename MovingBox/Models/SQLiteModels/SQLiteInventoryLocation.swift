@@ -8,7 +8,7 @@ nonisolated struct SQLiteInventoryLocation: Hashable, Identifiable {
     var desc: String = ""
     var sfSymbolName: String?
     var imageURL: URL?
-    @Column(as: JSONArrayRepresentation<String>.self)
+    @Column(as: [String].JSONRepresentation.self)
     var secondaryPhotoURLs: [String] = []
     var homeID: SQLiteHome.ID?
 
