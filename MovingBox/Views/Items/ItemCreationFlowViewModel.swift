@@ -24,10 +24,10 @@ class ItemCreationFlowViewModel: ObservableObject {
     /// SwiftData context for saving items
     var modelContext: ModelContext?
 
-    /// OpenAI service for image analysis (injected for testing)
-    private let openAIService: OpenAIServiceProtocol?
+    /// AI analysis service for image analysis (injected for testing)
+    private let aiAnalysisService: AIAnalysisServiceProtocol?
 
-    /// Settings manager for OpenAI configuration
+    /// Settings manager for AI configuration
     var settingsManager: SettingsManager?
 
     /// Current step in the creation flow
@@ -129,12 +129,12 @@ class ItemCreationFlowViewModel: ObservableObject {
         captureMode: CaptureMode,
         location: InventoryLocation?,
         modelContext: ModelContext? = nil,
-        openAIService: OpenAIServiceProtocol? = nil
+        aiAnalysisService: AIAnalysisServiceProtocol? = nil
     ) {
         self.captureMode = captureMode
         self.location = location
         self.modelContext = modelContext
-        self.openAIService = openAIService
+        self.aiAnalysisService = aiAnalysisService
     }
 
     /// Update the model context (called after view initialization)
@@ -155,9 +155,9 @@ class ItemCreationFlowViewModel: ObservableObject {
         print("📋 ItemCreationFlowViewModel - Navigation flow: \(navigationFlow.map { $0.displayName })")
     }
 
-    /// Create OpenAI service with mock support for UI testing
-    private func createOpenAIService() -> OpenAIServiceProtocol {
-        return OpenAIServiceFactory.create()
+    /// Create AI analysis service with mock support for UI testing
+    private func createAIAnalysisService() -> AIAnalysisServiceProtocol {
+        return AIAnalysisServiceFactory.create()
     }
 
     // MARK: - Navigation Methods
@@ -257,8 +257,8 @@ class ItemCreationFlowViewModel: ObservableObject {
                 }
             } catch {
                 print("❌ ItemCreationFlowViewModel: Analysis error: \(error)")
-                if let openAIError = error as? OpenAIError {
-                    print("   OpenAI Error Details: \(openAIError)")
+                if let aiAnalysisError = error as? AIAnalysisError {
+                    print("   AI Analysis Error Details: \(aiAnalysisError)")
                 }
                 await MainActor.run {
                     let detailedError =
@@ -357,9 +357,9 @@ class ItemCreationFlowViewModel: ObservableObject {
                 return
             }
 
-            let openAi = openAIService ?? createOpenAIService()
-            print("🔍 ItemCreationFlowViewModel: Using OpenAI service: \(type(of: openAi))")
-            let imageDetails = try await openAi.getImageDetails(
+            let aiService = aiAnalysisService ?? createAIAnalysisService()
+            print("🔍 ItemCreationFlowViewModel: Using AI service: \(type(of: aiService))")
+            let imageDetails = try await aiService.getImageDetails(
                 from: capturedImages,
                 settings: settings,
                 modelContext: context
@@ -399,8 +399,8 @@ class ItemCreationFlowViewModel: ObservableObject {
 
         } catch {
             print("❌ ItemCreationFlowViewModel (Single): Analysis error: \(error)")
-            if let openAIError = error as? OpenAIError {
-                print("   OpenAI Error Details: \(openAIError)")
+            if let aiAnalysisError = error as? AIAnalysisError {
+                print("   AI Analysis Error Details: \(aiAnalysisError)")
             }
             await MainActor.run {
                 let detailedError =
@@ -440,9 +440,9 @@ class ItemCreationFlowViewModel: ObservableObject {
             let originalHighDetail = settings.isHighDetail
             settings.isHighDetail = true
 
-            let openAi = openAIService ?? createOpenAIService()
-            print("🔍 ItemCreationFlowViewModel (Multi-Item): Using OpenAI service: \(type(of: openAi))")
-            let response = try await openAi.getMultiItemDetails(
+            let aiService = aiAnalysisService ?? createAIAnalysisService()
+            print("🔍 ItemCreationFlowViewModel (Multi-Item): Using AI service: \(type(of: aiService))")
+            let response = try await aiService.getMultiItemDetails(
                 from: capturedImages,
                 settings: settings,
                 modelContext: context
@@ -461,8 +461,8 @@ class ItemCreationFlowViewModel: ObservableObject {
 
         } catch {
             print("❌ ItemCreationFlowViewModel (Multi-Item): Analysis error: \(error)")
-            if let openAIError = error as? OpenAIError {
-                print("   OpenAI Error Details: \(openAIError)")
+            if let aiAnalysisError = error as? AIAnalysisError {
+                print("   AI Analysis Error Details: \(aiAnalysisError)")
             }
             await MainActor.run {
                 let detailedError =

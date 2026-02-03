@@ -124,7 +124,7 @@ struct MovingBoxApp: App {
                 options.enableAppHangTracking = !isRunningTests
             }
 
-            // Network Tracking - limit to OpenAI API only for privacy (all configs)
+            // Network Tracking - limit to AIProxy API only for privacy (all configs)
             options.tracePropagationTargets = ["api.aiproxy.com"]
 
             #if DEBUG

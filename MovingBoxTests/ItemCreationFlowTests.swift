@@ -310,14 +310,14 @@ import UIKit
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        let mockOpenAIService = MockOpenAIService()
+        let mockAIService = MockAIAnalysisService()
         let mockSettings = MockSettingsManager()
 
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .singleItem,
             location: nil,
             modelContext: context,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 
@@ -354,20 +354,20 @@ import UIKit
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        let mockOpenAIService = MockOpenAIService()
+        let mockAIService = MockAIAnalysisService()
         let mockSettings = MockSettingsManager()
 
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
             location: nil,
             modelContext: context,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 
         // Set up mock response
         let mockResponse = createMockMultiItemAnalysisResponse()
-        mockOpenAIService.mockMultiItemResponse = mockResponse
+        mockAIService.mockMultiItemResponse = mockResponse
 
         // Set up for analysis
         viewModel.capturedImages = createTestImages(count: 1)
@@ -385,15 +385,15 @@ import UIKit
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        let mockOpenAIService = MockOpenAIService()
-        mockOpenAIService.shouldFailMultiItem = true
+        let mockAIService = MockAIAnalysisService()
+        mockAIService.shouldFailMultiItem = true
         let mockSettings = MockSettingsManager()
 
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
             location: nil,
             modelContext: context,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 

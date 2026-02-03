@@ -317,20 +317,20 @@ struct ItemCreationFlowView: View {
         do {
             // Prepare image for AI
             guard await OptimizedImageManager.shared.prepareImageForAI(from: image) != nil else {
-                throw OpenAIError.invalidData
+                throw AIAnalysisError.invalidData
             }
 
-            // Create OpenAI service and get image details
-            let openAi = OpenAIServiceFactory.create()
+            // Create AI analysis service and get image details
+            let aiService = AIAnalysisServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            print("Calling OpenAI for image analysis...")
-            let imageDetails = try await openAi.getImageDetails(
+            print("Calling AI service for image analysis...")
+            let imageDetails = try await aiService.getImageDetails(
                 from: [capturedImage].compactMap { $0 },
                 settings: settings,
                 modelContext: modelContext
             )
-            print("OpenAI analysis complete, updating item...")
+            print("AI analysis complete, updating item...")
 
             // Update the item with the results
             await MainActor.run {
@@ -348,9 +348,9 @@ struct ItemCreationFlowView: View {
                 analysisComplete = true
                 print("Analysis complete, item updated")
             }
-        } catch let openAIError as OpenAIError {
+        } catch let aiAnalysisError as AIAnalysisError {
             await MainActor.run {
-                switch openAIError {
+                switch aiAnalysisError {
                 case .invalidURL:
                     errorMessage = "Invalid URL configuration"
                 case .invalidResponse:
@@ -360,7 +360,7 @@ struct ItemCreationFlowView: View {
                 case .rateLimitExceeded:
                     errorMessage = "Rate limit exceeded, please try again later"
                 case .serverError(_):
-                    errorMessage = "Server error: \(openAIError.localizedDescription)"
+                    errorMessage = "Server error: \(aiAnalysisError.localizedDescription)"
                 case .networkCancelled:
                     errorMessage = "Request was cancelled. Please try again."
                 case .networkTimeout:
@@ -397,20 +397,20 @@ struct ItemCreationFlowView: View {
                 from: images)
 
             guard !imageBase64Array.isEmpty else {
-                throw OpenAIError.invalidData
+                throw AIAnalysisError.invalidData
             }
 
-            // Create OpenAI service with multiple images and get image details
-            let openAi = OpenAIServiceFactory.create()
+            // Create AI analysis service with multiple images and get image details
+            let aiService = AIAnalysisServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            print("Calling OpenAI for multi-image analysis...")
-            let imageDetails = try await openAi.getImageDetails(
+            print("Calling AI service for multi-image analysis...")
+            let imageDetails = try await aiService.getImageDetails(
                 from: capturedImages,
                 settings: settings,
                 modelContext: modelContext
             )
-            print("OpenAI multi-image analysis complete, updating item...")
+            print("AI multi-image analysis complete, updating item...")
 
             // Update the item with the results
             await MainActor.run {
@@ -434,9 +434,9 @@ struct ItemCreationFlowView: View {
                 analysisComplete = true
                 print("Multi-image analysis complete, item updated")
             }
-        } catch let openAIError as OpenAIError {
+        } catch let aiAnalysisError as AIAnalysisError {
             await MainActor.run {
-                switch openAIError {
+                switch aiAnalysisError {
                 case .invalidURL:
                     errorMessage = "Invalid URL configuration"
                 case .invalidResponse:
@@ -446,7 +446,7 @@ struct ItemCreationFlowView: View {
                 case .rateLimitExceeded:
                     errorMessage = "Rate limit exceeded, please try again later"
                 case .serverError(_):
-                    errorMessage = "Server error: \(openAIError.localizedDescription)"
+                    errorMessage = "Server error: \(aiAnalysisError.localizedDescription)"
                 case .networkCancelled:
                     errorMessage = "Request was cancelled. Please try again."
                 case .networkTimeout:

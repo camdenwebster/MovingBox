@@ -287,8 +287,8 @@ struct BatchAnalysisView: View {
         }
 
         // Perform AI analysis
-        let openAI = OpenAIServiceFactory.create()
-        let imageDetails = try await openAI.getImageDetails(
+        let aiService = AIAnalysisServiceFactory.create()
+        let imageDetails = try await aiService.getImageDetails(
             from: images,
             settings: settings,
             modelContext: modelContext

@@ -433,23 +433,30 @@ struct NotificationSettingsView: View {
 struct AISettingsView: View {
     @State private var isEditing = false
     @EnvironmentObject var settings: SettingsManager
-    let models = ["gpt-4o", "gpt-4o-mini"]
+    private let modelOptions: [(id: String, label: String)] = [
+        ("google/gemini-3-flash-preview", "Gemini 3 Flash")
+    ]
     @FocusState private var isApiKeyFieldFocused: Bool
+
+    private var currentModelLabel: String {
+        modelOptions.first(where: { $0.id == settings.aiModel })?.label ?? settings.aiModel
+    }
 
     var body: some View {
         Form {
             Section(header: Text("Model Settings")) {
                 if isEditing {
                     Picker("Model", selection: $settings.aiModel) {
-                        ForEach(models, id: \.self) { model in
-                            Text(model)
+                        ForEach(modelOptions, id: \.id) { option in
+                            Text(option.label)
+                                .tag(option.id)
                         }
                     }
                 } else {
                     HStack {
                         Text("Model")
                         Spacer()
-                        Text(settings.aiModel)
+                        Text(currentModelLabel)
                             .foregroundStyle(.secondary)
                     }
                 }

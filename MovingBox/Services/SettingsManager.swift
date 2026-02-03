@@ -128,7 +128,7 @@ class SettingsManager: ObservableObject {
     private let revenueCatManager = RevenueCatManager.shared
 
     // Default values
-    private let defaultAIModel = "gpt-4o"
+    private let defaultAIModel = "google/gemini-3-flash-preview"
     private let defaultTemperature = 0.7
     private let defaultMaxTokens = 3000
     private let defaultApiKey = ""
@@ -257,10 +257,9 @@ class SettingsManager: ObservableObject {
 
     /// Effective AI model based on Pro status and quality settings
     var effectiveAIModel: String {
-        if isPro && highQualityAnalysisEnabled {
-            return "gpt-5-mini"
-        }
-        return "gpt-4o"
+        // For now, use the same model for all tiers
+        // Can differentiate with thinking levels later
+        return "google/gemini-3-flash-preview"
     }
 
     /// Effective image resolution for AI processing based on Pro status and quality settings
@@ -271,7 +270,7 @@ class SettingsManager: ObservableObject {
         return 512.0
     }
 
-    /// Effective detail parameter for OpenAI API based on Pro status and quality settings
+    /// Effective detail parameter for AI image processing based on Pro status and quality settings
     var effectiveDetailLevel: String {
         if isPro && highQualityAnalysisEnabled {
             return "high"

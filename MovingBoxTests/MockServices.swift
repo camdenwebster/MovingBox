@@ -12,10 +12,10 @@ import UIKit
 
 @testable import MovingBox
 
-// MARK: - Mock OpenAI Service
+// MARK: - Mock AI Analysis Service
 
 @MainActor
-class MockOpenAIService: OpenAIServiceProtocol {
+class MockAIAnalysisService: AIAnalysisServiceProtocol {
     var shouldFail = false
     var shouldFailMultiItem = false
 
@@ -52,7 +52,7 @@ class MockOpenAIService: OpenAIServiceProtocol {
         from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
     ) async throws -> ImageDetails {
         if shouldFail {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         // Simulate network delay
@@ -65,7 +65,7 @@ class MockOpenAIService: OpenAIServiceProtocol {
         from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
     ) async throws -> MultiItemAnalysisResponse {
         if shouldFailMultiItem {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         // Simulate network delay
@@ -171,10 +171,7 @@ class MockSettingsManager: SettingsManager {
     }
 
     override var effectiveAIModel: String {
-        if isPro && highQualityAnalysisEnabled {
-            return "gpt-5-mini"
-        }
-        return "gpt-4o"
+        return "google/gemini-3-flash-preview"
     }
 
     override var effectiveDetailLevel: String {

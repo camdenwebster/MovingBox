@@ -31,13 +31,13 @@ struct InventoryDetailViewModelTests {
     @MainActor
     private func createTestViewModel(
         item: InventoryItem? = nil,
-        mockOpenAI: MockOpenAIService? = nil,
+        mockAIService: MockAIAnalysisService? = nil,
         mockImageManager: MockImageManager? = nil,
         mockSettings: MockSettingsManager? = nil,
         context: ModelContext
     ) throws -> InventoryDetailViewModel {
         let testItem = item ?? InventoryItem.createTestItem(in: context)
-        let openAI = mockOpenAI ?? MockOpenAIService()
+        let aiService = mockAIService ?? MockAIAnalysisService()
         let imageManager = mockImageManager ?? MockImageManager()
         let settings = mockSettings ?? MockSettingsManager()
 
@@ -45,7 +45,7 @@ struct InventoryDetailViewModelTests {
             inventoryItem: testItem,
             settings: settings,
             modelContext: context,
-            openAIService: openAI,
+            aiAnalysisService: aiService,
             imageManager: imageManager
         )
     }
@@ -59,7 +59,7 @@ struct InventoryDetailViewModelTests {
 
         let viewModel = try createTestViewModel(context: context)
 
-        #expect(!viewModel.isLoadingOpenAiResults)
+        #expect(!viewModel.isLoadingAIResults)
         #expect(viewModel.errorMessage.isEmpty)
         #expect(!viewModel.showingErrorAlert)
         // showAIButton property exists in ViewModel
@@ -79,8 +79,8 @@ struct InventoryDetailViewModelTests {
         let container = try createTestContainer()
         let context = container.mainContext
 
-        let mockOpenAI = MockOpenAIService()
-        mockOpenAI.mockResponse = ImageDetails(
+        let mockAIService = MockAIAnalysisService()
+        mockAIService.mockResponse = ImageDetails(
             title: "Updated Title",
             quantity: "2",
             description: "AI Generated Description",
@@ -98,7 +98,7 @@ struct InventoryDetailViewModelTests {
         let item = InventoryItem.createTestItemWithImages(in: context)
         let viewModel = try createTestViewModel(
             item: item,
-            mockOpenAI: mockOpenAI,
+            mockAIService: mockAIService,
             mockImageManager: mockImageManager,
             context: context
         )
@@ -109,7 +109,7 @@ struct InventoryDetailViewModelTests {
         // Perform AI analysis
         await viewModel.performAIAnalysis(for: item, allItems: [item])
 
-        #expect(!viewModel.isLoadingOpenAiResults)
+        #expect(!viewModel.isLoadingAIResults)
         #expect(item.title == "Updated Title")
         #expect(item.quantityString == "2")
         #expect(item.desc == "AI Generated Description")
@@ -125,8 +125,8 @@ struct InventoryDetailViewModelTests {
         let container = try createTestContainer()
         let context = container.mainContext
 
-        let mockOpenAI = MockOpenAIService()
-        mockOpenAI.shouldFail = true
+        let mockAIService = MockAIAnalysisService()
+        mockAIService.shouldFail = true
 
         let mockImageManager = MockImageManager()
         mockImageManager.mockImages = [UIImage.createTestImage()]
@@ -134,7 +134,7 @@ struct InventoryDetailViewModelTests {
         let item = InventoryItem.createTestItemWithImages(in: context)
         let viewModel = try createTestViewModel(
             item: item,
-            mockOpenAI: mockOpenAI,
+            mockAIService: mockAIService,
             mockImageManager: mockImageManager,
             context: context
         )
@@ -145,7 +145,7 @@ struct InventoryDetailViewModelTests {
         // Perform AI analysis (should fail)
         await viewModel.performAIAnalysis(for: item, allItems: [item])
 
-        #expect(!viewModel.isLoadingOpenAiResults)
+        #expect(!viewModel.isLoadingAIResults)
         #expect(viewModel.showingErrorAlert)
         #expect(!viewModel.errorMessage.isEmpty)
     }
@@ -155,13 +155,13 @@ struct InventoryDetailViewModelTests {
         let container = try createTestContainer()
         let context = container.mainContext
 
-        let mockOpenAI = MockOpenAIService()
+        let mockAIService = MockAIAnalysisService()
         let mockImageManager = MockImageManager()
 
         let item = InventoryItem.createTestItem(in: context)  // No images
         let viewModel = try createTestViewModel(
             item: item,
-            mockOpenAI: mockOpenAI,
+            mockAIService: mockAIService,
             mockImageManager: mockImageManager,
             context: context
         )
@@ -169,7 +169,7 @@ struct InventoryDetailViewModelTests {
         // Perform AI analysis (should fail due to no images)
         await viewModel.performAIAnalysis(for: item, allItems: [item])
 
-        #expect(!viewModel.isLoadingOpenAiResults)
+        #expect(!viewModel.isLoadingAIResults)
         #expect(viewModel.showingErrorAlert)
         #expect(!viewModel.errorMessage.isEmpty)
     }
@@ -312,8 +312,8 @@ struct InventoryDetailViewModelTests {
         let container = try createTestContainer()
         let context = container.mainContext
 
-        let mockOpenAI = MockOpenAIService()
-        mockOpenAI.mockResponse = ImageDetails(
+        let mockAIService = MockAIAnalysisService()
+        mockAIService.mockResponse = ImageDetails(
             title: "Test Item",
             quantity: "1",
             description: "Test",
@@ -333,7 +333,7 @@ struct InventoryDetailViewModelTests {
         let item = InventoryItem.createTestItemWithImages(in: context)
         let viewModel = try createTestViewModel(
             item: item,
-            mockOpenAI: mockOpenAI,
+            mockAIService: mockAIService,
             mockImageManager: mockImageManager,
             context: context
         )
@@ -353,8 +353,8 @@ struct InventoryDetailViewModelTests {
         let container = try createTestContainer()
         let context = container.mainContext
 
-        let mockOpenAI = MockOpenAIService()
-        mockOpenAI.mockResponse = ImageDetails(
+        let mockAIService = MockAIAnalysisService()
+        mockAIService.mockResponse = ImageDetails(
             title: "Test Item",
             quantity: "1",
             description: "Test",
@@ -373,7 +373,7 @@ struct InventoryDetailViewModelTests {
         let item = InventoryItem.createTestItemWithImages(in: context)
         let viewModel = try createTestViewModel(
             item: item,
-            mockOpenAI: mockOpenAI,
+            mockAIService: mockAIService,
             mockImageManager: mockImageManager,
             context: context
         )
@@ -415,8 +415,8 @@ struct InventoryDetailViewModelTests {
         let container = try createTestContainer()
         let context = container.mainContext
 
-        let mockOpenAI = MockOpenAIService()
-        mockOpenAI.shouldFail = true
+        let mockAIService = MockAIAnalysisService()
+        mockAIService.shouldFail = true
 
         let mockImageManager = MockImageManager()
         mockImageManager.mockImages = [UIImage.createTestImage()]
@@ -424,7 +424,7 @@ struct InventoryDetailViewModelTests {
         let item = InventoryItem.createTestItemWithImages(in: context)
         let viewModel = try createTestViewModel(
             item: item,
-            mockOpenAI: mockOpenAI,
+            mockAIService: mockAIService,
             mockImageManager: mockImageManager,
             context: context
         )
@@ -446,14 +446,14 @@ struct InventoryDetailViewModelTests {
         let container = try createTestContainer()
         let context = container.mainContext
 
-        let mockOpenAI = MockOpenAIService()
+        let mockAIService = MockAIAnalysisService()
         let mockImageManager = MockImageManager()
         mockImageManager.mockImages = [UIImage.createTestImage()]
 
         let item = InventoryItem.createTestItemWithImages(in: context)
         let viewModel = try createTestViewModel(
             item: item,
-            mockOpenAI: mockOpenAI,
+            mockAIService: mockAIService,
             mockImageManager: mockImageManager,
             context: context
         )
@@ -470,12 +470,12 @@ struct InventoryDetailViewModelTests {
         try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
 
         // Check that loading state is set (may already be done due to mock speed)
-        let wasLoading = viewModel.isLoadingOpenAiResults
+        let wasLoading = viewModel.isLoadingAIResults
 
         // Wait for completion
         await analysisTask.value
 
         // Should no longer be loading
-        #expect(!viewModel.isLoadingOpenAiResults)
+        #expect(!viewModel.isLoadingAIResults)
     }
 }

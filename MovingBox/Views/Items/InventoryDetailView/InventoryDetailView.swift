@@ -30,12 +30,12 @@ struct InventoryDetailView: View {
     private static let photoSectionHeightWithPhotos: CGFloat = 350
 
     @State private var displayPriceString: String = ""
-    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails.empty()
+    @State private var imageDetailsFromAI: ImageDetails = ImageDetails.empty()
     @FocusState private var inputIsFocused: Bool
     @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
     @State private var showingClearAllAlert = false
-    @State private var isLoadingOpenAiResults = false
+    @State private var isLoadingAIResults = false
     @State private var isEditing: Bool
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
@@ -214,7 +214,7 @@ struct InventoryDetailView: View {
             }
             .backport.glassProminentButtonStyle()
             .fontWeight(.bold)
-            .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingOpenAiResults)
+            .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingAIResults)
             .accessibilityIdentifier("save")
         } else {
             Button("Edit") {
@@ -488,7 +488,7 @@ struct InventoryDetailView: View {
     @ViewBuilder
     private var aiButtonView: some View {
         Button {
-            guard !isLoadingOpenAiResults else { return }
+            guard !isLoadingAIResults else { return }
             if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI }).count) {
                 showingPaywall = true
             } else {
@@ -496,7 +496,7 @@ struct InventoryDetailView: View {
             }
         } label: {
             HStack {
-                if isLoadingOpenAiResults {
+                if isLoadingAIResults {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(0.9)
@@ -511,7 +511,7 @@ struct InventoryDetailView: View {
             .cornerRadius(UIConstants.cornerRadius)
         }
         .backport.glassProminentButtonStyle()
-        .disabled(isLoadingOpenAiResults)
+        .disabled(isLoadingAIResults)
         .accessibilityIdentifier("analyzeWithAi")
     }
 
@@ -1341,11 +1341,11 @@ struct InventoryDetailView: View {
     private func performAIAnalysis() {
         Task {
             await MainActor.run {
-                isLoadingOpenAiResults = true
+                isLoadingAIResults = true
             }
 
             do {
-                let imageDetails = try await callOpenAI()
+                let imageDetails = try await callAIAnalysis()
                 await MainActor.run {
                     // Ensure the item is in the model context
                     if inventoryItemToDisplay.modelContext == nil {
@@ -1365,40 +1365,40 @@ struct InventoryDetailView: View {
                     // Save the context
                     try? modelContext.save()
 
-                    isLoadingOpenAiResults = false
+                    isLoadingAIResults = false
                 }
-            } catch OpenAIError.invalidURL {
+            } catch AIAnalysisError.invalidURL {
                 await MainActor.run {
                     errorMessage = "Invalid URL configuration"
                     showingErrorAlert = true
-                    isLoadingOpenAiResults = false
+                    isLoadingAIResults = false
                 }
-            } catch OpenAIError.invalidResponse {
+            } catch AIAnalysisError.invalidResponse {
                 await MainActor.run {
                     errorMessage = "Error communicating with AI service"
                     showingErrorAlert = true
-                    isLoadingOpenAiResults = false
+                    isLoadingAIResults = false
                 }
-            } catch OpenAIError.invalidData {
+            } catch AIAnalysisError.invalidData {
                 await MainActor.run {
                     errorMessage = "Unable to process AI response"
                     showingErrorAlert = true
-                    isLoadingOpenAiResults = false
+                    isLoadingAIResults = false
                 }
             } catch {
                 await MainActor.run {
                     errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
                     showingErrorAlert = true
-                    isLoadingOpenAiResults = false
+                    isLoadingAIResults = false
                 }
             }
         }
     }
 
-    private func callOpenAI() async throws -> ImageDetails {
+    private func callAIAnalysis() async throws -> ImageDetails {
         // Use all loaded images for AI analysis
         guard !loadedImages.isEmpty else {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         // Prepare all images for AI analysis
@@ -1410,14 +1410,14 @@ struct InventoryDetailView: View {
         }
 
         guard !imageBase64Array.isEmpty else {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
-        let openAi = OpenAIServiceFactory.create()
+        let aiService = AIAnalysisServiceFactory.create()
 
         TelemetryManager.shared.trackCameraAnalysisUsed()
 
-        return try await openAi.getImageDetails(
+        return try await aiService.getImageDetails(
             from: loadedImages,
             settings: settings,
             modelContext: modelContext
