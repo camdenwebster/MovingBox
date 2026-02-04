@@ -70,7 +70,7 @@ final class LabelManagementUITests: XCTestCase {
         let initialCount = labelScreen.getLabelCount()
 
         // When: We create a new label
-        let newLabelName = "Test Label \(UUID().uuidString.prefix(8))"
+        let newLabelName = "Aa Test Label \(UUID().uuidString.prefix(8))"
         labelScreen.createLabel(name: newLabelName)
 
         // Then: We should be back on the labels list
@@ -157,9 +157,6 @@ final class LabelManagementUITests: XCTestCase {
 
         // Then: Wait for the detail screen
         _ = labelScreen.editSaveButton.waitForExistence(timeout: 5)
-
-        // When: We tap edit/save to enter edit mode
-        labelScreen.tapEditSave()
 
         // And: We modify the label name
         let newName = "Edited \(UUID().uuidString.prefix(4))"

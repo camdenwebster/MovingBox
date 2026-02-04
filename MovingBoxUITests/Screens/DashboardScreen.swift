@@ -45,11 +45,11 @@ class DashboardScreen {
     }
 
     func tapLocations() {
-        allLocationsButton.tap()
+        allLocationsButton.scrollToCenterAndTap(in: app)
     }
 
     func tapViewAllItems() {
-        viewAllItemsButton.tap()
+        viewAllItemsButton.scrollToCenterAndTap(in: app)
     }
 
     func tapSettings() {

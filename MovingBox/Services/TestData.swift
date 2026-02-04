@@ -6,61 +6,10 @@
 //
 
 import Foundation
-import SQLiteData
 import UIKit
 
 @MainActor
 struct TestData {
-    // Helper methods for generating random sample data
-    private static func generateRandomDimensions() -> String {
-        let width = Int.random(in: 5...50)
-        let height = Int.random(in: 3...30)
-        let depth = Int.random(in: 2...25)
-        return "\(width)\" x \(height)\" x \(depth)\""
-    }
-
-    private static func generateRandomWeight() -> String {
-        if Bool.random() {
-            return "\(Double.random(in: 0.5...50.0).rounded(toPlaces: 1)) lbs"
-        } else {
-            return "\(Double.random(in: 0.2...25.0).rounded(toPlaces: 2)) kg"
-        }
-    }
-
-    // Helper method to load test image from asset catalog
-    private static func loadTestImage(category: String, filename: String) -> Data? {
-        // Use bundle to load image directly from asset catalog
-        guard let image = UIImage(named: filename) else {
-            print("❌ Could not load image: \(filename)")
-            return nil
-        }
-
-        guard let data = image.jpegData(compressionQuality: 1.0) else {
-            print("❌ Could not convert image to data: \(filename)")
-            return nil
-        }
-
-        print("✅ Successfully loaded image: \(filename)")
-        return data
-    }
-
-    // Helper method to set up image URL for test data
-    private static func setupImageURL(imageName: String, id: String) async -> URL? {
-        guard let image = UIImage(named: imageName) else {
-            print("❌ Could not load image: \(imageName)")
-            return nil
-        }
-
-        do {
-            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-            print("✅ Successfully saved image and thumbnail: \(imageName)")
-            return imageURL
-        } catch {
-            print("❌ Failed to save image: \(imageName), error: \(error)")
-            return nil
-        }
-    }
-
     // Sample homes with local image paths
     static let homes:
         [(name: String, address1: String, city: String, state: String, imageName: String, isPrimary: Bool)] = [
@@ -663,170 +612,65 @@ struct TestData {
             ),
         ]
 
-    // MARK: - sqlite-data Test Data
-
-    @MainActor
-    static func loadSQLiteTestData(database: any DatabaseWriter) async {
-        // Phase 1: Save images to disk (async I/O, independent of database)
-
-        var homeImageURLs: [URL?] = []
-        for homeData in homes {
-            let url = await setupImageURL(imageName: homeData.imageName, id: UUID().uuidString)
-            homeImageURLs.append(url)
-        }
-
-        var locationImageURLs: [URL?] = []
-        for locationData in locations {
-            let url = await setupImageURL(imageName: locationData.imageName, id: UUID().uuidString)
-            locationImageURLs.append(url)
-        }
-
-        var itemImageURLs: [URL?] = []
-        for itemData in items {
-            let url = await setupImageURL(imageName: itemData.imageName, id: UUID().uuidString)
-            itemImageURLs.append(url)
-        }
-
-        // Phase 2: Generate UUIDs for cross-referencing
-
-        let homeIDs = homes.map { _ in UUID() }
-
-        var labelIDs: [String: UUID] = [:]
-        for labelData in labels {
-            labelIDs[labelData.name] = UUID()
-        }
-
-        let locationRecords: [(id: UUID, name: String, homeIndex: Int)] = locations.map { loc in
-            (id: UUID(), name: loc.name, homeIndex: loc.homeIndex)
-        }
-
-        let itemIDs = items.map { _ in UUID() }
-
-        // Phase 3: Write everything to database in a single transaction
-
-        do {
-            try await database.write { db in
-                // Homes
-                for (index, homeData) in homes.enumerated() {
-                    try SQLiteHome.insert {
-                        SQLiteHome(
-                            id: homeIDs[index],
-                            name: homeData.name,
-                            address1: homeData.address1,
-                            city: homeData.city,
-                            state: homeData.state,
-                            imageURL: homeImageURLs[index],
-                            isPrimary: homeData.isPrimary
-                        )
-                    }.execute(db)
-                }
-                print("✅ TestData - Created \(homes.count) homes")
-
-                // Labels
-                for labelData in labels {
-                    try SQLiteInventoryLabel.insert {
-                        SQLiteInventoryLabel(
-                            id: labelIDs[labelData.name]!,
-                            name: labelData.name,
-                            desc: labelData.desc,
-                            color: labelData.color,
-                            emoji: labelData.emoji
-                        )
-                    }.execute(db)
-                }
-                print("✅ TestData - Created \(labels.count) labels")
-
-                // Locations
-                for (index, locationData) in locations.enumerated() {
-                    let homeID =
-                        locationData.homeIndex < homeIDs.count
-                        ? homeIDs[locationData.homeIndex] : nil
-                    try SQLiteInventoryLocation.insert {
-                        SQLiteInventoryLocation(
-                            id: locationRecords[index].id,
-                            name: locationData.name,
-                            desc: locationData.desc,
-                            sfSymbolName: locationData.sfSymbol,
-                            imageURL: locationImageURLs[index],
-                            homeID: homeID
-                        )
-                    }.execute(db)
-                }
-                print("✅ TestData - Created \(locations.count) locations")
-
-                // Items + item-label joins
-                for (index, itemData) in items.enumerated() {
-                    let matchingLocation = locationRecords.first {
-                        $0.name == itemData.location && $0.homeIndex == itemData.homeIndex
-                    }
-                    let locationID = matchingLocation?.id ?? locationRecords[0].id
-                    let homeID =
-                        itemData.homeIndex < homeIDs.count
-                        ? homeIDs[itemData.homeIndex] : homeIDs[0]
-                    let labelID = labelIDs[itemData.label] ?? labelIDs.values.first!
-
-                    try SQLiteInventoryItem.insert {
-                        SQLiteInventoryItem(
-                            id: itemIDs[index],
-                            title: itemData.title,
-                            desc: itemData.desc,
-                            serial: "SN\(UUID().uuidString.prefix(8))",
-                            model: itemData.model,
-                            make: itemData.make,
-                            price: itemData.price,
-                            imageURL: itemImageURLs[index],
-                            hasUsedAI: true,
-                            purchaseDate: Calendar.current.date(
-                                byAdding: .month, value: -Int.random(in: 1...24), to: Date()),
-                            warrantyExpirationDate: Calendar.current.date(
-                                byAdding: .month, value: Int.random(in: 6...36), to: Date()),
-                            purchaseLocation: ["Apple Store", "Best Buy", "Amazon", "Target", "Costco"]
-                                .randomElement()!,
-                            condition: ["New", "Like New", "Good", "Fair"].randomElement()!,
-                            hasWarranty: Bool.random(),
-                            dimensionLength: "\(Int.random(in: 5...50))",
-                            dimensionWidth: "\(Int.random(in: 5...50))",
-                            dimensionHeight: "\(Int.random(in: 3...30))",
-                            dimensionUnit: ["inches", "feet", "cm", "m"].randomElement()!,
-                            weightValue: "\(Double.random(in: 0.5...50.0).rounded(toPlaces: 1))",
-                            weightUnit: ["lbs", "kg", "oz", "g"].randomElement()!,
-                            color: ["Black", "White", "Silver", "Space Gray", "Blue", "Red"]
-                                .randomElement()!,
-                            storageRequirements: [
-                                "Keep dry", "Climate controlled", "Upright only",
-                                "Fragile - handle with care", "",
-                            ].randomElement()!,
-                            isFragile: ["OLED TV", "Guitar", "MacBook Pro"].contains(itemData.title),
-                            movingPriority: Int.random(in: 1...5),
-                            roomDestination: itemData.location,
-                            locationID: locationID,
-                            homeID: homeID
-                        )
-                    }.execute(db)
-
-                    try SQLiteInventoryItemLabel.insert {
-                        SQLiteInventoryItemLabel(
-                            id: UUID(),
-                            inventoryItemID: itemIDs[index],
-                            inventoryLabelID: labelID
-                        )
-                    }.execute(db)
-                }
-                print("✅ TestData - Created \(items.count) items")
-            }
-
-            print("✅ TestData - Successfully saved all test data to sqlite-data")
-        } catch {
-            print("❌ TestData - Error saving test data to sqlite-data: \(error)")
-        }
-    }
 }
 
-// MARK: - Extensions
+// MARK: - Deterministic UUIDs for production default seed data
 
-extension Double {
-    func rounded(toPlaces places: Int) -> Double {
-        let divisor = pow(10.0, Double(places))
-        return (self * divisor).rounded() / divisor
-    }
+/// Fixed UUIDs for the default home, rooms, and labels created on first launch.
+///
+/// **CloudKit Sync Rationale**: When a user reinstalls or sets up a new device,
+/// CloudKit will deliver previously-synced default records. If the app also seeds
+/// new defaults with random UUIDs, duplicates appear. Fixed IDs let the local
+/// insert and the synced record share the same primary key, merging cleanly.
+///
+/// The `AAAAAAAA` prefix distinguishes production defaults from the debug-only
+/// `SeedID` enum in `TestSeedDatabase.swift` (which uses `00000000`).
+/// Second UUID group encodes entity type: 0001 = home, 0002 = room, 0003 = label.
+enum DefaultSeedID {
+
+    // MARK: - Home
+
+    static let home = UUID(uuidString: "AAAAAAAA-0001-0000-0000-000000000001")!
+
+    // MARK: - Rooms (12, ordered to match TestData.defaultRooms)
+
+    static let roomIDs: [UUID] = [
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000001")!,  // Living Room
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000002")!,  // Kitchen
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000003")!,  // Master Bedroom
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000004")!,  // Bedroom
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000005")!,  // Bathroom
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000006")!,  // Home Office
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000007")!,  // Garage
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000008")!,  // Basement
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000009")!,  // Attic
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-00000000000A")!,  // Dining Room
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-00000000000B")!,  // Laundry Room
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-00000000000C")!,  // Closet
+    ]
+
+    // MARK: - Labels (20, ordered to match TestData.labels)
+
+    static let labelIDs: [UUID] = [
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000001")!,  // Electronics
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000002")!,  // Furniture
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000003")!,  // Kitchen
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000004")!,  // Books
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000005")!,  // Art
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000006")!,  // Tools
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000007")!,  // Sports
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000008")!,  // Clothing
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000009")!,  // Jewelry
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000A")!,  // Documents
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000B")!,  // Collectibles
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000C")!,  // Seasonal
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000D")!,  // Bathroom
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000E")!,  // Toys
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000F")!,  // Gardening
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000010")!,  // Technology
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000011")!,  // Memorabilia
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000012")!,  // Pet Supplies
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000013")!,  // Media
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000014")!,  // Decorative
+    ]
 }

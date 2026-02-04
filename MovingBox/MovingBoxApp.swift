@@ -32,7 +32,17 @@ struct MovingBoxApp: App {
     init() {
         // Prepare sqlite-data database (runs schema migrations)
         prepareDependencies {
-            $0.defaultDatabase = try! appDatabase()
+            #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                    $0.defaultDatabase = try! makeSeededTestDatabase()
+                } else if ProcessInfo.processInfo.arguments.contains("Disable-Persistence") {
+                    $0.defaultDatabase = try! makeInMemoryDatabase()
+                } else {
+                    $0.defaultDatabase = try! appDatabase()
+                }
+            #else
+                $0.defaultDatabase = try! appDatabase()
+            #endif
         }
 
         // Configure TelemetryDeck
@@ -161,6 +171,15 @@ struct MovingBoxApp: App {
                 .toolbar(removing: .title)
             #endif
             .task {
+                #if DEBUG
+                    // When test data is pre-seeded in init(), skip migration & RevenueCat
+                    if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                        settings.hasLaunched = true
+                        appState = .main
+                        return
+                    }
+                #endif
+
                 // Migrate SwiftData store to sqlite-data (runs once, silently)
                 @Dependency(\.defaultDatabase) var database
                 let migrationResult = SQLiteMigrationCoordinator.migrateIfNeeded(database: database)
@@ -175,6 +194,55 @@ struct MovingBoxApp: App {
                     print("📦 sqlite-data: Migration failed — \(message)")
                 }
 
+                // Cull empty phantom homes from pre-2.2.0 onboarding re-runs (one-time).
+                // Pre-2.2.0 used `homes.last` so extra homes were invisible; with multi-home
+                // they'd suddenly appear in the sidebar.
+                if let replacementId = await HomeCullingManager.cullIfNeeded(
+                    database: database,
+                    activeHomeId: settings.activeHomeId
+                ) {
+                    settings.activeHomeId = replacementId
+                }
+
+                // Ensure at least one home exists (safety net for users who
+                // deleted all data without re-onboarding).
+                // Uses deterministic IDs so CloudKit sync won't create duplicates
+                // when a user reinstalls or sets up a new device.
+                do {
+                    let homeCount = try await database.read { db in
+                        try SQLiteHome.count().fetchOne(db)
+                    }
+                    if homeCount == 0 {
+                        let newHomeID = DefaultSeedID.home
+                        try await database.write { db in
+                            try SQLiteHome.insert {
+                                SQLiteHome(
+                                    id: newHomeID,
+                                    name: "My Home",
+                                    isPrimary: true,
+                                    colorName: "green"
+                                )
+                            }.execute(db)
+
+                            for (index, roomData) in TestData.defaultRooms.enumerated() {
+                                try SQLiteInventoryLocation.insert {
+                                    SQLiteInventoryLocation(
+                                        id: DefaultSeedID.roomIDs[index],
+                                        name: roomData.name,
+                                        desc: roomData.desc,
+                                        sfSymbolName: roomData.sfSymbol,
+                                        homeID: newHomeID
+                                    )
+                                }.execute(db)
+                            }
+                        }
+                        settings.activeHomeId = newHomeID.uuidString
+                        print("🏠 MovingBoxApp - Created default home (no homes found in database)")
+                    }
+                } catch {
+                    print("⚠️ MovingBoxApp - Error ensuring default home exists: \(error)")
+                }
+
                 // Check RevenueCat subscription status
                 do {
                     try await revenueCatManager.updateCustomerInfo()
@@ -182,19 +250,9 @@ struct MovingBoxApp: App {
                     print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
                 }
 
-                // Load Test Data if launch argument is set
-                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
-                    print("📱 MovingBoxApp - Loading test data...")
-                    await TestData.loadSQLiteTestData(database: database)
-                    print("📱 MovingBoxApp - Test data loaded")
-
-                    settings.hasLaunched = true
-                    appState = .main
-                } else {
-                    // Determine if we should show the welcome screen
-                    print("📱 MovingBoxApp - CloudKit sync complete, transitioning to app")
-                    appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
-                }
+                // Determine if we should show the welcome screen
+                print("📱 MovingBoxApp - CloudKit sync complete, transitioning to app")
+                appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
 
                 // Record that we've launched
                 settings.hasLaunched = true

@@ -308,7 +308,7 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
         multiItemSelectionScreen.tapContinue()
 
         // Then: Should navigate to summary view
-        let summaryView = app.otherElements["multiItemSummaryView"]
+        let summaryView = multiItemSelectionScreen.successCheckMark
         XCTAssertTrue(
             summaryView.waitForExistence(timeout: 10),
             "Multi-item summary view should appear")

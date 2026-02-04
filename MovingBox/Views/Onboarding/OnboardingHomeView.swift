@@ -168,7 +168,9 @@ struct OnboardingHomeView: View {
                 }.execute(db)
             }
         } else {
-            let newHomeID = UUID()
+            // Deterministic IDs so CloudKit sync won't create duplicate default
+            // records when a user reinstalls or sets up a new device.
+            let newHomeID = DefaultSeedID.home
             try await database.write { db in
                 try SQLiteHome.insert {
                     SQLiteHome(
@@ -181,10 +183,10 @@ struct OnboardingHomeView: View {
                 }.execute(db)
 
                 // Create default locations for the new home
-                for roomData in TestData.defaultRooms {
+                for (index, roomData) in TestData.defaultRooms.enumerated() {
                     try SQLiteInventoryLocation.insert {
                         SQLiteInventoryLocation(
-                            id: UUID(),
+                            id: DefaultSeedID.roomIDs[index],
                             name: roomData.name,
                             desc: roomData.desc,
                             sfSymbolName: roomData.sfSymbol,

@@ -75,7 +75,12 @@ final class SnapshotTests {
         }
 
         if shouldLoadMockData {
-            await TestData.loadSQLiteTestData(database: database)
+            let seeded = try makeSeededTestDatabase()
+            testDatabase = seeded
+            let _ = try prepareDependencies {
+                $0.defaultDatabase = seeded
+            }
+            return seeded
         }
 
         return database

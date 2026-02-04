@@ -442,6 +442,7 @@ struct HomeDetailSettingsView: View {
                 Button("Edit") {
                     viewModel.isEditing = true
                 }
+                .accessibilityIdentifier("editButton")
             }
         }
     }

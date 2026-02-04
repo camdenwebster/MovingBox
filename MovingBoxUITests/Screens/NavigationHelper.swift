@@ -107,7 +107,7 @@ class NavigationHelper {
     // MARK: - Helper Methods
 
     private func isDashboardVisible() -> Bool {
-        return dashboardScreen.addItemFromCameraButton.exists
+        return dashboardScreen.settingsButton.exists
             || dashboardScreen.allInventoryButton.exists || app.staticTexts["Dashboard"].exists
     }
 
