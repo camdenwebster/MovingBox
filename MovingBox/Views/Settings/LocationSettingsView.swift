@@ -62,14 +62,12 @@ struct LocationSettingsView: View {
                             selectedLocationID = location.id
                         } label: {
                             HStack {
-                                if let symbolName = location.sfSymbolName {
-                                    Image(systemName: symbolName)
-                                        .frame(width: 24)
-                                }
+                                Image(systemName: "\(location.sfSymbolName ?? "mappin.circle.fill")")
+                                    .frame(width: 24)
+                                    .foregroundStyle(.primary)
                                 Text(location.name)
                                 Spacer()
                             }
-                            .foregroundStyle(.primary)
                         }
                     }
                     .onDelete(perform: deleteLocations)

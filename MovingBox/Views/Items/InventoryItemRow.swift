@@ -70,13 +70,19 @@ struct InventoryItemRow: View {
                     .truncationMode(.tail)
 
                 if showHomeBadge, let homeName {
-                    Label(homeName, systemImage: "house.circle")
-                        .detailLabelStyle()
+                    HStack {
+                        Image(systemName: "house.circle")
+                        Text(homeName)
+                    }
+                    .detailLabelStyle()
                 }
 
                 if !item.make.isEmpty {
-                    Label("\(item.make) \(item.model)", systemImage: "info.circle")
-                        .detailLabelStyle()
+                    HStack {
+                        Image(systemName: "info.circle")
+                        Text("\(item.make) \(item.model)")
+                    }
+                    .detailLabelStyle()
                 }
             }
 

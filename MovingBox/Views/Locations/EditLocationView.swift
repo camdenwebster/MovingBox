@@ -77,34 +77,6 @@ struct EditLocationView: View {
 
     var body: some View {
         Form {
-            // Photo section
-            if isEditingEnabled || loadedImage != nil {
-                Section(header: EmptyView()) {
-                    if let uiImage = loadedImage {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                            .clipped()
-                            .listRowInsets(EdgeInsets())
-                            .overlay(alignment: .bottomTrailing) {
-                                if isEditingEnabled {
-                                    photoPickerButton
-                                }
-                            }
-                    } else if isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                    } else if isEditingEnabled {
-                        photoPickerButton
-                            .frame(maxWidth: .infinity)
-                            .frame(height: UIScreen.main.bounds.height / 3)
-                    }
-                }
-            }
-
             FormTextFieldRow(
                 label: "Name",
                 text: $locationName,
@@ -146,6 +118,34 @@ struct EditLocationView: View {
                         .disabled(!isEditingEnabled)
                         .foregroundStyle(isEditingEnabled ? .primary : .secondary)
                         .frame(height: 100)
+                }
+            }
+            
+            // Photo section
+            if isEditingEnabled || loadedImage != nil {
+                Section(header: EmptyView()) {
+                    if let uiImage = loadedImage {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: UIScreen.main.bounds.width - 32)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                            .clipped()
+                            .listRowInsets(EdgeInsets())
+                            .overlay(alignment: .bottomTrailing) {
+                                if isEditingEnabled {
+                                    photoPickerButton
+                                }
+                            }
+                    } else if isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                    } else if isEditingEnabled {
+                        photoPickerButton
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3)
+                    }
                 }
             }
         }

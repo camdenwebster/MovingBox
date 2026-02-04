@@ -357,7 +357,7 @@ struct HomeDetailSettingsView: View {
 
     @ViewBuilder
     private func organizationSection(viewModel: HomeDetailSettingsViewModel) -> some View {
-        if !viewModel.isNewHome {
+        if !viewModel.isNewHome && !viewModel.isEditing {
             Section("Organization") {
                 NavigationLink {
                     LocationSettingsView(homeID: viewModel.originalHomeID)
