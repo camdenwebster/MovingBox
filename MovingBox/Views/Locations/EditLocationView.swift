@@ -120,7 +120,7 @@ struct EditLocationView: View {
                         .frame(height: 100)
                 }
             }
-            
+
             // Photo section
             if isEditingEnabled || loadedImage != nil {
                 Section(header: EmptyView()) {

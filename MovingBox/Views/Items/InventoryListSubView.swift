@@ -5,10 +5,12 @@
 //  Created by Camden Webster on 4/9/24.
 //
 
+import Dependencies
 import SQLiteData
 import SwiftUI
 
 struct InventoryListSubView: View {
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var router: Router
 
     let locationID: UUID?
@@ -33,6 +35,7 @@ struct InventoryListSubView: View {
     @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
     private var homes: [SQLiteHome]
 
+    @Environment(\.editMode) private var editMode
     @State private var showItemCreationFlow = false
 
     // Lookup for labels by item
@@ -118,9 +121,13 @@ struct InventoryListSubView: View {
             }
     }
 
+    private var selectionBinding: Binding<Set<UUID>>? {
+        editMode?.wrappedValue == .active ? $selectedItemIDs : nil
+    }
+
     @ViewBuilder
     private var listContent: some View {
-        List(selection: $selectedItemIDs) {
+        List(selection: selectionBinding) {
             if filteredItems.isEmpty {
                 emptyStateView
             } else {
@@ -149,6 +156,20 @@ struct InventoryListSubView: View {
         ForEach(filteredItems) { item in
             itemRowView(for: item)
                 .tag(item.id)
+        }
+        .onDelete(perform: deleteItems)
+    }
+
+    private func deleteItems(at offsets: IndexSet) {
+        let itemsToDelete = offsets.map { filteredItems[$0] }
+        do {
+            try database.write { db in
+                for item in itemsToDelete {
+                    try SQLiteInventoryItem.find(item.id).delete().execute(db)
+                }
+            }
+        } catch {
+            print("Failed to delete items: \(error)")
         }
     }
 

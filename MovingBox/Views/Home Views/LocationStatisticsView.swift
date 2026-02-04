@@ -18,6 +18,8 @@ struct LocationStatisticsView: View {
     @EnvironmentObject var router: Router
     @EnvironmentObject var settingsManager: SettingsManager
 
+    @State private var showingNewLocation = false
+
     private let row = GridItem(.fixed(160))
 
     // Precomputed lookup for item counts/values per location
@@ -59,7 +61,9 @@ struct LocationStatisticsView: View {
             Button {
                 router.navigate(to: .locationsListView(showAllHomes: false))
             } label: {
-                DashboardSectionLabel(text: "Locations")
+                DashboardSectionLabel(text: "Locations") {
+                    showingNewLocation = true
+                }
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("dashboard-locations-button")
@@ -99,6 +103,17 @@ struct LocationStatisticsView: View {
                 }
                 .scrollTargetBehavior(.viewAligned)
             }
+        }
+        .sheet(isPresented: $showingNewLocation) {
+            NavigationStack {
+                EditLocationView(
+                    locationID: nil,
+                    isEditing: true,
+                    presentedInSheet: true,
+                    homeID: activeHome?.id
+                )
+            }
+            .tint(.green)
         }
     }
 }

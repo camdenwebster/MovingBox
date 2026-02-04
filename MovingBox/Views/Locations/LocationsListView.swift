@@ -24,6 +24,7 @@ struct LocationsListView: View {
     @State private var showAddLocationSheet = false
     @State private var isEditing = false
     @State private var locationToDelete: SQLiteInventoryLocation?
+    @State private var locationToEdit: SQLiteInventoryLocation?
 
     @ObservedObject private var revenueCatManager: RevenueCatManager = .shared
 
@@ -189,7 +190,7 @@ struct LocationsListView: View {
                         ForEach(filteredLocations) { location in
                             if isEditing {
                                 Button {
-                                    locationToDelete = location
+                                    locationToEdit = location
                                 } label: {
                                     LocationItemCard(
                                         location: location,
@@ -198,14 +199,18 @@ struct LocationsListView: View {
                                     )
                                     .frame(maxWidth: 180)
                                     .overlay(alignment: .topLeading) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .font(.title)
-                                            .symbolRenderingMode(.palette)
-                                            .foregroundStyle(.white, .red)
-                                            .offset(x: -8, y: -8)
+                                        Button {
+                                            locationToDelete = location
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.title)
+                                                .symbolRenderingMode(.palette)
+                                                .foregroundStyle(.white, .red)
+                                        }
+                                        .accessibilityIdentifier("location-delete-\(location.name)")
+                                        .offset(x: -8, y: -8)
                                     }
                                 }
-                                .accessibilityIdentifier("location-delete-\(location.name)")
                                 .buttonStyle(.plain)
                             } else {
                                 NavigationLink(
@@ -254,6 +259,13 @@ struct LocationsListView: View {
         .sheet(isPresented: $showAddLocationSheet) {
             NavigationStack {
                 EditLocationView(locationID: nil, isEditing: true, presentedInSheet: true)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $locationToEdit) { location in
+            NavigationStack {
+                EditLocationView(locationID: location.id, isEditing: true, presentedInSheet: true)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)

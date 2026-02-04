@@ -20,6 +20,8 @@ struct LabelStatisticsView: View {
 
     @EnvironmentObject var router: Router
 
+    @State private var showingNewLabel = false
+
     private let row = GridItem(.fixed(160))
 
     // Labels are global (not filtered by home)
@@ -50,7 +52,9 @@ struct LabelStatisticsView: View {
             Button {
                 router.navigate(to: .labelsListView(showAllHomes: false))
             } label: {
-                DashboardSectionLabel(text: "Labels")
+                DashboardSectionLabel(text: "Labels") {
+                    showingNewLabel = true
+                }
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("dashboard-labels-button")
@@ -89,6 +93,16 @@ struct LabelStatisticsView: View {
                 }
                 .scrollTargetBehavior(.viewAligned)
             }
+        }
+        .sheet(isPresented: $showingNewLabel) {
+            NavigationStack {
+                EditLabelView(
+                    labelID: nil,
+                    isEditing: true,
+                    presentedInSheet: true
+                )
+            }
+            .tint(.green)
         }
     }
 }
