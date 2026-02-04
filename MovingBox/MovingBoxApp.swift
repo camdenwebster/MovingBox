@@ -21,9 +21,11 @@ struct MovingBoxApp: App {
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
     @StateObject private var revenueCatManager = RevenueCatManager.shared
-    @State private var appState: AppState = .splash
+    @State private var appState: AppState = .loading
+    @State private var splashShownAt: Date?
 
     private enum AppState {
+        case loading
         case splash
         case onboarding
         case main
@@ -152,6 +154,9 @@ struct MovingBoxApp: App {
         WindowGroup {
             Group {
                 switch appState {
+                case .loading:
+                    Color(uiColor: .systemBackground)
+                        .ignoresSafeArea()
                 case .splash:
                     SplashView()
                 case .onboarding:
@@ -179,6 +184,15 @@ struct MovingBoxApp: App {
                         return
                     }
                 #endif
+
+                // Show the splash screen only if startup takes longer than 1s
+                let splashTimer = Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    if appState == .loading {
+                        appState = .splash
+                        splashShownAt = Date()
+                    }
+                }
 
                 // Migrate SwiftData store to sqlite-data (runs once, silently)
                 @Dependency(\.defaultDatabase) var database
@@ -253,8 +267,17 @@ struct MovingBoxApp: App {
                     print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
                 }
 
+                // If splash was shown, ensure it stays visible for at least 1s
+                if let shownAt = splashShownAt {
+                    let elapsed = Date().timeIntervalSince(shownAt)
+                    if elapsed < 1.0 {
+                        try? await Task.sleep(for: .seconds(1.0 - elapsed))
+                    }
+                }
+                splashTimer.cancel()
+
                 // Determine if we should show the welcome screen
-                print("📱 MovingBoxApp - CloudKit sync complete, transitioning to app")
+                print("📱 MovingBoxApp - Startup complete, transitioning to app")
                 appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
 
                 // Record that we've launched
