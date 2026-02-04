@@ -27,15 +27,28 @@ struct SQLiteMigrationCoordinator {
         var items = 0
         var itemLabels = 0
         var homePolicies = 0
+        var skippedItemLabels = 0
+        var skippedHomePolicies = 0
+        var skippedColors = 0
 
         var description: String {
-            "labels=\(labels), homes=\(homes), policies=\(policies), "
-                + "locations=\(locations), items=\(items), "
-                + "itemLabels=\(itemLabels), homePolicies=\(homePolicies)"
+            var parts = [
+                "labels=\(labels)", "homes=\(homes)", "policies=\(policies)",
+                "locations=\(locations)", "items=\(items)",
+                "itemLabels=\(itemLabels)", "homePolicies=\(homePolicies)",
+            ]
+            if skippedItemLabels > 0 { parts.append("skippedItemLabels=\(skippedItemLabels)") }
+            if skippedHomePolicies > 0 {
+                parts.append("skippedHomePolicies=\(skippedHomePolicies)")
+            }
+            if skippedColors > 0 { parts.append("skippedColors=\(skippedColors)") }
+            return parts.joined(separator: ", ")
         }
     }
 
     private static let migrationCompleteKey = "com.mothersound.movingbox.sqlitedata.migration.complete"
+    private static let migrationAttemptsKey = "com.mothersound.movingbox.sqlitedata.migration.attempts"
+    private static let maxMigrationAttempts = 3
 
     // MARK: - Public API
 
@@ -44,10 +57,21 @@ struct SQLiteMigrationCoordinator {
             return .alreadyCompleted
         }
 
+        // Bail out after repeated failures to avoid infinite retry loops
+        let attempts = UserDefaults.standard.integer(forKey: migrationAttemptsKey)
+        if attempts >= maxMigrationAttempts {
+            let msg = "Migration abandoned after \(attempts) failed attempts"
+            logger.error("\(msg)")
+            markComplete()
+            return .error(msg)
+        }
+        UserDefaults.standard.set(attempts + 1, forKey: migrationAttemptsKey)
+
         let storePath = swiftDataStorePath()
         guard FileManager.default.fileExists(atPath: storePath) else {
             logger.info("No SwiftData store found — fresh install")
             markComplete()
+            UserDefaults.standard.removeObject(forKey: migrationAttemptsKey)
             return .freshInstall
         }
 
@@ -64,6 +88,7 @@ struct SQLiteMigrationCoordinator {
         guard tableExists(db: oldDB, table: "ZINVENTORYITEM") else {
             logger.info("No Core Data tables found — marking migration complete")
             markComplete()
+            UserDefaults.standard.removeObject(forKey: migrationAttemptsKey)
             return .freshInstall
         }
 
@@ -72,9 +97,9 @@ struct SQLiteMigrationCoordinator {
         do {
             let stats = try performMigration(from: oldDB, to: database)
             try validate(database: database, expected: stats)
-            // Note: old SwiftData store is NOT archived yet because
-            // the app still uses SwiftData for UI. Archive in Phase 8 (cleanup).
+            archiveOldStore()
             markComplete()
+            UserDefaults.standard.removeObject(forKey: migrationAttemptsKey)
             logger.info("Migration succeeded: \(stats.description)")
             return .success(stats: stats)
         } catch {
@@ -108,7 +133,8 @@ struct SQLiteMigrationCoordinator {
         var locationZPKMap: [Int64: UUID] = [:]
         var itemZPKMap: [Int64: UUID] = [:]
 
-        let labels = readLabels(db: oldDB, zpkMap: &labelZPKMap)
+        var skippedColors = 0
+        let labels = readLabels(db: oldDB, zpkMap: &labelZPKMap, skippedColors: &skippedColors)
         let homes = readHomes(db: oldDB, zpkMap: &homeZPKMap)
         let policies = readPolicies(db: oldDB, zpkMap: &policyZPKMap)
         let locations = readLocations(db: oldDB, zpkMap: &locationZPKMap)
@@ -141,6 +167,7 @@ struct SQLiteMigrationCoordinator {
                     ])
             }
             stats.labels = labels.count
+            stats.skippedColors = skippedColors
 
             // 2. Homes
             for home in homes {
@@ -298,6 +325,7 @@ struct SQLiteMigrationCoordinator {
                 else {
                     logger.warning(
                         "Skipping orphaned item-label pair: item=\(itemZPK), label=\(labelZPK)")
+                    stats.skippedItemLabels += 1
                     continue
                 }
 
@@ -321,6 +349,7 @@ struct SQLiteMigrationCoordinator {
                 else {
                     logger.warning(
                         "Skipping orphaned home-policy pair: home=\(homeZPK), policy=\(policyZPK)")
+                    stats.skippedHomePolicies += 1
                     continue
                 }
 
@@ -352,7 +381,9 @@ struct SQLiteMigrationCoordinator {
         let emoji: String
     }
 
-    private static func readLabels(db: OpaquePointer?, zpkMap: inout [Int64: UUID]) -> [RawLabel] {
+    private static func readLabels(
+        db: OpaquePointer?, zpkMap: inout [Int64: UUID], skippedColors: inout Int
+    ) -> [RawLabel] {
         let hasUUID = columnExists(db: db, table: "ZINVENTORYLABEL", column: "ZID")
         let hasEmoji = columnExists(db: db, table: "ZINVENTORYLABEL", column: "ZEMOJI")
         let hasDesc = columnExists(db: db, table: "ZINVENTORYLABEL", column: "ZDESC")
@@ -376,8 +407,8 @@ struct SQLiteMigrationCoordinator {
             let name = readString(stmt: stmt, column: 2)
             let desc = readString(stmt: stmt, column: 3)
 
-            // UIColor BLOB → hex integer
-            let colorHex = deserializeColorBlob(stmt: stmt, column: 4)
+            // UIColor BLOB → hex integer (with fallback gray on deserialization failure)
+            let colorHex = deserializeColorBlob(stmt: stmt, column: 4, skippedColors: &skippedColors)
 
             let emoji = readOptionalString(stmt: stmt, column: 5) ?? "🏷️"
 
@@ -431,7 +462,7 @@ struct SQLiteMigrationCoordinator {
             let uuid = resolveUUID(stmt: stmt, column: 1, zpk: zpk, map: &zpkMap)
 
             let purchaseDate = readCoreDataDate(stmt: stmt, column: 9)
-            let purchasePrice = readDecimalFromDouble(stmt: stmt, column: 10)
+            let purchasePrice = readDecimal(stmt: stmt, column: 10)
 
             results.append(
                 RawHome(
@@ -501,12 +532,12 @@ struct SQLiteMigrationCoordinator {
                     zpk: zpk, uuid: uuid,
                     providerName: readString(stmt: stmt, column: 2),
                     policyNumber: readString(stmt: stmt, column: 3),
-                    deductibleAmount: readDecimalFromDouble(stmt: stmt, column: 4),
-                    dwellingCoverageAmount: readDecimalFromDouble(stmt: stmt, column: 5),
-                    personalPropertyCoverageAmount: readDecimalFromDouble(stmt: stmt, column: 6),
-                    lossOfUseCoverageAmount: readDecimalFromDouble(stmt: stmt, column: 7),
-                    liabilityCoverageAmount: readDecimalFromDouble(stmt: stmt, column: 8),
-                    medicalPaymentsCoverageAmount: readDecimalFromDouble(stmt: stmt, column: 9),
+                    deductibleAmount: readDecimal(stmt: stmt, column: 4),
+                    dwellingCoverageAmount: readDecimal(stmt: stmt, column: 5),
+                    personalPropertyCoverageAmount: readDecimal(stmt: stmt, column: 6),
+                    lossOfUseCoverageAmount: readDecimal(stmt: stmt, column: 7),
+                    liabilityCoverageAmount: readDecimal(stmt: stmt, column: 8),
+                    medicalPaymentsCoverageAmount: readDecimal(stmt: stmt, column: 9),
                     startDate: readCoreDataDate(stmt: stmt, column: 10),
                     endDate: readCoreDataDate(stmt: stmt, column: 11)
                 ))
@@ -675,7 +706,7 @@ struct SQLiteMigrationCoordinator {
 
             let replacementCost: Decimal? =
                 sqlite3_column_type(stmt, 13) != SQLITE_NULL
-                ? readDecimalFromDouble(stmt: stmt, column: 13) : nil
+                ? readDecimal(stmt: stmt, column: 13) : nil
 
             let depreciationRate: Double? =
                 sqlite3_column_type(stmt, 14) != SQLITE_NULL
@@ -699,7 +730,7 @@ struct SQLiteMigrationCoordinator {
                     serial: readString(stmt: stmt, column: 6),
                     model: readString(stmt: stmt, column: 7),
                     make: readString(stmt: stmt, column: 8),
-                    price: readDecimalFromDouble(stmt: stmt, column: 9),
+                    price: readDecimal(stmt: stmt, column: 9),
                     insured: sqlite3_column_int(stmt, 10) != 0,
                     assetId: readString(stmt: stmt, column: 11),
                     notes: readString(stmt: stmt, column: 12),
@@ -958,8 +989,19 @@ struct SQLiteMigrationCoordinator {
         return Date(timeIntervalSinceReferenceDate: timestamp)
     }
 
-    private static func readDecimalFromDouble(stmt: OpaquePointer?, column: Int32) -> Decimal {
+    /// Reads a Core Data REAL column as Decimal, preferring the text representation
+    /// to avoid IEEE 754 precision loss (e.g. 99.99 → "99.9899999999999980...").
+    private static func readDecimal(stmt: OpaquePointer?, column: Int32) -> Decimal {
         guard sqlite3_column_type(stmt, column) != SQLITE_NULL else { return 0 }
+        // SQLite returns a clean string (e.g. "99.99") for REAL columns,
+        // avoiding the Double → Decimal precision artifacts.
+        if let textPtr = sqlite3_column_text(stmt, column) {
+            let text = String(cString: textPtr)
+            if let decimal = Decimal(string: text) {
+                return decimal
+            }
+        }
+        // Fallback: use Double conversion (lossy but better than zero)
         return Decimal(sqlite3_column_double(stmt, column))
     }
 
@@ -1008,8 +1050,11 @@ struct SQLiteMigrationCoordinator {
         return "[]"
     }
 
-    /// Deserializes a UIColor BLOB stored via UIColorValueTransformer → hex Int64
-    private static func deserializeColorBlob(stmt: OpaquePointer?, column: Int32) -> Int64? {
+    /// Deserializes a UIColor BLOB stored via UIColorValueTransformer → hex Int64.
+    /// Returns a fallback gray if the BLOB exists but can't be deserialized.
+    private static func deserializeColorBlob(
+        stmt: OpaquePointer?, column: Int32, skippedColors: inout Int
+    ) -> Int64? {
         guard sqlite3_column_type(stmt, column) == SQLITE_BLOB else { return nil }
         guard let blobPtr = sqlite3_column_blob(stmt, column) else { return nil }
         let blobLen = Int(sqlite3_column_bytes(stmt, column))
@@ -1020,8 +1065,9 @@ struct SQLiteMigrationCoordinator {
         guard
             let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: UIColor.self, from: data)
         else {
-            logger.warning("Failed to deserialize UIColor BLOB")
-            return nil
+            logger.warning("Failed to deserialize UIColor BLOB — using fallback gray")
+            skippedColors += 1
+            return 0x8080_80FF  // medium gray fallback
         }
 
         // Convert UIColor to hex integer (RGBA), normalizing to sRGB for grayscale safety

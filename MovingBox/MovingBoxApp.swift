@@ -185,12 +185,15 @@ struct MovingBoxApp: App {
                 let migrationResult = SQLiteMigrationCoordinator.migrateIfNeeded(database: database)
                 switch migrationResult {
                 case .freshInstall:
+                    TelemetryDeck.signal("Migration.freshInstall")
                     print("📦 sqlite-data: Fresh install — no migration needed")
                 case .alreadyCompleted:
                     break
                 case .success(let stats):
+                    TelemetryDeck.signal("Migration.success", parameters: ["stats": "\(stats)"])
                     print("📦 sqlite-data: Migration succeeded — \(stats)")
                 case .error(let message):
+                    TelemetryDeck.signal("Migration.error", parameters: ["message": message])
                     print("📦 sqlite-data: Migration failed — \(message)")
                 }
 

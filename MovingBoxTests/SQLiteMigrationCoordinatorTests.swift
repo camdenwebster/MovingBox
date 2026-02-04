@@ -88,6 +88,78 @@ struct SQLiteMigrationCoordinatorTests {
         #expect(tables.contains("homeInsurancePolicies"))
     }
 
+    // MARK: - Skipped Counters in Stats
+
+    @Test("MigrationStats description includes non-zero skipped counters")
+    func skippedCountersInDescription() {
+        var stats = SQLiteMigrationCoordinator.MigrationStats()
+        stats.labels = 3
+        stats.items = 10
+        stats.skippedItemLabels = 2
+        stats.skippedColors = 1
+
+        let desc = stats.description
+        #expect(desc.contains("skippedItemLabels=2"))
+        #expect(desc.contains("skippedColors=1"))
+        #expect(!desc.contains("skippedHomePolicies"))  // zero → omitted
+    }
+
+    @Test("MigrationStats description omits all skipped counters when zero")
+    func skippedCountersOmittedWhenZero() {
+        var stats = SQLiteMigrationCoordinator.MigrationStats()
+        stats.labels = 1
+        stats.items = 5
+
+        let desc = stats.description
+        #expect(!desc.contains("skipped"))
+    }
+
+    // MARK: - Decimal Precision
+
+    @Test("Decimal(string:) preserves exact value vs Decimal(Double) introducing artifacts")
+    func decimalStringPrecision() {
+        let fromString = Decimal(string: "99.99")!
+        let fromDouble = Decimal(99.99)
+
+        // String-based preserves exact representation
+        #expect("\(fromString)" == "99.99")
+
+        // Double-based introduces IEEE 754 artifacts
+        #expect("\(fromDouble)" != "99.99")
+    }
+
+    // MARK: - Retry Limit
+
+    private static let testAttemptsKey =
+        "com.mothersound.movingbox.sqlitedata.migration.attempts"
+
+    @Test("Migration abandoned after max retry attempts")
+    func retryLimitAbandons() throws {
+        let db = try makeInMemoryDatabase()
+
+        // Clear state
+        UserDefaults.standard.removeObject(forKey: Self.testMigrationKey)
+        UserDefaults.standard.removeObject(forKey: Self.testAttemptsKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: Self.testMigrationKey)
+            UserDefaults.standard.removeObject(forKey: Self.testAttemptsKey)
+        }
+
+        // Simulate 3 prior failed attempts
+        UserDefaults.standard.set(3, forKey: Self.testAttemptsKey)
+
+        let result = SQLiteMigrationCoordinator.migrateIfNeeded(database: db)
+        switch result {
+        case .error(let msg):
+            #expect(msg.contains("abandoned"))
+        default:
+            Issue.record("Expected .error with 'abandoned', got \(result)")
+        }
+
+        // Should have set the migration-complete flag to prevent future retries
+        #expect(UserDefaults.standard.bool(forKey: Self.testMigrationKey))
+    }
+
     // MARK: - FK Integrity After Full Insert
 
     @Test("Foreign key integrity after inserting all entity types")
