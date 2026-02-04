@@ -40,12 +40,16 @@ struct HighResolutionAnalysisTests {
             let currentHighQualityEnabled = settingsManager.highQualityAnalysisEnabled
 
             if currentProStatus && currentHighQualityEnabled {
-                #expect(effectiveModel == "google/gemini-3-flash-preview", "Pro users with high quality should use google/gemini-3-flash-preview")
+                #expect(
+                    effectiveModel == "google/gemini-3-flash-preview",
+                    "Pro users with high quality should use google/gemini-3-flash-preview")
                 #expect(
                     effectiveResolution == 1250.0, "Pro users with high quality should use 1250px resolution")
                 #expect(effectiveDetail == "high", "Pro users with high quality should use high detail")
             } else {
-                #expect(effectiveModel == "google/gemini-3-flash-preview", "Standard users should use google/gemini-3-flash-preview")
+                #expect(
+                    effectiveModel == "google/gemini-3-flash-preview",
+                    "Standard users should use google/gemini-3-flash-preview")
                 #expect(effectiveResolution == 512.0, "Standard users should use 512px resolution")
                 #expect(effectiveDetail == "low", "Standard users should use low detail")
             }

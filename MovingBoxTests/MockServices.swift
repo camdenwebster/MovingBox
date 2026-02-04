@@ -18,6 +18,7 @@ import UIKit
 class MockAIAnalysisService: AIAnalysisServiceProtocol {
     var shouldFail = false
     var shouldFailMultiItem = false
+    var analyzeItemCallCount = 0
 
     var mockResponse = ImageDetails(
         title: "Test Item",
@@ -40,7 +41,8 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
                 make: "Mock",
                 model: "Test",
                 estimatedPrice: "$99.99",
-                confidence: 0.85
+                confidence: 0.85,
+                detections: [ItemDetection(sourceImageIndex: 0, boundingBox: [100, 150, 500, 700])]
             )
         ],
         detectedCount: 1,
@@ -51,6 +53,21 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
     func getImageDetails(
         from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
     ) async throws -> ImageDetails {
+        if shouldFail {
+            throw AIAnalysisError.invalidData
+        }
+
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+
+        return mockResponse
+    }
+
+    func analyzeItem(
+        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+    ) async throws -> ImageDetails {
+        analyzeItemCallCount += 1
+
         if shouldFail {
             throw AIAnalysisError.invalidData
         }

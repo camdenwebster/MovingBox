@@ -127,16 +127,16 @@ struct ImageAnalysisView: View {
                 // AI Analysis section
                 VStack(spacing: 24) {
                     // Apple Intelligence icon with pulse animation
-                    Image(systemName: "apple.intelligence")
-                        .font(.system(size: 64))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .symbolEffect(.pulse)
+                    //                    Image(systemName: "apple.intelligence")
+                    //                        .font(.system(size: 64))
+                    //                        .foregroundStyle(
+                    //                            LinearGradient(
+                    //                                colors: [.blue, .purple],
+                    //                                startPoint: .topLeading,
+                    //                                endPoint: .bottomTrailing
+                    //                            )
+                    //                        )
+                    //                        .symbolEffect(.pulse)
 
                     // Photo count
                     if images.count > 1 {

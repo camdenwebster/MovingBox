@@ -50,12 +50,14 @@ enum CaptureMode: CaseIterable {
 
     // MARK: - Photo Limits
 
+    static let maxPhotosPerAnalysis = AnalysisPhotoLimits.maxPhotos
+
     func maxPhotosAllowed(isPro: Bool) -> Int {
         switch self {
         case .singleItem:
-            return isPro ? 5 : 1
+            return isPro ? Self.maxPhotosPerAnalysis : 1
         case .multiItem:
-            return 5
+            return Self.maxPhotosPerAnalysis
         }
     }
 
@@ -69,18 +71,18 @@ enum CaptureMode: CaseIterable {
     func isValidPhotoCount(_ count: Int) -> Bool {
         switch self {
         case .singleItem:
-            return count >= 1 && count <= 5
+            return count >= 1 && count <= Self.maxPhotosPerAnalysis
         case .multiItem:
-            return count >= 1 && count <= 5
+            return count >= 1 && count <= Self.maxPhotosPerAnalysis
         }
     }
 
     func errorMessage(for error: CaptureModeError) -> String {
         switch (self, error) {
         case (.singleItem, .tooManyPhotos):
-            return "You can take up to 5 photos in single-item mode."
+            return "You can take up to \(Self.maxPhotosPerAnalysis) photos in single-item mode."
         case (.multiItem, .tooManyPhotos):
-            return "You can take up to 5 photos in multi-item mode."
+            return "You can take up to \(Self.maxPhotosPerAnalysis) photos in multi-item mode."
         case (.singleItem, .noPhotos):
             return "Please take at least one photo."
         case (.multiItem, .noPhotos):
@@ -162,6 +164,7 @@ struct MultiPhotoCameraView: View {
     @State private var showingFocusIndicator = false
     @State private var orientation = UIDeviceOrientation.portrait
     @State private var localZoomIndex: Int = 0
+    @State private var showingGallery = false
 
     init(
         capturedImages: Binding<[UIImage]>,
@@ -233,16 +236,6 @@ struct MultiPhotoCameraView: View {
                     - model.capturedImages.count),
             matching: .images
         )
-        .alert("Switch Camera Mode?", isPresented: $model.showingModeSwitchConfirmation) {
-            Button("Cancel", role: .cancel) {
-                model.cancelModeSwitch()
-            }
-            Button("Switch Mode", role: .destructive) {
-                model.confirmModeSwitch()
-            }
-        } message: {
-            Text("Switching modes will clear your current photos. Are you sure?")
-        }
         .onChange(of: selectedItems) { _, newItems in
             Task {
                 await processSelectedPhotos(newItems)
@@ -263,6 +256,15 @@ struct MultiPhotoCameraView: View {
                 isPresented: $model.showingPaywall,
                 onCompletion: { settings.isPro = true },
                 onDismiss: nil
+            )
+        }
+        .sheet(isPresented: $showingGallery) {
+            PhotoGallerySheet(
+                images: model.capturedImages,
+                maxPhotos: model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro),
+                onDelete: { index in
+                    model.removeImage(at: index)
+                }
             )
         }
         .onAppear {
@@ -331,27 +333,6 @@ struct MultiPhotoCameraView: View {
                 isSyncingData: containerManager.isCloudKitSyncing
             )
 
-            if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(model.capturedImages.enumerated()), id: \.offset) { index, image in
-                            PhotoThumbnailView(
-                                image: image,
-                                index: index,
-                                onDelete: { index in
-                                    model.removeImage(at: index)
-                                }
-                            )
-                            .frame(width: 60, height: 70)
-                            .transition(.opacity)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-                .frame(height: 70)
-                .animation(.easeIn(duration: 0.3), value: model.capturedImages.count)
-            }
-
             Spacer()
 
             if showingFocusIndicator, let focusPoint = focusPoint {
@@ -383,12 +364,15 @@ struct MultiPhotoCameraView: View {
                 CameraBottomControls(
                     captureMode: model.selectedCaptureMode,
                     photoCount: model.capturedImages.count,
+                    maxPhotoCount: model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro),
+                    galleryThumbnail: model.capturedImages.last,
                     photoCounterText: model.selectedCaptureMode.photoCounterText(
                         currentCount: model.capturedImages.count, isPro: settings.isPro),
                     hasPhotoCaptured: !model.capturedImages.isEmpty,
                     onShutterTap: { handleShutterTap() },
                     onRetakeTap: { model.capturedImages.removeAll() },
                     onPhotoPickerTap: { handlePhotoPickerTap() },
+                    onGalleryTap: { showingGallery = true },
                     selectedCaptureMode: Binding(
                         get: { model.selectedCaptureMode },
                         set: { newMode in
@@ -468,9 +452,10 @@ struct MultiPhotoCameraView: View {
     }
 
     private func calculateThumbnailDestination(geometry: GeometryProxy) -> CGRect {
-        let thumbnailAreaY: CGFloat = geometry.size.height * -0.095
-        let thumbnailX = 20 + CGFloat(model.capturedImages.count - 1) * 68
-        return CGRect(x: thumbnailX, y: thumbnailAreaY, width: 60, height: 60)
+        let thumbnailSize: CGFloat = 54
+        let x = 24.0
+        let y = geometry.size.height - 130.0 - geometry.safeAreaInsets.bottom
+        return CGRect(x: x, y: y, width: thumbnailSize, height: thumbnailSize)
     }
 
     private func triggerCaptureAnimation(with image: UIImage) {

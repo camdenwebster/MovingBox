@@ -11,6 +11,10 @@ import Foundation
 import SwiftData
 import UIKit
 
+enum AnalysisPhotoLimits {
+    static let maxPhotos = 60
+}
+
 // MARK: - Mock Service for Testing
 
 #if DEBUG
@@ -40,7 +44,8 @@ import UIKit
                     make: "Herman Miller",
                     model: "Aeron",
                     estimatedPrice: "$1,295.00",
-                    confidence: 0.92
+                    confidence: 0.92,
+                    detections: [ItemDetection(sourceImageIndex: 0, boundingBox: [50, 100, 600, 450])]
                 ),
                 DetectedInventoryItem(
                     title: "MacBook Pro",
@@ -49,7 +54,8 @@ import UIKit
                     make: "Apple",
                     model: "MacBook Pro 15-inch",
                     estimatedPrice: "$2,399.00",
-                    confidence: 0.95
+                    confidence: 0.95,
+                    detections: [ItemDetection(sourceImageIndex: 0, boundingBox: [200, 500, 550, 900])]
                 ),
                 DetectedInventoryItem(
                     title: "Standing Desk",
@@ -58,7 +64,8 @@ import UIKit
                     make: "Uplift",
                     model: "V2",
                     estimatedPrice: "$799.00",
-                    confidence: 0.88
+                    confidence: 0.88,
+                    detections: [ItemDetection(sourceImageIndex: 0, boundingBox: [300, 50, 950, 950])]
                 ),
             ],
             detectedCount: 3,
@@ -70,6 +77,22 @@ import UIKit
             -> ImageDetails
         {
             print("🧪 MockAIAnalysisService: getImageDetails called with \(images.count) images")
+            if shouldFail {
+                print("🧪 MockAIAnalysisService: Simulating failure")
+                throw AIAnalysisError.invalidData
+            }
+
+            print("🧪 MockAIAnalysisService: Simulating analysis delay...")
+            try await Task.sleep(nanoseconds: 500_000_000)
+
+            print("🧪 MockAIAnalysisService: Returning mock response")
+            return mockResponse
+        }
+
+        func analyzeItem(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+            -> ImageDetails
+        {
+            print("🧪 MockAIAnalysisService: analyzeItem called with \(images.count) images")
             if shouldFail {
                 print("🧪 MockAIAnalysisService: Simulating failure")
                 throw AIAnalysisError.invalidData
@@ -123,6 +146,11 @@ enum AIAnalysisServiceFactory {
 
 // MARK: - Multi-Item Analysis Types
 
+struct ItemDetection: Codable, Equatable {
+    let sourceImageIndex: Int  // Which photo (0-indexed)
+    let boundingBox: [Int]  // [ymin, xmin, ymax, xmax] normalized 0-1000
+}
+
 struct MultiItemAnalysisResponse: Codable {
     let items: [DetectedInventoryItem]?
     let detectedCount: Int
@@ -150,6 +178,7 @@ struct DetectedInventoryItem: Codable, Identifiable {
     let model: String
     let estimatedPrice: String
     let confidence: Double
+    let detections: [ItemDetection]?
 
     init(
         id: String = UUID().uuidString,
@@ -159,7 +188,8 @@ struct DetectedInventoryItem: Codable, Identifiable {
         make: String,
         model: String,
         estimatedPrice: String,
-        confidence: Double
+        confidence: Double,
+        detections: [ItemDetection]? = nil
     ) {
         self.id = id
         self.title = title
@@ -169,6 +199,45 @@ struct DetectedInventoryItem: Codable, Identifiable {
         self.model = model
         self.estimatedPrice = estimatedPrice
         self.confidence = confidence
+        self.detections = detections
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case description
+        case category
+        case make
+        case model
+        case estimatedPrice
+        case confidence
+        case detections
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
+        make = try container.decodeIfPresent(String.self, forKey: .make) ?? ""
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
+        estimatedPrice = try container.decodeIfPresent(String.self, forKey: .estimatedPrice) ?? ""
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence) ?? 0.0
+        detections = try container.decodeIfPresent([ItemDetection].self, forKey: .detections)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(description, forKey: .description)
+        try container.encode(category, forKey: .category)
+        try container.encode(make, forKey: .make)
+        try container.encode(model, forKey: .model)
+        try container.encode(estimatedPrice, forKey: .estimatedPrice)
+        try container.encode(confidence, forKey: .confidence)
+        try container.encodeIfPresent(detections, forKey: .detections)
     }
 }
 
@@ -176,6 +245,8 @@ struct DetectedInventoryItem: Codable, Identifiable {
 
 protocol AIAnalysisServiceProtocol {
     func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+        -> ImageDetails
+    func analyzeItem(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
         -> ImageDetails
     func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
         -> MultiItemAnalysisResponse
@@ -309,24 +380,30 @@ struct AIRequestBuilder {
     private func createImagePrompt(for imageCount: Int, isMultiItem: Bool = false) -> String {
         if isMultiItem {
             return """
-                Analyze this image and identify ALL distinct items visible. Each item should be a separate inventory item that would be individually cataloged. Look for objects like electronics, furniture, appliances, books, tools, clothing, etc. 
-
+                Analyze the provided image\(imageCount > 1 ? "s" : "") and identify ALL distinct items visible. Each item should be a separate inventory item that would be individually cataloged. Look for objects like electronics, furniture, appliances, books, tools, clothing, etc.
+                \(imageCount > 1 ? "\nImages are labeled Image 0 through Image \(imageCount - 1).\n" : "")
                 CRITICAL REQUIREMENTS:
                 1. You MUST use the process_multiple_inventory_items function
                 2. You MUST include an "items" array in your response - this field is REQUIRED
                 3. The "items" array must contain objects, even if empty: []
-                4. Each item object must have: title, description, category, make, model, estimatedPrice, confidence
+                4. Each item object must have: title, description, category, make, model, estimatedPrice, confidence, detections
                 5. The "detectedCount" must match the length of the "items" array
                 6. Set "analysisType" to "multi_item"
                 7. Provide an overall "confidence" score
+                8. Each item MUST include a "detections" array with bounding box coordinates
+                9. Each detection has "sourceImageIndex" (0-indexed image number) and "boundingBox" [ymin, xmin, ymax, xmax] normalized to 0-1000 scale
+                10. If the same item appears in multiple images, include multiple detections for that item
+                11. The first detection should be the clearest/best view of the item
+                12. Do NOT cap the number of items at 10 or any other limit; include ALL distinct items visible
+                13. For any unknown or unclear field, return an empty string (do NOT use "unknown", "n/a", "no serial number found", etc.)
 
                 EXAMPLE RESPONSE FORMAT:
                 {
                     "items": [
-                        {"title": "Laptop", "description": "Silver laptop computer", "category": "Electronics", "make": "Apple", "model": "MacBook Pro", "estimatedPrice": "$2000", "confidence": 0.95}
+                        {"title": "Laptop", "description": "Silver laptop computer", "category": "Electronics", "make": "Apple", "model": "MacBook Pro", "estimatedPrice": "$2000", "confidence": 0.95, "detections": [{"sourceImageIndex": 0, "boundingBox": [100, 200, 500, 800]}]}
                     ],
                     "detectedCount": 1,
-                    "analysisType": "multi_item", 
+                    "analysisType": "multi_item",
                     "confidence": 0.90
                 }
 
@@ -334,10 +411,10 @@ struct AIRequestBuilder {
                 """
         } else if imageCount > 1 {
             return
-                "Analyze these \(imageCount) images which show the same item from different angles and perspectives. Combine all the visual information from all images to create ONE comprehensive description of this single item. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. Return only ONE response that describes the item based on all the photos together."
+                "Analyze these \(imageCount) images which show the same item from different angles and perspectives. Combine all the visual information from all images to create ONE comprehensive description of this single item. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. For any unknown or unclear field, return an empty string (do NOT use \"unknown\", \"n/a\", \"no serial number found\", etc.). Return only ONE response that describes the item based on all the photos together."
         } else {
             return
-                "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification."
+                "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. For any unknown or unclear field, return an empty string (do NOT use \"unknown\", \"n/a\", \"no serial number found\", etc.)."
         }
     }
 
@@ -377,7 +454,7 @@ struct AIRequestBuilder {
         return FunctionDefinition(
             name: isMultiItem ? "process_multiple_inventory_items" : "process_inventory_item",
             description: isMultiItem
-                ? "Process and structure information about MULTIPLE distinct inventory items visible in the image. You MUST return a JSON object with an 'items' array containing a separate object for each unique item that would be individually cataloged. Always include the items array, even if empty."
+                ? "Process and structure information about MULTIPLE distinct inventory items visible in the image. You MUST return a JSON object with an 'items' array containing a separate object for each unique item that would be individually cataloged. Always include the items array, even if empty. Do NOT cap the number of items; include all distinct items visible."
                 : (imageCount > 1
                     ? "Process and structure information about ONE inventory item based on multiple photos. Return only ONE item description that combines information from all images."
                     : "Process and structure information about an inventory item"),
@@ -481,18 +558,23 @@ struct AIRequestBuilder {
     }
 
     @MainActor
-    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager, isMultiItem: Bool = false) -> Int {
         // Base token limit for single image with low quality
         let baseTokens = 3000
 
-        // Add 300 tokens for each additional image (up to 5 images max)
-        let imageCount = min(imageCount, 5)  // Cap at 5 images
+        // Add 300 tokens for each additional image (up to 60 images max)
+        let imageCount = min(imageCount, AnalysisPhotoLimits.maxPhotos)
         let additionalTokens = max(0, (imageCount - 1)) * 300
         let lowQualityTokens = baseTokens + additionalTokens
 
         // Apply 3x multiplier for high quality images (Pro + high quality enabled)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        var finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+
+        // Multi-item needs more tokens for bounding box coordinates (~80-120 per item)
+        if isMultiItem {
+            finalTokens = max(finalTokens, 12000)
+        }
 
         return finalTokens
     }
@@ -547,19 +629,136 @@ struct AIResponseParser {
         let usage: TokenUsage?
     }
 
+    struct MultiItemParseResult {
+        let response: MultiItemAnalysisResponse
+        let usage: TokenUsage?
+    }
+
+    private func sanitizeString(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return ""
+        }
+
+        let normalized = trimmed.lowercased()
+        let badExactValues: Set<String> = [
+            "unknown",
+            "unknown item",
+            "n/a",
+            "na",
+            "none",
+            "not available",
+            "not specified",
+            "unavailable",
+            "not found",
+        ]
+
+        if badExactValues.contains(normalized) {
+            return ""
+        }
+
+        let badSubstrings = [
+            "no serial number",
+            "serial number not found",
+            "serial not found",
+            "not visible",
+            "unable to determine",
+            "could not determine",
+        ]
+
+        if badSubstrings.contains(where: { normalized.contains($0) }) {
+            return ""
+        }
+
+        return trimmed
+    }
+
+    private func sanitizeOptional(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let sanitized = sanitizeString(value)
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
+    private func sanitizeCategories(_ categories: [String]) -> [String] {
+        categories
+            .map { sanitizeString($0) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func sanitizeImageDetails(_ details: ImageDetails) -> ImageDetails {
+        let sanitizedCategories = sanitizeCategories(details.categories)
+        let sanitizedCategory = sanitizeString(details.category)
+        let finalCategory = sanitizedCategory.isEmpty ? (sanitizedCategories.first ?? "") : sanitizedCategory
+
+        return ImageDetails(
+            title: sanitizeString(details.title),
+            quantity: sanitizeString(details.quantity),
+            description: sanitizeString(details.description),
+            make: sanitizeString(details.make),
+            model: sanitizeString(details.model),
+            category: finalCategory,
+            categories: sanitizedCategories,
+            location: sanitizeString(details.location),
+            price: sanitizeString(details.price),
+            serialNumber: sanitizeString(details.serialNumber),
+            condition: sanitizeOptional(details.condition),
+            color: sanitizeOptional(details.color),
+            dimensions: sanitizeOptional(details.dimensions),
+            dimensionLength: sanitizeOptional(details.dimensionLength),
+            dimensionWidth: sanitizeOptional(details.dimensionWidth),
+            dimensionHeight: sanitizeOptional(details.dimensionHeight),
+            dimensionUnit: sanitizeOptional(details.dimensionUnit),
+            weightValue: sanitizeOptional(details.weightValue),
+            weightUnit: sanitizeOptional(details.weightUnit),
+            purchaseLocation: sanitizeOptional(details.purchaseLocation),
+            replacementCost: sanitizeOptional(details.replacementCost),
+            depreciationRate: sanitizeOptional(details.depreciationRate),
+            storageRequirements: sanitizeOptional(details.storageRequirements),
+            isFragile: sanitizeOptional(details.isFragile)
+        )
+    }
+
+    private func sanitizeDetectedItem(_ item: DetectedInventoryItem) -> DetectedInventoryItem {
+        return DetectedInventoryItem(
+            id: item.id,
+            title: sanitizeString(item.title),
+            description: sanitizeString(item.description),
+            category: sanitizeString(item.category),
+            make: sanitizeString(item.make),
+            model: sanitizeString(item.model),
+            estimatedPrice: sanitizeString(item.estimatedPrice),
+            confidence: item.confidence,
+            detections: item.detections
+        )
+    }
+
+    func sanitizeMultiItemResponse(_ response: MultiItemAnalysisResponse) -> MultiItemAnalysisResponse {
+        let sanitizedItems = response.items?.map { sanitizeDetectedItem($0) }
+        return MultiItemAnalysisResponse(
+            items: sanitizedItems,
+            detectedCount: response.detectedCount,
+            analysisType: response.analysisType,
+            confidence: response.confidence
+        )
+    }
     @MainActor
-    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager, isMultiItem: Bool = false) -> Int {
         // Base token limit for single image with low quality
         let baseTokens = 3000
 
-        // Add 300 tokens for each additional image (up to 5 images max)
-        let imageCount = min(imageCount, 5)  // Cap at 5 images
+        // Add 300 tokens for each additional image (up to 60 images max)
+        let imageCount = min(imageCount, AnalysisPhotoLimits.maxPhotos)
         let additionalTokens = max(0, (imageCount - 1)) * 300
         let lowQualityTokens = baseTokens + additionalTokens
 
         // Apply 3x multiplier for high quality images (Pro + high quality enabled)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        var finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+
+        // Multi-item needs more tokens for bounding box coordinates (~80-120 per item)
+        if isMultiItem {
+            finalTokens = max(finalTokens, 12000)
+        }
 
         return finalTokens
     }
@@ -607,12 +806,60 @@ struct AIResponseParser {
             throw AIAnalysisError.invalidData
         }
 
-        let result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
+        let decoded = try JSONDecoder().decode(ImageDetails.self, from: responseData)
+        let result = sanitizeImageDetails(decoded)
 
         // Convert AIProxy usage to our TokenUsage type for compatibility
         let tokenUsage = response.usage != nil ? convertAIProxyUsage(response.usage!) : nil
 
         return ParseResult(imageDetails: result, usage: tokenUsage)
+    }
+
+    @MainActor
+    func parseAIProxyMultiItemResponse(
+        response: OpenRouterChatCompletionResponseBody,
+        imageCount: Int,
+        startTime: Date,
+        settings: SettingsManager
+    ) throws -> MultiItemParseResult {
+        print("✅ Processing multi-item AIProxy response with \(response.choices.count) choices")
+
+        if response.usage == nil {
+            print("⚠️ No token usage information in response")
+        }
+
+        guard let choice = response.choices.first else {
+            print("❌ No choices in response")
+            throw AIAnalysisError.invalidData
+        }
+
+        guard let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty else {
+            print("❌ No tool calls in response")
+            print("📝 Response message: \(choice.message)")
+            throw AIAnalysisError.invalidData
+        }
+
+        let toolCall = toolCalls[0]
+        guard let function = toolCall.function else {
+            print("❌ Tool call missing function payload")
+            throw AIAnalysisError.invalidData
+        }
+        print("🎯 Tool call received: \(function.name)")
+
+        let argumentsString = function.argumentsRaw ?? ""
+        print("📄 Arguments length: \(argumentsString.count) characters")
+
+        guard let responseData = argumentsString.data(using: String.Encoding.utf8) else {
+            print("❌ Cannot convert function arguments to data")
+            print("📄 Raw arguments: \(argumentsString)")
+            throw AIAnalysisError.invalidData
+        }
+
+        let decoded = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
+        let result = sanitizeMultiItemResponse(decoded)
+        let tokenUsage = response.usage != nil ? convertAIProxyUsage(response.usage!) : nil
+
+        return MultiItemParseResult(response: result, usage: tokenUsage)
     }
 
     private func convertAIProxyUsage(_ aiProxyUsage: OpenRouterChatCompletionResponseBody.Usage) -> TokenUsage {
@@ -993,18 +1240,23 @@ struct FunctionDefinition: Codable {
 class AIAnalysisService: AIAnalysisServiceProtocol {
 
     @MainActor
-    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager, isMultiItem: Bool = false) -> Int {
         // Base token limit for single image with low quality
         let baseTokens = 3000
 
-        // Add 300 tokens for each additional image (up to 5 images max)
-        let imageCount = min(imageCount, 5)  // Cap at 5 images
+        // Add 300 tokens for each additional image (up to 60 images max)
+        let imageCount = min(imageCount, AnalysisPhotoLimits.maxPhotos)
         let additionalTokens = max(0, (imageCount - 1)) * 300
         let lowQualityTokens = baseTokens + additionalTokens
 
         // Apply 3x multiplier for high quality images (Pro + high quality enabled)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        var finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+
+        // Multi-item needs more tokens for bounding box coordinates (~80-120 per item)
+        if isMultiItem {
+            finalTokens = max(finalTokens, 12000)
+        }
 
         return finalTokens
     }
@@ -1034,6 +1286,12 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         }
 
         return try await currentTask!.value
+    }
+
+    func analyzeItem(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+        -> ImageDetails
+    {
+        return try await performRequestWithRetry(images: images, settings: settings, modelContext: modelContext)
     }
 
     func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
@@ -1164,7 +1422,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
             "properties": [
                 "items": [
                     "type": "array",
-                    "description": "Array of detected inventory items",
+                    "description": "Array of detected inventory items (include ALL distinct items; do not cap at 10)",
                     "items": [
                         "type": "object",
                         "properties": [
@@ -1200,9 +1458,30 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
                                 "type": "number",
                                 "description": "Confidence score between 0.0 and 1.0",
                             ],
+                            "detections": [
+                                "type": "array",
+                                "description": "Bounding box detections for this item across source images",
+                                "items": [
+                                    "type": "object",
+                                    "properties": [
+                                        "sourceImageIndex": [
+                                            "type": "integer",
+                                            "description": "0-indexed image number this detection is from",
+                                        ],
+                                        "boundingBox": [
+                                            "type": "array",
+                                            "description": "[ymin, xmin, ymax, xmax] normalized 0-1000",
+                                            "items": ["type": "integer"],
+                                        ],
+                                    ],
+                                    "required": ["sourceImageIndex", "boundingBox"],
+                                    "additionalProperties": false,
+                                ],
+                            ],
                         ],
                         "required": [
                             "id", "title", "description", "category", "make", "model", "estimatedPrice", "confidence",
+                            "detections",
                         ],
                         "additionalProperties": false,
                     ],
@@ -1231,8 +1510,8 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
             modelContext: modelContext
         )
 
-        // Calculate token limit
-        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
+        // Calculate token limit (multi-item needs more tokens for bounding boxes)
+        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
 
         print("🚀 Sending multi-item structured response request via AIProxy")
@@ -1241,20 +1520,36 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         print("📝 Max tokens: \(adjustedMaxTokens)")
 
         // Make the request using structured responses instead of function calling
-        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService.chatCompletionRequest(
-            body: .init(
-                messages: baseRequestBody.messages,
-                maxTokens: adjustedMaxTokens,
-                model: baseRequestBody.model,
-                responseFormat: .jsonSchema(
-                    name: "multi_item_analysis",
-                    description: "Analysis of multiple inventory items in the image",
-                    schema: multiItemSchema,
-                    strict: true
+        let response: OpenRouterChatCompletionResponseBody
+        do {
+            response = try await requestBuilder.openRouterService
+                .chatCompletionRequest(
+                    body: .init(
+                        messages: baseRequestBody.messages,
+                        maxTokens: adjustedMaxTokens,
+                        model: baseRequestBody.model,
+                        responseFormat: .jsonSchema(
+                            name: "multi_item_analysis",
+                            description: "Analysis of multiple inventory items in the image",
+                            schema: multiItemSchema,
+                            strict: true
+                        )
+                    ),
+                    secondsToWait: 60
                 )
-            ),
-            secondsToWait: 60
-        )
+        } catch {
+            if shouldFallbackToFunctionCalling(error) {
+                print("⚠️ Structured response failed; falling back to function calling: \(error)")
+                return try await performSingleMultiItemFunctionRequest(
+                    images: images,
+                    settings: settings,
+                    modelContext: modelContext,
+                    attempt: attempt,
+                    maxAttempts: maxAttempts
+                )
+            }
+            throw error
+        }
 
         print("✅ Received multi-item structured response with \(response.choices.count) choices")
 
@@ -1273,25 +1568,130 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
 
         let result: MultiItemAnalysisResponse
         do {
-            result = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
+            let decoded = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
+            result = responseParser.sanitizeMultiItemResponse(decoded)
             print("✅ Successfully decoded MultiItemAnalysisResponse with \(result.safeItems.count) items")
         } catch {
             print("❌ Failed to decode multi-item response: \(error)")
             print("📄 Raw response: \(content)")
-            throw AIAnalysisError.invalidData
+            print("↩️ Falling back to function calling for multi-item")
+            return try await performSingleMultiItemFunctionRequest(
+                images: images,
+                settings: settings,
+                modelContext: modelContext,
+                attempt: attempt,
+                maxAttempts: maxAttempts
+            )
         }
 
         // Log token usage if available
         if let usage = response.usage {
+            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
+            let totalTokens = usage.totalTokens ?? 0
+            let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
+            print(
+                "📦 Multi-item response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage \(String(format: "%.1f", usagePercentage))% (\(totalTokens)/\(adjustedMaxTokens))"
+            )
             self.logAIProxyTokenUsage(
                 usage: usage,
                 elapsedTime: Date().timeIntervalSince(startTime),
                 imageCount: imageCount,
                 settings: settings
             )
+        } else {
+            print(
+                "📦 Multi-item response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage unavailable"
+            )
         }
 
         return result
+    }
+
+    private func performSingleMultiItemFunctionRequest(
+        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int
+    ) async throws -> MultiItemAnalysisResponse {
+        let startTime = Date()
+        let imageCount = images.count
+
+        let requestBody = await requestBuilder.buildMultiItemRequestBody(
+            with: images,
+            settings: settings,
+            modelContext: modelContext
+        )
+
+        if attempt == 1 {
+            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
+            let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+            print("🚀 Sending multi-item function request via AIProxy (fallback)")
+            print("📊 Images: \(imageCount)")
+            print("⚙️ Quality: \(isHighQuality ? "High" : "Standard")")
+            print("📝 Max tokens: \(adjustedMaxTokens)")
+        } else {
+            print("🔄 Retry attempt \(attempt)/\(maxAttempts) (fallback)")
+        }
+
+        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService
+            .chatCompletionRequest(body: requestBody, secondsToWait: 60)
+
+        print("✅ Received multi-item function response with \(response.choices.count) choices")
+
+        let parseResult = try responseParser.parseAIProxyMultiItemResponse(
+            response: response,
+            imageCount: imageCount,
+            startTime: startTime,
+            settings: settings
+        )
+
+        if let usage = response.usage {
+            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
+            let totalTokens = usage.totalTokens ?? 0
+            let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
+            let formattedUsage = String(format: "%.1f", usagePercentage)
+            print(
+                "📦 Multi-item response (fallback): \(parseResult.response.safeItems.count) items (detectedCount: \(parseResult.response.detectedCount)); token usage \(formattedUsage)% (\(totalTokens)/\(adjustedMaxTokens))"
+            )
+            self.logAIProxyTokenUsage(
+                usage: usage,
+                elapsedTime: Date().timeIntervalSince(startTime),
+                imageCount: imageCount,
+                settings: settings
+            )
+        } else {
+            print(
+                "📦 Multi-item response (fallback): \(parseResult.response.safeItems.count) items (detectedCount: \(parseResult.response.detectedCount)); token usage unavailable"
+            )
+        }
+
+        return parseResult.response
+    }
+
+    private func shouldFallbackToFunctionCalling(_ error: Error) -> Bool {
+        if error is DecodingError {
+            return true
+        }
+
+        if let aiProxyError = error as? AIProxyError {
+            switch aiProxyError {
+            case .unsuccessfulRequest(_, let responseBody):
+                let lowerBody = responseBody.lowercased()
+                if lowerBody.contains("response_format")
+                    || lowerBody.contains("json_schema")
+                    || lowerBody.contains("json schema")
+                    || (lowerBody.contains("schema") && lowerBody.contains("unsupported"))
+                {
+                    return true
+                }
+            default:
+                break
+            }
+        }
+
+        let lowerDescription = error.localizedDescription.lowercased()
+        if lowerDescription.contains("choices") && lowerDescription.contains("keynotfound") {
+            return true
+        }
+
+        return false
     }
 
     // MARK: - Single-Item Analysis (Function Calling - Working)
@@ -1444,8 +1844,9 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
             print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
         }
 
-        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService.chatCompletionRequest(
-            body: requestBody, secondsToWait: 60)
+        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService
+            .chatCompletionRequest(
+                body: requestBody, secondsToWait: 60)
 
         print("✅ Received AIProxy response with \(response.choices.count) choices")
 
@@ -1485,7 +1886,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         print("   🚀 Efficiency: \(String(format: "%.1f", tokensPerSecond)) tokens/sec")
 
         // Check if we're approaching token limits
-        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
+        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
         let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
 
         if usagePercentage > 90.0 {

@@ -338,7 +338,12 @@ struct ItemCreationFlowView: View {
                 let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
 
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
+                item.updateFromImageDetails(
+                    imageDetails,
+                    labels: labels,
+                    locations: locations,
+                    modelContext: modelContext
+                )
                 try? modelContext.save()
 
                 // Set processing flag to false
@@ -418,7 +423,12 @@ struct ItemCreationFlowView: View {
                 let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
 
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
+                item.updateFromImageDetails(
+                    imageDetails,
+                    labels: labels,
+                    locations: locations,
+                    modelContext: modelContext
+                )
                 try? modelContext.save()
 
                 // Increment successful AI analysis count and check for review request

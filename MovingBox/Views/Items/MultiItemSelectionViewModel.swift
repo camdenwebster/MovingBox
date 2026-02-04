@@ -73,6 +73,32 @@ final class MultiItemSelectionViewModel {
     /// Error message if item creation fails
     var errorMessage: String?
 
+    /// Cropped primary images keyed by item ID
+    var croppedPrimaryImages: [String: UIImage] = [:]
+
+    /// Cropped secondary images keyed by item ID
+    var croppedSecondaryImages: [String: [UIImage]] = [:]
+
+    /// Whether cropped images have been computed
+    var hasCroppedImages: Bool = false
+
+    /// AI analysis service for pass 2 enrichment
+    var aiAnalysisService: AIAnalysisServiceProtocol?
+
+    /// Enriched ImageDetails keyed by detected item ID
+    var enrichedDetails: [String: ImageDetails] = [:]
+
+    /// Enrichment progress counters
+    var enrichmentCompleted: Int = 0
+    var enrichmentTotal: Int = 0
+
+    /// Enrichment state flags
+    var isEnriching: Bool = false
+    var enrichmentFinished: Bool = false
+
+    /// Background enrichment task
+    private var enrichmentTask: Task<Void, Never>?
+
     // MARK: - Computed Properties
 
     /// Whether there are no detected items
@@ -107,12 +133,102 @@ final class MultiItemSelectionViewModel {
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
         location: InventoryLocation?,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        aiAnalysisService: AIAnalysisServiceProtocol? = nil
     ) {
         self.analysisResponse = analysisResponse
         self.images = images
         self.location = location
         self.modelContext = modelContext
+        self.aiAnalysisService = aiAnalysisService
+    }
+
+    // MARK: - Bounding Box Cropping
+
+    /// Compute cropped images for all detected items from their bounding box detections
+    func computeCroppedImages() async {
+        guard !hasCroppedImages else { return }
+        for item in detectedItems {
+            let (primary, secondary) = await BoundingBoxCropper.cropDetections(for: item, from: images)
+            if let primary { croppedPrimaryImages[item.id] = primary }
+            if !secondary.isEmpty { croppedSecondaryImages[item.id] = secondary }
+        }
+        hasCroppedImages = true
+    }
+
+    /// Get the primary image for a detected item (cropped if available, falls back to first source image)
+    func primaryImage(for item: DetectedInventoryItem) -> UIImage? {
+        croppedPrimaryImages[item.id] ?? images.first
+    }
+
+    // MARK: - Pass 2 Enrichment
+
+    func startEnrichment(settings: SettingsManager) {
+        guard !isEnriching, !enrichmentFinished, let service = aiAnalysisService else { return }
+
+        enrichmentCompleted = 0
+        enrichmentTotal = detectedItems.count
+        isEnriching = true
+
+        let itemsToEnrich = detectedItems.map { item in
+            var itemImages: [UIImage] = []
+            if let primary = croppedPrimaryImages[item.id] {
+                itemImages.append(primary)
+            }
+            if let secondaries = croppedSecondaryImages[item.id] {
+                itemImages.append(contentsOf: secondaries)
+            }
+            return (id: item.id, title: item.title, images: itemImages)
+        }
+
+        enrichmentTask?.cancel()
+        enrichmentTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            await withTaskGroup(of: (String, ImageDetails?).self) { group in
+                for item in itemsToEnrich {
+                    group.addTask { @MainActor in
+                        guard !item.images.isEmpty else { return (item.id, nil) }
+                        do {
+                            let details = try await service.analyzeItem(
+                                from: item.images, settings: settings, modelContext: self.modelContext)
+                            return (item.id, details)
+                        } catch {
+                            print("Pass 2 failed for '\(item.title)': \(error.localizedDescription)")
+                            return (item.id, nil)
+                        }
+                    }
+                }
+
+                for await (itemId, details) in group {
+                    if Task.isCancelled {
+                        group.cancelAll()
+                        break
+                    }
+                    if let details {
+                        enrichedDetails[itemId] = details
+                    }
+                    enrichmentCompleted += 1
+                }
+            }
+
+            if Task.isCancelled {
+                isEnriching = false
+                enrichmentTask = nil
+                return
+            }
+
+            isEnriching = false
+            enrichmentFinished = true
+            enrichmentTask = nil
+        }
+    }
+
+    func cancelEnrichment() {
+        enrichmentTask?.cancel()
+        enrichmentTask = nil
+        isEnriching = false
+        enrichmentFinished = false
     }
 
     // MARK: - Location Management
@@ -180,12 +296,16 @@ final class MultiItemSelectionViewModel {
             return []
         }
 
+        if !hasCroppedImages {
+            await computeCroppedImages()
+        }
+
         isProcessingSelection = true
         creationProgress = 0.0
         errorMessage = nil
 
         // Fetch existing labels to match against categories
-        let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+        var existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
 
         var createdItems: [InventoryItem] = []
         let selectedDetectedItems = detectedItems.filter { selectedItems.contains($0.id) }
@@ -196,11 +316,18 @@ final class MultiItemSelectionViewModel {
                 // Update progress
                 creationProgress = Double(index) / Double(totalItems)
 
-                // Find matching label for this item's category
-                let matchingLabel = findMatchingLabel(for: detectedItem.category, in: existingLabels)
+                let matchedLabels = LabelAutoAssignment.labels(
+                    for: [detectedItem.category],
+                    existingLabels: existingLabels,
+                    modelContext: modelContext
+                )
 
-                // Create inventory item with matched label
-                let inventoryItem = try await createInventoryItem(from: detectedItem, label: matchingLabel)
+                // Create inventory item with matched labels
+                let inventoryItem = try await createInventoryItem(from: detectedItem, labels: matchedLabels)
+                for label in matchedLabels
+                where !existingLabels.contains(where: { $0.id == label.id }) {
+                    existingLabels.append(label)
+                }
                 createdItems.append(inventoryItem)
 
                 // Small delay for UI feedback
@@ -264,7 +391,7 @@ final class MultiItemSelectionViewModel {
     // MARK: - Private Methods
 
     /// Create a single InventoryItem from a DetectedInventoryItem
-    private func createInventoryItem(from detectedItem: DetectedInventoryItem, label: InventoryLabel?)
+    private func createInventoryItem(from detectedItem: DetectedInventoryItem, labels: [InventoryLabel])
         async throws -> InventoryItem
     {
         // Create new inventory item
@@ -277,30 +404,50 @@ final class MultiItemSelectionViewModel {
             model: detectedItem.model,
             make: detectedItem.make,
             location: location,
-            labels: label.map { [$0] } ?? [],
+            labels: labels,
             price: parsePrice(from: detectedItem.estimatedPrice),
             insured: false,
             assetId: "",
-            notes: "Detected via AI with \(formattedConfidence(detectedItem.confidence)) confidence",
+            notes: "",
             showInvalidQuantityAlert: false
         )
 
         // Generate unique ID for this item
         let itemId = UUID().uuidString
 
+        if let enriched = enrichedDetails[detectedItem.id] {
+            let originalTitle = inventoryItem.title
+            let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+            let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+
+            inventoryItem.updateFromImageDetails(
+                enriched,
+                labels: labels,
+                locations: locations,
+                modelContext: modelContext,
+                preserveExistingLabels: true
+            )
+            if enriched.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || enriched.title == "Unknown Item"
+                || enriched.title == "Unknown"
+            {
+                inventoryItem.title = originalTitle
+            }
+            inventoryItem.hasUsedAI = true
+        }
+
         do {
-            // Save primary image
-            if let primaryImage = images.first {
+            // Only save cropped images - discard original source photos
+            if let croppedPrimary = croppedPrimaryImages[detectedItem.id] {
                 let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    primaryImage, id: itemId)
+                    croppedPrimary, id: itemId)
                 inventoryItem.imageURL = primaryImageURL
             }
 
-            // Save secondary images if available
-            if images.count > 1 {
-                let secondaryImages = Array(images.dropFirst())
+            // Save cropped secondary images (multi-angle crops) only
+            if let croppedSecondaries = croppedSecondaryImages[detectedItem.id], !croppedSecondaries.isEmpty {
                 let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                    secondaryImages, itemId: itemId)
+                    croppedSecondaries, itemId: itemId)
                 inventoryItem.secondaryPhotoURLs = secondaryURLs
             }
 
@@ -364,18 +511,15 @@ final class MultiItemSelectionViewModel {
         return "\(percentage)%"
     }
 
-    /// Find matching label for a given category from existing labels
-    private func findMatchingLabel(for category: String, in labels: [InventoryLabel])
-        -> InventoryLabel?
-    {
-        guard !category.isEmpty else { return nil }
-        return labels.first { $0.name.lowercased() == category.lowercased() }
+    /// Find matching labels for a given category from existing labels
+    private func matchingLabels(for category: String, in labels: [InventoryLabel]) -> [InventoryLabel] {
+        LabelAutoAssignment.labels(for: [category], existingLabels: labels, modelContext: nil)
     }
 
     /// Get the label that would be matched for a detected item (for preview in card)
     func getMatchingLabel(for item: DetectedInventoryItem) -> InventoryLabel? {
         let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-        return findMatchingLabel(for: item.category, in: existingLabels)
+        return matchingLabels(for: item.category, in: existingLabels).first
     }
 }
 

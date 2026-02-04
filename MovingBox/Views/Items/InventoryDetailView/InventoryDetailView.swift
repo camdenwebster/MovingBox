@@ -1357,7 +1357,11 @@ struct InventoryDetailView: View {
                     let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
 
                     inventoryItemToDisplay.updateFromImageDetails(
-                        imageDetails, labels: labels, locations: locations)
+                        imageDetails,
+                        labels: labels,
+                        locations: locations,
+                        modelContext: modelContext
+                    )
 
                     // Update display price string to reflect any price changes
                     displayPriceString = formatInitialPrice(inventoryItemToDisplay.price)

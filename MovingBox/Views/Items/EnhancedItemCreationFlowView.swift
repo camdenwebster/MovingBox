@@ -13,6 +13,7 @@ struct EnhancedItemCreationFlowView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
 
@@ -82,11 +83,20 @@ struct EnhancedItemCreationFlowView: View {
             // Update viewModel with actual modelContext and settingsManager
             viewModel.updateModelContext(modelContext)
             viewModel.updateSettingsManager(settings)
+            viewModel.updateScenePhase(scenePhase)
 
             // Verify Pro status for multi-item mode
             if captureMode == .multiItem && !settings.isPro {
                 dismiss()
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            viewModel.updateScenePhase(phase)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .multiItemAnalysisReadyNotificationTapped)
+        ) { _ in
+            viewModel.handleAnalysisNotificationTapped()
         }
     }
 
@@ -204,6 +214,7 @@ struct EnhancedItemCreationFlowView: View {
                 images: viewModel.capturedImages,
                 location: location,
                 modelContext: modelContext,
+                aiAnalysisService: AIAnalysisServiceFactory.create(),
                 onItemsSelected: { items in
                     viewModel.handleMultiItemSelection(items)
                 },

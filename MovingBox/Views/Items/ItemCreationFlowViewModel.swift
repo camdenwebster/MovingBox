@@ -8,6 +8,8 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
+import UserNotifications
 
 @MainActor
 class ItemCreationFlowViewModel: ObservableObject {
@@ -81,6 +83,18 @@ class ItemCreationFlowViewModel: ObservableObject {
 
     /// Unique transition ID for animations
     @Published var transitionId = UUID()
+
+    /// Whether the app is currently in background
+    @Published var isAppInBackground: Bool = false
+
+    /// Whether we should navigate to multi-item selection on foreground
+    @Published var pendingNotificationNavigation: Bool = false
+
+    private var hasScheduledAnalysisNotification: Bool = false
+    private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+    private var analysisInterruptedForBackground: Bool = false
+    private var shouldRestartAnalysisOnForeground: Bool = false
+    private var activeAIService: AIAnalysisServiceProtocol?
 
     // MARK: - Computed Properties
 
@@ -340,6 +354,13 @@ class ItemCreationFlowViewModel: ObservableObject {
             processingImage = true
         }
 
+        analysisInterruptedForBackground = false
+        beginBackgroundTaskIfNeeded()
+        defer {
+            endBackgroundTaskIfNeeded()
+            activeAIService = nil
+        }
+
         do {
             guard let context = modelContext else {
                 await MainActor.run {
@@ -358,6 +379,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             }
 
             let aiService = aiAnalysisService ?? createAIAnalysisService()
+            activeAIService = aiService
             print("🔍 ItemCreationFlowViewModel: Using AI service: \(type(of: aiService))")
             let imageDetails = try await aiService.getImageDetails(
                 from: capturedImages,
@@ -370,7 +392,12 @@ class ItemCreationFlowViewModel: ObservableObject {
                 let labels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? context.fetch(FetchDescriptor<InventoryLocation>())) ?? []
 
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
+                item.updateFromImageDetails(
+                    imageDetails,
+                    labels: labels,
+                    locations: locations,
+                    modelContext: context
+                )
                 try? context.save()
 
                 // For single-item mode, also create a MultiItemAnalysisResponse
@@ -395,9 +422,23 @@ class ItemCreationFlowViewModel: ObservableObject {
 
                 analysisComplete = true
                 processingImage = false
+                analysisInterruptedForBackground = false
+                shouldRestartAnalysisOnForeground = false
             }
 
         } catch {
+            let isCancellation = error is CancellationError
+            let isBackgrounded =
+                isAppInBackground || UIApplication.shared.applicationState == .background
+            if analysisInterruptedForBackground || isCancellation || isBackgrounded {
+                await MainActor.run {
+                    if analysisInterruptedForBackground || isBackgrounded {
+                        shouldRestartAnalysisOnForeground = true
+                    }
+                    processingImage = false
+                }
+                return
+            }
             print("❌ ItemCreationFlowViewModel (Single): Analysis error: \(error)")
             if let aiAnalysisError = error as? AIAnalysisError {
                 print("   AI Analysis Error Details: \(aiAnalysisError)")
@@ -417,6 +458,13 @@ class ItemCreationFlowViewModel: ObservableObject {
             analysisComplete = false
             errorMessage = nil
             processingImage = true
+        }
+
+        analysisInterruptedForBackground = false
+        beginBackgroundTaskIfNeeded()
+        defer {
+            endBackgroundTaskIfNeeded()
+            activeAIService = nil
         }
 
         do {
@@ -439,8 +487,12 @@ class ItemCreationFlowViewModel: ObservableObject {
             // Force high quality for multi-item analysis
             let originalHighDetail = settings.isHighDetail
             settings.isHighDetail = true
+            defer {
+                settings.isHighDetail = originalHighDetail
+            }
 
             let aiService = aiAnalysisService ?? createAIAnalysisService()
+            activeAIService = aiService
             print("🔍 ItemCreationFlowViewModel (Multi-Item): Using AI service: \(type(of: aiService))")
             let response = try await aiService.getMultiItemDetails(
                 from: capturedImages,
@@ -448,18 +500,28 @@ class ItemCreationFlowViewModel: ObservableObject {
                 modelContext: context
             )
 
-            // Restore original setting
-            await MainActor.run {
-                settings.isHighDetail = originalHighDetail
-            }
-
             await MainActor.run {
                 multiItemAnalysisResponse = response
                 analysisComplete = true
                 processingImage = false
+                analysisInterruptedForBackground = false
+                shouldRestartAnalysisOnForeground = false
+                handleMultiItemAnalysisReady()
             }
 
         } catch {
+            let isCancellation = error is CancellationError
+            let isBackgrounded =
+                isAppInBackground || UIApplication.shared.applicationState == .background
+            if analysisInterruptedForBackground || isCancellation || isBackgrounded {
+                await MainActor.run {
+                    if analysisInterruptedForBackground || isBackgrounded {
+                        shouldRestartAnalysisOnForeground = true
+                    }
+                    processingImage = false
+                }
+                return
+            }
             print("❌ ItemCreationFlowViewModel (Multi-Item): Analysis error: \(error)")
             if let aiAnalysisError = error as? AIAnalysisError {
                 print("   AI Analysis Error Details: \(aiAnalysisError)")
@@ -531,27 +593,20 @@ class ItemCreationFlowViewModel: ObservableObject {
 
         // Auto-create labels based on AI categories and assign to items
         await MainActor.run {
-            let existingLabels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+            var existingLabels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
 
             for (index, item) in items.enumerated() {
                 let detectedCategory = selectedMultiItems[index].category
+                let matchedLabels = LabelAutoAssignment.labels(
+                    for: [detectedCategory],
+                    existingLabels: existingLabels,
+                    modelContext: context
+                )
+                item.labels = matchedLabels
 
-                // Find or create label for this category
-                if let existingLabel = existingLabels.first(where: {
-                    $0.name.lowercased() == detectedCategory.lowercased()
-                }) {
-                    item.labels = [existingLabel]
-                } else if !detectedCategory.isEmpty && detectedCategory.lowercased() != "unknown" {
-                    // Create new label for this category
-                    let colorString = assignColorForCategory(detectedCategory)
-                    // Convert hex string to UIColor via Color extension
-                    let hexValue =
-                        UInt(colorString.replacingOccurrences(of: "#", with: ""), radix: 16) ?? 0x007AFF
-                    let color = Color(hex: hexValue)
-                    let uiColor = UIColor(color)
-                    let newLabel = InventoryLabel(name: detectedCategory, color: uiColor)
-                    context.insert(newLabel)
-                    item.labels = [newLabel]
+                for label in matchedLabels
+                where !existingLabels.contains(where: { $0.id == label.id }) {
+                    existingLabels.append(label)
                 }
             }
         }
@@ -587,6 +642,12 @@ class ItemCreationFlowViewModel: ObservableObject {
         selectedMultiItems = []
         createdItems = []
         transitionId = UUID()
+        pendingNotificationNavigation = false
+        hasScheduledAnalysisNotification = false
+        analysisInterruptedForBackground = false
+        shouldRestartAnalysisOnForeground = false
+        activeAIService = nil
+        endBackgroundTaskIfNeeded()
     }
 
     /// Reset only the analysis state (for re-analyzing)
@@ -596,12 +657,143 @@ class ItemCreationFlowViewModel: ObservableObject {
         multiItemAnalysisResponse = nil
         processingImage = false
         transitionId = UUID()
+        pendingNotificationNavigation = false
+        hasScheduledAnalysisNotification = false
+        analysisInterruptedForBackground = false
+        shouldRestartAnalysisOnForeground = false
+        activeAIService = nil
+        endBackgroundTaskIfNeeded()
     }
 
     /// Handle multi-item selection completion
     func handleMultiItemSelection(_ items: [InventoryItem]) {
         createdItems = items
         goToNextStep()  // Move to details step
+    }
+
+    // MARK: - Background Notification Handling
+
+    func updateScenePhase(_ phase: ScenePhase) {
+        isAppInBackground = phase == .background
+
+        if phase == .background {
+            if processingImage {
+                beginBackgroundTaskIfNeeded()
+            }
+            return
+        }
+
+        if phase == .active {
+            if pendingNotificationNavigation {
+                navigateToMultiItemSelectionIfReady()
+                pendingNotificationNavigation = false
+            }
+            if shouldRestartAnalysisOnForeground,
+                currentStep == .analyzing,
+                !processingImage,
+                !analysisComplete
+            {
+                shouldRestartAnalysisOnForeground = false
+                analysisInterruptedForBackground = false
+                Task {
+                    if captureMode == .multiItem {
+                        await performMultiItemAnalysis()
+                    } else {
+                        await performAnalysis()
+                    }
+                }
+            }
+        }
+    }
+
+    func handleAnalysisNotificationTapped() {
+        pendingNotificationNavigation = true
+        navigateToMultiItemSelectionIfReady()
+    }
+
+    private func handleMultiItemAnalysisReady() {
+        guard captureMode == .multiItem else { return }
+        guard multiItemAnalysisResponse != nil else { return }
+
+        let isBackgrounded = isAppInBackground || UIApplication.shared.applicationState == .background
+        if isBackgrounded {
+            pendingNotificationNavigation = true
+            scheduleAnalysisReadyNotificationIfNeeded()
+        }
+    }
+
+    private func navigateToMultiItemSelectionIfReady() {
+        guard captureMode == .multiItem else { return }
+        guard multiItemAnalysisResponse != nil else { return }
+        guard currentStep != .multiItemSelection else { return }
+
+        goToStep(.multiItemSelection)
+    }
+
+    private func scheduleAnalysisReadyNotificationIfNeeded() {
+        guard !hasScheduledAnalysisNotification else { return }
+        hasScheduledAnalysisNotification = true
+
+        let itemCount = multiItemAnalysisResponse?.safeItems.count ?? 0
+        Task {
+            await scheduleAnalysisReadyNotification(itemCount: itemCount)
+        }
+    }
+
+    private func scheduleAnalysisReadyNotification(itemCount: Int) async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        let status = settings.authorizationStatus
+        guard status == .authorized || status == .provisional else {
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Item analysis ready"
+        content.body =
+            itemCount == 1
+            ? "Tap to review the detected item."
+            : "Tap to review \(itemCount) detected items."
+        content.sound = .default
+        content.userInfo = ["destination": "multiItemSelection"]
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: AnalysisNotificationConstants.multiItemAnalysisReadyIdentifier,
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await center.add(request)
+        } catch {
+            print("❌ Failed to schedule analysis notification: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Background Task Handling
+
+    private func beginBackgroundTaskIfNeeded() {
+        guard backgroundTaskId == .invalid else { return }
+        guard isAppInBackground || UIApplication.shared.applicationState == .background else { return }
+
+        analysisInterruptedForBackground = false
+
+        backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "ItemAnalysis") { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.analysisInterruptedForBackground = true
+                self.shouldRestartAnalysisOnForeground = true
+                self.activeAIService?.cancelCurrentRequest()
+                self.endBackgroundTaskIfNeeded()
+            }
+        }
+    }
+
+    private func endBackgroundTaskIfNeeded() {
+        guard backgroundTaskId != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(backgroundTaskId)
+        backgroundTaskId = .invalid
     }
 
     // MARK: - Helper Methods
@@ -618,36 +810,6 @@ class ItemCreationFlowViewModel: ObservableObject {
             .trimmingCharacters(in: .whitespaces)
 
         return Decimal(string: cleanedString) ?? Decimal.zero
-    }
-
-    /// Assign appropriate color for category labels
-    private func assignColorForCategory(_ category: String) -> String {
-        // Predefined color mapping for common categories
-        let categoryColors: [String: String] = [
-            "electronics": "#007AFF",  // Blue
-            "furniture": "#8E4EC6",  // Purple
-            "clothing": "#FF69B4",  // Pink
-            "kitchen": "#FF9500",  // Orange
-            "books": "#34C759",  // Green
-            "tools": "#FF3B30",  // Red
-            "toys": "#FFCC02",  // Yellow
-            "jewelry": "#AF52DE",  // Violet
-            "sports": "#32D74B",  // Light Green
-            "automotive": "#64D2FF",  // Light Blue
-            "appliances": "#BF5AF2",  // Light Purple
-            "art": "#FF6482",  // Light Red
-        ]
-
-        // Return predefined color or generate based on category hash
-        let lowercaseCategory = category.lowercased()
-        if let predefinedColor = categoryColors[lowercaseCategory] {
-            return predefinedColor
-        }
-
-        // Generate consistent color based on category string hash
-        let colors = ["#007AFF", "#8E4EC6", "#FF9500", "#34C759", "#FF3B30", "#FFCC02"]
-        let colorIndex = abs(category.hashValue) % colors.count
-        return colors[colorIndex]
     }
 
     /// Get current step title for UI

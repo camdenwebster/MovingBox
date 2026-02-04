@@ -851,16 +851,6 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
             return false
         }
 
-        // Check if we have captured images that would be lost
-        if !capturedImages.isEmpty {
-            print("📸 Photos exist (\(capturedImages.count)), requesting confirmation")
-            pendingCaptureMode = newMode
-            selectedCaptureMode = oldMode
-            isHandlingModeChange = false
-            showingModeSwitchConfirmation = true
-            return false
-        }
-
         // Perform the switch
         performModeSwitch(to: newMode)
         isHandlingModeChange = false
@@ -868,7 +858,6 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     }
 
     func performModeSwitch(to newMode: CaptureMode) {
-        capturedImages.removeAll()
         selectedCaptureMode = newMode
         pendingCaptureMode = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
