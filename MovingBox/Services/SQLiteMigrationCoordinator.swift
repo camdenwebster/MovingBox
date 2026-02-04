@@ -121,9 +121,11 @@ struct SQLiteMigrationCoordinator {
         let hasOldInsuranceFK = columnExists(db: oldDB, table: "ZHOME", column: "ZINSURANCEPOLICY")
         let hasLabelJoinTable = tableExists(db: oldDB, table: "Z_2LABELS")
         let hasInsuranceJoinTable = tableExists(db: oldDB, table: "Z_1INSURANCEPOLICIES")
+        let hasLocationHomeFK = columnExists(db: oldDB, table: "ZINVENTORYLOCATION", column: "ZHOME")
+        let hasItemHomeFK = columnExists(db: oldDB, table: "ZINVENTORYITEM", column: "ZHOME")
 
         logger.info(
-            "Schema detection: oldLabelFK=\(hasOldLabelFK), oldInsuranceFK=\(hasOldInsuranceFK), labelJoinTable=\(hasLabelJoinTable), insuranceJoinTable=\(hasInsuranceJoinTable)"
+            "Schema detection: oldLabelFK=\(hasOldLabelFK), oldInsuranceFK=\(hasOldInsuranceFK), labelJoinTable=\(hasLabelJoinTable), insuranceJoinTable=\(hasInsuranceJoinTable), locationHomeFK=\(hasLocationHomeFK), itemHomeFK=\(hasItemHomeFK)"
         )
 
         // Read all data from old database
@@ -145,9 +147,29 @@ struct SQLiteMigrationCoordinator {
             db: oldDB, hasOldFK: hasOldLabelFK, hasJoinTable: hasLabelJoinTable)
         let homePolicyPairs = readHomePolicyRelationships(
             db: oldDB, hasOldFK: hasOldInsuranceFK, hasJoinTable: hasInsuranceJoinTable)
-        let locationHomeMap = readLocationHomeRelationships(db: oldDB)
+        var locationHomeMap = readLocationHomeRelationships(db: oldDB)
         let itemLocationMap = readItemLocationRelationships(db: oldDB)
-        let itemHomeMap = readItemHomeRelationships(db: oldDB)
+        var itemHomeMap = readItemHomeRelationships(db: oldDB)
+
+        // Pre-multi-home fallback: v2.1.0 had no ZHOME FK on locations/items.
+        // All locations and items implicitly belonged to the single visible home.
+        // Pre-2.2.0 onboarding re-runs may have created phantom homes, so there
+        // can be multiple homes even in the old schema. Pick the "real" home
+        // (first with a non-empty name) or fall back to the last-created one.
+        if !hasLocationHomeFK && !homes.isEmpty && !locations.isEmpty {
+            let activeHomeZPK = bestHomeZPK(from: homes)
+            for location in locations {
+                locationHomeMap[location.zpk] = activeHomeZPK
+            }
+            logger.info("Pre-multi-home schema: assigned \(locations.count) locations to home ZPK=\(activeHomeZPK)")
+        }
+        if !hasItemHomeFK && !homes.isEmpty && !items.isEmpty {
+            let activeHomeZPK = bestHomeZPK(from: homes)
+            for item in items {
+                itemHomeMap[item.zpk] = activeHomeZPK
+            }
+            logger.info("Pre-multi-home schema: assigned \(items.count) items to home ZPK=\(activeHomeZPK)")
+        }
 
         // Write everything in a single transaction
         try database.write { db in
@@ -444,11 +466,15 @@ struct SQLiteMigrationCoordinator {
 
     private static func readHomes(db: OpaquePointer?, zpkMap: inout [Int64: UUID]) -> [RawHome] {
         let hasUUID = columnExists(db: db, table: "ZHOME", column: "ZID")
+        let hasPrimary = columnExists(db: db, table: "ZHOME", column: "ZISPRIMARY")
+        let hasColor = columnExists(db: db, table: "ZHOME", column: "ZCOLORNAME")
 
         let uuidCol = hasUUID ? "ZID" : "NULL"
+        let primaryCol = hasPrimary ? "ZISPRIMARY" : "1"  // v2.1.0: single home is always primary
+        let colorCol = hasColor ? "ZCOLORNAME" : "NULL"  // defaults to "green" below
         let query = """
             SELECT Z_PK, \(uuidCol), ZNAME, ZADDRESS1, ZADDRESS2, ZCITY, ZSTATE, ZZIP, ZCOUNTRY,
-                ZPURCHASEDATE, ZPURCHASEPRICE, ZIMAGEURL, ZSECONDARYPHOTOURLS, ZISPRIMARY, ZCOLORNAME
+                ZPURCHASEDATE, ZPURCHASEPRICE, ZIMAGEURL, ZSECONDARYPHOTOURLS, \(primaryCol), \(colorCol)
             FROM ZHOME
             """
 
@@ -485,6 +511,16 @@ struct SQLiteMigrationCoordinator {
 
         logger.info("Read \(results.count) homes from SwiftData store")
         return results
+    }
+
+    /// Picks the "real" home from a list that may contain phantom homes from
+    /// pre-2.2.0 onboarding re-runs. A home is considered user-customized if
+    /// any of name, address, or photo were set. Falls back to the last-created
+    /// home (highest Z_PK), matching pre-2.2.0 `homes.last` behavior.
+    private static func bestHomeZPK(from homes: [RawHome]) -> Int64 {
+        homes.first(where: { home in
+            !home.name.isEmpty || !home.address1.isEmpty || !home.city.isEmpty || home.imageURL != nil
+        })?.zpk ?? homes.map(\.zpk).max()!
     }
 
     // MARK: - Reading Insurance Policies
@@ -803,6 +839,7 @@ struct SQLiteMigrationCoordinator {
 
     /// Returns map of locationZPK → homeZPK
     private static func readLocationHomeRelationships(db: OpaquePointer?) -> [Int64: Int64] {
+        guard columnExists(db: db, table: "ZINVENTORYLOCATION", column: "ZHOME") else { return [:] }
         let query =
             "SELECT Z_PK, ZHOME FROM ZINVENTORYLOCATION WHERE ZHOME IS NOT NULL"
         var result: [Int64: Int64] = [:]
@@ -1098,13 +1135,20 @@ struct SQLiteMigrationCoordinator {
     }
 }
 
-// MARK: - Date ISO 8601 Helper
+// MARK: - Date Helper
 
 extension Date {
-    private static let iso8601Formatter = ISO8601DateFormatter()
+    /// SQLite standard date format expected by GRDB's default date decoding.
+    private static let sqliteDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
 
     fileprivate var iso8601String: String {
-        Self.iso8601Formatter.string(from: self)
+        Self.sqliteDateFormatter.string(from: self)
     }
 }
 
