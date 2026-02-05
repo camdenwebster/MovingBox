@@ -158,7 +158,17 @@ final class MultiItemSelectionViewModel {
 
     /// Get the primary image for a detected item (cropped if available, falls back to first source image)
     func primaryImage(for item: DetectedInventoryItem) -> UIImage? {
-        croppedPrimaryImages[item.id] ?? images.first
+        if let cropped = croppedPrimaryImages[item.id] {
+            return cropped
+        }
+
+        if let detectionIndex = item.detections?
+            .first(where: { $0.sourceImageIndex >= 0 && $0.sourceImageIndex < images.count })?.sourceImageIndex
+        {
+            return images[detectionIndex]
+        }
+
+        return images.first
     }
 
     // MARK: - Pass 2 Enrichment
