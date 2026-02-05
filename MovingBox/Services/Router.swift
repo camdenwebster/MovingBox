@@ -58,6 +58,7 @@ final class Router: ObservableObject {
         case globalLabelSettingsView
         case insurancePolicyListView
         case insurancePolicyDetailView(policyID: UUID?)
+        case familySharingSettingsView
     }
 
     @Published var navigationPath = NavigationPath()

@@ -17,6 +17,7 @@ import WishKit
 
 @main
 struct MovingBoxApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
@@ -37,13 +38,43 @@ struct MovingBoxApp: App {
             #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     $0.defaultDatabase = try! makeSeededTestDatabase()
+                    // No SyncEngine for test data mode
                 } else if ProcessInfo.processInfo.arguments.contains("Disable-Persistence") {
                     $0.defaultDatabase = try! makeInMemoryDatabase()
+                    // No SyncEngine for in-memory mode
                 } else {
                     $0.defaultDatabase = try! appDatabase()
+                    // SyncEngine may fail in test environments where CloudKit isn't available
+                    if let syncEngine = try? SyncEngine(
+                        for: $0.defaultDatabase,
+                        tables: SQLiteHome.self,
+                        SQLiteInventoryLocation.self,
+                        SQLiteInventoryItem.self,
+                        SQLiteInventoryLabel.self,
+                        SQLiteInsurancePolicy.self,
+                        SQLiteInventoryItemLabel.self,
+                        SQLiteHomeInsurancePolicy.self
+                    ) {
+                        $0.defaultSyncEngine = syncEngine
+                    } else {
+                        print("⚠️ SyncEngine initialization failed - CloudKit sync disabled")
+                    }
                 }
             #else
                 $0.defaultDatabase = try! appDatabase()
+                // SyncEngine may fail if CloudKit isn't properly configured
+                if let syncEngine = try? SyncEngine(
+                    for: $0.defaultDatabase,
+                    tables: SQLiteHome.self,
+                    SQLiteInventoryLocation.self,
+                    SQLiteInventoryItem.self,
+                    SQLiteInventoryLabel.self,
+                    SQLiteInsurancePolicy.self,
+                    SQLiteInventoryItemLabel.self,
+                    SQLiteHomeInsurancePolicy.self
+                ) {
+                    $0.defaultSyncEngine = syncEngine
+                }
             #endif
         }
 

@@ -53,6 +53,8 @@
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
 		C1083E5906EC3ACD9B80C40F /* TestSeedDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */; };
+		19F30B012F32000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B002F32000000000001 /* AppDelegate.swift */; };
+		19F30B032F32000000000004 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B022F32000000000003 /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -129,6 +131,8 @@
 		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
 		496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestSeedDatabase.swift; path = MovingBox/Services/TestSeedDatabase.swift; sourceTree = SOURCE_ROOT; };
 		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
+		19F30B002F32000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		19F30B022F32000000000003 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -284,6 +288,8 @@
 				19D133BC2D72BFB8002448A9 /* Models */,
 				19D133A82D72BFB2002448A9 /* Views */,
 				1942DC7D2BF391CB00734AF4 /* MovingBoxApp.swift */,
+				19F30B002F32000000000001 /* AppDelegate.swift */,
+				19F30B022F32000000000003 /* SceneDelegate.swift */,
 				1942DC812BF391CF00734AF4 /* Assets.xcassets */,
 				1942DC832BF391CF00734AF4 /* Preview Content */,
 				198958B12BF9AEF900C52CAE /* Info.plist */,
@@ -614,6 +620,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19F30B012F32000000000002 /* AppDelegate.swift in Sources */,
+				19F30B032F32000000000004 /* SceneDelegate.swift in Sources */,
 				1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */,
 				19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */,
 				19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */,

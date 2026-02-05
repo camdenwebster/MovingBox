@@ -134,6 +134,8 @@ struct MainSplitView: View {
             InsurancePolicyListView()
         case .insurancePolicyDetailView(let policyID):
             InsurancePolicyDetailView(policyID: policyID)
+        case .familySharingSettingsView:
+            FamilySharingSettingsView()
         }
     }
 

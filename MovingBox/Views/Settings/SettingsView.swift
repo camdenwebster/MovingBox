@@ -158,6 +158,42 @@ struct SettingsView: View {
                     }
                 }
                 .accessibilityIdentifier("syncDataLink")
+
+                if revenueCatManager.isProSubscriptionActive {
+                    NavigationLink(value: Router.Destination.familySharingSettingsView) {
+                        Label {
+                            Text("Family Sharing")
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "person.2.fill")
+                        }
+                    }
+                    .accessibilityIdentifier("familySharingLink")
+                } else {
+                    Button {
+                        showingPaywall = true
+                    } label: {
+                        HStack {
+                            Label {
+                                Text("Family Sharing")
+                                    .foregroundStyle(.secondary)
+                            } icon: {
+                                Image(systemName: "person.2.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("Pro")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.yellow)
+                                .clipShape(.rect(cornerRadius: 4))
+                        }
+                    }
+                    .accessibilityIdentifier("familySharingProButton")
+                }
             }
 
             Section {
@@ -357,6 +393,7 @@ struct SettingsView: View {
             case .globalLabelSettingsView: GlobalLabelSettingsView()
             case .insurancePolicyListView: InsurancePolicyListView()
             case .insurancePolicyDetailView(let policyID): InsurancePolicyDetailView(policyID: policyID)
+            case .familySharingSettingsView: FamilySharingSettingsView()
             default: EmptyView()
             }
         }
