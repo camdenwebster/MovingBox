@@ -31,7 +31,14 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
         asset: AVAsset,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> TranscriptionResult {
-        guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
+        let audioTracks: [AVAssetTrack]
+        do {
+            audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        } catch {
+            throw TranscriptionError.audioExtractionFailed
+        }
+
+        guard let audioTrack = audioTracks.first else {
             await MainActor.run {
                 onProgress(1.0)
             }
@@ -150,7 +157,12 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
         writer.startWriting()
         writer.startSession(atSourceTime: .zero)
 
-        let duration = asset.duration.seconds
+        let duration: Double
+        do {
+            duration = try await asset.load(.duration).seconds
+        } catch {
+            duration = .nan
+        }
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let queue = DispatchQueue(label: "audio.transcriber.writer")
