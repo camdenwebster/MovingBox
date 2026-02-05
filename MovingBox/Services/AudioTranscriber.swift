@@ -126,6 +126,7 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
             AVLinearPCMBitDepthKey: 16,
             AVLinearPCMIsFloatKey: false,
             AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
         ]
 
         let readerOutput = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
