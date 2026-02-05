@@ -492,7 +492,7 @@ import UIKit
             modelContext: context
         )
 
-        #expect(viewModel.detectedItems.count == 2)
+        #expect(viewModel.detectedItems.count == 1)
 
         // High confidence item should have good data
         let highConfidenceItem = viewModel.detectedItems[0]
@@ -500,9 +500,7 @@ import UIKit
         #expect(!highConfidenceItem.title.isEmpty)
 
         // Low confidence item should have lower quality data
-        let lowConfidenceItem = viewModel.detectedItems[1]
-        #expect(lowConfidenceItem.confidence < 0.5)
-        #expect(lowConfidenceItem.description.isEmpty)
+        #expect(viewModel.filteredOutCount == 1)
     }
 
     // MARK: - Helper Methods Tests

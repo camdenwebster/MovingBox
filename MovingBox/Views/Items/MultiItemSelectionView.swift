@@ -182,20 +182,25 @@ struct MultiItemSelectionView: View {
                 .overlay {
                     ZStack {
                         if let currentItem = viewModel.currentItem,
-                            let croppedImage = viewModel.primaryImage(for: currentItem)
+                            let primaryImage = viewModel.primaryImage(for: currentItem)
                         {
-                            Image(uiImage: croppedImage)
+                            Image(uiImage: primaryImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .id(currentItem.id)
                                 .transition(.opacity)
-                        } else if let image = viewModel.images.first {
+                        } else if viewModel.images.count == 1, let image = viewModel.images.first {
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .transition(.opacity)
                         } else {
-                            Color.gray.opacity(0.3)
+                            ZStack {
+                                Color.gray.opacity(0.2)
+                                ProgressView("Preparing preview…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -304,6 +309,12 @@ struct MultiItemSelectionView: View {
                     if viewModel.selectedItemsCount > 0 {
                         Text("Ready to add to inventory")
                             .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if viewModel.filteredOutCount > 0 {
+                        Text("Filtered \(viewModel.filteredOutCount) low-quality item(s)")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 

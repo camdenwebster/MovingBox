@@ -55,7 +55,17 @@ final class MultiItemSelectionViewModel {
 
     /// Currently detected items from analysis
     var detectedItems: [DetectedInventoryItem] {
+        filteredDetectedItems
+    }
+
+    /// All detected items from analysis (unfiltered)
+    private var allDetectedItems: [DetectedInventoryItem] {
         analysisResponse.safeItems
+    }
+
+    /// Count of items filtered out by quality gates
+    var filteredOutCount: Int {
+        max(0, allDetectedItems.count - filteredDetectedItems.count)
     }
 
     /// Currently selected items for creation
@@ -98,6 +108,30 @@ final class MultiItemSelectionViewModel {
 
     /// Background enrichment task
     private var enrichmentTask: Task<Void, Never>?
+
+    // MARK: - Quality Gates
+
+    private let minimumConfidenceThreshold: Double = 0.6
+    private let lowConfidenceCropThreshold: Double = 0.75
+    private let minimumDetectionAreaFraction: Double = 0.01
+    private let lowQualityTitlePhrases: [String] = [
+        "indistinguishable",
+        "indistinguisable",
+        "unidentifiable",
+        "unrecognizable",
+        "unknown item",
+        "unknown object",
+        "unclear",
+        "blurry",
+        "can't identify",
+        "cannot identify",
+        "not sure",
+        "unsure",
+    ]
+
+    private var filteredDetectedItems: [DetectedInventoryItem] {
+        allDetectedItems.filter { !shouldFilter($0) }
+    }
 
     // MARK: - Computed Properties
 
@@ -162,11 +196,7 @@ final class MultiItemSelectionViewModel {
             return cropped
         }
 
-        if let detectionIndex = item.detections?
-            .first(where: { $0.sourceImageIndex >= 0 && $0.sourceImageIndex < images.count })?.sourceImageIndex
-        {
-            return images[detectionIndex]
-        }
+        guard images.count <= 1 else { return nil }
 
         return images.first
     }
@@ -530,6 +560,62 @@ final class MultiItemSelectionViewModel {
     func getMatchingLabel(for item: DetectedInventoryItem) -> InventoryLabel? {
         let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
         return matchingLabels(for: item.category, in: existingLabels).first
+    }
+
+    // MARK: - Quality Helpers
+
+    private func shouldFilter(_ item: DetectedInventoryItem) -> Bool {
+        let normalizedTitle = item.title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedCategory = item.category
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalizedTitle.isEmpty {
+            return true
+        }
+
+        if lowQualityTitlePhrases.contains(where: { normalizedTitle.contains($0) }) {
+            return true
+        }
+
+        if item.confidence < minimumConfidenceThreshold {
+            return true
+        }
+
+        if (normalizedCategory.isEmpty || normalizedCategory.contains("unknown"))
+            && item.confidence < lowConfidenceCropThreshold
+        {
+            return true
+        }
+
+        if images.count > 1 {
+            guard let detections = item.detections, !detections.isEmpty else {
+                return true
+            }
+
+            let maxArea = detections.compactMap { detectionAreaFraction($0) }.max() ?? 0
+            if maxArea < minimumDetectionAreaFraction && item.confidence < lowConfidenceCropThreshold {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func detectionAreaFraction(_ detection: ItemDetection) -> Double? {
+        guard detection.boundingBox.count >= 4 else { return nil }
+        let ymin = detection.boundingBox[0]
+        let xmin = detection.boundingBox[1]
+        let ymax = detection.boundingBox[2]
+        let xmax = detection.boundingBox[3]
+
+        let width = max(0, xmax - xmin)
+        let height = max(0, ymax - ymin)
+        guard width > 0, height > 0 else { return nil }
+
+        return Double(width * height) / 1_000_000.0
     }
 }
 

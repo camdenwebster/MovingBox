@@ -10,7 +10,7 @@ import UIKit
 enum BoundingBoxCropper {
 
     /// Crop image using [ymin, xmin, ymax, xmax] normalized 0-1000 coordinates
-    static func crop(image: UIImage, boundingBox: [Int], paddingFraction: CGFloat = 0.05) async -> UIImage? {
+    static func crop(image: UIImage, boundingBox: [Int], paddingFraction: CGFloat = 0.1) async -> UIImage? {
         guard boundingBox.count >= 4 else { return nil }
 
         let ymin = boundingBox[0]
