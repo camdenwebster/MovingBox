@@ -17,6 +17,7 @@ struct MultiItemSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var settingsManager: SettingsManager
 
+    let images: [UIImage]
     let onItemsSelected: ([InventoryItem]) -> Void
     let onCancel: () -> Void
     let onReanalyze: (() -> Void)?
@@ -26,6 +27,7 @@ struct MultiItemSelectionView: View {
     @State private var selectedLocation: InventoryLocation?
     @State private var selectedHome: Home?
     @State private var showingLocationPicker = false
+    @State private var isPreparingPreviews = true
 
     // MARK: - Scroll Tracking
 
@@ -58,6 +60,7 @@ struct MultiItemSelectionView: View {
             aiAnalysisService: aiAnalysisService
         )
         self._viewModel = State(initialValue: viewModel)
+        self.images = images
         self.onItemsSelected = onItemsSelected
         self.onCancel = onCancel
         self.onReanalyze = onReanalyze
@@ -133,8 +136,13 @@ struct MultiItemSelectionView: View {
             imageView
         }
         .task {
-            await viewModel.computeCroppedImages()
-            viewModel.startEnrichment(settings: settingsManager)
+            await preparePreviews()
+        }
+        .onChange(of: images.count) {
+            Task {
+                await viewModel.updateImages(images)
+                await preparePreviews()
+            }
         }
         .onDisappear {
             viewModel.cancelEnrichment()
@@ -181,7 +189,14 @@ struct MultiItemSelectionView: View {
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
                     ZStack {
-                        if let currentItem = viewModel.currentItem,
+                        if isPreparingPreviews {
+                            ZStack {
+                                Color.gray.opacity(0.2)
+                                ProgressView("Preparing preview…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if let currentItem = viewModel.currentItem,
                             let primaryImage = viewModel.primaryImage(for: currentItem)
                         {
                             Image(uiImage: primaryImage)
@@ -418,6 +433,22 @@ struct MultiItemSelectionView: View {
     }
 
     // MARK: - Actions
+
+    @MainActor
+    private func preparePreviews() async {
+        guard !viewModel.detectedItems.isEmpty else {
+            isPreparingPreviews = false
+            return
+        }
+
+        isPreparingPreviews = true
+        let previewCount = min(3, viewModel.detectedItems.count)
+        await viewModel.computeCroppedImages(limit: previewCount)
+        isPreparingPreviews = false
+
+        await viewModel.computeCroppedImages()
+        viewModel.startEnrichment(settings: settingsManager)
+    }
 
     private func handleContinue() {
         guard viewModel.selectedItemsCount > 0 else { return }

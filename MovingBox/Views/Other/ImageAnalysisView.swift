@@ -87,16 +87,6 @@ struct ImageAnalysisView: View {
                                                 removal: .scale.combined(with: .opacity)
                                             ))
                                 }
-
-                                // Photo indicator dots
-                                HStack(spacing: 8) {
-                                    ForEach(0..<images.count, id: \.self) { index in
-                                        Circle()
-                                            .fill(index == currentImageIndex ? Color.blue : Color.gray.opacity(0.4))
-                                            .frame(width: 8, height: 8)
-                                            .animation(.easeInOut(duration: 0.2), value: currentImageIndex)
-                                    }
-                                }
                             }
                         } else {
                             // Single image display (backward compatibility)

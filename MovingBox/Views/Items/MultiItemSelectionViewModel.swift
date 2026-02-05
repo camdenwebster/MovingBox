@@ -179,15 +179,33 @@ final class MultiItemSelectionViewModel {
 
     // MARK: - Bounding Box Cropping
 
-    /// Compute cropped images for all detected items from their bounding box detections
-    func computeCroppedImages() async {
-        guard !hasCroppedImages else { return }
-        for item in detectedItems {
+    /// Update the source images for cropping, resetting any cached crops.
+    func updateImages(_ newImages: [UIImage]) async {
+        images = newImages
+        croppedPrimaryImages.removeAll()
+        croppedSecondaryImages.removeAll()
+        hasCroppedImages = false
+    }
+
+    /// Compute cropped images for detected items from their bounding box detections.
+    /// If a limit is provided, only compute the first N items without marking as complete.
+    func computeCroppedImages(limit: Int? = nil) async {
+        if hasCroppedImages, limit == nil { return }
+
+        let items = detectedItems
+        guard !items.isEmpty else { return }
+
+        let maxCount = limit.map { min($0, items.count) } ?? items.count
+        for (index, item) in items.enumerated() where index < maxCount {
+            if croppedPrimaryImages[item.id] != nil { continue }
             let (primary, secondary) = await BoundingBoxCropper.cropDetections(for: item, from: images)
             if let primary { croppedPrimaryImages[item.id] = primary }
             if !secondary.isEmpty { croppedSecondaryImages[item.id] = secondary }
         }
-        hasCroppedImages = true
+
+        if limit == nil {
+            hasCroppedImages = true
+        }
     }
 
     /// Get the primary image for a detected item (cropped if available, falls back to first source image)

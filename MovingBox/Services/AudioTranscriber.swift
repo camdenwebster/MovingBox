@@ -126,7 +126,13 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws {
         let reader = try AVAssetReader(asset: asset)
-        let outputSettings: [String: Any] = [
+        let audioFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: true
+        )
+        var outputSettings = audioFormat?.settings ?? [
             AVFormatIDKey: kAudioFormatLinearPCM,
             AVSampleRateKey: 16_000,
             AVNumberOfChannelsKey: 1,
@@ -135,6 +141,7 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
             AVLinearPCMIsBigEndianKey: false,
             AVLinearPCMIsNonInterleaved: false,
         ]
+        outputSettings[AVLinearPCMIsNonInterleaved] = false
 
         let readerOutput = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
         readerOutput.alwaysCopiesSampleData = false
@@ -145,7 +152,13 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
         reader.add(readerOutput)
 
         let writer = try AVAssetWriter(outputURL: url, fileType: .caf)
-        let writerInput = AVAssetWriterInput(mediaType: .audio, outputSettings: outputSettings)
+        let formatDescriptions = try? await track.load(.formatDescriptions)
+        let sourceFormatHint = formatDescriptions?.first
+        let writerInput = AVAssetWriterInput(
+            mediaType: .audio,
+            outputSettings: outputSettings,
+            sourceFormatHint: sourceFormatHint
+        )
         writerInput.expectsMediaDataInRealTime = false
 
         guard writer.canAdd(writerInput) else {

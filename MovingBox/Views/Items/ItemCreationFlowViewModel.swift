@@ -586,12 +586,24 @@ class ItemCreationFlowViewModel: ObservableObject {
             let aiService = aiAnalysisService ?? createAIAnalysisService()
             activeAIService = aiService
             print("🔍 ItemCreationFlowViewModel (Multi-Item): Using AI service: \(type(of: aiService))")
-            let response = try await aiService.getMultiItemDetails(
-                from: capturedImages,
-                settings: settings,
-                modelContext: context,
-                narrationContext: nil
-            )
+            let response: MultiItemAnalysisResponse
+            let batchSize = 5
+            if capturedImages.count > batchSize {
+                response = try await performBatchedMultiItemAnalysis(
+                    images: capturedImages,
+                    batchSize: batchSize,
+                    settings: settings,
+                    modelContext: context,
+                    aiService: aiService
+                )
+            } else {
+                response = try await aiService.getMultiItemDetails(
+                    from: capturedImages,
+                    settings: settings,
+                    modelContext: context,
+                    narrationContext: nil
+                )
+            }
 
             await MainActor.run {
                 multiItemAnalysisResponse = response
@@ -626,6 +638,39 @@ class ItemCreationFlowViewModel: ObservableObject {
                 processingImage = false
             }
         }
+    }
+
+    private func performBatchedMultiItemAnalysis(
+        images: [UIImage],
+        batchSize: Int,
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        aiService: AIAnalysisServiceProtocol
+    ) async throws -> MultiItemAnalysisResponse {
+        guard !images.isEmpty else {
+            return MultiItemAnalysisResponse(items: [], detectedCount: 0, analysisType: "multi_item", confidence: 0.0)
+        }
+
+        let totalBatches = Int(ceil(Double(images.count) / Double(max(batchSize, 1))))
+        var batchResults: [(response: MultiItemAnalysisResponse, batchOffset: Int)] = []
+        batchResults.reserveCapacity(totalBatches)
+
+        for batchIndex in 0..<totalBatches {
+            let start = batchIndex * batchSize
+            let end = min(start + batchSize, images.count)
+            let batchImages = Array(images[start..<end])
+
+            let response = try await aiService.getMultiItemDetails(
+                from: batchImages,
+                settings: settings,
+                modelContext: modelContext,
+                narrationContext: nil
+            )
+
+            batchResults.append((response: response, batchOffset: start))
+        }
+
+        return VideoItemDeduplicator.deduplicate(batchResults: batchResults)
     }
 
     // MARK: - Multi-Item Processing
