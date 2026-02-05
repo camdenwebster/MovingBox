@@ -52,14 +52,16 @@ struct EnhancedItemCreationFlowView: View {
                 // Main content based on current step
                 mainContentView
 
-                // Progress indicator at bottom (except on camera view)
-                if viewModel.currentStep != .camera {
+                // Progress indicator at bottom except when child views provide their own chrome.
+                if viewModel.currentStep != .camera && viewModel.currentStep != .multiItemSelection {
                     bottomProgressIndicator
                 }
             }
             .navigationTitle(viewModel.currentStepTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarHidden(viewModel.currentStep == .camera)
+            .navigationBarHidden(
+                viewModel.currentStep == .camera || viewModel.currentStep == .multiItemSelection
+            )
             .interactiveDismissDisabled(viewModel.processingImage)
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)
