@@ -842,9 +842,9 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         print("🔄 handleCaptureModeChange: \(oldMode) → \(newMode)")
         isHandlingModeChange = true
 
-        // Check if switching to multi-item requires pro
-        if newMode == .multiItem && !isPro {
-            print("🔒 Multi-item mode requires pro, showing paywall")
+        // Check if switching to multi-item or video requires pro
+        if (newMode == .multiItem || newMode == .video) && !isPro {
+            print("🔒 Capture mode requires pro, showing paywall")
             selectedCaptureMode = oldMode
             isHandlingModeChange = false
             showingPaywall = true
@@ -874,7 +874,9 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     }
 
     func loadInitialCaptureMode(preferredCaptureMode: Int, isPro: Bool) {
-        if preferredCaptureMode == 1 && isPro {
+        if preferredCaptureMode == 2 && isPro {
+            selectedCaptureMode = .video
+        } else if preferredCaptureMode == 1 && isPro {
             selectedCaptureMode = .multiItem
         } else {
             selectedCaptureMode = .singleItem
@@ -882,7 +884,14 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     }
 
     func saveCaptureMode(to settings: SettingsManager) {
-        settings.preferredCaptureMode = selectedCaptureMode == .singleItem ? 0 : 1
+        switch selectedCaptureMode {
+        case .singleItem:
+            settings.preferredCaptureMode = 0
+        case .multiItem:
+            settings.preferredCaptureMode = 1
+        case .video:
+            settings.preferredCaptureMode = 2
+        }
     }
 
     func canCaptureMorePhotos(captureMode: CaptureMode, isPro: Bool) -> Bool {

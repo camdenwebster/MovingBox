@@ -105,7 +105,12 @@ enum AnalysisPhotoLimits {
             return mockResponse
         }
 
-        func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext)
+        func getMultiItemDetails(
+            from images: [UIImage],
+            settings: SettingsManager,
+            modelContext: ModelContext,
+            narrationContext: String? = nil
+        )
             async throws -> MultiItemAnalysisResponse
         {
             print("🧪 MockAIAnalysisService: getMultiItemDetails called with \(images.count) images")
@@ -248,8 +253,12 @@ protocol AIAnalysisServiceProtocol {
         -> ImageDetails
     func analyzeItem(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
         -> ImageDetails
-    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
-        -> MultiItemAnalysisResponse
+    func getMultiItemDetails(
+        from images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?
+    ) async throws -> MultiItemAnalysisResponse
     func cancelCurrentRequest()
 }
 
@@ -295,9 +304,16 @@ struct AIRequestBuilder {
     func buildMultiItemRequestBody(
         with images: [UIImage],
         settings: SettingsManager,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        narrationContext: String? = nil
     ) async -> OpenRouterChatCompletionRequestBody {
-        return await buildRequestBody(with: images, settings: settings, modelContext: modelContext, isMultiItem: true)
+        return await buildRequestBody(
+            with: images,
+            settings: settings,
+            modelContext: modelContext,
+            isMultiItem: true,
+            narrationContext: narrationContext
+        )
     }
 
     @MainActor
@@ -305,7 +321,8 @@ struct AIRequestBuilder {
         with images: [UIImage],
         settings: SettingsManager,
         modelContext: ModelContext,
-        isMultiItem: Bool
+        isMultiItem: Bool,
+        narrationContext: String? = nil
     ) async -> OpenRouterChatCompletionRequestBody {
         // Get active home to filter labels and locations
         let homeDescriptor = FetchDescriptor<Home>(sortBy: [SortDescriptor(\Home.purchaseDate)])
@@ -341,7 +358,11 @@ struct AIRequestBuilder {
         let categories = ["None"] + allLabelObjects.map { $0.name }
         let locations = ["None"] + filteredLocationObjects.map { $0.name }
 
-        let imagePrompt = createImagePrompt(for: images.count, isMultiItem: isMultiItem)
+        let imagePrompt = createImagePrompt(
+            for: images.count,
+            isMultiItem: isMultiItem,
+            narrationContext: narrationContext
+        )
         let function = buildFunctionDefinition(
             imageCount: images.count,
             categories: categories,
@@ -377,9 +398,13 @@ struct AIRequestBuilder {
         )
     }
 
-    private func createImagePrompt(for imageCount: Int, isMultiItem: Bool = false) -> String {
+    private func createImagePrompt(
+        for imageCount: Int,
+        isMultiItem: Bool = false,
+        narrationContext: String? = nil
+    ) -> String {
         if isMultiItem {
-            return """
+            let basePrompt = """
                 Analyze the provided image\(imageCount > 1 ? "s" : "") and identify ALL distinct items visible. Each item should be a separate inventory item that would be individually cataloged. Look for objects like electronics, furniture, appliances, books, tools, clothing, etc.
                 \(imageCount > 1 ? "\nImages are labeled Image 0 through Image \(imageCount - 1).\n" : "")
                 CRITICAL REQUIREMENTS:
@@ -409,6 +434,17 @@ struct AIRequestBuilder {
 
                 Pay attention to text, labels, or model numbers on each item.
                 """
+            if let narrationContext, !narrationContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return """
+                    The person recording provided this narration during this segment:
+                    \"\(narrationContext)\"
+                    Use this narration as context to identify items, locations, and details mentioned.
+
+                    \(basePrompt)
+                    """
+            }
+
+            return basePrompt
         } else if imageCount > 1 {
             return
                 "Analyze these \(imageCount) images which show the same item from different angles and perspectives. Combine all the visual information from all images to create ONE comprehensive description of this single item. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. For any unknown or unclear field, return an empty string (do NOT use \"unknown\", \"n/a\", \"no serial number found\", etc.). Return only ONE response that describes the item based on all the photos together."
@@ -1294,16 +1330,23 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         return try await performRequestWithRetry(images: images, settings: settings, modelContext: modelContext)
     }
 
-    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
-        -> MultiItemAnalysisResponse
-    {
+    func getMultiItemDetails(
+        from images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String? = nil
+    ) async throws -> MultiItemAnalysisResponse {
         // Cancel any existing request
         currentTask?.cancel()
 
         // Create new task for this request (reusing the same cancellation mechanism)
         let multiItemTask = Task<MultiItemAnalysisResponse, Error> {
             return try await performMultiItemStructuredResponseWithRetry(
-                images: images, settings: settings, modelContext: modelContext)
+                images: images,
+                settings: settings,
+                modelContext: modelContext,
+                narrationContext: narrationContext
+            )
         }
 
         defer {
@@ -1321,7 +1364,11 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
     // MARK: - Multi-Item Structured Response Implementation
 
     private func performMultiItemStructuredResponseWithRetry(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        maxAttempts: Int = 3
     ) async throws -> MultiItemAnalysisResponse {
         var lastError: Error?
 
@@ -1331,8 +1378,13 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
 
             do {
                 return try await performSingleMultiItemStructuredRequest(
-                    images: images, settings: settings, modelContext: modelContext, attempt: attempt,
-                    maxAttempts: maxAttempts)
+                    images: images,
+                    settings: settings,
+                    modelContext: modelContext,
+                    narrationContext: narrationContext,
+                    attempt: attempt,
+                    maxAttempts: maxAttempts
+                )
             } catch {
                 lastError = error
 
@@ -1409,7 +1461,12 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     private func performSingleMultiItemStructuredRequest(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        attempt: Int,
+        maxAttempts: Int
     ) async throws -> MultiItemAnalysisResponse {
         let startTime = Date()
         let imageCount = images.count
@@ -1507,7 +1564,8 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         let baseRequestBody = await requestBuilder.buildMultiItemRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            modelContext: modelContext,
+            narrationContext: narrationContext
         )
 
         // Calculate token limit (multi-item needs more tokens for bounding boxes)
@@ -1544,6 +1602,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
                     images: images,
                     settings: settings,
                     modelContext: modelContext,
+                    narrationContext: narrationContext,
                     attempt: attempt,
                     maxAttempts: maxAttempts
                 )
@@ -1579,6 +1638,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
                 images: images,
                 settings: settings,
                 modelContext: modelContext,
+                narrationContext: narrationContext,
                 attempt: attempt,
                 maxAttempts: maxAttempts
             )
@@ -1608,7 +1668,12 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     private func performSingleMultiItemFunctionRequest(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        attempt: Int,
+        maxAttempts: Int
     ) async throws -> MultiItemAnalysisResponse {
         let startTime = Date()
         let imageCount = images.count
@@ -1616,7 +1681,8 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         let requestBody = await requestBuilder.buildMultiItemRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            modelContext: modelContext,
+            narrationContext: narrationContext
         )
 
         if attempt == 1 {

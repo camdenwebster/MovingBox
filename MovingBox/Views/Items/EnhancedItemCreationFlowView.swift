@@ -85,8 +85,8 @@ struct EnhancedItemCreationFlowView: View {
             viewModel.updateSettingsManager(settings)
             viewModel.updateScenePhase(scenePhase)
 
-            // Verify Pro status for multi-item mode
-            if captureMode == .multiItem && !settings.isPro {
+            // Verify Pro status for multi-item/video mode
+            if (captureMode == .multiItem || captureMode == .video) && !settings.isPro {
                 dismiss()
             }
         }
@@ -107,6 +107,9 @@ struct EnhancedItemCreationFlowView: View {
         switch viewModel.currentStep {
         case .camera:
             cameraView
+
+        case .videoProcessing:
+            videoProcessingView
 
         case .analyzing:
             analysisView
@@ -134,8 +137,17 @@ struct EnhancedItemCreationFlowView: View {
                     viewModel.updateCaptureMode(selectedMode)
 
                     // Track capture mode selection
+                    let modeLabel: String
+                    switch selectedMode {
+                    case .singleItem:
+                        modeLabel = "single_item"
+                    case .multiItem:
+                        modeLabel = "multi_item"
+                    case .video:
+                        modeLabel = "video"
+                    }
                     TelemetryManager.shared.trackCaptureModeSelected(
-                        mode: selectedMode == .singleItem ? "single_item" : "multi_item",
+                        mode: modeLabel,
                         imageCount: images.count,
                         isProUser: settings.isPro
                     )
@@ -144,6 +156,17 @@ struct EnhancedItemCreationFlowView: View {
                     await MainActor.run {
                         viewModel.goToNextStep()
                     }
+                }
+            },
+            onVideoSelected: { url in
+                Task {
+                    viewModel.updateCaptureMode(.video)
+                    TelemetryManager.shared.trackCaptureModeSelected(
+                        mode: "video",
+                        imageCount: 0,
+                        isProUser: settings.isPro
+                    )
+                    await viewModel.handleSelectedVideo(url)
                 }
             },
             onCancel: {
@@ -170,7 +193,9 @@ struct EnhancedItemCreationFlowView: View {
         }
         .task {
             // Perform analysis based on capture mode (use viewModel's mode, not initial mode)
-            if viewModel.captureMode == .multiItem {
+            if viewModel.captureMode == .video {
+                return
+            } else if viewModel.captureMode == .multiItem {
                 await viewModel.performMultiItemAnalysis()
             } else {
                 await viewModel.performAnalysis()
@@ -204,6 +229,30 @@ struct EnhancedItemCreationFlowView: View {
             )
         )
         .id("analysis-\(viewModel.transitionId)")
+    }
+
+    private var videoProcessingView: some View {
+        VideoProcessingView(
+            thumbnail: viewModel.capturedImages.first,
+            progress: viewModel.videoProcessingProgress,
+            onComplete: {
+                if viewModel.currentStep == .videoProcessing {
+                    viewModel.goToStep(.multiItemSelection)
+                }
+            }
+        )
+        .task {
+            if !viewModel.processingImage && viewModel.multiItemAnalysisResponse == nil {
+                await viewModel.performVideoProcessing()
+            }
+        }
+        .transition(
+            .asymmetric(
+                insertion: .move(edge: .trailing),
+                removal: .move(edge: .leading)
+            )
+        )
+        .id("videoProcessing-\(viewModel.transitionId)")
     }
 
     @ViewBuilder
@@ -378,8 +427,8 @@ struct EnhancedItemCreationFlowView: View {
         viewModel.errorMessage = nil
 
         // Move to next step based on current step and mode
-        if viewModel.currentStep == .analyzing {
-            if viewModel.captureMode == .multiItem {
+        if viewModel.currentStep == .analyzing || viewModel.currentStep == .videoProcessing {
+            if viewModel.captureMode == .multiItem || viewModel.captureMode == .video {
                 // Create empty multi-item response to allow progression
                 viewModel.multiItemAnalysisResponse = MultiItemAnalysisResponse(
                     items: [],

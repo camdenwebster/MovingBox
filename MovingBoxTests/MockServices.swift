@@ -79,7 +79,10 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     func getMultiItemDetails(
-        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+        from images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?
     ) async throws -> MultiItemAnalysisResponse {
         if shouldFailMultiItem {
             throw AIAnalysisError.invalidData

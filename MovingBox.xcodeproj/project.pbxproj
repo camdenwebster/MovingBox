@@ -21,8 +21,6 @@
 		1942DC8C2BF3D4BE00734AF4 /* AIAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC8B2BF3D4BE00734AF4 /* AIAnalysisService.swift */; };
 		1942DC962BF3DBBD00734AF4 /* ImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */; };
 		196109F52D764D9100A76504 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196109F42D764D9100A76504 /* ColorExtension.swift */; };
-		B3B2B26CBF80443F90A9B9D0 /* LabelEmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B559C9AF80B849A98B0BD199 /* LabelEmojiCatalog.swift */; };
-		FA36BEBB1DBE4FAA9E675896 /* LabelAutoAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3683ACD84B6C42209DF50F14 /* LabelAutoAssignment.swift */; };
 		1961C6E92D9DDC56004CF387 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6E82D9DDC56004CF387 /* RevenueCat */; };
 		1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 1961C6EA2D9DDC56004CF387 /* RevenueCatUI */; };
 		1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */; };
@@ -51,8 +49,14 @@
 		19E37DFF2E56198200FB73D8 /* MovingBox-beta.icon in Resources */ = {isa = PBXBuildFile; fileRef = 19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */; };
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
+		23743FFE3BBF46B0AA8EBF79 /* VideoAnalysisCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84530A593114B4C9D3CAF87 /* VideoAnalysisCoordinator.swift */; };
 		27BFED706F9A3AECAD44B0A5 /* BoundingBoxCropper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 824579EAF1DCC03BD61B1782 /* BoundingBoxCropper.swift */; };
+		63ED39C6794246589EDD08CD /* AudioTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18664E7D3E37457388D53C98 /* AudioTranscriber.swift */; };
+		69C109B16D4E4F288F99DD09 /* VideoItemDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CADC5AF0A3CC4435BC2E8F3A /* VideoItemDeduplicator.swift */; };
+		974C83E1D7EB4E20871E5AA8 /* VideoFrameExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D9C682E57248F482B9E597 /* VideoFrameExtractor.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
+		B3B2B26CBF80443F90A9B9D0 /* LabelEmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B559C9AF80B849A98B0BD199 /* LabelEmojiCatalog.swift */; };
+		FA36BEBB1DBE4FAA9E675896 /* LabelAutoAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3683ACD84B6C42209DF50F14 /* LabelAutoAssignment.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -93,10 +97,12 @@
 		1942DC812BF391CF00734AF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1942DC842BF391CF00734AF4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		1942DC8B2BF3D4BE00734AF4 /* AIAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAnalysisService.swift; sourceTree = "<group>"; };
+		18664E7D3E37457388D53C98 /* AudioTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTranscriber.swift; sourceTree = "<group>"; };
+		C6D9C682E57248F482B9E597 /* VideoFrameExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFrameExtractor.swift; sourceTree = "<group>"; };
+		CADC5AF0A3CC4435BC2E8F3A /* VideoItemDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoItemDeduplicator.swift; sourceTree = "<group>"; };
+		E84530A593114B4C9D3CAF87 /* VideoAnalysisCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoAnalysisCoordinator.swift; sourceTree = "<group>"; };
 		1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageEncoder.swift; sourceTree = "<group>"; };
 		196109F42D764D9100A76504 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
-		3683ACD84B6C42209DF50F14 /* LabelAutoAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelAutoAssignment.swift; sourceTree = "<group>"; };
-		B559C9AF80B849A98B0BD199 /* LabelEmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelEmojiCatalog.swift; sourceTree = "<group>"; };
 		1961C6ED2D9DDCA8004CF387 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		1961C6F82D9EB864004CF387 /* MovingBoxStoreKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxStoreKit.storekit; path = MovingBox/MovingBoxStoreKit.storekit; sourceTree = "<group>"; };
 		1961C6FB2D9EBB5F004CF387 /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
@@ -127,9 +133,11 @@
 		19F2CB932D9D7A280053050B /* MovingBoxSnapshotTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = MovingBoxSnapshotTests.xctestplan; path = "Test Plans/MovingBoxSnapshotTests.xctestplan"; sourceTree = "<group>"; };
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
 		19F765D42DAB558000AE287D /* OptimizedImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedImageManager.swift; sourceTree = "<group>"; };
+		3683ACD84B6C42209DF50F14 /* LabelAutoAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelAutoAssignment.swift; sourceTree = "<group>"; };
 		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
 		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
 		824579EAF1DCC03BD61B1782 /* BoundingBoxCropper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundingBoxCropper.swift; sourceTree = "<group>"; };
+		B559C9AF80B849A98B0BD199 /* LabelEmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelEmojiCatalog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -330,7 +338,11 @@
 				190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */,
 				1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */,
 				1942DC8B2BF3D4BE00734AF4 /* AIAnalysisService.swift */,
+				18664E7D3E37457388D53C98 /* AudioTranscriber.swift */,
 				824579EAF1DCC03BD61B1782 /* BoundingBoxCropper.swift */,
+				E84530A593114B4C9D3CAF87 /* VideoAnalysisCoordinator.swift */,
+				C6D9C682E57248F482B9E597 /* VideoFrameExtractor.swift */,
+				CADC5AF0A3CC4435BC2E8F3A /* VideoItemDeduplicator.swift */,
 				198958AE2BF99F5600C52CAE /* Previewer.swift */,
 				19D3430D2C12146800F8B2C7 /* Router.swift */,
 				198958AC2BF8FAC700C52CAE /* TestData.swift */,
@@ -614,6 +626,10 @@
 				19328B001A68604693BB3069 /* RelationshipMigrationHelper.swift in Sources */,
 				194195662DA4805B008CABAA /* ModelContainerManager.swift in Sources */,
 				19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */,
+				23743FFE3BBF46B0AA8EBF79 /* VideoAnalysisCoordinator.swift in Sources */,
+				63ED39C6794246589EDD08CD /* AudioTranscriber.swift in Sources */,
+				69C109B16D4E4F288F99DD09 /* VideoItemDeduplicator.swift in Sources */,
+				974C83E1D7EB4E20871E5AA8 /* VideoFrameExtractor.swift in Sources */,
 				198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */,
 				198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */,
 				19BA29932DC464A70064C5A9 /* DataManager.swift in Sources */,
@@ -817,6 +833,8 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MovingBox uses speech recognition to transcribe narration from your videos to better identify your inventory items";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MovingBox needs microphone access to process audio from your videos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -867,6 +885,8 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MovingBox uses speech recognition to transcribe narration from your videos to better identify your inventory items";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MovingBox needs microphone access to process audio from your videos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -983,6 +1003,8 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MovingBox uses speech recognition to transcribe narration from your videos to better identify your inventory items";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MovingBox needs microphone access to process audio from your videos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1143,6 +1165,8 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MovingBox needs camera access to help you photograph and document your items for inventory tracking";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MovingBox uses speech recognition to transcribe narration from your videos to better identify your inventory items";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MovingBox needs microphone access to process audio from your videos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

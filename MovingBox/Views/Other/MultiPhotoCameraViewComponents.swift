@@ -538,7 +538,7 @@ struct CaptureModePicker: View {
 
     var body: some View {
         Picker("Capture Mode", selection: $selectedMode) {
-            ForEach(CaptureMode.allCases, id: \.self) { mode in
+            ForEach(availableModes, id: \.self) { mode in
                 HStack(spacing: 4) {
                     Text(mode.displayName)
                     if mode == .multiItem && !settings.isPro {
@@ -574,6 +574,13 @@ struct CaptureModePicker: View {
         .accessibilityLabel("Camera mode selector")
         .accessibilityHint("Switch between single item and multi item capture modes")
         .accessibilityIdentifier("cameraModePicker")
+    }
+
+    private var availableModes: [CaptureMode] {
+        if settings.isPro {
+            return CaptureMode.allCases
+        }
+        return CaptureMode.allCases.filter { $0 != .video }
     }
 }
 

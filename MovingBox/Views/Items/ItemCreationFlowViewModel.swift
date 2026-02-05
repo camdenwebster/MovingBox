@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import AVFoundation
 import Foundation
 import SwiftData
 import SwiftUI
@@ -63,6 +64,15 @@ class ItemCreationFlowViewModel: ObservableObject {
     /// Captured images from camera
     @Published var capturedImages: [UIImage] = []
 
+    /// Selected video asset for video analysis
+    @Published var videoAsset: AVAsset?
+
+    /// Selected video URL (saved to Documents)
+    @Published var videoURL: URL?
+
+    /// Video processing progress updates
+    @Published var videoProcessingProgress: VideoAnalysisProgress?
+
     /// Whether image processing is in progress
     @Published var processingImage: Bool = false
 
@@ -95,6 +105,7 @@ class ItemCreationFlowViewModel: ObservableObject {
     private var analysisInterruptedForBackground: Bool = false
     private var shouldRestartAnalysisOnForeground: Bool = false
     private var activeAIService: AIAnalysisServiceProtocol?
+    private let videoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol
 
     // MARK: - Computed Properties
 
@@ -114,6 +125,9 @@ class ItemCreationFlowViewModel: ObservableObject {
         switch currentStep {
         case .camera:
             return !capturedImages.isEmpty
+
+        case .videoProcessing:
+            return multiItemAnalysisResponse != nil
 
         case .analyzing:
             if captureMode == .multiItem {
@@ -143,12 +157,14 @@ class ItemCreationFlowViewModel: ObservableObject {
         captureMode: CaptureMode,
         location: InventoryLocation?,
         modelContext: ModelContext? = nil,
-        aiAnalysisService: AIAnalysisServiceProtocol? = nil
+        aiAnalysisService: AIAnalysisServiceProtocol? = nil,
+        videoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol = VideoAnalysisCoordinator()
     ) {
         self.captureMode = captureMode
         self.location = location
         self.modelContext = modelContext
         self.aiAnalysisService = aiAnalysisService
+        self.videoAnalysisCoordinator = videoAnalysisCoordinator
     }
 
     /// Update the model context (called after view initialization)
@@ -281,6 +297,82 @@ class ItemCreationFlowViewModel: ObservableObject {
                     processingImage = false
                 }
             }
+        }
+    }
+
+    /// Handle selected video from picker
+    func handleSelectedVideo(_ url: URL) async {
+        resetAnalysisState()
+        updateCaptureMode(.video)
+        do {
+            let savedURL = try await OptimizedImageManager.shared.saveVideo(url)
+            videoURL = savedURL
+            videoAsset = AVAsset(url: savedURL)
+            capturedImages = []
+            goToStep(.videoProcessing)
+        } catch {
+            errorMessage = "Failed to save video: \(error.localizedDescription)"
+        }
+    }
+
+    /// Perform video processing: frame extraction, transcription, AI analysis, and deduplication
+    func performVideoProcessing() async {
+        guard let asset = videoAsset else { return }
+        guard let context = modelContext else {
+            errorMessage = "Model context not available"
+            return
+        }
+        guard let settings = settingsManager else {
+            errorMessage = "Settings manager not available"
+            return
+        }
+
+        processingImage = true
+        videoProcessingProgress = VideoAnalysisProgress(phase: .extractingFrames, progress: 0.0, overallProgress: 0.0)
+
+        do {
+            let response = try await videoAnalysisCoordinator.analyze(
+                videoAsset: asset,
+                settings: settings,
+                modelContext: context,
+                aiService: aiAnalysisService ?? createAIAnalysisService(),
+                onProgress: { [weak self] progress in
+                    guard let self else { return }
+                    Task { @MainActor in
+                        self.videoProcessingProgress = progress
+                        if self.capturedImages.isEmpty,
+                            let coordinator = self.videoAnalysisCoordinator as? VideoAnalysisCoordinator,
+                            !coordinator.extractedFrames.isEmpty
+                        {
+                            self.capturedImages = coordinator.extractedFrames.map { $0.image }
+                        }
+                    }
+                }
+            )
+
+            if let coordinator = videoAnalysisCoordinator as? VideoAnalysisCoordinator {
+                capturedImages = coordinator.extractedFrames.map { $0.image }
+            }
+
+            multiItemAnalysisResponse = response
+            processingImage = false
+            analysisComplete = true
+            goToStep(.multiItemSelection)
+        } catch let error as VideoExtractionError {
+            processingImage = false
+            switch error {
+            case .videoTooLong(let duration):
+                errorMessage = "Video is too long (\(Int(duration)) seconds). Please select a video under 3 minutes."
+            case .noVideoTrack:
+                errorMessage = "No video track found. Please select a valid video."
+            case .cancelled:
+                errorMessage = "Video processing was cancelled."
+            case .extractionFailed:
+                errorMessage = "Failed to extract frames from the video."
+            }
+        } catch {
+            processingImage = false
+            errorMessage = "Video processing failed: \(error.localizedDescription)"
         }
     }
 
@@ -497,7 +589,8 @@ class ItemCreationFlowViewModel: ObservableObject {
             let response = try await aiService.getMultiItemDetails(
                 from: capturedImages,
                 settings: settings,
-                modelContext: context
+                modelContext: context,
+                narrationContext: nil
             )
 
             await MainActor.run {
@@ -635,6 +728,9 @@ class ItemCreationFlowViewModel: ObservableObject {
     func resetState() {
         currentStep = .camera
         capturedImages = []
+        videoAsset = nil
+        videoURL = nil
+        videoProcessingProgress = nil
         processingImage = false
         analysisComplete = false
         errorMessage = nil
@@ -655,6 +751,7 @@ class ItemCreationFlowViewModel: ObservableObject {
         analysisComplete = false
         errorMessage = nil
         multiItemAnalysisResponse = nil
+        videoProcessingProgress = nil
         processingImage = false
         transitionId = UUID()
         pendingNotificationNavigation = false
@@ -696,7 +793,9 @@ class ItemCreationFlowViewModel: ObservableObject {
                 shouldRestartAnalysisOnForeground = false
                 analysisInterruptedForBackground = false
                 Task {
-                    if captureMode == .multiItem {
+                    if captureMode == .video {
+                        return
+                    } else if captureMode == .multiItem {
                         await performMultiItemAnalysis()
                     } else {
                         await performAnalysis()
@@ -822,6 +921,8 @@ class ItemCreationFlowViewModel: ObservableObject {
         switch currentStep {
         case .camera:
             return true
+        case .videoProcessing:
+            return !processingImage
         case .analyzing:
             return !processingImage
         case .multiItemSelection:
