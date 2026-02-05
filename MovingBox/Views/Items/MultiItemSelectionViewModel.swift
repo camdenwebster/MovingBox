@@ -41,6 +41,9 @@ final class MultiItemSelectionViewModel {
     /// The analysis response containing detected items
     let analysisResponse: MultiItemAnalysisResponse
 
+    /// Normalized detected items with unique IDs for stable selection/cropping keys
+    private let normalizedDetectedItems: [DetectedInventoryItem]
+
     /// Images used for analysis
     var images: [UIImage]
 
@@ -60,7 +63,7 @@ final class MultiItemSelectionViewModel {
 
     /// All detected items from analysis (unfiltered)
     private var allDetectedItems: [DetectedInventoryItem] {
-        analysisResponse.safeItems
+        normalizedDetectedItems
     }
 
     /// Count of items filtered out by quality gates
@@ -171,6 +174,7 @@ final class MultiItemSelectionViewModel {
         aiAnalysisService: AIAnalysisServiceProtocol? = nil
     ) {
         self.analysisResponse = analysisResponse
+        self.normalizedDetectedItems = Self.normalizeDetectedItems(analysisResponse.safeItems)
         self.images = images
         self.location = location
         self.modelContext = modelContext
@@ -634,6 +638,37 @@ final class MultiItemSelectionViewModel {
         guard width > 0, height > 0 else { return nil }
 
         return Double(width * height) / 1_000_000.0
+    }
+
+    private static func normalizeDetectedItems(_ items: [DetectedInventoryItem]) -> [DetectedInventoryItem] {
+        var seenCounts: [String: Int] = [:]
+
+        return items.enumerated().map { index, item in
+            let baseID = item.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedBaseID = baseID.isEmpty ? "detected-item-\(index)" : baseID
+            let seenCount = seenCounts[normalizedBaseID, default: 0]
+            seenCounts[normalizedBaseID] = seenCount + 1
+
+            if seenCount == 0 {
+                return copy(item, withID: normalizedBaseID)
+            }
+
+            return copy(item, withID: "\(normalizedBaseID)--\(seenCount)")
+        }
+    }
+
+    private static func copy(_ item: DetectedInventoryItem, withID id: String) -> DetectedInventoryItem {
+        DetectedInventoryItem(
+            id: id,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            make: item.make,
+            model: item.model,
+            estimatedPrice: item.estimatedPrice,
+            confidence: item.confidence,
+            detections: item.detections
+        )
     }
 }
 

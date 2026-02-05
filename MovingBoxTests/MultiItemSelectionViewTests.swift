@@ -237,6 +237,64 @@ import UIKit
         }
     }
 
+    @Test("ViewModel handles duplicate detected item IDs when selecting all")
+    func testSelectAllWithDuplicateItemIDs() throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let duplicateItems = [
+            DetectedInventoryItem(
+                id: "duplicate-id",
+                title: "Item A",
+                description: "A",
+                category: "Electronics",
+                make: "Brand A",
+                model: "Model A",
+                estimatedPrice: "$10.00",
+                confidence: 0.9
+            ),
+            DetectedInventoryItem(
+                id: "duplicate-id",
+                title: "Item B",
+                description: "B",
+                category: "Electronics",
+                make: "Brand B",
+                model: "Model B",
+                estimatedPrice: "$20.00",
+                confidence: 0.88
+            ),
+            DetectedInventoryItem(
+                id: "duplicate-id",
+                title: "Item C",
+                description: "C",
+                category: "Electronics",
+                make: "Brand C",
+                model: "Model C",
+                estimatedPrice: "$30.00",
+                confidence: 0.86
+            ),
+        ]
+        let analysisResponse = MultiItemAnalysisResponse(
+            items: duplicateItems,
+            detectedCount: duplicateItems.count,
+            analysisType: "multi_item",
+            confidence: 0.88
+        )
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: analysisResponse,
+            images: createTestImages(),
+            location: nil,
+            modelContext: context
+        )
+
+        #expect(viewModel.detectedItems.count == 3)
+        #expect(Set(viewModel.detectedItems.map(\.id)).count == 3)
+
+        viewModel.selectAllItems()
+        #expect(viewModel.selectedItemsCount == 3)
+    }
+
     @Test("ViewModel creates inventory items correctly")
     func testCreateInventoryItems() async throws {
         let container = try createTestContainer()

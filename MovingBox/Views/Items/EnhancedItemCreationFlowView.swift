@@ -258,24 +258,46 @@ struct EnhancedItemCreationFlowView: View {
     @ViewBuilder
     private var multiItemSelectionView: some View {
         if let analysisResponse = viewModel.multiItemAnalysisResponse {
-            MultiItemSelectionView(
-                analysisResponse: analysisResponse,
-                images: viewModel.capturedImages,
-                location: location,
-                modelContext: modelContext,
-                aiAnalysisService: AIAnalysisServiceFactory.create(),
-                onItemsSelected: { items in
-                    viewModel.handleMultiItemSelection(items)
-                },
-                onCancel: {
-                    dismiss()
-                },
-                onReanalyze: {
-                    // Go back to analyzing step to re-analyze the images
-                    viewModel.resetAnalysisState()
-                    viewModel.goToStep(.analyzing)
+            Group {
+                if viewModel.captureMode == .video {
+                    VideoItemSelectionListView(
+                        analysisResponse: analysisResponse,
+                        images: viewModel.capturedImages,
+                        location: location,
+                        modelContext: modelContext,
+                        aiAnalysisService: AIAnalysisServiceFactory.create(),
+                        onItemsSelected: { items in
+                            viewModel.handleMultiItemSelection(items)
+                        },
+                        onCancel: {
+                            dismiss()
+                        },
+                        onReanalyze: {
+                            viewModel.resetAnalysisState()
+                            viewModel.goToStep(.videoProcessing)
+                        }
+                    )
+                } else {
+                    MultiItemSelectionView(
+                        analysisResponse: analysisResponse,
+                        images: viewModel.capturedImages,
+                        location: location,
+                        modelContext: modelContext,
+                        aiAnalysisService: AIAnalysisServiceFactory.create(),
+                        onItemsSelected: { items in
+                            viewModel.handleMultiItemSelection(items)
+                        },
+                        onCancel: {
+                            dismiss()
+                        },
+                        onReanalyze: {
+                            // Go back to analyzing step to re-analyze the images
+                            viewModel.resetAnalysisState()
+                            viewModel.goToStep(.analyzing)
+                        }
+                    )
                 }
-            )
+            }
             .transition(
                 .asymmetric(
                     insertion: .move(edge: .trailing),
