@@ -226,7 +226,7 @@ struct DashboardView: View {
                 .accessibilityIdentifier("dashboard-settings-button")
             }
             // Search field and spacers
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, macOS 26.0, *) {
                 ToolbarSpacer(placement: .bottomBar)
                 DefaultToolbarItem(kind: .search, placement: .bottomBar)
                 ToolbarSpacer(placement: .bottomBar)

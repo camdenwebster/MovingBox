@@ -2241,7 +2241,7 @@ extension View {
     }
 
     private func getNavigationTitle(title: String) -> String {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             return title
         } else {
             return ""
@@ -2255,7 +2255,7 @@ struct ConditionalToolbarBackgroundModifier: ViewModifier {
     let colorScheme: ColorScheme
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             // For iOS 26 and above, hide the toolbar background
             content
                 .toolbarBackground(.hidden, for: .navigationBar)

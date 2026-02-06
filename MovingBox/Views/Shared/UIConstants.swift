@@ -13,7 +13,7 @@ struct UIConstants {
     /// iOS 26+ uses larger corner radius (25) for modern design
     /// Earlier iOS versions use traditional corner radius (12)
     static var cornerRadius: CGFloat {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             return 24
         } else {
             return 12
@@ -30,7 +30,7 @@ struct UIConstants {
 
 struct SectionHeaderModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             // iOS 26+ uses updated typography matching the new design
             // Larger, more readable font with better contrast
             content

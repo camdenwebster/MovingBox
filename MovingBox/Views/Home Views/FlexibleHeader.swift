@@ -2,7 +2,7 @@ import SwiftUI
 
 struct BackgroundExtensionModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             content.backgroundExtensionEffect()
         } else {
             content

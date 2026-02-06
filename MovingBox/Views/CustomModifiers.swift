@@ -23,7 +23,7 @@ extension View {
     }
 
     func recommendedClipShape() -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             return self.clipShape(.rect(corners: .concentric, isUniform: true))
         } else {
             return self.clipShape(RoundedRectangle(cornerRadius: 12))

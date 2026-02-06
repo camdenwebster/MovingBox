@@ -165,6 +165,7 @@
 		19D133BC2D72BFB8002448A9 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19FE38412EA033D0004F043A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
 		19D133CA2D75455B002448A9 /* MovingBoxTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19F2CC3E2D9D83580053050B /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MovingBoxTests; sourceTree = "<group>"; };
 		19EC18002F36453200F8E28D /* .codex */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = .codex; sourceTree = "<group>"; };
+		19EC1A552F36473A00F8E28D /* Packages */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Packages; sourceTree = "<group>"; };
 		19FE36542EA03233004F043A /* ViewModels */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ViewModels; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
@@ -220,6 +221,7 @@
 			isa = PBXGroup;
 			children = (
 				19EC18002F36453200F8E28D /* .codex */,
+				19EC1A552F36473A00F8E28D /* Packages */,
 				191881AD2EC61EB9009FB4F4 /* opencode.json */,
 				191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */,
 				191881AB2EC54398009FB4F4 /* CLAUDE.md */,
@@ -510,7 +512,7 @@
 				1961C6E72D9DDC56004CF387 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 				AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
-				196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */,
+				196450522E4D6DC300918795 /* XCLocalSwiftPackageReference "Packages/SwiftUIBackports" */,
 				19A6B2962E74721C006A6EF6 /* XCRemoteSwiftPackageReference "AIProxySwift" */,
 				1979BBB82EF5E07300CB8A01 /* XCRemoteSwiftPackageReference "wishkit-ios" */,
 				1979BBBB2EF5E08400CB8A01 /* XCRemoteSwiftPackageReference "AcknowList" */,
@@ -817,13 +819,14 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -867,13 +870,14 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -983,13 +987,14 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1143,13 +1148,14 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = "$(MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mothersound.movingbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1352,6 +1358,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		196450522E4D6DC300918795 /* XCLocalSwiftPackageReference "Packages/SwiftUIBackports" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/SwiftUIBackports;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		1920B0D42D88B13000CFA1E9 /* XCRemoteSwiftPackageReference "SwiftSDK" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1367,14 +1380,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 5.20.2;
-			};
-		};
-		196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/superwall/iOS-Backports";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.1.5;
 			};
 		};
 		1965A96D2D9D5A4E00B799C9 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
@@ -1453,7 +1458,7 @@
 		};
 		196450532E4D6DC300918795 /* SwiftUIBackports */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */;
+			package = 196450522E4D6DC300918795 /* XCLocalSwiftPackageReference "Packages/SwiftUIBackports" */;
 			productName = SwiftUIBackports;
 		};
 		1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */ = {

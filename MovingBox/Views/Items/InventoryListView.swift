@@ -118,7 +118,7 @@ struct InventoryListView: View {
 
     // Version-appropriate menu icon
     private var menuIcon: String {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             return "ellipsis"
         } else {
             return "ellipsis.circle"
@@ -369,7 +369,7 @@ struct InventoryListView: View {
                 //                .disabled(selectedCount == 0 || !hasImagesInSelection())
             }
 
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, macOS 26.0, *) {
                 ToolbarSpacer(placement: .bottomBar)
             } else {
                 // For iOS < 26, add spacer to push delete button to trailing edge
@@ -390,7 +390,7 @@ struct InventoryListView: View {
         } else {
 
             // Search field and spacers
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, macOS 26.0, *) {
                 ToolbarSpacer(placement: .bottomBar)
                 DefaultToolbarItem(kind: .search, placement: .bottomBar)
             } else {
