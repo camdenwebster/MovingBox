@@ -17,3 +17,13 @@ access = "restricted"
 [approvals]
 # options: "on-request", "on-failure", "never", "untrusted"
 policy = "on-request"
+
+[mcp_servers.sosumi]
+url = "https://sosumi.ai/mcp"
+
+[mcp_servers.sentry]
+url = "https://mcp.sentry.dev/mcp"
+
+[mcp_servers.ios-simulator]
+command = "npx"
+args = ["ios-simulator-mcp"]
