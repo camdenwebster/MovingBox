@@ -667,12 +667,6 @@ struct ItemSummaryCard: View {
                         .foregroundColor(.primary)
                 }
             }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
         .padding()
         .background(Color(.systemBackground))
