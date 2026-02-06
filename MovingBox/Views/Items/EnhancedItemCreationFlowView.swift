@@ -29,6 +29,10 @@ struct EnhancedItemCreationFlowView: View {
     let initialVideoURL: URL?
     let onComplete: (() -> Void)?
 
+    private var showsVideoSelectionToolbarCancel: Bool {
+        viewModel.currentStep == .multiItemSelection && viewModel.captureMode == .video
+    }
+
     // MARK: - Initialization
 
     init(
@@ -69,8 +73,19 @@ struct EnhancedItemCreationFlowView: View {
             .navigationTitle(viewModel.currentStepTitle)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(
-                viewModel.currentStep == .camera || viewModel.currentStep == .multiItemSelection
+                viewModel.currentStep == .camera
+                    || (viewModel.currentStep == .multiItemSelection && !showsVideoSelectionToolbarCancel)
             )
+            .toolbar {
+                if showsVideoSelectionToolbarCancel {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cancel", systemImage: "xmark") {
+                            dismiss()
+                        }
+                        .accessibilityIdentifier("videoSelectionFlowCancelButton")
+                    }
+                }
+            }
             .interactiveDismissDisabled(viewModel.processingImage)
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)

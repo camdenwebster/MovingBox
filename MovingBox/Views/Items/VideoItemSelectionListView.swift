@@ -421,7 +421,7 @@ struct VideoItemSelectionListView: View {
                 .backport.glassProminentButtonStyle()
                 .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection || isStreamingResults)
                 .padding(.horizontal)
-                .padding(.bottom, 10)
+                .padding(.bottom, 18)
         }
         .padding(.top, 12)
         .frame(maxWidth: .infinity)
