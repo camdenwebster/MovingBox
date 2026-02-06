@@ -69,7 +69,8 @@ struct EnhancedItemCreationFlowView: View {
             .navigationTitle(viewModel.currentStepTitle)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(
-                viewModel.currentStep == .camera || viewModel.currentStep == .multiItemSelection
+                viewModel.currentStep == .camera
+                    || (viewModel.currentStep == .multiItemSelection && viewModel.captureMode != .video)
             )
             .interactiveDismissDisabled(viewModel.processingImage)
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
