@@ -143,5 +143,7 @@ AIPROXY_BYPASS_PREVIEW=$(grep "AIPROXY_DEVICE_CHECK_BYPASS" "$OUTPUT_FILE" | cut
 echo "AIPROXY_DEVICE_CHECK_BYPASS preview (first 5 chars): ${AIPROXY_BYPASS_PREVIEW}..."
 echo "========================================================"
 
-echo "Disabling plugin validation"
+echo "Disabling plugin and macro validation"
 defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+
