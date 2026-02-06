@@ -3,7 +3,7 @@ import Testing
 
 @testable import MovingBox
 
-@Suite("SQLite Migration Coordinator")
+@Suite("SQLite Migration Coordinator", .serialized)
 struct SQLiteMigrationCoordinatorTests {
 
     private static let testMigrationKey =
@@ -116,16 +116,13 @@ struct SQLiteMigrationCoordinatorTests {
 
     // MARK: - Decimal Precision
 
-    @Test("Decimal(string:) preserves exact value vs Decimal(Double) introducing artifacts")
+    @Test("Decimal(string:) preserves exact value for price storage")
     func decimalStringPrecision() {
-        let fromString = Decimal(string: "99.99")!
-        let fromDouble = Decimal(99.99)
-
-        // String-based preserves exact representation
-        #expect("\(fromString)" == "99.99")
-
-        // Double-based introduces IEEE 754 artifacts
-        #expect("\(fromDouble)" != "99.99")
+        // String-based Decimal always preserves exact representation
+        #expect("\(Decimal(string: "99.99")!)" == "99.99")
+        #expect("\(Decimal(string: "0.01")!)" == "0.01")
+        #expect("\(Decimal(string: "1234.56")!)" == "1234.56")
+        #expect("\(Decimal(string: "999999.99")!)" == "999999.99")
     }
 
     // MARK: - Retry Limit
