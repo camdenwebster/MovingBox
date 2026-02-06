@@ -21,6 +21,7 @@ struct LocationSelectionView: View {
     @State private var draftSelectedHome: Home?
     @State private var searchText = ""
     @State private var showingAddLocationSheet = false
+    @State private var locationIDsBeforeAddSheet: Set<UUID> = []
 
     init(selectedLocation: Binding<InventoryLocation?>, selectedHome: Binding<Home?>) {
         self._selectedLocation = selectedLocation
@@ -153,6 +154,7 @@ struct LocationSelectionView: View {
 
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: {
+                        locationIDsBeforeAddSheet = Set(allLocations.map(\.id))
                         showingAddLocationSheet = true
                     }) {
                         Image(systemName: "plus")
@@ -175,7 +177,12 @@ struct LocationSelectionView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingAddLocationSheet) {
+        .sheet(
+            isPresented: $showingAddLocationSheet,
+            onDismiss: {
+                handleAddLocationSheetDismissed()
+            }
+        ) {
             NavigationStack {
                 EditLocationView(
                     location: nil,
@@ -187,6 +194,34 @@ struct LocationSelectionView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
+    }
+
+    private func handleAddLocationSheetDismissed() {
+        guard !locationIDsBeforeAddSheet.isEmpty else { return }
+        defer { locationIDsBeforeAddSheet.removeAll() }
+
+        let addedLocations = allLocations.filter { !locationIDsBeforeAddSheet.contains($0.id) }
+        guard !addedLocations.isEmpty else { return }
+
+        let newlyAddedLocation: InventoryLocation?
+        if let pickedHome {
+            newlyAddedLocation =
+                addedLocations.first(where: { $0.home?.id == pickedHome.id }) ?? addedLocations.first
+        } else {
+            newlyAddedLocation = addedLocations.first
+        }
+
+        guard let newlyAddedLocation else { return }
+
+        if let locationHome = newlyAddedLocation.home {
+            pickedHome = locationHome
+            draftSelectedHome = locationHome
+        } else {
+            draftSelectedHome = pickedHome
+        }
+
+        draftSelectedLocation = newlyAddedLocation
+        searchText = ""
     }
 }
 
