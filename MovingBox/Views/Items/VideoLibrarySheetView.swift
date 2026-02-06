@@ -55,8 +55,9 @@ struct VideoLibrarySheetView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
 
-                                    if location == nil, let locationName = video.locationName, !locationName.isEmpty {
-                                        Text(locationName)
+                                    if let location {
+                                        Image(location.sfSymbolName ?? "mappin.circle.fill")
+                                        Text(location.name)
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
