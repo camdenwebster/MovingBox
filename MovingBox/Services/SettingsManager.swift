@@ -135,7 +135,7 @@ class SettingsManager: ObservableObject {
     private let isHighDetailDefault = false
     private let highQualityAnalysisEnabledDefault = false
     private let hasLaunchedDefault = false
-    private let preferredCaptureModeDefault = 0  // 0 = singleItem, 1 = multiItem, 2 = video
+    private let preferredCaptureModeDefault = 0  // 0 = singleItem, 1 = multiItem
 
     init() {
         // Initialize with default values first

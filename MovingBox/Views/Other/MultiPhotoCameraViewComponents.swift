@@ -577,10 +577,7 @@ struct CaptureModePicker: View {
     }
 
     private var availableModes: [CaptureMode] {
-        if settings.isPro {
-            return CaptureMode.allCases
-        }
-        return CaptureMode.allCases.filter { $0 != .video }
+        CaptureMode.allCases.filter { $0 != .video }
     }
 }
 

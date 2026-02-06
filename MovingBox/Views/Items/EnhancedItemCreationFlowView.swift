@@ -19,12 +19,14 @@ struct EnhancedItemCreationFlowView: View {
 
     @StateObject private var viewModel: ItemCreationFlowViewModel
     @State private var showingPermissionDenied = false
+    @State private var hasBootstrappedInitialVideo = false
 
     // Animation properties
     private let transitionAnimation = Animation.easeInOut(duration: 0.3)
 
     let captureMode: CaptureMode
     let location: InventoryLocation?
+    let initialVideoURL: URL?
     let onComplete: (() -> Void)?
 
     // MARK: - Initialization
@@ -32,10 +34,12 @@ struct EnhancedItemCreationFlowView: View {
     init(
         captureMode: CaptureMode,
         location: InventoryLocation?,
+        initialVideoURL: URL? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
         self.location = location
+        self.initialVideoURL = initialVideoURL
         self.onComplete = onComplete
 
         // Initialize StateObject with nil context - will be set in onAppear
@@ -91,6 +95,11 @@ struct EnhancedItemCreationFlowView: View {
             if (captureMode == .multiItem || captureMode == .video) && !settings.isPro {
                 dismiss()
             }
+
+            if !hasBootstrappedInitialVideo, let initialVideoURL {
+                hasBootstrappedInitialVideo = true
+                viewModel.handleSavedVideo(initialVideoURL)
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             viewModel.updateScenePhase(phase)
@@ -108,7 +117,11 @@ struct EnhancedItemCreationFlowView: View {
     private var mainContentView: some View {
         switch viewModel.currentStep {
         case .camera:
-            cameraView
+            if initialVideoURL != nil {
+                videoBootstrapView
+            } else {
+                cameraView
+            }
 
         case .videoProcessing:
             videoProcessingView
@@ -182,6 +195,17 @@ struct EnhancedItemCreationFlowView: View {
             )
         )
         .id("camera-\(viewModel.transitionId)")
+    }
+
+    private var videoBootstrapView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Preparing video...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
     }
 
     private var analysisView: some View {

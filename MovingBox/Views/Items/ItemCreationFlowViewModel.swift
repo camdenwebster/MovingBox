@@ -323,13 +323,24 @@ class ItemCreationFlowViewModel: ObservableObject {
         updateCaptureMode(.video)
         do {
             let savedURL = try await OptimizedImageManager.shared.saveVideo(url)
-            videoURL = savedURL
-            videoAsset = AVAsset(url: savedURL)
-            capturedImages = []
-            goToStep(.videoProcessing)
+            startVideoProcessingFlow(with: savedURL)
         } catch {
             errorMessage = "Failed to save video: \(error.localizedDescription)"
         }
+    }
+
+    /// Start video analysis flow for an already-saved local video URL.
+    func handleSavedVideo(_ url: URL) {
+        resetAnalysisState()
+        updateCaptureMode(.video)
+        startVideoProcessingFlow(with: url)
+    }
+
+    private func startVideoProcessingFlow(with savedURL: URL) {
+        videoURL = savedURL
+        videoAsset = AVAsset(url: savedURL)
+        capturedImages = []
+        goToStep(.videoProcessing)
     }
 
     /// Perform video processing: frame extraction, transcription, AI analysis, and deduplication

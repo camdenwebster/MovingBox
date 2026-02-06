@@ -10,6 +10,7 @@ import Sentry
 import SwiftData
 import SwiftUI
 import TelemetryDeck
+import TipKit
 import UIKit
 import UserNotifications
 import WhatsNewKit
@@ -91,6 +92,10 @@ struct MovingBoxApp: App {
 
         // Configure WishKit
         WishKit.configure(with: AppConfig.wishKitAPIKey)
+
+        if #available(iOS 17.0, *) {
+            try? Tips.configure()
+        }
 
         let dsn = "https://\(AppConfig.sentryDsn)"
         guard dsn != "https://missing-sentry-dsn" else {
