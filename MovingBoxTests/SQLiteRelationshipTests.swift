@@ -188,13 +188,16 @@ struct SQLiteRelationshipTests {
         }
     }
 
-    // MARK: - Unique Constraints on Join Tables
+    // MARK: - Join Table Constraints
+    // Note: SyncEngine does not support UNIQUE constraints, so join tables
+    // use non-unique composite indexes. Duplicate rows are allowed at the
+    // database level; the app layer is responsible for deduplication.
 
-    @Suite("Unique Constraints")
-    struct UniqueConstraintTests {
+    @Suite("Join Table Constraints")
+    struct JoinTableConstraintTests {
 
-        @Test("Duplicate item-label join row is rejected")
-        func duplicateItemLabelRejected() throws {
+        @Test("Duplicate item-label join row is allowed (non-unique index)")
+        func duplicateItemLabelAllowed() throws {
             let db = try makeInMemoryDatabase()
             let itemID = UUID()
             let labelID = UUID()
@@ -211,19 +214,22 @@ struct SQLiteRelationshipTests {
                 ).execute(db)
             }
 
-            // Inserting the same pair again should fail
-            #expect(throws: (any Error).self) {
-                try db.write { db in
-                    try SQLiteInventoryItemLabel.insert(
-                        SQLiteInventoryItemLabel(
-                            id: UUID(), inventoryItemID: itemID, inventoryLabelID: labelID)
-                    ).execute(db)
-                }
+            // Inserting the same pair again should succeed (non-unique composite index)
+            try db.write { db in
+                try SQLiteInventoryItemLabel.insert(
+                    SQLiteInventoryItemLabel(
+                        id: UUID(), inventoryItemID: itemID, inventoryLabelID: labelID)
+                ).execute(db)
             }
+
+            let joinCount = try db.read { db in
+                try SQLiteInventoryItemLabel.count().fetchOne(db)
+            }
+            #expect(joinCount == 2, "Both join rows should exist")
         }
 
-        @Test("Duplicate home-policy join row is rejected")
-        func duplicateHomePolicyRejected() throws {
+        @Test("Duplicate home-policy join row is allowed (non-unique index)")
+        func duplicateHomePolicyAllowed() throws {
             let db = try makeInMemoryDatabase()
             let homeID = UUID()
             let policyID = UUID()
@@ -238,14 +244,18 @@ struct SQLiteRelationshipTests {
                 ).execute(db)
             }
 
-            #expect(throws: (any Error).self) {
-                try db.write { db in
-                    try SQLiteHomeInsurancePolicy.insert(
-                        SQLiteHomeInsurancePolicy(
-                            id: UUID(), homeID: homeID, insurancePolicyID: policyID)
-                    ).execute(db)
-                }
+            // Inserting the same pair again should succeed (non-unique composite index)
+            try db.write { db in
+                try SQLiteHomeInsurancePolicy.insert(
+                    SQLiteHomeInsurancePolicy(
+                        id: UUID(), homeID: homeID, insurancePolicyID: policyID)
+                ).execute(db)
             }
+
+            let joinCount = try db.read { db in
+                try SQLiteHomeInsurancePolicy.count().fetchOne(db)
+            }
+            #expect(joinCount == 2, "Both join rows should exist")
         }
 
         @Test("Same label applied to different items is allowed")
@@ -389,8 +399,8 @@ struct SQLiteRelationshipTests {
             #expect(indexes.contains("idx_inventoryItemLabels_inventoryLabelID"))
             #expect(indexes.contains("idx_homeInsurancePolicies_homeID"))
             #expect(indexes.contains("idx_homeInsurancePolicies_insurancePolicyID"))
-            #expect(indexes.contains("idx_inventoryItemLabels_unique"))
-            #expect(indexes.contains("idx_homeInsurancePolicies_unique"))
+            #expect(indexes.contains("idx_inventoryItemLabels_composite"))
+            #expect(indexes.contains("idx_homeInsurancePolicies_composite"))
         }
     }
 }

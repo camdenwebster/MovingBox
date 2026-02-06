@@ -12,7 +12,7 @@ import Testing
 @testable import MovingBox
 
 @MainActor
-@Suite struct OnboardingIntegrationTests {
+@Suite(.serialized) struct OnboardingIntegrationTests {
 
     @Test("Complete onboarding flow with survey")
     func testCompleteOnboardingFlowWithSurvey() async throws {
