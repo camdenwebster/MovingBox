@@ -1,0 +1,76 @@
+# Allow read-only inspection commands.
+prefix_rule(
+  pattern=[[
+    "pwd", "ls", "cat", "head", "tail", "find", "rg", "grep", "awk", "sed",
+    "cut", "tr", "wc", "sort", "uniq", "which", "type", "basename", "dirname",
+    "date", "whoami", "uname", "sw_vers", "ps"
+  ]],
+  decision="allow",
+  justification="Read-only inspection commands are safe to run without approval.",
+)
+
+# Allow iOS build/test toolchain commands.
+prefix_rule(
+  pattern=[[
+    "xcodebuild", "xcrun", "xcsift", "swift", "swiftc", "xcode-select",
+    "fastlane", "bundle", "gem"
+  ]],
+  decision="allow",
+  justification="Project build and test commands are allowed.",
+)
+
+# Allow safe, read-only git subcommands.
+prefix_rule(
+  pattern=["git", ["status", "diff", "show", "log", "rev-parse", "branch", "remote", "fetch"]],
+  decision="allow",
+  justification="Read-only git operations are safe to run without approval.",
+)
+
+# Prompt before mutating git state or history.
+prefix_rule(
+  pattern=["git", ["add", "commit", "merge", "rebase", "cherry-pick", "push", "pull", "restore", "checkout", "switch", "tag", "stash"]],
+  decision="prompt",
+  justification="Mutating git operations require explicit approval.",
+)
+
+# Prompt before shell wrappers so command content is reviewed.
+prefix_rule(
+  pattern=[["bash", "sh", "zsh"], ["-c", "-lc"]],
+  decision="prompt",
+  justification="Script wrappers can hide destructive operations and must be reviewed.",
+)
+
+# Prompt before common file-mutation commands.
+prefix_rule(
+  pattern=[["mkdir", "touch", "cp", "mv", "chmod", "tee", "patch"]],
+  decision="prompt",
+  justification="File-system mutation commands require explicit approval.",
+)
+
+# Prompt before package/network/script execution commands.
+prefix_rule(
+  pattern=[["curl", "wget", "npm", "yarn", "brew", "python", "python3"]],
+  decision="prompt",
+  justification="Network and package execution commands require explicit approval.",
+)
+
+# Block destructive/system-level commands.
+prefix_rule(
+  pattern=[["rm", "rmdir", "sudo", "su", "dd", "mkfs", "fdisk", "diskutil", "shutdown", "reboot", "halt", "launchctl", "chown"]],
+  decision="forbidden",
+  justification="Destructive or privileged system commands are blocked.",
+)
+
+# Block command-based process termination.
+prefix_rule(
+  pattern=[["kill", "killall", "pkill"]],
+  decision="forbidden",
+  justification="Process termination commands are blocked to avoid disrupting the host.",
+)
+
+# Block dangerous git cleanup/history rewrite commands.
+prefix_rule(
+  pattern=["git", ["reset", "clean"]],
+  decision="forbidden",
+  justification="Potentially destructive git commands are blocked.",
+)
