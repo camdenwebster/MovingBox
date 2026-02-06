@@ -120,17 +120,6 @@ struct VideoItemSelectionListView: View {
 
     private var mainContentView: some View {
         VStack(spacing: 0) {
-            if isStreamingResults {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text(streamingStatusText ?? "Analyzing more frames...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-            }
-
             ZStack {
                 ScrollView {
                     LazyVStack(spacing: 12) {
@@ -180,10 +169,17 @@ struct VideoItemSelectionListView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    .padding(.top, isStreamingResults ? 52 : 8)
                     .padding(.bottom, bottomPanelReservedHeight)
                     .animation(listMutationAnimation, value: itemDisplayOrder)
                     .animation(isPerformanceModeEnabled ? nil : .easeInOut(duration: 0.2), value: isStreamingResults)
+                }
+                .overlay(alignment: .top) {
+                    if isStreamingResults {
+                        streamingStatusCapsule
+                            .padding(.top, 8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
                 .overlay(alignment: .bottom) {
                     bottomActionPanel
@@ -399,6 +395,25 @@ struct VideoItemSelectionListView: View {
             .padding(.vertical, 12)
         }
         .accessibilityIdentifier("videoItemContinueButton")
+    }
+
+    private var streamingStatusCapsule: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+            Text(streamingStatusText ?? "Analyzing more frames...")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+        .accessibilityIdentifier("videoStreamingStatusCapsule")
     }
 
     private var bottomActionPanel: some View {
