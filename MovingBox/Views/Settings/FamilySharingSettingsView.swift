@@ -144,7 +144,7 @@ struct FamilySharingSettingsView: View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
                 InfoRow(
-                    icon: "house.2",
+                    icon: "person.2.fill",
                     title: "Share Everything",
                     description: "All your homes, rooms, items, labels, and policies are shared."
                 )

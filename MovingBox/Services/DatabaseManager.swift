@@ -205,10 +205,11 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
         )
         .execute(db)
 
-        // Unique indexes on join tables to prevent duplicate relationships
+        // Composite indexes on join tables for query performance
+        // (non-unique — SyncEngine does not support unique constraints)
         try #sql(
             """
-            CREATE UNIQUE INDEX "idx_inventoryItemLabels_unique"
+            CREATE INDEX "idx_inventoryItemLabels_composite"
                 ON "inventoryItemLabels"("inventoryItemID", "inventoryLabelID")
             """
         )
@@ -216,7 +217,40 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
 
         try #sql(
             """
-            CREATE UNIQUE INDEX "idx_homeInsurancePolicies_unique"
+            CREATE INDEX "idx_homeInsurancePolicies_composite"
+                ON "homeInsurancePolicies"("homeID", "insurancePolicyID")
+            """
+        )
+        .execute(db)
+    }
+
+    migrator.registerMigration("Drop unique indexes on join tables") { db in
+        // SyncEngine does not support UNIQUE constraints on synchronized tables.
+        // Replace unique indexes with regular composite indexes.
+        try #sql(
+            """
+            DROP INDEX IF EXISTS "idx_inventoryItemLabels_unique"
+            """
+        )
+        .execute(db)
+        try #sql(
+            """
+            DROP INDEX IF EXISTS "idx_homeInsurancePolicies_unique"
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_inventoryItemLabels_composite"
+                ON "inventoryItemLabels"("inventoryItemID", "inventoryLabelID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_homeInsurancePolicies_composite"
                 ON "homeInsurancePolicies"("homeID", "insurancePolicyID")
             """
         )
