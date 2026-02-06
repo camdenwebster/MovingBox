@@ -136,23 +136,13 @@ struct LocationSelectionView: View {
             .navigationTitle("Select Location")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Done") {
-                        selectedHome = draftSelectedHome ?? pickedHome
-                        selectedLocation = draftSelectedLocation
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                    .accessibilityIdentifier("locationSelection-done")
-                }
-
-                ToolbarItem(placement: .primaryAction) {
+               ToolbarItem(placement: .cancellationAction) {
+                   Button("Cancel", systemImage: "xmark") {
+                       dismiss()
+                   }
+               }
+                
+                ToolbarItem {
                     Button(action: {
                         locationIDsBeforeAddSheet = Set(allLocations.map(\.id))
                         showingAddLocationSheet = true
@@ -161,6 +151,19 @@ struct LocationSelectionView: View {
                     }
                     .accessibilityIdentifier("locationSelection-add")
                 }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                   Button("Done", systemImage: "checkmark") {
+                       selectedHome = draftSelectedHome ?? pickedHome
+                       selectedLocation = draftSelectedLocation
+                       dismiss()
+                   }
+                   .accessibilityIdentifier("locationSelection-done")
+
+               }
+                    
+
+
             }
             .onAppear {
                 if pickedHome == nil {
