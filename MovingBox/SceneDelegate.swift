@@ -20,8 +20,16 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate {
     ) {
         // Handle share acceptance when app launches from share invitation
         if let shareMetadata = connectionOptions.cloudKitShareMetadata {
-            Task {
-                try? await syncEngine.acceptShare(metadata: shareMetadata)
+            if OnboardingManager.shouldShowWelcome() {
+                // First launch from share link — defer to joining flow
+                MainActor.assumeIsolated {
+                    ShareMetadataStore.shared.pendingShareMetadata = shareMetadata
+                }
+            } else {
+                // Already onboarded — accept immediately
+                Task {
+                    try? await syncEngine.acceptShare(metadata: shareMetadata)
+                }
             }
         }
     }

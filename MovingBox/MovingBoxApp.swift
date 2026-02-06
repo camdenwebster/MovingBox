@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 5/14/24.
 //
 
+import CloudKit
 import Dependencies
 import RevenueCat
 import SQLiteData
@@ -33,6 +34,7 @@ struct MovingBoxApp: App {
         case loading
         case splash
         case onboarding
+        case joiningShare(CKShare.Metadata)
         case main
     }
 
@@ -48,8 +50,26 @@ struct MovingBoxApp: App {
                     // No SyncEngine for in-memory mode
                 } else {
                     $0.defaultDatabase = try! appDatabase()
-                    // SyncEngine may fail in test environments where CloudKit isn't available
-                    if let syncEngine = try? SyncEngine(
+                    do {
+                        let syncEngine = try SyncEngine(
+                            for: $0.defaultDatabase,
+                            tables: SQLiteHome.self,
+                            SQLiteInventoryLocation.self,
+                            SQLiteInventoryItem.self,
+                            SQLiteInventoryLabel.self,
+                            SQLiteInsurancePolicy.self,
+                            SQLiteInventoryItemLabel.self,
+                            SQLiteHomeInsurancePolicy.self
+                        )
+                        $0.defaultSyncEngine = syncEngine
+                    } catch {
+                        print("⚠️ SyncEngine initialization failed: \(error)")
+                    }
+                }
+            #else
+                $0.defaultDatabase = try! appDatabase()
+                do {
+                    let syncEngine = try SyncEngine(
                         for: $0.defaultDatabase,
                         tables: SQLiteHome.self,
                         SQLiteInventoryLocation.self,
@@ -58,26 +78,10 @@ struct MovingBoxApp: App {
                         SQLiteInsurancePolicy.self,
                         SQLiteInventoryItemLabel.self,
                         SQLiteHomeInsurancePolicy.self
-                    ) {
-                        $0.defaultSyncEngine = syncEngine
-                    } else {
-                        print("⚠️ SyncEngine initialization failed - CloudKit sync disabled")
-                    }
-                }
-            #else
-                $0.defaultDatabase = try! appDatabase()
-                // SyncEngine may fail if CloudKit isn't properly configured
-                if let syncEngine = try? SyncEngine(
-                    for: $0.defaultDatabase,
-                    tables: SQLiteHome.self,
-                    SQLiteInventoryLocation.self,
-                    SQLiteInventoryItem.self,
-                    SQLiteInventoryLabel.self,
-                    SQLiteInsurancePolicy.self,
-                    SQLiteInventoryItemLabel.self,
-                    SQLiteHomeInsurancePolicy.self
-                ) {
+                    )
                     $0.defaultSyncEngine = syncEngine
+                } catch {
+                    print("⚠️ SyncEngine initialization failed: \(error)")
                 }
             #endif
         }
@@ -197,9 +201,15 @@ struct MovingBoxApp: App {
                 case .onboarding:
                     OnboardingView(
                         isPresented: .init(
-                            get: { appState == .onboarding },
+                            get: { if case .onboarding = appState { true } else { false } },
                             set: { _ in appState = .main }
                         )
+                    )
+                    .environment(\.disableAnimations, disableAnimations)
+                case .joiningShare(let metadata):
+                    JoiningShareView(
+                        shareMetadata: metadata,
+                        onComplete: { appState = .main }
                     )
                     .environment(\.disableAnimations, disableAnimations)
                 case .main:
@@ -223,7 +233,7 @@ struct MovingBoxApp: App {
                 // Show the splash screen only if startup takes longer than 1s
                 let splashTimer = Task {
                     try? await Task.sleep(for: .seconds(1))
-                    if appState == .loading {
+                    if case .loading = appState {
                         appState = .splash
                         splashShownAt = Date()
                     }
@@ -272,7 +282,7 @@ struct MovingBoxApp: App {
                     let homeCount = try await database.read { db in
                         try SQLiteHome.count().fetchOne(db)
                     }
-                    if homeCount == 0 {
+                    if homeCount == 0 && ShareMetadataStore.shared.pendingShareMetadata == nil {
                         let newHomeID = DefaultSeedID.home
                         try await database.write { db in
                             try SQLiteHome.insert {
@@ -321,6 +331,17 @@ struct MovingBoxApp: App {
 
                 // Determine if we should show the welcome screen
                 print("📱 MovingBoxApp - Startup complete, transitioning to app")
+
+                // If launching from a share link on first launch, route to abbreviated joining flow
+                if OnboardingManager.shouldShowWelcome(),
+                    let shareMetadata = ShareMetadataStore.shared.consumeMetadata()
+                {
+                    appState = .joiningShare(shareMetadata)
+                    settings.hasLaunched = true
+                    TelemetryDeck.signal("appLaunched.joiningShare")
+                    return
+                }
+
                 appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
 
                 // Record that we've launched

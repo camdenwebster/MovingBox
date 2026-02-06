@@ -64,6 +64,11 @@ class OnboardingManager: ObservableObject {
         hasCompleted = true
     }
 
+    static func markOnboardingCompleteStatic() {
+        UserDefaults.standard.set(true, forKey: hasCompletedOnboardingKey)
+        UserDefaults.standard.set(true, forKey: hasLaunchedKey)
+    }
+
     static func shouldShowWelcome() -> Bool {
         let hasLaunched = UserDefaults.standard.bool(forKey: Self.hasLaunchedKey)
         print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
