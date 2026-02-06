@@ -29,6 +29,8 @@ struct VideoItemSelectionListView: View {
     @State private var rowPreparationTask: Task<Void, Never>?
     @State private var didStreamResults = false
     @State private var showAnalysisCompletionMessage = false
+    private let bottomPanelReservedHeight: CGFloat = 230
+    private let bottomPanelCornerRadius: CGFloat = 24
 
     private let selectionHaptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -137,68 +139,63 @@ struct VideoItemSelectionListView: View {
                 .padding(.vertical, 8)
             }
 
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    if isStreamingResults {
-                        VideoDetectedItemListCard(
-                            item: placeholderItem,
-                            isSelected: false,
-                            matchedLabel: nil,
-                            thumbnail: nil,
-                            duplicateGroupHint: nil,
-                            isSkeleton: true,
-                            useSimplifiedRendering: true,
-                            onToggleSelection: {}
-                        )
-                        .id("streaming-skeleton-top")
-                        .disabled(true)
-                        .transition(insertionTransition)
-                    } else if showAnalysisCompletionMessage {
-                        VideoAnalysisCompletedBanner()
-                            .id("streaming-complete-banner")
-                            .transition(insertionTransition)
-                    }
-
-                    ForEach(orderedDetectedItemGroups) { group in
-                        if group.isPotentialDuplicateGroup {
-                            duplicateGroupHeader(itemCount: group.items.count)
-                        }
-
-                        ForEach(orderedItems(in: group)) { item in
+            ZStack(alignment: .bottom) {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if isStreamingResults {
                             VideoDetectedItemListCard(
-                                item: item,
-                                isSelected: viewModel.isItemSelected(item),
-                                matchedLabel: viewModel.getMatchingLabel(for: item),
-                                thumbnail: viewModel.rowThumbnail(for: item),
-                                duplicateGroupHint: viewModel.duplicateHint(for: item),
-                                isSkeleton: false,
-                                useSimplifiedRendering: viewModel.detectedItems.count > 18,
-                                onToggleSelection: {
-                                    selectionHaptic.impactOccurred()
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        viewModel.toggleItemSelection(item)
-                                    }
-                                }
+                                item: placeholderItem,
+                                isSelected: false,
+                                matchedLabel: nil,
+                                thumbnail: nil,
+                                duplicateGroupHint: nil,
+                                isSkeleton: true,
+                                useSimplifiedRendering: true,
+                                onToggleSelection: {}
                             )
+                            .id("streaming-skeleton-top")
+                            .disabled(true)
                             .transition(insertionTransition)
+                        } else if showAnalysisCompletionMessage {
+                            VideoAnalysisCompletedBanner()
+                                .id("streaming-complete-banner")
+                                .transition(insertionTransition)
+                        }
+
+                        ForEach(orderedDetectedItemGroups) { group in
+                            if group.isPotentialDuplicateGroup {
+                                duplicateGroupHeader(itemCount: group.items.count)
+                            }
+
+                            ForEach(orderedItems(in: group)) { item in
+                                VideoDetectedItemListCard(
+                                    item: item,
+                                    isSelected: viewModel.isItemSelected(item),
+                                    matchedLabel: viewModel.getMatchingLabel(for: item),
+                                    thumbnail: viewModel.rowThumbnail(for: item),
+                                    duplicateGroupHint: viewModel.duplicateHint(for: item),
+                                    isSkeleton: false,
+                                    useSimplifiedRendering: viewModel.detectedItems.count > 18,
+                                    onToggleSelection: {
+                                        selectionHaptic.impactOccurred()
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            viewModel.toggleItemSelection(item)
+                                        }
+                                    }
+                                )
+                                .transition(insertionTransition)
+                            }
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, bottomPanelReservedHeight)
+                    .animation(listMutationAnimation, value: itemDisplayOrder)
+                    .animation(isPerformanceModeEnabled ? nil : .easeInOut(duration: 0.2), value: isStreamingResults)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
-                .animation(listMutationAnimation, value: itemDisplayOrder)
-                .animation(isPerformanceModeEnabled ? nil : .easeInOut(duration: 0.2), value: isStreamingResults)
+
+                bottomActionPanel
             }
-
-            selectionSummaryView
-                .padding(.horizontal, 16)
-
-            continueButton
-                .backport.glassProminentButtonStyle()
-                .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection || isStreamingResults)
-                .padding(.horizontal)
-                .padding(.bottom, 10)
         }
         .onChange(of: images.count) {
             Task { @MainActor in
@@ -372,7 +369,6 @@ struct VideoItemSelectionListView: View {
             }
         }
         .padding(.vertical, 16)
-        .background(Color(.systemBackground))
         .sheet(isPresented: $showingLocationPicker) {
             LocationSelectionView(
                 selectedLocation: $selectedLocation,
@@ -408,6 +404,29 @@ struct VideoItemSelectionListView: View {
             .padding(.vertical, 12)
         }
         .accessibilityIdentifier("videoItemContinueButton")
+    }
+
+    private var bottomActionPanel: some View {
+        VStack(spacing: 0) {
+            selectionSummaryView
+                .padding(.horizontal, 16)
+
+            continueButton
+                .backport.glassProminentButtonStyle()
+                .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection || isStreamingResults)
+                .padding(.horizontal)
+                .padding(.bottom, 10)
+        }
+        .padding(.top, 12)
+        .frame(maxWidth: .infinity)
+        .background(
+            .ultraThinMaterial,
+            in: TopRoundedCorners(radius: bottomPanelCornerRadius)
+        )
+        .overlay(alignment: .top) {
+            Divider()
+                .opacity(0.35)
+        }
     }
 
     @MainActor
@@ -757,5 +776,18 @@ private struct ShimmerModifier: ViewModifier {
                     }
                 }
             }
+    }
+}
+
+private struct TopRoundedCorners: Shape {
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: [.topLeft, .topRight],
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
