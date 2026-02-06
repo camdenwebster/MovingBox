@@ -164,7 +164,7 @@ struct VideoItemSelectionListView: View {
                                 thumbnail: viewModel.rowThumbnail(for: item),
                                 duplicateGroupHint: viewModel.duplicateHint(for: item),
                                 isSkeleton: false,
-                                useSimplifiedRendering: isPerformanceModeEnabled,
+                                useSimplifiedRendering: viewModel.detectedItems.count > 18,
                                 onToggleSelection: {
                                     selectionHaptic.impactOccurred()
                                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -201,9 +201,7 @@ struct VideoItemSelectionListView: View {
         .onChange(of: analysisResponseSignature) {
             viewModel.updateAnalysisResponse(analysisResponse)
             refreshItemOrdering()
-            if !isStreamingResults {
-                scheduleRowPreparation(forceFullPreparation: true)
-            }
+            scheduleRowPreparation(forceFullPreparation: !isStreamingResults)
         }
         .onChange(of: isStreamingResults) {
             if !isStreamingResults {
@@ -423,17 +421,29 @@ struct VideoItemSelectionListView: View {
     }
 
     @MainActor
-    private func scheduleRowPreparation(forceFullPreparation: Bool) {
-        rowPreparationTask?.cancel()
-        rowPreparationTask = nil
-
-        guard forceFullPreparation else {
+    private func prepareStreamingRows() async {
+        guard !viewModel.detectedItems.isEmpty else {
             isPreparingRows = false
             return
         }
 
+        isPreparingRows = true
+        await viewModel.computeCroppedImages(limit: viewModel.detectedItems.count)
+        guard !Task.isCancelled else { return }
+        isPreparingRows = false
+    }
+
+    @MainActor
+    private func scheduleRowPreparation(forceFullPreparation: Bool) {
+        rowPreparationTask?.cancel()
+        rowPreparationTask = nil
+
         rowPreparationTask = Task { @MainActor in
-            await prepareRows()
+            if forceFullPreparation {
+                await prepareRows()
+            } else {
+                await prepareStreamingRows()
+            }
         }
     }
 
@@ -446,15 +456,15 @@ struct VideoItemSelectionListView: View {
     }
 
     private var isPerformanceModeEnabled: Bool {
-        isStreamingResults || viewModel.detectedItems.count > 12
+        viewModel.detectedItems.count > 24
     }
 
     private var listMutationAnimation: Animation? {
-        isPerformanceModeEnabled ? nil : .spring(response: 0.35, dampingFraction: 0.86)
+        isPerformanceModeEnabled ? nil : .easeOut(duration: 0.18)
     }
 
     private var insertionTransition: AnyTransition {
-        isPerformanceModeEnabled ? .identity : .move(edge: .top).combined(with: .opacity)
+        isPerformanceModeEnabled ? .identity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
     }
 
     private var itemRankLookup: [String: Int] {
