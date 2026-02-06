@@ -198,9 +198,9 @@ struct VideoItemSelectionListView: View {
                 }
                 .overlay(alignment: .bottom) {
                     bottomActionPanel
-                        .ignoresSafeArea(.container, edges: .bottom)
                 }
             }
+            .ignoresSafeArea(.container, edges: .bottom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: images.count) {
