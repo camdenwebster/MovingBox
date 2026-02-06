@@ -1,0 +1,12 @@
+allowed_approval_policies = ["untrusted", "on-failure", "on-request"]
+allowed_sandbox_modes = ["read-only", "workspace-write"]
+
+[rules]
+prefix_rules = [
+  { pattern = [["rm", "rmdir"]], decision = "forbidden", justification = "Shell deletion commands are blocked." },
+  { pattern = [["sudo", "su"]], decision = "forbidden", justification = "Privileged escalation commands are blocked." },
+  { pattern = [["dd", "mkfs", "fdisk", "diskutil"]], decision = "forbidden", justification = "Disk-destructive commands are blocked." },
+  { pattern = [["shutdown", "reboot", "halt"]], decision = "forbidden", justification = "Host shutdown and reboot commands are blocked." },
+  { pattern = [["kill", "killall", "pkill"]], decision = "forbidden", justification = "Process termination commands are blocked." },
+  { pattern = ["git", ["reset", "clean"]], decision = "forbidden", justification = "Destructive git commands are blocked." },
+]
