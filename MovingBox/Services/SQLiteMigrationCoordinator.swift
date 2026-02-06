@@ -1147,7 +1147,7 @@ extension Date {
         return f
     }()
 
-    fileprivate var iso8601String: String {
+    var iso8601String: String {
         Self.sqliteDateFormatter.string(from: self)
     }
 }

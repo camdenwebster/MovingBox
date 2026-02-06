@@ -24,6 +24,10 @@ struct MovingBoxApp: App {
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var appState: AppState = .loading
     @State private var splashShownAt: Date?
+    @State private var showRecoveryAlert = false
+    @State private var strandedItemCount = 0
+    @State private var isRecovering = false
+    @State private var recoveryContinuation: CheckedContinuation<Void, Never>?
 
     private enum AppState {
         case loading
@@ -232,6 +236,14 @@ struct MovingBoxApp: App {
                 case .freshInstall:
                     TelemetryDeck.signal("Migration.freshInstall")
                     print("📦 sqlite-data: Fresh install — no migration needed")
+                    // Check for stranded CoreData records in CloudKit
+                    if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
+                        strandedItemCount = count
+                        showRecoveryAlert = true
+                        await withCheckedContinuation { continuation in
+                            recoveryContinuation = continuation
+                        }
+                    }
                 case .alreadyCompleted:
                     break
                 case .success(let stats):
@@ -316,6 +328,64 @@ struct MovingBoxApp: App {
 
                 // Send launched signal to TD
                 TelemetryDeck.signal("appLaunched")
+            }
+            .overlay {
+                if isRecovering {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .controlSize(.large)
+                            Text("Recovering your data...")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                        }
+                        .padding(32)
+                        .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+                    }
+                }
+            }
+            .alert("Recover Your Data?", isPresented: $showRecoveryAlert) {
+                Button("Recover Data") {
+                    Task {
+                        isRecovering = true
+                        @Dependency(\.defaultDatabase) var database
+                        let result = await CloudKitRecoveryCoordinator.recoverAllRecords(
+                            database: database)
+                        switch result {
+                        case .recovered(let stats):
+                            TelemetryDeck.signal(
+                                "CloudKitRecovery.success",
+                                parameters: ["stats": "\(stats)"])
+                            print("☁️ CloudKit recovery succeeded — \(stats)")
+                        case .error(let message):
+                            TelemetryDeck.signal(
+                                "CloudKitRecovery.error",
+                                parameters: ["message": message])
+                            print("☁️ CloudKit recovery failed — \(message)")
+                        default:
+                            break
+                        }
+                        await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
+                        isRecovering = false
+                        recoveryContinuation?.resume()
+                        recoveryContinuation = nil
+                    }
+                }
+                Button("Start Fresh", role: .destructive) {
+                    Task {
+                        CloudKitRecoveryCoordinator.markComplete()
+                        await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
+                        TelemetryDeck.signal("CloudKitRecovery.skipped")
+                        recoveryContinuation?.resume()
+                        recoveryContinuation = nil
+                    }
+                }
+            } message: {
+                Text(
+                    "Found \(strandedItemCount) item(s) from a previous installation in iCloud. Would you like to recover them?"
+                )
             }
             .environment(\.featureFlags, FeatureFlags(distribution: .current))
             .environment(\.whatsNew, .forMovingBox())
