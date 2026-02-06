@@ -8,42 +8,6 @@
 
         ]
       }
-    },
-    {
-      "id" : "DA5857BE-52DF-4B35-94E0-BCBEDD3D8111",
-      "name" : "Dark Mode",
-      "options" : {
-        "commandLineArgumentEntries" : [
-          {
-            "argument" : "Dark-Mode"
-          }
-        ]
-      }
-    },
-    {
-      "id" : "B08E868F-4112-4EA6-97B2-E5500D60E973",
-      "name" : "Light Mode - Mock Data",
-      "options" : {
-        "commandLineArgumentEntries" : [
-          {
-            "argument" : "Mock-Data"
-          }
-        ]
-      }
-    },
-    {
-      "id" : "535A01F1-8F96-43C5-90EC-6605426D88AA",
-      "name" : "Dark Mode - Mock Data",
-      "options" : {
-        "commandLineArgumentEntries" : [
-          {
-            "argument" : "Mock-Data"
-          },
-          {
-            "argument" : "Dark-Mode"
-          }
-        ]
-      }
     }
   ],
   "defaultOptions" : {
@@ -65,6 +29,11 @@
   },
   "testTargets" : [
     {
+      "selectedTests" : [
+        "PreviewTests\/test_ASeededMainHome_Preview()",
+        "PreviewTests\/test_BSeededBeachHome_Preview()",
+        "PreviewTests\/test_CEmptyState_Preview()"
+      ],
       "skippedTests" : {
         "suites" : [
           {

@@ -12,20 +12,24 @@ import SwiftUI
 import SwiftUIBackports
 import WhatsNewKit
 
+enum PreviewDatabaseOverride {
+    static var database: (any DatabaseReader)?
+}
+
 @MainActor
 struct DashboardView: View {
     let specificHomeID: UUID?
 
-    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), database: PreviewDatabaseOverride.database, animation: .default)
     private var homes: [SQLiteHome]
 
-    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    @FetchAll(SQLiteInventoryItem.all, database: PreviewDatabaseOverride.database, animation: .default)
     private var allItems: [SQLiteInventoryItem]
 
-    @FetchAll(SQLiteInventoryItemLabel.all, animation: .default)
+    @FetchAll(SQLiteInventoryItemLabel.all, database: PreviewDatabaseOverride.database, animation: .default)
     private var allItemLabels: [SQLiteInventoryItemLabel]
 
-    @FetchAll(SQLiteInventoryLabel.all, animation: .default)
+    @FetchAll(SQLiteInventoryLabel.all, database: PreviewDatabaseOverride.database, animation: .default)
     private var allLabels: [SQLiteInventoryLabel]
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -438,11 +442,85 @@ struct StatCard: View {
     }
 }
 
-#Preview {
-    let _ = try! prepareDependencies {
-        $0.defaultDatabase = try appDatabase()
+#if DEBUG
+@MainActor
+enum DashboardViewPreviewContext {
+    static let emptyHomeID = UUID(uuidString: "00000000-0001-0000-0000-0000000000EE")!
+
+    private static var configuredDatabase: DatabaseQueue?
+
+    static func configureDatabase(seedData: Bool) {
+        let database = try! (seedData ? makeSeededTestDatabase() : makeInMemoryDatabase())
+        configuredDatabase = database
+        PreviewDatabaseOverride.database = database
     }
-    DashboardView()
-        .environmentObject(Router())
-        .environmentObject(SettingsManager())
+
+    static func preparePreviewData(seedData: Bool, emptyState: Bool = false) {
+        configureDatabase(seedData: seedData)
+        if emptyState {
+            configureEmptyStateData()
+        }
+    }
+
+    static func configureEmptyStateData() {
+        guard let database = configuredDatabase else { return }
+        try! database.write { db in
+            try? SQLiteHome.insert {
+                SQLiteHome(
+                    id: emptyHomeID,
+                    name: "Empty Home",
+                    city: "Preview",
+                    state: "State"
+                )
+            }.execute(db)
+        }
+    }
+
+    static func makeSettings(activeHomeID: UUID? = nil) -> SettingsManager {
+        let settings = SettingsManager()
+        settings.hasLaunched = true
+        settings.isPro = true
+        settings.activeHomeId = activeHomeID?.uuidString
+        return settings
+    }
+
+    static func container<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+        .frame(width: 390, height: 844)
+        .preferredColorScheme(.light)
+        .environment(\.colorScheme, .light)
+        .environment(\.isSnapshotTesting, true)
+        .environment(\.disableAnimations, true)
+        .background(Color(.systemGroupedBackground))
+    }
 }
+
+#Preview("A - Seeded Main Home") {
+    let _ = DashboardViewPreviewContext.preparePreviewData(seedData: true)
+    DashboardViewPreviewContext.container {
+        DashboardView()
+            .environmentObject(Router())
+            .environmentObject(DashboardViewPreviewContext.makeSettings(activeHomeID: SeedID.mainHome))
+    }
+}
+
+#Preview("B - Seeded Beach Home") {
+    let _ = DashboardViewPreviewContext.preparePreviewData(seedData: true)
+    DashboardViewPreviewContext.container {
+        DashboardView(homeID: SeedID.beachHome)
+            .environmentObject(Router())
+            .environmentObject(DashboardViewPreviewContext.makeSettings(activeHomeID: SeedID.beachHome))
+    }
+}
+
+#Preview("C - Empty State") {
+    let _ = DashboardViewPreviewContext.preparePreviewData(seedData: true, emptyState: true)
+    DashboardViewPreviewContext.container {
+        DashboardView(homeID: DashboardViewPreviewContext.emptyHomeID)
+            .environmentObject(Router())
+            .environmentObject(
+                DashboardViewPreviewContext.makeSettings(activeHomeID: DashboardViewPreviewContext.emptyHomeID)
+            )
+    }
+}
+#endif

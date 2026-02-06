@@ -9,13 +9,13 @@ import SQLiteData
 import SwiftUI
 
 struct LabelStatisticsView: View {
-    @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
+    @FetchAll(SQLiteInventoryLabel.order(by: \.name), database: PreviewDatabaseOverride.database, animation: .default)
     private var allLabels: [SQLiteInventoryLabel]
 
-    @FetchAll(SQLiteInventoryItemLabel.all, animation: .default)
+    @FetchAll(SQLiteInventoryItemLabel.all, database: PreviewDatabaseOverride.database, animation: .default)
     private var allItemLabels: [SQLiteInventoryItemLabel]
 
-    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    @FetchAll(SQLiteInventoryItem.all, database: PreviewDatabaseOverride.database, animation: .default)
     private var allItems: [SQLiteInventoryItem]
 
     @EnvironmentObject var router: Router

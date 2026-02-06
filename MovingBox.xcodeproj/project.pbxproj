@@ -45,16 +45,17 @@
 		19D3430E2C12146800F8B2C7 /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3430D2C12146800F8B2C7 /* Router.swift */; };
 		19E37DFD2E56168500FB73D8 /* MovingBox.icon in Resources */ = {isa = PBXBuildFile; fileRef = 19E37DFC2E56168500FB73D8 /* MovingBox.icon */; };
 		19E37DFF2E56198200FB73D8 /* MovingBox-beta.icon in Resources */ = {isa = PBXBuildFile; fileRef = 19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */; };
+		19EC0BD72F36360300F8E28D /* Prefire in Frameworks */ = {isa = PBXBuildFile; productRef = 19EC0BD62F36360300F8E28D /* Prefire */; };
 		19ECBB112DA5995900B8BF96 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */; };
 		19F0A0012E570A0000000001 /* HomeCullingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F0A0002E570A0000000001 /* HomeCullingManager.swift */; };
 		19F30A022F3100A2003DF002 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A012F3100A1003DF001 /* DatabaseManager.swift */; };
 		19F30A042F3100A4003DF004 /* SQLiteMigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */; };
 		19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */; };
+		19F30B012F32000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B002F32000000000001 /* AppDelegate.swift */; };
+		19F30B032F32000000000004 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B022F32000000000003 /* SceneDelegate.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
 		C1083E5906EC3ACD9B80C40F /* TestSeedDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */; };
-		19F30B012F32000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B002F32000000000001 /* AppDelegate.swift */; };
-		19F30B032F32000000000004 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B022F32000000000003 /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -127,12 +128,12 @@
 		19F30A012F3100A1003DF001 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteMigrationCoordinator.swift; sourceTree = "<group>"; };
 		19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabaseHelper.swift; sourceTree = "<group>"; };
+		19F30B002F32000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		19F30B022F32000000000003 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		19F765D42DAB558000AE287D /* OptimizedImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedImageManager.swift; sourceTree = "<group>"; };
 		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
 		496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestSeedDatabase.swift; path = MovingBox/Services/TestSeedDatabase.swift; sourceTree = SOURCE_ROOT; };
 		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
-		19F30B002F32000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		19F30B022F32000000000003 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -211,6 +212,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19EC0BD72F36360300F8E28D /* Prefire in Frameworks */,
 				1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */,
 				19A9AB102DB274C7001CEDA2 /* (null) in Frameworks */,
 			);
@@ -430,6 +432,8 @@
 			buildRules = (
 			);
 			dependencies = (
+				19EC0BDB2F3637CC00F8E28D /* PBXTargetDependency */,
+				19EC0BDD2F3637CC00F8E28D /* PBXTargetDependency */,
 				19D133CE2D75455B002448A9 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
@@ -438,6 +442,7 @@
 			name = MovingBoxTests;
 			packageProductDependencies = (
 				1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */,
+				19EC0BD62F36360300F8E28D /* Prefire */,
 			);
 			productName = MovingBoxTests;
 			productReference = 19D133C92D75455B002448A9 /* MovingBoxTests.xctest */;
@@ -533,6 +538,7 @@
 				1979BBBB2EF5E08400CB8A01 /* XCRemoteSwiftPackageReference "AcknowList" */,
 				1979BE522EF6E18700CB8A01 /* XCRemoteSwiftPackageReference "WhatsNewKit" */,
 				19A014452F3047F9003DFA2B /* XCRemoteSwiftPackageReference "sqlite-data" */,
+				19EC0BD52F36360200F8E28D /* XCRemoteSwiftPackageReference "Prefire" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -674,6 +680,14 @@
 			isa = PBXTargetDependency;
 			target = 1942DC792BF391CB00734AF4 /* MovingBox */;
 			targetProxy = 19D133CD2D75455B002448A9 /* PBXContainerItemProxy */;
+		};
+		19EC0BDB2F3637CC00F8E28D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 19EC0BDA2F3637CC00F8E28D /* PrefirePlaybookPlugin */;
+		};
+		19EC0BDD2F3637CC00F8E28D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 19EC0BDC2F3637CC00F8E28D /* PrefireTestsPlugin */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1455,6 +1469,14 @@
 				minimumVersion = 0.9.19;
 			};
 		};
+		19EC0BD52F36360200F8E28D /* XCRemoteSwiftPackageReference "Prefire" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/BarredEwe/Prefire";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.4.1;
+			};
+		};
 		AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa/";
@@ -1525,6 +1547,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
+		};
+		19EC0BD62F36360300F8E28D /* Prefire */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 19EC0BD52F36360200F8E28D /* XCRemoteSwiftPackageReference "Prefire" */;
+			productName = Prefire;
+		};
+		19EC0BDA2F3637CC00F8E28D /* PrefirePlaybookPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 19EC0BD52F36360200F8E28D /* XCRemoteSwiftPackageReference "Prefire" */;
+			productName = "plugin:PrefirePlaybookPlugin";
+		};
+		19EC0BDC2F3637CC00F8E28D /* PrefireTestsPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 19EC0BD52F36360200F8E28D /* XCRemoteSwiftPackageReference "Prefire" */;
+			productName = "plugin:PrefireTestsPlugin";
 		};
 		D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -9,11 +9,11 @@ import SQLiteData
 import SwiftUI
 
 struct LocationStatisticsView: View {
-    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), database: PreviewDatabaseOverride.database, animation: .default)
     private var allLocations: [SQLiteInventoryLocation]
-    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), database: PreviewDatabaseOverride.database, animation: .default)
     private var homes: [SQLiteHome]
-    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    @FetchAll(SQLiteInventoryItem.all, database: PreviewDatabaseOverride.database, animation: .default)
     private var allItems: [SQLiteInventoryItem]
     @EnvironmentObject var router: Router
     @EnvironmentObject var settingsManager: SettingsManager

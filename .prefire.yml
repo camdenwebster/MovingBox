@@ -1,0 +1,5 @@
+test_configuration:
+  target: MovingBox
+  draw_hierarchy_in_key_window_default_enabled: true
+  sources:
+    - ${PROJECT_DIR}/MovingBox/Views/Home Views/DashboardView.swift
