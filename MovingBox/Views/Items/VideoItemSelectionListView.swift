@@ -198,6 +198,7 @@ struct VideoItemSelectionListView: View {
                 }
 
                 bottomActionPanel
+                    .ignoresSafeArea(.container, edges: .bottom)
             }
         }
         .onChange(of: images.count) {
