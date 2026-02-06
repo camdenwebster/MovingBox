@@ -170,7 +170,7 @@ struct EditLocationView: View {
             }
         }
         .navigationTitle(isNewLocation ? "New Location" : "\(location?.name ?? "Location")")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar {
             if presentedInSheet {
                 ToolbarItem(placement: .cancellationAction) {

@@ -1,7 +1,10 @@
 import Foundation
 import PhotosUI
 import SwiftUI
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 final class OptimizedImageManager {
     static let shared = OptimizedImageManager()
@@ -71,12 +74,14 @@ final class OptimizedImageManager {
     }
 
     private func setupMemoryWarningObserver() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(didReceiveMemoryWarning),
-            name: UIApplication.didReceiveMemoryWarningNotification,
-            object: nil
-        )
+        #if canImport(UIKit)
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(didReceiveMemoryWarning),
+                name: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil
+            )
+        #endif
     }
 
     @objc private func didReceiveMemoryWarning(_ notification: Notification) {
@@ -489,18 +494,23 @@ final class OptimizedImageManager {
 
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                // Create format inside async block to avoid Sendable issues
-                let format = UIGraphicsImageRendererFormat()
-                format.preferredRange = .standard
-                format.scale = imageScale
+                #if canImport(UIKit)
+                    // Create format inside async block to avoid Sendable issues
+                    let format = UIGraphicsImageRendererFormat()
+                    format.preferredRange = .standard
+                    format.scale = imageScale
 
-                let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
-                let resized = renderer.image { _ in
-                    // Draw image in background thread
-                    image.draw(in: CGRect(origin: .zero, size: newSize))
-                }
+                    let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+                    let resized = renderer.image { _ in
+                        // Draw image in background thread
+                        image.draw(in: CGRect(origin: .zero, size: newSize))
+                    }
 
-                continuation.resume(returning: resized)
+                    continuation.resume(returning: resized)
+                #else
+                    let resized = image.resized(to: newSize) ?? image
+                    continuation.resume(returning: resized)
+                #endif
             }
         }
     }

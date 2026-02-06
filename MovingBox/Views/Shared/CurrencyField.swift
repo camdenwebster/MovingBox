@@ -19,7 +19,9 @@ struct CurrencyField: View {
             if isEnabled {
                 TextField("Amount", value: $value, format: .currency(code: "USD"))
                     .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
+                    #if os(iOS)
+                        .movingBoxDecimalPadKeyboardType()
+                    #endif
             } else {
                 Text(value, format: .currency(code: "USD"))
                     .foregroundStyle(.secondary)

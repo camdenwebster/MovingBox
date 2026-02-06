@@ -1,5 +1,8 @@
 import SwiftUI
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 extension Color {
     static let customPrimary = Color(hex: 0x4EB86F)

@@ -90,7 +90,7 @@ struct EditLabelView: View {
             }
         }
         .navigationTitle(isNewLabel ? "New Label" : "Edit \(label?.name ?? "Label")")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .onChange(of: labelColor, setColor)
         .toolbar {
             if presentedInSheet {
@@ -315,9 +315,9 @@ struct EmojiPickerView: View {
                 }
             }
             .navigationTitle("Choose Emoji")
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .movingBoxTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }

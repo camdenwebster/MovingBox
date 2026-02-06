@@ -157,14 +157,14 @@ struct BatchAnalysisView: View {
                 }
             }
             .navigationTitle("Batch AI Analysis")
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .movingBoxLeading) {
                     Button("Cancel", action: onDismiss)
                 }
 
                 if isAnalyzing {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: .movingBoxTrailing) {
                         ProgressView()
                             .scaleEffect(0.8)
                     }

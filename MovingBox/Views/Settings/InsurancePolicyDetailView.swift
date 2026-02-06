@@ -48,7 +48,7 @@ struct InsurancePolicyDetailView: View {
             deleteSection
         }
         .navigationTitle(navigationTitleText)
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar { toolbarContent }
         .alert("Delete Policy", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
@@ -237,7 +237,7 @@ struct InsurancePolicyDetailView: View {
                 .accessibilityIdentifier("policy-save-button")
             }
         } else {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .movingBoxTrailing) {
                 Button(isEditing ? "Done" : "Edit") {
                     if isEditing {
                         saveChanges()

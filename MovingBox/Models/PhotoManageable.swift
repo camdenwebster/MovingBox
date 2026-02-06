@@ -1,6 +1,9 @@
 import PhotosUI
 import SwiftUI
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 @MainActor
 protocol PhotoManageable: AnyObject {

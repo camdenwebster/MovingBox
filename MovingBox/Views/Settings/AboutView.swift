@@ -123,7 +123,7 @@ struct AboutView: View {
 
                 NavigationLink {
                     AcknowListSwiftUIView()
-                        .navigationBarTitleDisplayMode(.inline)
+                        .movingBoxNavigationTitleDisplayModeInline()
                 } label: {
                     Label {
                         Text("Third Party Acknowledgements")
@@ -135,7 +135,7 @@ struct AboutView: View {
             }
         }
         .navigationTitle("About")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .sheet(whatsNew: $whatsNew)
     }
 }

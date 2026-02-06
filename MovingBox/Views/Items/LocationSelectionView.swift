@@ -133,7 +133,7 @@ struct LocationSelectionView: View {
             }
             .searchable(text: $searchText, prompt: "Search locations")
             .navigationTitle("Select Location")
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {

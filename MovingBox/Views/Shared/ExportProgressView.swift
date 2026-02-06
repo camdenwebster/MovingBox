@@ -36,7 +36,7 @@ struct ExportProgressView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Export")
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)

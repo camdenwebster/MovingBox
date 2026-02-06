@@ -6,33 +6,44 @@
 //
 
 import SwiftUI
-import UIKit
 
-struct ShareSheet: UIViewControllerRepresentable {
-    let activityItems: [Any]
+#if canImport(UIKit)
+    import UIKit
 
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        print("📤 ShareSheet: Creating UIActivityViewController")
-        print("   Activity items count: \(activityItems.count)")
-        for (index, item) in activityItems.enumerated() {
-            if let url = item as? URL {
-                print("   Item \(index): URL - \(url.path)")
-                print("   File exists: \(FileManager.default.fileExists(atPath: url.path))")
-                if FileManager.default.fileExists(atPath: url.path) {
-                    let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-                    let size = attributes?[.size] as? Int64 ?? 0
-                    print("   File size: \(size) bytes")
+    struct ShareSheet: UIViewControllerRepresentable {
+        let activityItems: [Any]
+
+        func makeUIViewController(context: Context) -> UIActivityViewController {
+            print("📤 ShareSheet: Creating UIActivityViewController")
+            print("   Activity items count: \(activityItems.count)")
+            for (index, item) in activityItems.enumerated() {
+                if let url = item as? URL {
+                    print("   Item \(index): URL - \(url.path)")
+                    print("   File exists: \(FileManager.default.fileExists(atPath: url.path))")
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+                        let size = attributes?[.size] as? Int64 ?? 0
+                        print("   File size: \(size) bytes")
+                    }
+                } else {
+                    print("   Item \(index): \(type(of: item))")
                 }
-            } else {
-                print("   Item \(index): \(type(of: item))")
             }
+
+            return UIActivityViewController(
+                activityItems: activityItems,
+                applicationActivities: nil
+            )
         }
 
-        let vc = UIActivityViewController(
-            activityItems: activityItems,
-            applicationActivities: nil)
-        return vc
+        func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
     }
+#else
+    struct ShareSheet: View {
+        let activityItems: [Any]
 
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
-}
+        var body: some View {
+            EmptyView()
+        }
+    }
+#endif

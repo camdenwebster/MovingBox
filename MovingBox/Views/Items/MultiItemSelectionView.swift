@@ -30,7 +30,6 @@ struct MultiItemSelectionView: View {
     // MARK: - Animation Properties
 
     private let cardTransition = Animation.easeInOut(duration: 0.3)
-    private let selectionHaptic = UIImpactFeedbackGenerator(style: .medium)
 
     // MARK: - Initialization
 
@@ -73,10 +72,12 @@ struct MultiItemSelectionView: View {
             .navigationTitle(
                 "We found \(viewModel.detectedItems.count) item\(viewModel.detectedItems.count == 1 ? "" : "s")"
             )
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .movingBoxNavigationTitleDisplayModeInline()
+            #if os(iOS)
+                .movingBoxNavigationBarToolbarBackgroundVisible()
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .movingBoxTrailing) {
                     if let onReanalyze = onReanalyze {
                         Button(action: onReanalyze) {
                             Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
@@ -85,7 +86,7 @@ struct MultiItemSelectionView: View {
                     }
                 }
 
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .movingBoxLeading) {
                     Button("Cancel", systemImage: "xmark") {
                         onCancel()
                     }
@@ -205,7 +206,7 @@ struct MultiItemSelectionView: View {
                             isSelected: viewModel.isItemSelected(item),
                             matchedLabel: viewModel.getMatchingLabel(for: item),
                             onToggleSelection: {
-                                selectionHaptic.impactOccurred()
+                                triggerSelectionHaptic()
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     viewModel.toggleItemSelection(item)
                                 }
@@ -226,6 +227,12 @@ struct MultiItemSelectionView: View {
             .scrollTargetBehavior(.viewAligned)
             .scrollClipDisabled()
         }
+    }
+
+    private func triggerSelectionHaptic() {
+        #if os(iOS)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
     }
 
     private var navigationControlsView: some View {

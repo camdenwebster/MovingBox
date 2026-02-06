@@ -202,7 +202,7 @@ struct DataDeletionView: View {
             confirmationSection
         }
         .navigationTitle("Delete All Data")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .task {
             if deletionService == nil {
                 deletionService = DataDeletionService(modelContext: modelContext)
@@ -322,7 +322,9 @@ struct DataDeletionView: View {
 
                 TextField("Type \(requiredConfirmationText)", text: $confirmationText)
                     .textFieldStyle(.roundedBorder)
-                    .autocapitalization(.allCharacters)
+                    #if os(iOS)
+                        .autocapitalization(.allCharacters)
+                    #endif
                     .disableAutocorrection(true)
 
                 Button {

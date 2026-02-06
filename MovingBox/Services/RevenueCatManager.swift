@@ -198,20 +198,24 @@ class RevenueCatManager: NSObject, ObservableObject {
         self.onPurchaseCompleted = onCompletion
         self.onPaywallDismissed = onDismiss
 
-        return PaywallView()
-            .onChange(of: isProSubscriptionActive) { [self] oldValue, newValue in
-                if newValue {
-                    print("📱 RevenueCatManager - Pro subscription activated")
-                    isPresented.wrappedValue = false
-                    self.onPurchaseCompleted?()
+        #if os(iOS)
+            return PaywallView()
+                .onChange(of: isProSubscriptionActive) { [self] oldValue, newValue in
+                    if newValue {
+                        print("📱 RevenueCatManager - Pro subscription activated")
+                        isPresented.wrappedValue = false
+                        self.onPurchaseCompleted?()
+                    }
                 }
-            }
-            .onChange(of: isPresented.wrappedValue) { [self] oldValue, newValue in
-                if !newValue {
-                    print("📱 RevenueCatManager - Paywall view dismissed")
-                    self.onPaywallDismissed?()
+                .onChange(of: isPresented.wrappedValue) { [self] oldValue, newValue in
+                    if !newValue {
+                        print("📱 RevenueCatManager - Paywall view dismissed")
+                        self.onPaywallDismissed?()
+                    }
                 }
-            }
+        #else
+            return EmptyView()
+        #endif
     }
 
     func purchasePro() async throws {

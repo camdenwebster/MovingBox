@@ -90,7 +90,7 @@ struct OnboardingItemView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .fullScreenCover(isPresented: $showItemCreationFlow) {
+        .movingBoxFullScreenCoverCompat(isPresented: $showItemCreationFlow) {
             EnhancedItemCreationFlowView(
                 captureMode: .singleItem,
                 location: locations.first

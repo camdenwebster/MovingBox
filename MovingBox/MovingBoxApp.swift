@@ -10,9 +10,12 @@ import Sentry
 import SwiftData
 import SwiftUI
 import TelemetryDeck
-import UIKit
 import WhatsNewKit
 import WishKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 @main
 struct MovingBoxApp: App {
@@ -78,8 +81,10 @@ struct MovingBoxApp: App {
                 options.profilesSampleRate = 0.0
 
                 // Disable session replay in debug mode (high overhead)
-                options.sessionReplay.onErrorSampleRate = 0.0
-                options.sessionReplay.sessionSampleRate = 0.0
+                #if os(iOS)
+                    options.sessionReplay.onErrorSampleRate = 0.0
+                    options.sessionReplay.sessionSampleRate = 0.0
+                #endif
 
                 // Disable experimental logs in debug (verbose)
                 options.experimental.enableLogs = false
@@ -106,8 +111,10 @@ struct MovingBoxApp: App {
                 }
 
                 // Session replays for errors and sampled sessions
-                options.sessionReplay.onErrorSampleRate = 1.0
-                options.sessionReplay.sessionSampleRate = 0.1
+                #if os(iOS)
+                    options.sessionReplay.onErrorSampleRate = 1.0
+                    options.sessionReplay.sessionSampleRate = 0.1
+                #endif
 
                 // Enable logs in production
                 options.experimental.enableLogs = true
@@ -117,8 +124,10 @@ struct MovingBoxApp: App {
                 options.enableCoreDataTracing = false
                 options.enableFileIOTracing = false
                 options.enableNetworkTracking = true
-                options.enablePreWarmedAppStartTracing = true
-                options.enableTimeToFullDisplayTracing = true
+                #if os(iOS)
+                    options.enablePreWarmedAppStartTracing = true
+                    options.enableTimeToFullDisplayTracing = true
+                #endif
 
                 // Disable app hang tracking during test execution to prevent false positives
                 options.enableAppHangTracking = !isRunningTests

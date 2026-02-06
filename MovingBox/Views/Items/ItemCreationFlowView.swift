@@ -183,7 +183,9 @@ struct ItemCreationFlowView: View {
             .animation(transitionAnimation, value: currentStep)
             .interactiveDismissDisabled(currentStep != .camera || processingImage)
         }
-        .toolbar(.hidden, for: .navigationBar)
+        #if os(iOS)
+            .movingBoxNavigationBarToolbarHidden()
+        #endif
         .onChange(of: analysisComplete) { _, newValue in
             if newValue && currentStep == .analyzing {
                 print("Analysis complete changed to true")
@@ -478,21 +480,25 @@ struct ItemCreationFlowView: View {
         // Delay review request by 2 seconds to let user glance at results
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             TelemetryManager.shared.trackAppReviewRequested()
-            if #available(iOS 18.0, *) {
-                if let scene = UIApplication.shared.connectedScenes.first(where: {
-                    $0.activationState == .foregroundActive
-                }) as? UIWindowScene {
-                    AppStore.requestReview(in: scene)
-                    print("📱 Requested app review using AppStore API")
+            #if os(iOS)
+                if #available(iOS 18.0, *) {
+                    if let scene = UIApplication.shared.connectedScenes.first(where: {
+                        $0.activationState == .foregroundActive
+                    }) as? UIWindowScene {
+                        AppStore.requestReview(in: scene)
+                        print("📱 Requested app review using AppStore API")
+                    }
+                } else {
+                    if let scene = UIApplication.shared.connectedScenes.first(where: {
+                        $0.activationState == .foregroundActive
+                    }) as? UIWindowScene {
+                        SKStoreReviewController.requestReview(in: scene)
+                        print("📱 Requested app review using legacy API")
+                    }
                 }
-            } else {
-                if let scene = UIApplication.shared.connectedScenes.first(where: {
-                    $0.activationState == .foregroundActive
-                }) as? UIWindowScene {
-                    SKStoreReviewController.requestReview(in: scene)
-                    print("📱 Requested app review using legacy API")
-                }
-            }
+            #else
+                SKStoreReviewController.requestReview()
+            #endif
         }
     }
 }

@@ -158,7 +158,7 @@ struct EditHomeView: View {
 
                 TextField("ZIP/Postal Code", text: $tempHome.zip)
                     .textContentType(.postalCode)
-                    .keyboardType(.numberPad)
+                    .movingBoxNumberPadKeyboardType()
                     .disabled(!isEditingEnabled)
                     .foregroundColor(isEditingEnabled ? .primary : .secondary)
 
@@ -193,7 +193,7 @@ struct EditHomeView: View {
             }
         }
         .navigationTitle(isNewHome ? "New Home" : (activeHome?.displayName ?? "Home"))
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .task(id: activeHome?.imageURL) {
             guard let home = activeHome,
                 let imageURL = home.imageURL,

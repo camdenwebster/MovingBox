@@ -33,9 +33,9 @@ struct InsurancePolicyListView: View {
         }
         .accessibilityIdentifier("insurance-policies-list")
         .navigationTitle("Insurance Policies")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .movingBoxTrailing) {
                 Button("Add", systemImage: "plus") {
                     router.navigate(to: .insurancePolicyDetailView(policy: nil))
                 }

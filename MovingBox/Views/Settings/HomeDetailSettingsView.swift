@@ -51,7 +51,7 @@ struct HomeDetailSettingsView: View {
             if let viewModel = viewModel {
                 formContent(viewModel: viewModel)
                     .navigationTitle(viewModel.isNewHome ? "Add Home" : viewModel.displayHome.displayName)
-                    .navigationBarTitleDisplayMode(.inline)
+                    .movingBoxNavigationTitleDisplayModeInline()
                     .toolbar { toolbarContent(viewModel: viewModel) }
                     .disabled(viewModel.isCreating)
                     .overlay { loadingOverlay(viewModel: viewModel) }
@@ -79,7 +79,7 @@ struct HomeDetailSettingsView: View {
             } else {
                 ProgressView()
                     .navigationTitle(home?.displayName ?? "Add Home")
-                    .navigationBarTitleDisplayMode(.inline)
+                    .movingBoxNavigationTitleDisplayModeInline()
             }
         }
         .task(id: home?.imageURL) {
@@ -394,7 +394,7 @@ struct HomeDetailSettingsView: View {
             }
         }
 
-        ToolbarItem(placement: viewModel.isEditing ? .confirmationAction : .topBarTrailing) {
+        ToolbarItem(placement: viewModel.isEditing ? .confirmationAction : .movingBoxTrailing) {
             if viewModel.isEditing {
                 Button("Save") {
                     Task {

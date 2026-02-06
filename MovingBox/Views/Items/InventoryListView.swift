@@ -42,7 +42,11 @@ struct InventoryListView: View {
     @State private var valueGreatestFirst = true
 
     // Selection state - using native SwiftUI selection
-    @State private var editMode: EditMode = .inactive
+    #if os(iOS)
+        @State private var editMode: EditMode = .inactive
+    #else
+        @State private var editMode = false
+    #endif
     @State private var selectedItemIDs: Set<PersistentIdentifier> = []
     @State private var isSearchPresented = false
     @State private var showingBatchAnalysis = false
@@ -85,7 +89,11 @@ struct InventoryListView: View {
 
     // Computed properties for selection state
     private var isSelectionMode: Bool {
-        editMode == .active
+        #if os(iOS)
+            editMode == .active
+        #else
+            editMode
+        #endif
     }
 
     // Cache for selected items to avoid repeated expensive filtering
@@ -157,103 +165,109 @@ struct InventoryListView: View {
     }
 
     var body: some View {
-        inventoryListContent
-            .environment(\.editMode, $editMode)
-            .navigationTitle(showOnlyUnassigned ? "No Location" : (filterLabel?.name ?? location?.name ?? "All Items"))
-            .navigationDestination(for: InventoryItem.self) { inventoryItem in
-                InventoryDetailView(
-                    inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
-            }
-            .navigationBarTitleDisplayMode(.large)
-            .navigationBarBackButtonHidden(isSelectionMode)
-            .searchable(text: $searchText, isPresented: $isSearchPresented)
-            .toolbar(content: toolbarContent)
-            .toolbar(content: bottomToolbarContent)
-            .sheet(isPresented: $showingPaywall, content: paywallSheet)
-            .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
-            .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
-            .fullScreenCover(isPresented: $showItemCreationFlow) {
-                EnhancedItemCreationFlowView(
-                    captureMode: .singleItem,
-                    location: location
-                ) {
-                    // Optional callback when item creation is complete
-                }
-                .tint(.green)
-            }
-            .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive, action: deleteSelectedItems)
-                    .accessibilityIdentifier("alertDelete")
-            } message: {
-                Text(
-                    "Are you sure you want to permanently delete \(selectedCount) item\(selectedCount == 1 ? "" : "s")? This action cannot be undone."
-                )
-            }
-            .sheet(isPresented: $showingLocationPicker) {
-                locationPickerSheet()
-            }
-            .sheet(isPresented: $showingLabelPicker) {
-                labelPickerSheet()
-            }
-            .sheet(
-                isPresented: $exportCoordinator.showShareSheet,
-                onDismiss: {
-                    exportCoordinator.showExportProgress = false
-                    exportCoordinator.archiveURL = nil
-                }
+        Group {
+            #if os(iOS)
+                inventoryListContent
+                    .environment(\.editMode, $editMode)
+            #else
+                inventoryListContent
+            #endif
+        }
+        .navigationTitle(showOnlyUnassigned ? "No Location" : (filterLabel?.name ?? location?.name ?? "All Items"))
+        .navigationDestination(for: InventoryItem.self) { inventoryItem in
+            InventoryDetailView(
+                inventoryItemToDisplay: inventoryItem, navigationPath: $path, showSparklesButton: true)
+        }
+        .movingBoxNavigationTitleDisplayModeInline()
+        .navigationBarBackButtonHidden(isSelectionMode)
+        .searchable(text: $searchText, isPresented: $isSearchPresented)
+        .toolbar(content: toolbarContent)
+        .toolbar(content: bottomToolbarContent)
+        .sheet(isPresented: $showingPaywall, content: paywallSheet)
+        .movingBoxFullScreenCoverCompat(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
+        .sheet(isPresented: $showingBatchAnalysis, content: batchAnalysisSheet)
+        .movingBoxFullScreenCoverCompat(isPresented: $showItemCreationFlow) {
+            EnhancedItemCreationFlowView(
+                captureMode: .singleItem,
+                location: location
             ) {
-                if let url = exportCoordinator.archiveURL {
-                    ShareSheet(activityItems: [url])
-                }
+                // Optional callback when item creation is complete
             }
-            .alert("Change Location", isPresented: $showingLocationChangeConfirmation) {
-                Button("Cancel", role: .cancel) {
-                    selectedNewLocation = nil
-                }
-                Button("Change") {
-                    if let newLocation = selectedNewLocation {
-                        changeSelectedItemsLocation(to: newLocation)
-                    }
-                    selectedNewLocation = nil
-                }
-            } message: {
-                let locationName = selectedNewLocation?.name ?? "Unknown Location"
-                Text(
-                    "Are you sure you want to move \(selectedCount) item\(selectedCount == 1 ? "" : "s") to \(locationName)?"
-                )
+            .tint(.green)
+        }
+        .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive, action: deleteSelectedItems)
+                .accessibilityIdentifier("alertDelete")
+        } message: {
+            Text(
+                "Are you sure you want to permanently delete \(selectedCount) item\(selectedCount == 1 ? "" : "s")? This action cannot be undone."
+            )
+        }
+        .sheet(isPresented: $showingLocationPicker) {
+            locationPickerSheet()
+        }
+        .sheet(isPresented: $showingLabelPicker) {
+            labelPickerSheet()
+        }
+        .sheet(
+            isPresented: $exportCoordinator.showShareSheet,
+            onDismiss: {
+                exportCoordinator.showExportProgress = false
+                exportCoordinator.archiveURL = nil
             }
-            .alert("Change Label", isPresented: $showingLabelChangeConfirmation) {
-                Button("Cancel", role: .cancel) {
-                    selectedNewLabel = nil
-                }
-                Button("Change") {
-                    changeSelectedItemsLabel(to: selectedNewLabel)
-                    selectedNewLabel = nil
-                }
-            } message: {
-                let labelName = selectedNewLabel?.name ?? "No Label"
-                Text(
-                    "Are you sure you want to set the label for \(selectedCount) item\(selectedCount == 1 ? "" : "s") to \(labelName)?"
-                )
+        ) {
+            if let url = exportCoordinator.archiveURL {
+                ShareSheet(activityItems: [url])
             }
-            .sheet(isPresented: $exportCoordinator.showExportProgress) {
-                ExportProgressView(
-                    phase: exportCoordinator.exportPhase,
-                    progress: exportCoordinator.exportProgress,
-                    onCancel: { exportCoordinator.cancelExport() }
-                )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
+        }
+        .alert("Change Location", isPresented: $showingLocationChangeConfirmation) {
+            Button("Cancel", role: .cancel) {
+                selectedNewLocation = nil
             }
-            .alert("Export Error", isPresented: $exportCoordinator.showExportError) {
-                Button("OK") {
-                    exportCoordinator.exportError = nil
+            Button("Change") {
+                if let newLocation = selectedNewLocation {
+                    changeSelectedItemsLocation(to: newLocation)
                 }
-            } message: {
-                Text(exportCoordinator.exportError?.localizedDescription ?? "An error occurred while exporting items.")
+                selectedNewLocation = nil
             }
-            .sentryTrace("InventoryListView")
+        } message: {
+            let locationName = selectedNewLocation?.name ?? "Unknown Location"
+            Text(
+                "Are you sure you want to move \(selectedCount) item\(selectedCount == 1 ? "" : "s") to \(locationName)?"
+            )
+        }
+        .alert("Change Label", isPresented: $showingLabelChangeConfirmation) {
+            Button("Cancel", role: .cancel) {
+                selectedNewLabel = nil
+            }
+            Button("Change") {
+                changeSelectedItemsLabel(to: selectedNewLabel)
+                selectedNewLabel = nil
+            }
+        } message: {
+            let labelName = selectedNewLabel?.name ?? "No Label"
+            Text(
+                "Are you sure you want to set the label for \(selectedCount) item\(selectedCount == 1 ? "" : "s") to \(labelName)?"
+            )
+        }
+        .sheet(isPresented: $exportCoordinator.showExportProgress) {
+            ExportProgressView(
+                phase: exportCoordinator.exportPhase,
+                progress: exportCoordinator.exportProgress,
+                onCancel: { exportCoordinator.cancelExport() }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("Export Error", isPresented: $exportCoordinator.showExportError) {
+            Button("OK") {
+                exportCoordinator.exportError = nil
+            }
+        } message: {
+            Text(exportCoordinator.exportError?.localizedDescription ?? "An error occurred while exporting items.")
+        }
+        .sentryTrace("InventoryListView")
     }
 
     @ToolbarContentBuilder
@@ -261,7 +275,7 @@ struct InventoryListView: View {
 
         if isSelectionMode {
             // Select All/None Button
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: .movingBoxLeading) {
                 if selectedCount > 0 {
                     Button(action: selectNoItems) {
                         Text("Select None")
@@ -274,14 +288,14 @@ struct InventoryListView: View {
                 }
             }
             // Edit button (native SwiftUI)
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .movingBoxTrailing) {
                 Button("Done") {
-                    editMode = .inactive
+                    deactivateEditMode()
                     selectedItemIDs.removeAll()
                 }
             }
         } else {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .movingBoxTrailing) {
                 Menu("Options", systemImage: menuIcon) {
                     Button(action: createManualItem) {
                         Label("Add Manually", systemImage: "square.and.pencil")
@@ -289,7 +303,7 @@ struct InventoryListView: View {
                     .accessibilityIdentifier("createManually")
                     Divider()
                     Button(action: {
-                        editMode = .active
+                        activateEditMode()
                         isSearchPresented = false
                     }) {
                         Label("Select Items", systemImage: "checkmark.circle")
@@ -337,7 +351,7 @@ struct InventoryListView: View {
     @ToolbarContentBuilder
     private func bottomToolbarContent() -> some ToolbarContent {
         if isSelectionMode {
-            ToolbarItemGroup(placement: .bottomBar) {
+            ToolbarItemGroup(placement: .movingBoxBottomBar) {
                 // MARK: - Toolbar item group
                 // Share Sheet Button
                 Button(action: exportSelectedItems) {
@@ -370,15 +384,15 @@ struct InventoryListView: View {
             }
 
             if #available(iOS 26.0, macOS 26.0, *) {
-                ToolbarSpacer(placement: .bottomBar)
+                ToolbarSpacer(placement: .movingBoxBottomBar)
             } else {
                 // For iOS < 26, add spacer to push delete button to trailing edge
-                ToolbarItem(placement: .bottomBar) {
+                ToolbarItem(placement: .movingBoxBottomBar) {
                     Spacer()
                 }
             }
 
-            ToolbarItem(placement: .bottomBar) {
+            ToolbarItem(placement: .movingBoxBottomBar) {
                 Button(action: {
                     showingDeleteConfirmation = true
                 }) {
@@ -391,17 +405,17 @@ struct InventoryListView: View {
 
             // Search field and spacers
             if #available(iOS 26.0, macOS 26.0, *) {
-                ToolbarSpacer(placement: .bottomBar)
-                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(placement: .movingBoxBottomBar)
+                DefaultToolbarItem(kind: .search, placement: .movingBoxBottomBar)
             } else {
                 // For iOS < 26, add spacer to push + button to trailing edge
-                ToolbarItem(placement: .bottomBar) {
+                ToolbarItem(placement: .movingBoxBottomBar) {
                     Spacer()
                 }
             }
 
             // Add new item button
-            ToolbarItem(placement: .bottomBar) {
+            ToolbarItem(placement: .movingBoxBottomBar) {
                 Button(action: createFromPhoto) {
                     Label("Add from Photo", systemImage: "plus")
                 }
@@ -457,7 +471,7 @@ struct InventoryListView: View {
             selectedItems: selectedItems,
             onDismiss: {
                 showingBatchAnalysis = false
-                editMode = .inactive
+                deactivateEditMode()
                 selectedItemIDs.removeAll()
             }
         )
@@ -559,7 +573,7 @@ struct InventoryListView: View {
 
                 // Exit selection mode after deletion
                 selectedItemIDs.removeAll()
-                editMode = .inactive
+                deactivateEditMode()
 
             } catch {
                 // Don't exit selection mode if delete failed
@@ -574,7 +588,7 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
-        editMode = .inactive
+        deactivateEditMode()
     }
 
     func updateSelectedItemsLabel(to label: InventoryLabel?) {
@@ -583,7 +597,7 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
-        editMode = .inactive
+        deactivateEditMode()
     }
 
     func getAllLocations() -> [InventoryLocation] {
@@ -675,7 +689,7 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
-        editMode = .inactive
+        deactivateEditMode()
     }
 
     func changeSelectedItemsLabel(to label: InventoryLabel?) {
@@ -684,7 +698,23 @@ struct InventoryListView: View {
         }
         try? modelContext.save()
         selectedItemIDs.removeAll()
-        editMode = .inactive
+        deactivateEditMode()
+    }
+
+    private func activateEditMode() {
+        #if os(iOS)
+            editMode = .active
+        #else
+            editMode = true
+        #endif
+    }
+
+    private func deactivateEditMode() {
+        #if os(iOS)
+            editMode = .inactive
+        #else
+            editMode = false
+        #endif
     }
 
     // MARK: - Sorting Functions

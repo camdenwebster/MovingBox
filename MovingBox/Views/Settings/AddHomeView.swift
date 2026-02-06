@@ -23,7 +23,9 @@ struct AddHomeView: View {
         Form {
             Section {
                 TextField("Home Name", text: $homeName)
-                    .textInputAutocapitalization(.words)
+                    #if os(iOS)
+                        .textInputAutocapitalization(.words)
+                    #endif
             } header: {
                 Text("Home Details")
             } footer: {
@@ -39,7 +41,7 @@ struct AddHomeView: View {
             }
         }
         .navigationTitle("Add Home")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {

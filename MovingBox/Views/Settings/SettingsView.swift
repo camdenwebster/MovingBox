@@ -75,7 +75,7 @@ struct SettingsView: View {
 
                         ProgressView(value: Double(analyzedItemsCount), total: 50)
                             .tint(progressTintColor)
-                            .background(Color(.systemGray5))
+                            .background(Color.secondary.opacity(0.2))
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                             .padding(.bottom, 5)
 
@@ -319,7 +319,9 @@ struct SettingsView: View {
             #endif
 
         }
-        .navigationBarTitleDisplayMode(.large)
+        #if os(iOS)
+            .movingBoxNavigationTitleDisplayModeInline()
+        #endif
         .navigationTitle("Settings")
         .sheet(isPresented: $showingPaywall) {
             revenueCatManager.presentPaywall(
@@ -395,24 +397,32 @@ struct SettingsView: View {
     }
 
     private func requestAppReview() {
-        if #available(iOS 18.0, *) {
-            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }
-            ) as? UIWindowScene {
-                AppStore.requestReview(in: scene)
-                print("Requested app review using AppStore API")
-            }
-        } else {
-            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }
-            ) as? UIWindowScene {
-                SKStoreReviewController.requestReview(in: scene)
-                print("Requested app review using legacy API")
+        #if os(iOS)
+            if #available(iOS 18.0, *) {
+                if let scene = UIApplication.shared.connectedScenes.first(where: {
+                    $0.activationState == .foregroundActive
+                }
+                ) as? UIWindowScene {
+                    AppStore.requestReview(in: scene)
+                    print("Requested app review using AppStore API")
+                }
             } else {
-                if let url = URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review") {
-                    UIApplication.shared.open(url)
-                    print("Opening App Store URL for review")
+                if let scene = UIApplication.shared.connectedScenes.first(where: {
+                    $0.activationState == .foregroundActive
+                }
+                ) as? UIWindowScene {
+                    SKStoreReviewController.requestReview(in: scene)
+                    print("Requested app review using legacy API")
+                } else {
+                    if let url = URL(string: "itms-apps://itunes.apple.com/app/id6742755218?action=write-review") {
+                        UIApplication.shared.open(url)
+                        print("Opening App Store URL for review")
+                    }
                 }
             }
-        }
+        #else
+            SKStoreReviewController.requestReview()
+        #endif
     }
 }
 
@@ -469,7 +479,9 @@ struct AISettingsView: View {
                         TextField("", text: $settings.apiKey)
                             .multilineTextAlignment(.trailing)
                             .textContentType(.password)
-                            .autocapitalization(.none)
+                            #if os(iOS)
+                                .autocapitalization(.none)
+                            #endif
                             .frame(maxWidth: 200, alignment: .trailing)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -496,9 +508,9 @@ struct AISettingsView: View {
             }
         }
         .navigationTitle("AI Settings")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .movingBoxTrailing) {
                 if isEditing {
                     Button("Save") {
                         isEditing = false
@@ -560,12 +572,14 @@ struct LabelSettingsView: View {
                 .onDelete(perform: deleteLabel)
             }
             .navigationTitle("Label Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    EditButton()
+                ToolbarItem(placement: .movingBoxTrailing) {
+                    #if os(iOS)
+                        EditButton()
+                    #endif
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .movingBoxTrailing) {
                     Button {
                         router.navigate(to: .editLabelView(label: nil, isEditing: true))
                     } label: {

@@ -12,7 +12,10 @@ import PhotosUI
 import StoreKit
 import SwiftData
 import SwiftUI
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 @Observable
 final class InventoryDetailViewModel {
@@ -520,21 +523,25 @@ final class InventoryDetailViewModel {
         Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             TelemetryManager.shared.trackAppReviewRequested()
-            if #available(iOS 18.0, *) {
-                if let scene = UIApplication.shared.connectedScenes.first(where: {
-                    $0.activationState == .foregroundActive
-                }) as? UIWindowScene {
-                    AppStore.requestReview(in: scene)
-                    print("📱 Requested app review using AppStore API")
+            #if os(iOS)
+                if #available(iOS 18.0, *) {
+                    if let scene = UIApplication.shared.connectedScenes.first(where: {
+                        $0.activationState == .foregroundActive
+                    }) as? UIWindowScene {
+                        AppStore.requestReview(in: scene)
+                        print("📱 Requested app review using AppStore API")
+                    }
+                } else {
+                    if let scene = UIApplication.shared.connectedScenes.first(where: {
+                        $0.activationState == .foregroundActive
+                    }) as? UIWindowScene {
+                        SKStoreReviewController.requestReview(in: scene)
+                        print("📱 Requested app review using legacy API")
+                    }
                 }
-            } else {
-                if let scene = UIApplication.shared.connectedScenes.first(where: {
-                    $0.activationState == .foregroundActive
-                }) as? UIWindowScene {
-                    SKStoreReviewController.requestReview(in: scene)
-                    print("📱 Requested app review using legacy API")
-                }
-            }
+            #else
+                SKStoreReviewController.requestReview()
+            #endif
         }
     }
 }

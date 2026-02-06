@@ -14,6 +14,10 @@ import SwiftData
 import SwiftUI
 import VisionKit
 
+#if os(macOS)
+    import AppKit
+#endif
+
 @MainActor
 struct InventoryDetailView: View {
     @Environment(\.modelContext) var modelContext
@@ -1203,10 +1207,10 @@ struct InventoryDetailView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .movingBoxLeading) {
                     leadingToolbarButton
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .movingBoxTrailing) {
                     trailingToolbarButton
                 }
             }
@@ -1234,7 +1238,7 @@ struct InventoryDetailView: View {
                     await handleAttachmentFileImport(result)
                 }
             }
-            .fullScreenCover(isPresented: $showingSimpleCamera) {
+            .movingBoxFullScreenCoverCompat(isPresented: $showingSimpleCamera) {
                 SimpleCameraView(capturedImage: $capturedSingleImage)
                     .ignoresSafeArea()
                     .onChange(of: capturedSingleImage) { _, newImage in
@@ -1273,7 +1277,7 @@ struct InventoryDetailView: View {
                     FileViewer(url: fileURL, fileName: fileViewerName)
                 }
             }
-            .fullScreenCover(isPresented: $showingFullScreenPhoto) {
+            .movingBoxFullScreenCoverCompat(isPresented: $showingFullScreenPhoto) {
                 FullScreenPhotoView(
                     images: loadedImages,
                     initialIndex: selectedImageIndex,
@@ -1765,7 +1769,9 @@ struct FullScreenPhotoCarouselView: View {
                         }
                 }
             }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            #if os(iOS)
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            #endif
 
             // Overlay container for indicators - aligned to frame bottom
             VStack {
@@ -1814,56 +1820,75 @@ struct FullScreenPhotoCarouselView: View {
 
 // MARK: - Document Camera View
 
-struct DocumentCameraView: UIViewControllerRepresentable {
-    let onComplete: ([UIImage]) -> Void
-    let onCancel: () -> Void
+#if os(iOS)
+    struct DocumentCameraView: UIViewControllerRepresentable {
+        let onComplete: ([UIImage]) -> Void
+        let onCancel: () -> Void
 
-    func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
-        let scannerViewController = VNDocumentCameraViewController()
-        scannerViewController.delegate = context.coordinator
-        return scannerViewController
-    }
-
-    func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {
-        // No updates needed
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
-        let parent: DocumentCameraView
-
-        init(_ parent: DocumentCameraView) {
-            self.parent = parent
+        func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+            let scannerViewController = VNDocumentCameraViewController()
+            scannerViewController.delegate = context.coordinator
+            return scannerViewController
         }
 
-        func documentCameraViewController(
-            _ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan
-        ) {
-            var scannedImages: [UIImage] = []
-            // Limit to 1 image per session for simplicity
-            let maxImages = min(1, scan.pageCount)
-            for pageIndex in 0..<maxImages {
-                let image = scan.imageOfPage(at: pageIndex)
-                scannedImages.append(image)
+        func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {
+            // No updates needed
+        }
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(self)
+        }
+
+        class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+            let parent: DocumentCameraView
+
+            init(_ parent: DocumentCameraView) {
+                self.parent = parent
             }
-            parent.onComplete(scannedImages)
-        }
 
-        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
-            parent.onCancel()
-        }
+            func documentCameraViewController(
+                _ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan
+            ) {
+                var scannedImages: [UIImage] = []
+                // Limit to 1 image per session for simplicity
+                let maxImages = min(1, scan.pageCount)
+                for pageIndex in 0..<maxImages {
+                    let image = scan.imageOfPage(at: pageIndex)
+                    scannedImages.append(image)
+                }
+                parent.onComplete(scannedImages)
+            }
 
-        func documentCameraViewController(
-            _ controller: VNDocumentCameraViewController, didFailWithError error: Error
-        ) {
-            print("Document camera failed with error: \(error)")
-            parent.onCancel()
+            func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+                parent.onCancel()
+            }
+
+            func documentCameraViewController(
+                _ controller: VNDocumentCameraViewController, didFailWithError error: Error
+            ) {
+                print("Document camera failed with error: \(error)")
+                parent.onCancel()
+            }
         }
     }
-}
+#else
+    struct DocumentCameraView: View {
+        let onComplete: ([UIImage]) -> Void
+        let onCancel: () -> Void
+
+        var body: some View {
+            VStack(spacing: 12) {
+                Image(systemName: "doc.text.viewfinder")
+                    .font(.title)
+                    .foregroundStyle(.secondary)
+                Text("Document scanning is unavailable on macOS")
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .onAppear { onCancel() }
+        }
+    }
+#endif
 
 // MARK: - Attachment Row View
 
@@ -1957,7 +1982,7 @@ struct AttachmentRowView: View {
     }
 
     private func generatePDFThumbnail(from url: URL) async -> UIImage? {
-        return await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
             DispatchQueue.global(qos: .background).async {
                 guard let document = PDFDocument(url: url),
                     let page = document.page(at: 0)
@@ -1979,18 +2004,36 @@ struct AttachmentRowView: View {
                     height: pageRect.height * scale
                 )
 
-                let renderer = UIGraphicsImageRenderer(size: scaledSize)
-                let image = renderer.image { context in
-                    // Fill with white background
-                    UIColor.white.set()
+                #if os(iOS)
+                    let renderer = UIGraphicsImageRenderer(size: scaledSize)
+                    let image = renderer.image { context in
+                        // Fill with white background
+                        UIColor.white.set()
+                        context.fill(CGRect(origin: .zero, size: scaledSize))
+
+                        // Scale and draw the PDF page
+                        context.cgContext.scaleBy(x: scale, y: scale)
+                        page.draw(with: .mediaBox, to: context.cgContext)
+                    }
+
+                    continuation.resume(returning: image)
+                #else
+                    let image = NSImage(size: scaledSize)
+                    image.lockFocus()
+                    guard let context = NSGraphicsContext.current?.cgContext else {
+                        image.unlockFocus()
+                        continuation.resume(returning: nil)
+                        return
+                    }
+
+                    NSColor.white.setFill()
                     context.fill(CGRect(origin: .zero, size: scaledSize))
+                    context.scaleBy(x: scale, y: scale)
+                    page.draw(with: .mediaBox, to: context)
+                    image.unlockFocus()
 
-                    // Scale and draw the PDF page
-                    context.cgContext.scaleBy(x: scale, y: scale)
-                    page.draw(with: .mediaBox, to: context.cgContext)
-                }
-
-                continuation.resume(returning: image)
+                    continuation.resume(returning: image)
+                #endif
             }
         }
     }
@@ -2236,7 +2279,7 @@ extension View {
     {
         self
             .navigationTitle(getNavigationTitle(title: title))
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .navigationBarBackButtonHidden(isEditing)
     }
 
@@ -2258,12 +2301,16 @@ struct ConditionalToolbarBackgroundModifier: ViewModifier {
         if #available(iOS 26.0, macOS 26.0, *) {
             // For iOS 26 and above, hide the toolbar background
             content
-                .toolbarBackground(.hidden, for: .navigationBar)
+                .movingBoxNavigationBarToolbarBackgroundHidden()
         } else {
             // For iOS 18 and below, maintain existing functionality
-            content
-                .toolbarBackground(colorScheme == .dark ? .black : .white, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
+            #if os(iOS)
+                content
+                    .toolbarBackground(colorScheme == .dark ? .black : .white, for: .navigationBar)
+                    .movingBoxNavigationBarToolbarBackgroundVisible()
+            #else
+                content
+            #endif
         }
     }
 }
@@ -2281,15 +2328,15 @@ struct FileViewer: View {
             QuickLookPreview(url: url)
                 .ignoresSafeArea()
                 .navigationTitle(fileName ?? url.lastPathComponent)
-                .navigationBarTitleDisplayMode(.inline)
+                .movingBoxNavigationTitleDisplayModeInline()
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
+                    ToolbarItem(placement: .movingBoxLeading) {
                         Button("Close") {
                             dismiss()
                         }
                     }
 
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: .movingBoxTrailing) {
                         Button(action: { showShareSheet = true }) {
                             Image(systemName: "square.and.arrow.up")
                         }
@@ -2336,38 +2383,55 @@ struct FileViewer: View {
     }
 }
 
-struct QuickLookPreview: UIViewControllerRepresentable {
-    let url: URL
-
-    func makeUIViewController(context: Context) -> QLPreviewController {
-        let controller = QLPreviewController()
-        controller.dataSource = context.coordinator
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
-        // No updates needed
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(url: url)
-    }
-
-    class Coordinator: QLPreviewControllerDataSource {
+#if os(iOS)
+    struct QuickLookPreview: UIViewControllerRepresentable {
         let url: URL
 
-        init(url: URL) {
-            self.url = url
+        func makeUIViewController(context: Context) -> QLPreviewController {
+            let controller = QLPreviewController()
+            controller.dataSource = context.coordinator
+            return controller
         }
 
-        func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
-            return 1
+        func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
+            // No updates needed
         }
 
-        func previewController(_ controller: QLPreviewController, previewItemAt index: Int)
-            -> QLPreviewItem
-        {
-            return url as QLPreviewItem
+        func makeCoordinator() -> Coordinator {
+            Coordinator(url: url)
+        }
+
+        class Coordinator: QLPreviewControllerDataSource {
+            let url: URL
+
+            init(url: URL) {
+                self.url = url
+            }
+
+            func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+                return 1
+            }
+
+            func previewController(_ controller: QLPreviewController, previewItemAt index: Int)
+                -> QLPreviewItem
+            {
+                return url as QLPreviewItem
+            }
         }
     }
-}
+#else
+    struct QuickLookPreview: View {
+        let url: URL
+
+        var body: some View {
+            VStack(spacing: 12) {
+                Image(systemName: "doc.richtext")
+                    .font(.title)
+                    .foregroundStyle(.secondary)
+                Text("Quick Look preview is unavailable on macOS")
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+        }
+    }
+#endif

@@ -138,7 +138,9 @@ struct SFSymbolPickerView: View {
                 }
             }
             .navigationTitle("Choose Icon")
-            .navigationBarTitleDisplayMode(.inline)
+            #if os(iOS)
+                .movingBoxNavigationTitleDisplayModeInline()
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {

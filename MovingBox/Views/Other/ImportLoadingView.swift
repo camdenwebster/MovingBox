@@ -161,7 +161,7 @@ struct ImportLoadingView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .movingBoxTrailing) {
                     if !showFinishButton && error == nil {
                         Button("Cancel", role: .cancel) {
                             onCancel()

@@ -213,7 +213,7 @@ struct ImportPreviewContentView: View {
                 .animation(.easeInOut(duration: 0.3), value: currentState)
             }
             .navigationTitle("Ready to Import")
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
                 if !isImporting {
                     ToolbarItem(placement: .cancellationAction) {

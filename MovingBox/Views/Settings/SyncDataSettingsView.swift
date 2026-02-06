@@ -134,7 +134,7 @@ struct SyncDataSettingsView: View {
             manageDataSection
         }
         .navigationTitle("Sync and Data")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .onAppear {
             syncMonitor.refreshStatus()
             // Capture initial state on first appear

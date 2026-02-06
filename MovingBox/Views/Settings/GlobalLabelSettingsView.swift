@@ -37,20 +37,31 @@ struct GlobalLabelSettingsView: View {
         }
         .accessibilityIdentifier("labels-list")
         .navigationTitle("Labels")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
-                    .accessibilityIdentifier("labels-edit-button")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showAddLabelSheet = true
-                } label: {
-                    Label("Add Label", systemImage: "plus")
+            #if os(iOS)
+                ToolbarItem(placement: .movingBoxTrailing) {
+                    EditButton()
+                        .accessibilityIdentifier("labels-edit-button")
                 }
-                .accessibilityIdentifier("labels-add-button")
-            }
+                ToolbarItem(placement: .movingBoxTrailing) {
+                    Button {
+                        showAddLabelSheet = true
+                    } label: {
+                        Label("Add Label", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("labels-add-button")
+                }
+            #else
+                ToolbarItem {
+                    Button {
+                        showAddLabelSheet = true
+                    } label: {
+                        Label("Add Label", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("labels-add-button")
+                }
+            #endif
         }
         .sheet(item: $selectedLabel) { label in
             NavigationStack {

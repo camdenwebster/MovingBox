@@ -57,8 +57,8 @@ struct EnhancedItemCreationFlowView: View {
                 }
             }
             .navigationTitle(viewModel.currentStepTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarHidden(viewModel.currentStep == .camera)
+            .movingBoxNavigationTitleDisplayModeInline()
+            .movingBoxNavigationBarHidden(viewModel.currentStep == .camera)
             .interactiveDismissDisabled(viewModel.processingImage)
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)
@@ -430,9 +430,9 @@ struct MultiItemSummaryView: View {
                 }
             }
             .navigationTitle("Items Added")
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .movingBoxTrailing) {
                     Button("Done") {
                         onComplete()
                     }

@@ -215,7 +215,7 @@ struct DashboardView: View {
         .ignoresSafeArea(edges: .top)
         .background(Color(.systemGroupedBackground))
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .movingBoxTrailing) {
                 Button {
                     router.navigate(to: .settingsView)
                 } label: {
@@ -225,30 +225,39 @@ struct DashboardView: View {
                 .foregroundStyle(.primary)
                 .accessibilityIdentifier("dashboard-settings-button")
             }
-            // Search field and spacers
-            if #available(iOS 26.0, macOS 26.0, *) {
-                ToolbarSpacer(placement: .bottomBar)
-                DefaultToolbarItem(kind: .search, placement: .bottomBar)
-                ToolbarSpacer(placement: .bottomBar)
-            } else {
-                // For iOS < 26, add spacer to push + button to trailing edge
-                ToolbarItem(placement: .bottomBar) {
-                    Spacer()
+            #if os(iOS)
+                // Search field and spacers
+                if #available(iOS 26.0, macOS 26.0, *) {
+                    ToolbarSpacer(placement: .movingBoxBottomBar)
+                    DefaultToolbarItem(kind: .search, placement: .movingBoxBottomBar)
+                    ToolbarSpacer(placement: .movingBoxBottomBar)
+                } else {
+                    // For iOS < 26, add spacer to push + button to trailing edge
+                    ToolbarItem(placement: .movingBoxBottomBar) {
+                        Spacer()
+                    }
                 }
-            }
-            // Add new item button
-            ToolbarItem(placement: .bottomBar) {
-                Button(action: createFromPhoto) {
-                    Label("Add from Photo", systemImage: "plus")
-                }
-                .accessibilityIdentifier("createFromCamera")
-                .buttonStyle(.borderedProminent)
+                // Add new item button
+                ToolbarItem(placement: .movingBoxBottomBar) {
+                    Button(action: createFromPhoto) {
+                        Label("Add from Photo", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("createFromCamera")
+                    .buttonStyle(.borderedProminent)
 
-                .backport.glassEffect(in: Circle())
-            }
+                    .backport.glassEffect(in: Circle())
+                }
+            #else
+                ToolbarItem(placement: .movingBoxTrailing) {
+                    Button(action: createFromPhoto) {
+                        Label("Add from Photo", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("createFromCamera")
+                }
+            #endif
         }
         .sheet(isPresented: $showingPaywall, content: paywallSheet)
-        .fullScreenCover(isPresented: $showItemCreationFlow) {
+        .movingBoxFullScreenCoverCompat(isPresented: $showItemCreationFlow) {
             // Present camera directly with default single-item mode
             // User can switch modes via segmented control in camera
             EnhancedItemCreationFlowView(

@@ -9,7 +9,10 @@ import AIProxy
 import CryptoKit
 import Foundation
 import SwiftData
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 // MARK: - Mock Service for Testing
 

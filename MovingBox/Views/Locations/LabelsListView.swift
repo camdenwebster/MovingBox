@@ -84,7 +84,7 @@ struct LabelsListView: View {
             }
         }
         .navigationTitle("Labels")
-        .navigationBarTitleDisplayMode(.large)
+        .movingBoxNavigationTitleDisplayModeInline()
         .searchable(text: $searchText, prompt: "Search labels")
         .background(Color(.systemGroupedBackground))
         .onAppear {

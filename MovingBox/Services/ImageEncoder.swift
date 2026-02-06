@@ -6,17 +6,23 @@
 //
 
 import Foundation
-import SwiftUI
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+    typealias PlatformImage = UIImage
+#elseif canImport(AppKit)
+    import AppKit
+    typealias PlatformImage = NSImage
+#endif
 
 class ImageEncoder {
-    let image: UIImage
+    let image: PlatformImage
 
-    init(image: UIImage) {
+    init(image: PlatformImage) {
         self.image = image
     }
 
-    func optimizeImage() -> UIImage? {
+    func optimizeImage() -> PlatformImage? {
         // Maximum dimension we'll allow
         let maxDimension: CGFloat = 512
 
@@ -31,19 +37,46 @@ class ImageEncoder {
 
         let size = CGSize(width: newWidth, height: newHeight)
 
-        UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
-        image.draw(in: CGRect(origin: .zero, size: size))
-        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
+        #if canImport(UIKit)
+            UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
+            image.draw(in: CGRect(origin: .zero, size: size))
+            let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
 
-        return resizedImage
+            return resizedImage
+        #elseif canImport(AppKit)
+            let resizedImage = NSImage(size: size)
+            resizedImage.lockFocus()
+            image.draw(
+                in: CGRect(origin: .zero, size: size),
+                from: CGRect(origin: .zero, size: image.size),
+                operation: .copy,
+                fraction: 1.0
+            )
+            resizedImage.unlockFocus()
+            return resizedImage
+        #else
+            return nil
+        #endif
     }
 
     func encodeImageToBase64() -> String? {
         guard let optimizedImage = optimizeImage() else { return nil }
 
         // Reduce JPEG compression quality to minimize payload size
-        guard let imageData = optimizedImage.jpegData(compressionQuality: 0.5) else { return nil }
+        #if canImport(UIKit)
+            guard let imageData = optimizedImage.jpegData(compressionQuality: 0.5) else { return nil }
+        #elseif canImport(AppKit)
+            guard let tiffData = optimizedImage.tiffRepresentation,
+                let bitmap = NSBitmapImageRep(data: tiffData),
+                let imageData = bitmap.representation(
+                    using: .jpeg,
+                    properties: [.compressionFactor: 0.5]
+                )
+            else { return nil }
+        #else
+            return nil
+        #endif
 
         return imageData.base64EncodedString()
     }

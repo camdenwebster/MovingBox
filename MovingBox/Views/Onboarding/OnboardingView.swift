@@ -41,9 +41,9 @@ struct OnboardingView: View {
                 }
             }
             .onboardingBackground()
-            .navigationBarTitleDisplayMode(.inline)
+            .movingBoxNavigationTitleDisplayModeInline()
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .movingBoxLeading) {
                     if manager.currentStep != .welcome {
                         Button("Back") {
                             manager.moveToPrevious()
@@ -51,7 +51,7 @@ struct OnboardingView: View {
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .movingBoxTrailing) {
                     if shouldShowSkipButton {
                         Button("Skip") {
                             handleSkip()

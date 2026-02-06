@@ -34,7 +34,9 @@ struct FullScreenPhotoView: View {
                         .background(Color.black)
                 }
             }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            #if os(iOS)
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            #endif
             .background(Color.black)
             .simultaneousGesture(
                 // Dismissal gesture - only vertical drags, simultaneous with TabView swipes
@@ -117,7 +119,9 @@ struct FullScreenPhotoView: View {
                 .animation(.easeInOut(duration: 0.3), value: showUI)
             }
         }
-        .statusBarHidden(!showUI)
+        #if os(iOS)
+            .statusBarHidden(!showUI)
+        #endif
     }
 }
 
@@ -204,7 +208,7 @@ struct ZoomableImageView: View {
             Button("Show Photos") {
                 isPresented = true
             }
-            .fullScreenCover(isPresented: $isPresented) {
+            .movingBoxFullScreenCoverCompat(isPresented: $isPresented) {
                 if let image = UIImage(systemName: "photo") {
                     FullScreenPhotoView(
                         images: [image, image, image],

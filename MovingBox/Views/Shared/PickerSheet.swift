@@ -62,12 +62,20 @@ struct PickerSheet<T: Hashable & Identifiable>: View {
                 }
             }
             .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel", action: onCancel)
+            #if os(iOS)
+                .movingBoxNavigationTitleDisplayModeInline()
+                .toolbar {
+                    ToolbarItem(placement: .movingBoxTrailing) {
+                        Button("Cancel", action: onCancel)
+                    }
                 }
-            }
+            #else
+                .toolbar {
+                    ToolbarItem {
+                        Button("Cancel", action: onCancel)
+                    }
+                }
+            #endif
         }
     }
 }

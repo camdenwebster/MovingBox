@@ -173,8 +173,10 @@ struct ImageAnalysisView: View {
             }
             .frame(maxWidth: 600)
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .movingBoxNavigationTitleDisplayModeInline()
+        #if os(iOS)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        #endif
         .interactiveDismissDisabled(true)
         .onAppear {
             print("ImageAnalysisView appeared with \(images.count) images")

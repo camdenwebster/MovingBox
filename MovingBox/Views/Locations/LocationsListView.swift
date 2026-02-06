@@ -223,7 +223,7 @@ struct LocationsListView: View {
             InventoryListView(location: location)
         }
         .navigationTitle("Locations")
-        .navigationBarTitleDisplayMode(.large)
+        .movingBoxNavigationTitleDisplayModeInline()
         .searchable(text: $searchText, prompt: "Search locations")
         .background(Color(.systemGroupedBackground))
         .sheet(isPresented: $showAddLocationSheet) {

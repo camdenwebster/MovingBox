@@ -74,10 +74,12 @@ struct LocationSettingsView: View {
             }
         }
         .navigationTitle("Locations")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                EditButton()
+                #if os(iOS)
+                    EditButton()
+                #endif
                 Button("Add Location", systemImage: "plus") {
                     showAddLocationSheet = true
                 }

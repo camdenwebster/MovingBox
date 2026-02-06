@@ -57,16 +57,18 @@ struct MovingBoxPaywallView: View {
                     .font(.caption)
             }
             .padding()
-            .navigationBarItems(
-                trailing: Button(action: {
-                    handleDismiss()
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                        .imageScale(.large)
+            .toolbar {
+                ToolbarItem(placement: .movingBoxTrailing) {
+                    Button(action: {
+                        handleDismiss()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .imageScale(.large)
+                    }
+                    .accessibilityIdentifier("dismissPaywall")
                 }
-                .accessibilityIdentifier("dismissPaywall")
-            )
+            }
         }
         .accessibilityIdentifier("paywallView")
     }

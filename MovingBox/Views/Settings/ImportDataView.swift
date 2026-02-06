@@ -81,7 +81,7 @@ struct ImportDataView: View {
             }
         }
         .navigationTitle("Import Data")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .alert("Warning", isPresented: $showDuplicateWarning) {
             Button("Cancel", role: .cancel) {}
             Button("Continue") {
@@ -107,7 +107,7 @@ struct ImportDataView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showPreviewView) {
+        .movingBoxFullScreenCoverCompat(isPresented: $showPreviewView) {
             if let result = importResult {
                 ImportSuccessView(importResult: result)
                     .environmentObject(router)

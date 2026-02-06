@@ -7,7 +7,10 @@
 
 import Foundation
 import SwiftData
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 @objc(UIColorValueTransformer)
 final class UIColorValueTransformer: ValueTransformer {

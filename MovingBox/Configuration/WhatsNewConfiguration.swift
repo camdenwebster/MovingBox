@@ -3,7 +3,23 @@ import WhatsNewKit
 
 extension WhatsNew {
     static var version2_1_0: WhatsNew {
-        WhatsNew(
+        let primaryAction: WhatsNew.PrimaryAction
+        #if os(iOS)
+            primaryAction = WhatsNew.PrimaryAction(
+                title: "Continue",
+                backgroundColor: .accentColor,
+                foregroundColor: .white,
+                hapticFeedback: .notification(.success)
+            )
+        #else
+            primaryAction = WhatsNew.PrimaryAction(
+                title: "Continue",
+                backgroundColor: .accentColor,
+                foregroundColor: .white
+            )
+        #endif
+
+        return WhatsNew(
             version: "2.1.0",
             title: "What's New in MovingBox",
             features: [
@@ -40,12 +56,7 @@ extension WhatsNew {
                     subtitle: "Optimized interface for larger screens with improved navigation and layout"
                 ),
             ],
-            primaryAction: WhatsNew.PrimaryAction(
-                title: "Continue",
-                backgroundColor: .accentColor,
-                foregroundColor: .white,
-                hapticFeedback: .notification(.success)
-            )
+            primaryAction: primaryAction
         )
     }
 

@@ -91,9 +91,15 @@ struct PhotoPickerView<T: PhotoManageable>: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showCamera) {
-            SimpleCameraView(capturedImage: $cameraImage)
-        }
+        #if os(iOS)
+            .movingBoxFullScreenCoverCompat(isPresented: $showCamera) {
+                SimpleCameraView(capturedImage: $cameraImage)
+            }
+        #else
+            .sheet(isPresented: $showCamera) {
+                SimpleCameraView(capturedImage: $cameraImage)
+            }
+        #endif
         .onChange(of: cameraImage) { _, newImage in
             if let image = newImage {
                 Task {

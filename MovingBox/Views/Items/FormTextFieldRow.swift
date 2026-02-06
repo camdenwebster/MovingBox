@@ -84,7 +84,7 @@ struct PriceFieldRow: View {
                     .foregroundStyle(.secondary)
                 TextField("", text: $localPriceString)
                     .multilineTextAlignment(.trailing)
-                    .keyboardType(.numberPad)
+                    .movingBoxNumberPadKeyboardType()
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .focused($isPriceFieldFocused)
@@ -167,7 +167,7 @@ struct DimensionsFieldRow: View {
                         .foregroundColor(.secondary)
                     TextField("0", text: $length)
                         .textFieldStyle(.roundedBorder)
-                        .keyboardType(.decimalPad)
+                        .movingBoxDecimalPadKeyboardType()
                         .multilineTextAlignment(.center)
                         .disabled(!isEditing)
                 }
@@ -182,7 +182,7 @@ struct DimensionsFieldRow: View {
                         .foregroundColor(.secondary)
                     TextField("0", text: $width)
                         .textFieldStyle(.roundedBorder)
-                        .keyboardType(.decimalPad)
+                        .movingBoxDecimalPadKeyboardType()
                         .multilineTextAlignment(.center)
                         .disabled(!isEditing)
                 }
@@ -197,7 +197,7 @@ struct DimensionsFieldRow: View {
                         .foregroundColor(.secondary)
                     TextField("0", text: $height)
                         .textFieldStyle(.roundedBorder)
-                        .keyboardType(.decimalPad)
+                        .movingBoxDecimalPadKeyboardType()
                         .multilineTextAlignment(.center)
                         .disabled(!isEditing)
                 }
@@ -227,7 +227,7 @@ struct WeightFieldRow: View {
             HStack(spacing: 4) {
                 TextField("0", text: $value)
                     .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
+                    .movingBoxDecimalPadKeyboardType()
                     .frame(maxWidth: 80)
                     .disabled(!isEditing)
                     .foregroundColor(isEditing ? .primary : .secondary)
@@ -260,7 +260,7 @@ struct PercentageFieldRow: View {
             HStack(spacing: 0) {
                 TextField("0", text: $localStringValue)
                     .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
+                    .movingBoxDecimalPadKeyboardType()
                     .frame(maxWidth: 80)
                     .disabled(!isEditing)
                     .foregroundColor(isEditing ? .primary : .secondary)
@@ -376,7 +376,7 @@ struct CurrencyFieldRow: View {
                     .foregroundStyle(.secondary)
                 TextField("", text: $localStringValue)
                     .multilineTextAlignment(.trailing)
-                    .keyboardType(.numberPad)
+                    .movingBoxNumberPadKeyboardType()
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .focused($isFocused)

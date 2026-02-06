@@ -35,9 +35,9 @@ struct HomeListView: View {
             }
         }
         .navigationTitle("Homes")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .movingBoxTrailing) {
                 Button {
                     showingCreateSheet = true
                 } label: {

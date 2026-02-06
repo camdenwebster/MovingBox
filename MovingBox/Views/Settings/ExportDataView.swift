@@ -87,7 +87,7 @@ struct ExportDataView: View {
             }
         }
         .navigationTitle("Export Data")
-        .navigationBarTitleDisplayMode(.inline)
+        .movingBoxNavigationTitleDisplayModeInline()
         .alert("Cannot Export", isPresented: $showNoOptionsAlert) {
             Button("OK", role: .cancel) {}
         } message: {

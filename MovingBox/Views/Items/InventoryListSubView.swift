@@ -28,7 +28,7 @@ struct InventoryListSubView: View {
 
     var body: some View {
         listContent
-            .fullScreenCover(isPresented: $showItemCreationFlow) {
+            .movingBoxFullScreenCoverCompat(isPresented: $showItemCreationFlow) {
                 EnhancedItemCreationFlowView(
                     captureMode: .singleItem,
                     location: location

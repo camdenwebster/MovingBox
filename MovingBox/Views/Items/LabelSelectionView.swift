@@ -123,7 +123,7 @@ struct LabelSelectionView: View {
             listContent
                 .searchable(text: $searchText, prompt: "Search labels")
                 .navigationTitle("Select Labels")
-                .navigationBarTitleDisplayMode(.inline)
+                .movingBoxNavigationTitleDisplayModeInline()
                 .toolbar { toolbarContent }
         }
         .sheet(isPresented: $showAddLabelSheet) {
@@ -225,7 +225,7 @@ struct LabelSelectionView: View {
             }
         }
 
-        ToolbarItem(placement: .navigationBarTrailing) {
+        ToolbarItem(placement: .movingBoxTrailing) {
             Button("Add Label", systemImage: "plus") {
                 showAddLabelSheet = true
             }

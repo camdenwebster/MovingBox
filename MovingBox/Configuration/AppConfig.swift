@@ -1,5 +1,8 @@
 import Foundation
-import UIKit
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 enum BuildType {
     case production
