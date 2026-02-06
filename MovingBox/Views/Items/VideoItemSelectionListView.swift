@@ -142,66 +142,64 @@ struct VideoItemSelectionListView: View {
                 .padding(.vertical, 8)
             }
 
-            GeometryReader { geometry in
-                ZStack(alignment: .bottom) {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if isStreamingResults {
-                                VideoDetectedItemListCard(
-                                    item: placeholderItem,
-                                    isSelected: false,
-                                    matchedLabel: nil,
-                                    thumbnail: nil,
-                                    duplicateGroupHint: nil,
-                                    isSkeleton: true,
-                                    useSimplifiedRendering: true,
-                                    onToggleSelection: {}
-                                )
-                                .id("streaming-skeleton-top")
-                                .disabled(true)
+            ZStack {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if isStreamingResults {
+                            VideoDetectedItemListCard(
+                                item: placeholderItem,
+                                isSelected: false,
+                                matchedLabel: nil,
+                                thumbnail: nil,
+                                duplicateGroupHint: nil,
+                                isSkeleton: true,
+                                useSimplifiedRendering: true,
+                                onToggleSelection: {}
+                            )
+                            .id("streaming-skeleton-top")
+                            .disabled(true)
+                            .transition(insertionTransition)
+                        } else if showAnalysisCompletionMessage {
+                            VideoAnalysisCompletedBanner()
+                                .id("streaming-complete-banner")
                                 .transition(insertionTransition)
-                            } else if showAnalysisCompletionMessage {
-                                VideoAnalysisCompletedBanner()
-                                    .id("streaming-complete-banner")
-                                    .transition(insertionTransition)
+                        }
+
+                        ForEach(orderedDetectedItemGroups) { group in
+                            if group.isPotentialDuplicateGroup {
+                                duplicateGroupHeader(itemCount: group.items.count)
                             }
 
-                            ForEach(orderedDetectedItemGroups) { group in
-                                if group.isPotentialDuplicateGroup {
-                                    duplicateGroupHeader(itemCount: group.items.count)
-                                }
-
-                                ForEach(orderedItems(in: group)) { item in
-                                    VideoDetectedItemListCard(
-                                        item: item,
-                                        isSelected: viewModel.isItemSelected(item),
-                                        matchedLabel: viewModel.getMatchingLabel(for: item),
-                                        thumbnail: viewModel.rowThumbnail(for: item),
-                                        duplicateGroupHint: viewModel.duplicateHint(for: item),
-                                        isSkeleton: false,
-                                        useSimplifiedRendering: viewModel.detectedItems.count > 18,
-                                        onToggleSelection: {
-                                            selectionHaptic.impactOccurred()
-                                            withAnimation(.easeInOut(duration: 0.2)) {
-                                                viewModel.toggleItemSelection(item)
-                                            }
+                            ForEach(orderedItems(in: group)) { item in
+                                VideoDetectedItemListCard(
+                                    item: item,
+                                    isSelected: viewModel.isItemSelected(item),
+                                    matchedLabel: viewModel.getMatchingLabel(for: item),
+                                    thumbnail: viewModel.rowThumbnail(for: item),
+                                    duplicateGroupHint: viewModel.duplicateHint(for: item),
+                                    isSkeleton: false,
+                                    useSimplifiedRendering: viewModel.detectedItems.count > 18,
+                                    onToggleSelection: {
+                                        selectionHaptic.impactOccurred()
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            viewModel.toggleItemSelection(item)
                                         }
-                                    )
-                                    .transition(insertionTransition)
-                                }
+                                    }
+                                )
+                                .transition(insertionTransition)
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .padding(.bottom, bottomPanelReservedHeight)
-                        .animation(listMutationAnimation, value: itemDisplayOrder)
-                        .animation(isPerformanceModeEnabled ? nil : .easeInOut(duration: 0.2), value: isStreamingResults)
                     }
-
-                    bottomActionPanel
-                        .padding(.bottom, -geometry.safeAreaInsets.bottom)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, bottomPanelReservedHeight)
+                    .animation(listMutationAnimation, value: itemDisplayOrder)
+                    .animation(isPerformanceModeEnabled ? nil : .easeInOut(duration: 0.2), value: isStreamingResults)
                 }
-                .ignoresSafeArea(.container, edges: .bottom)
+                .overlay(alignment: .bottom) {
+                    bottomActionPanel
+                        .ignoresSafeArea(.container, edges: .bottom)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
