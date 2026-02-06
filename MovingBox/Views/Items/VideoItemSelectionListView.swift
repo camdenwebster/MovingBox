@@ -131,17 +131,6 @@ struct VideoItemSelectionListView: View {
                 .padding(.vertical, 8)
             }
 
-            if isPreparingRows {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Preparing item previews...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-            }
-
             ZStack {
                 ScrollView {
                     LazyVStack(spacing: 12) {
