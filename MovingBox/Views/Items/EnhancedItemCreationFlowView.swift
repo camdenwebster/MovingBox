@@ -52,13 +52,18 @@ struct EnhancedItemCreationFlowView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Main content based on current step
-                mainContentView
+            ZStack {
+                Color(.systemBackground)
+                    .ignoresSafeArea()
 
-                // Progress indicator at bottom except when child views provide their own chrome.
-                if viewModel.currentStep != .camera && viewModel.currentStep != .multiItemSelection {
-                    bottomProgressIndicator
+                VStack(spacing: 0) {
+                    // Main content based on current step
+                    mainContentView
+
+                    // Progress indicator at bottom except when child views provide their own chrome.
+                    if viewModel.currentStep != .camera && viewModel.currentStep != .multiItemSelection {
+                        bottomProgressIndicator
+                    }
                 }
             }
             .navigationTitle(viewModel.currentStepTitle)

@@ -69,6 +69,9 @@ struct VideoItemSelectionListView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                Color(.systemBackground)
+                    .ignoresSafeArea()
+
                 if viewModel.hasNoItems {
                     noItemsView
                 } else {
