@@ -109,7 +109,8 @@ enum AnalysisPhotoLimits {
             from images: [UIImage],
             settings: SettingsManager,
             modelContext: ModelContext,
-            narrationContext: String? = nil
+            narrationContext: String? = nil,
+            onPartialResponse: ((MultiItemAnalysisResponse) -> Void)? = nil
         )
             async throws -> MultiItemAnalysisResponse
         {
@@ -125,6 +126,7 @@ enum AnalysisPhotoLimits {
             print(
                 "🧪 MockAIAnalysisService: Returning mock multi-item response with \(mockMultiItemResponse.items?.count ?? 0) items"
             )
+            onPartialResponse?(mockMultiItemResponse)
             return mockMultiItemResponse
         }
 
@@ -257,9 +259,27 @@ protocol AIAnalysisServiceProtocol {
         from images: [UIImage],
         settings: SettingsManager,
         modelContext: ModelContext,
-        narrationContext: String?
+        narrationContext: String?,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?
     ) async throws -> MultiItemAnalysisResponse
     func cancelCurrentRequest()
+}
+
+extension AIAnalysisServiceProtocol {
+    func getMultiItemDetails(
+        from images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?
+    ) async throws -> MultiItemAnalysisResponse {
+        return try await getMultiItemDetails(
+            from: images,
+            settings: settings,
+            modelContext: modelContext,
+            narrationContext: narrationContext,
+            onPartialResponse: nil
+        )
+    }
 }
 
 protocol ImageManagerProtocol {
@@ -1334,7 +1354,8 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         from images: [UIImage],
         settings: SettingsManager,
         modelContext: ModelContext,
-        narrationContext: String? = nil
+        narrationContext: String? = nil,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)? = nil
     ) async throws -> MultiItemAnalysisResponse {
         // Cancel any existing request
         currentTask?.cancel()
@@ -1345,7 +1366,8 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
                 images: images,
                 settings: settings,
                 modelContext: modelContext,
-                narrationContext: narrationContext
+                narrationContext: narrationContext,
+                onPartialResponse: onPartialResponse
             )
         }
 
@@ -1368,6 +1390,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         settings: SettingsManager,
         modelContext: ModelContext,
         narrationContext: String?,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?,
         maxAttempts: Int = 3
     ) async throws -> MultiItemAnalysisResponse {
         var lastError: Error?
@@ -1382,6 +1405,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
                     settings: settings,
                     modelContext: modelContext,
                     narrationContext: narrationContext,
+                    onPartialResponse: onPartialResponse,
                     attempt: attempt,
                     maxAttempts: maxAttempts
                 )
@@ -1465,6 +1489,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         settings: SettingsManager,
         modelContext: ModelContext,
         narrationContext: String?,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?,
         attempt: Int,
         maxAttempts: Int
     ) async throws -> MultiItemAnalysisResponse {
@@ -1473,92 +1498,7 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
 
         print("🔄 Multi-item structured response attempt \(attempt)/\(maxAttempts)")
 
-        // Create the JSON schema for multi-item analysis
-        let multiItemSchema: [String: AIProxyJSONValue] = [
-            "type": "object",
-            "properties": [
-                "items": [
-                    "type": "array",
-                    "description": "Array of detected inventory items (include ALL distinct items; do not cap at 10)",
-                    "items": [
-                        "type": "object",
-                        "properties": [
-                            "id": [
-                                "type": "string",
-                                "description": "Unique identifier for the item",
-                            ],
-                            "title": [
-                                "type": "string",
-                                "description": "Descriptive name of the item",
-                            ],
-                            "description": [
-                                "type": "string",
-                                "description": "Detailed description of the item",
-                            ],
-                            "category": [
-                                "type": "string",
-                                "description": "Category classification for the item",
-                            ],
-                            "make": [
-                                "type": "string",
-                                "description": "Manufacturer or brand name",
-                            ],
-                            "model": [
-                                "type": "string",
-                                "description": "Model number or name",
-                            ],
-                            "estimatedPrice": [
-                                "type": "string",
-                                "description": "Estimated price with currency symbol",
-                            ],
-                            "confidence": [
-                                "type": "number",
-                                "description": "Confidence score between 0.0 and 1.0",
-                            ],
-                            "detections": [
-                                "type": "array",
-                                "description": "Bounding box detections for this item across source images",
-                                "items": [
-                                    "type": "object",
-                                    "properties": [
-                                        "sourceImageIndex": [
-                                            "type": "integer",
-                                            "description": "0-indexed image number this detection is from",
-                                        ],
-                                        "boundingBox": [
-                                            "type": "array",
-                                            "description": "[ymin, xmin, ymax, xmax] normalized 0-1000",
-                                            "items": ["type": "integer"],
-                                        ],
-                                    ],
-                                    "required": ["sourceImageIndex", "boundingBox"],
-                                    "additionalProperties": false,
-                                ],
-                            ],
-                        ],
-                        "required": [
-                            "id", "title", "description", "category", "make", "model", "estimatedPrice", "confidence",
-                            "detections",
-                        ],
-                        "additionalProperties": false,
-                    ],
-                ],
-                "detectedCount": [
-                    "type": "integer",
-                    "description": "Total number of items detected (must match items array length)",
-                ],
-                "analysisType": [
-                    "type": "string",
-                    "description": "Must be 'multi_item'",
-                ],
-                "confidence": [
-                    "type": "number",
-                    "description": "Overall confidence in the analysis between 0.0 and 1.0",
-                ],
-            ],
-            "required": ["items", "detectedCount", "analysisType", "confidence"],
-            "additionalProperties": false,
-        ]
+        let multiItemSchema = createMultiItemJSONSchema()
 
         // Build base request body for multi-item but we'll override the responseFormat
         let baseRequestBody = await requestBuilder.buildMultiItemRequestBody(
@@ -1576,6 +1516,34 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         print("📊 Images: \(imageCount)")
         print("⚙️ Quality: \(isHighQuality ? "High" : "Standard")")
         print("📝 Max tokens: \(adjustedMaxTokens)")
+
+        if let onPartialResponse {
+            do {
+                return try await performSingleMultiItemStructuredStreamingRequest(
+                    images: images,
+                    settings: settings,
+                    modelContext: modelContext,
+                    narrationContext: narrationContext,
+                    multiItemSchema: multiItemSchema,
+                    onPartialResponse: onPartialResponse,
+                    startTime: startTime,
+                    adjustedMaxTokens: adjustedMaxTokens
+                )
+            } catch {
+                if shouldFallbackToFunctionCalling(error) {
+                    print("⚠️ Structured streaming failed; falling back to function calling: \(error)")
+                    return try await performSingleMultiItemFunctionRequest(
+                        images: images,
+                        settings: settings,
+                        modelContext: modelContext,
+                        narrationContext: narrationContext,
+                        attempt: attempt,
+                        maxAttempts: maxAttempts
+                    )
+                }
+                throw error
+            }
+        }
 
         // Make the request using structured responses instead of function calling
         let response: OpenRouterChatCompletionResponseBody
@@ -1667,6 +1635,305 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
         return result
     }
 
+    private func createMultiItemJSONSchema() -> [String: AIProxyJSONValue] {
+        return [
+            "type": "object",
+            "properties": [
+                "items": [
+                    "type": "array",
+                    "description": "Array of detected inventory items (include ALL distinct items; do not cap at 10)",
+                    "items": [
+                        "type": "object",
+                        "properties": [
+                            "id": [
+                                "type": "string",
+                                "description": "Unique identifier for the item",
+                            ],
+                            "title": [
+                                "type": "string",
+                                "description": "Descriptive name of the item",
+                            ],
+                            "description": [
+                                "type": "string",
+                                "description": "Detailed description of the item",
+                            ],
+                            "category": [
+                                "type": "string",
+                                "description": "Category classification for the item",
+                            ],
+                            "make": [
+                                "type": "string",
+                                "description": "Manufacturer or brand name",
+                            ],
+                            "model": [
+                                "type": "string",
+                                "description": "Model number or name",
+                            ],
+                            "estimatedPrice": [
+                                "type": "string",
+                                "description": "Estimated price with currency symbol",
+                            ],
+                            "confidence": [
+                                "type": "number",
+                                "description": "Confidence score between 0.0 and 1.0",
+                            ],
+                            "detections": [
+                                "type": "array",
+                                "description": "Bounding box detections for this item across source images",
+                                "items": [
+                                    "type": "object",
+                                    "properties": [
+                                        "sourceImageIndex": [
+                                            "type": "integer",
+                                            "description": "0-indexed image number this detection is from",
+                                        ],
+                                        "boundingBox": [
+                                            "type": "array",
+                                            "description": "[ymin, xmin, ymax, xmax] normalized 0-1000",
+                                            "items": ["type": "integer"],
+                                        ],
+                                    ],
+                                    "required": ["sourceImageIndex", "boundingBox"],
+                                    "additionalProperties": false,
+                                ],
+                            ],
+                        ],
+                        "required": [
+                            "id", "title", "description", "category", "make", "model", "estimatedPrice", "confidence",
+                            "detections",
+                        ],
+                        "additionalProperties": false,
+                    ],
+                ],
+                "detectedCount": [
+                    "type": "integer",
+                    "description": "Total number of items detected (must match items array length)",
+                ],
+                "analysisType": [
+                    "type": "string",
+                    "description": "Must be 'multi_item'",
+                ],
+                "confidence": [
+                    "type": "number",
+                    "description": "Overall confidence in the analysis between 0.0 and 1.0",
+                ],
+            ],
+            "required": ["items", "detectedCount", "analysisType", "confidence"],
+            "additionalProperties": false,
+        ]
+    }
+
+    private func performSingleMultiItemStructuredStreamingRequest(
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        multiItemSchema: [String: AIProxyJSONValue],
+        onPartialResponse: (MultiItemAnalysisResponse) -> Void,
+        startTime: Date,
+        adjustedMaxTokens: Int
+    ) async throws -> MultiItemAnalysisResponse {
+        let imageCount = images.count
+        let baseRequestBody = await requestBuilder.buildMultiItemRequestBody(
+            with: images,
+            settings: settings,
+            modelContext: modelContext,
+            narrationContext: narrationContext
+        )
+
+        let stream = try await requestBuilder.openRouterService
+            .streamingChatCompletionRequest(
+                body: .init(
+                    messages: baseRequestBody.messages,
+                    maxTokens: adjustedMaxTokens,
+                    model: baseRequestBody.model,
+                    responseFormat: .jsonSchema(
+                        name: "multi_item_analysis",
+                        description: "Analysis of multiple inventory items in the image",
+                        schema: multiItemSchema,
+                        strict: true
+                    )
+                ),
+                secondsToWait: 60
+            )
+
+        var contentBuffer = ""
+        var toolArgumentsBuffer = ""
+        var usage: OpenRouterChatCompletionResponseBody.Usage?
+        var lastEmittedFingerprint: String?
+
+        for try await chunk in stream {
+            if let chunkUsage = chunk.usage {
+                usage = chunkUsage
+            }
+
+            for choice in chunk.choices {
+                if let content = choice.delta.content, !content.isEmpty {
+                    contentBuffer += content
+                }
+
+                if let toolCalls = choice.delta.toolCalls {
+                    for toolCall in toolCalls {
+                        if let arguments = toolCall.function?.arguments, !arguments.isEmpty {
+                            toolArgumentsBuffer += arguments
+                        }
+                    }
+                }
+            }
+
+            let payload = contentBuffer.isEmpty ? toolArgumentsBuffer : contentBuffer
+            if let partial = extractPartialMultiItemResponse(from: payload) {
+                let fingerprint = partialFingerprint(for: partial)
+                if fingerprint != lastEmittedFingerprint {
+                    lastEmittedFingerprint = fingerprint
+                    onPartialResponse(partial)
+                }
+            }
+        }
+
+        let finalPayload = contentBuffer.isEmpty ? toolArgumentsBuffer : contentBuffer
+        guard let responseData = finalPayload.data(using: .utf8) else {
+            throw AIAnalysisError.invalidData
+        }
+
+        let decoded = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
+        let result = responseParser.sanitizeMultiItemResponse(decoded)
+        onPartialResponse(result)
+
+        if let usage {
+            let totalTokens = usage.totalTokens ?? 0
+            let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
+            print(
+                "📦 Multi-item streamed response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage \(String(format: "%.1f", usagePercentage))% (\(totalTokens)/\(adjustedMaxTokens))"
+            )
+            self.logAIProxyTokenUsage(
+                usage: usage,
+                elapsedTime: Date().timeIntervalSince(startTime),
+                imageCount: imageCount,
+                settings: settings
+            )
+        } else {
+            print(
+                "📦 Multi-item streamed response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage unavailable"
+            )
+        }
+
+        return result
+    }
+
+    private func extractPartialMultiItemResponse(from payload: String) -> MultiItemAnalysisResponse? {
+        let trimmedPayload = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPayload.isEmpty else { return nil }
+
+        if let complete = decodeMultiItemResponse(from: trimmedPayload) {
+            return complete
+        }
+
+        let itemJSONObjects = extractCompleteItemObjects(from: trimmedPayload)
+        guard !itemJSONObjects.isEmpty else { return nil }
+
+        let decodedItems: [DetectedInventoryItem] = itemJSONObjects.compactMap { itemJSON in
+            guard let data = itemJSON.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(DetectedInventoryItem.self, from: data)
+        }
+
+        guard !decodedItems.isEmpty else { return nil }
+
+        let inferredConfidence = extractTopLevelNumber(forKey: "confidence", in: trimmedPayload) ?? 0.7
+        return responseParser.sanitizeMultiItemResponse(
+            MultiItemAnalysisResponse(
+                items: decodedItems,
+                detectedCount: decodedItems.count,
+                analysisType: "multi_item",
+                confidence: inferredConfidence
+            )
+        )
+    }
+
+    private func decodeMultiItemResponse(from payload: String) -> MultiItemAnalysisResponse? {
+        guard let data = payload.data(using: .utf8),
+            let decoded = try? JSONDecoder().decode(MultiItemAnalysisResponse.self, from: data)
+        else {
+            return nil
+        }
+
+        return responseParser.sanitizeMultiItemResponse(decoded)
+    }
+
+    private func partialFingerprint(for response: MultiItemAnalysisResponse) -> String {
+        response.safeItems
+            .map {
+                "\($0.id)|\($0.title)|\($0.make)|\($0.model)|\($0.estimatedPrice)|\($0.detections?.count ?? 0)"
+            }
+            .joined(separator: "||")
+    }
+
+    private func extractTopLevelNumber(forKey key: String, in payload: String) -> Double? {
+        let pattern = "\"\(NSRegularExpression.escapedPattern(for: key))\"\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(payload.startIndex..<payload.endIndex, in: payload)
+        guard
+            let match = regex.firstMatch(in: payload, options: [], range: range),
+            let valueRange = Range(match.range(at: 1), in: payload)
+        else {
+            return nil
+        }
+
+        return Double(payload[valueRange])
+    }
+
+    private func extractCompleteItemObjects(from payload: String) -> [String] {
+        guard let itemsKeyRange = payload.range(of: "\"items\""),
+            let arrayStart = payload[itemsKeyRange.upperBound...].firstIndex(of: "[")
+        else {
+            return []
+        }
+
+        var itemObjects: [String] = []
+        var depth = 0
+        var inString = false
+        var isEscaping = false
+        var currentObjectStart: String.Index?
+        var index = payload.index(after: arrayStart)
+
+        while index < payload.endIndex {
+            let character = payload[index]
+
+            if inString {
+                if isEscaping {
+                    isEscaping = false
+                } else if character == "\\" {
+                    isEscaping = true
+                } else if character == "\"" {
+                    inString = false
+                }
+            } else {
+                if character == "\"" {
+                    inString = true
+                } else if character == "{" {
+                    if depth == 0 {
+                        currentObjectStart = index
+                    }
+                    depth += 1
+                } else if character == "}" {
+                    if depth > 0 {
+                        depth -= 1
+                        if depth == 0, let objectStart = currentObjectStart {
+                            itemObjects.append(String(payload[objectStart...index]))
+                            currentObjectStart = nil
+                        }
+                    }
+                } else if character == "]", depth == 0 {
+                    break
+                }
+            }
+
+            index = payload.index(after: index)
+        }
+
+        return itemObjects
+    }
+
     private func performSingleMultiItemFunctionRequest(
         images: [UIImage],
         settings: SettingsManager,
@@ -1744,6 +2011,8 @@ class AIAnalysisService: AIAnalysisServiceProtocol {
                     || lowerBody.contains("json_schema")
                     || lowerBody.contains("json schema")
                     || (lowerBody.contains("schema") && lowerBody.contains("unsupported"))
+                    || (lowerBody.contains("stream") && lowerBody.contains("unsupported"))
+                    || lowerBody.contains("cannot stream")
                 {
                     return true
                 }

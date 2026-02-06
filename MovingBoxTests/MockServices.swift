@@ -82,7 +82,8 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
         from images: [UIImage],
         settings: SettingsManager,
         modelContext: ModelContext,
-        narrationContext: String?
+        narrationContext: String?,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?
     ) async throws -> MultiItemAnalysisResponse {
         if shouldFailMultiItem {
             throw AIAnalysisError.invalidData
@@ -91,6 +92,7 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
         // Simulate network delay
         try await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
 
+        onPartialResponse?(mockMultiItemResponse)
         return mockMultiItemResponse
     }
 

@@ -129,11 +129,33 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
                 onProgress: onProgress
             )
 
+            let completedBatchResults = batchResults
             let response = try await aiService.getMultiItemDetails(
                 from: batchImages,
                 settings: settings,
                 modelContext: modelContext,
-                narrationContext: narrationContext
+                narrationContext: narrationContext,
+                onPartialResponse: { [weak self] partialResponse in
+                    guard let self else { return }
+
+                    let progressivelyMergedBatchResults = completedBatchResults + [
+                        (response: partialResponse, batchOffset: start)
+                    ]
+                    self.progressiveMergedResponse = VideoItemDeduplicator.deduplicate(
+                        batchResults: progressivelyMergedBatchResults
+                    )
+
+                    let inBatchProgress = max(0.12, min(0.92, Double(partialResponse.safeItems.count) * 0.18))
+                    Task {
+                        await self.updateProgress(
+                            .analyzingBatch(current: batchIndex + 1, total: totalBatches),
+                            progress: (Double(batchIndex) + inBatchProgress) / Double(totalBatches),
+                            overall: 0.55
+                                + (Double(batchIndex) + inBatchProgress) / Double(max(totalBatches, 1)) * 0.4,
+                            onProgress: onProgress
+                        )
+                    }
+                }
             )
 
             batchResults.append((response: response, batchOffset: start))
