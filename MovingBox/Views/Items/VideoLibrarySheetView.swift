@@ -29,21 +29,7 @@ struct VideoLibrarySheetView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Button {
-                        showingVideoPicker = true
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Add New Video")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("videoLibrary-addButton")
-                }
+                addNewVideoRow
 
                 if visibleVideos.isEmpty {
                     Section {
@@ -143,6 +129,30 @@ struct VideoLibrarySheetView: View {
                 reloadVideos()
             }
         }
+    }
+
+    private var addNewVideoRow: some View {
+        Button {
+            showingVideoPicker = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "plus.circle.fill")
+                Text("Add New Video")
+                    .fontWeight(.semibold)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .accessibilityIdentifier("videoLibrary-addButton")
     }
 
     private func reloadVideos() {
