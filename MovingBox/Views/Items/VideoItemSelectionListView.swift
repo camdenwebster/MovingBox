@@ -27,6 +27,8 @@ struct VideoItemSelectionListView: View {
     @State private var itemDisplayOrder: [String] = []
     @State private var knownDetectedItemIDs: Set<String> = []
     @State private var rowPreparationTask: Task<Void, Never>?
+    @State private var didStreamResults = false
+    @State private var showAnalysisCompletionMessage = false
 
     private let selectionHaptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -104,6 +106,8 @@ struct VideoItemSelectionListView: View {
                 viewModel.settingsManager = settingsManager
                 viewModel.updateAnalysisResponse(analysisResponse)
                 refreshItemOrdering()
+                didStreamResults = didStreamResults || isStreamingResults
+                showAnalysisCompletionMessage = false
                 scheduleRowPreparation(forceFullPreparation: !isStreamingResults)
             }
         }
@@ -149,6 +153,10 @@ struct VideoItemSelectionListView: View {
                         .id("streaming-skeleton-top")
                         .disabled(true)
                         .transition(insertionTransition)
+                    } else if showAnalysisCompletionMessage {
+                        VideoAnalysisCompletedBanner()
+                            .id("streaming-complete-banner")
+                            .transition(insertionTransition)
                     }
 
                     ForEach(orderedDetectedItemGroups) { group in
@@ -204,9 +212,12 @@ struct VideoItemSelectionListView: View {
             scheduleRowPreparation(forceFullPreparation: !isStreamingResults)
         }
         .onChange(of: isStreamingResults) {
+            didStreamResults = didStreamResults || isStreamingResults
             if !isStreamingResults {
+                showAnalysisCompletionMessage = didStreamResults
                 scheduleRowPreparation(forceFullPreparation: true)
             } else {
+                showAnalysisCompletionMessage = false
                 scheduleRowPreparation(forceFullPreparation: false)
             }
         }
@@ -675,6 +686,36 @@ private struct VideoDetectedItemListCard: View {
         } else {
             return .red
         }
+    }
+}
+
+private struct VideoAnalysisCompletedBanner: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.title3)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Video analysis complete")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text("Review the list for potential duplicates before adding items.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.green.opacity(0.25), lineWidth: 1)
+        )
     }
 }
 
