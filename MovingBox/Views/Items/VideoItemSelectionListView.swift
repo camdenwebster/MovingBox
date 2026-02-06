@@ -158,7 +158,7 @@ struct VideoItemSelectionListView: View {
                                 item: item,
                                 isSelected: viewModel.isItemSelected(item),
                                 matchedLabel: viewModel.getMatchingLabel(for: item),
-                                thumbnail: viewModel.primaryImage(for: item),
+                                thumbnail: viewModel.rowThumbnail(for: item),
                                 duplicateGroupHint: viewModel.duplicateHint(for: item),
                                 isSkeleton: false,
                                 onToggleSelection: {
@@ -216,7 +216,7 @@ struct VideoItemSelectionListView: View {
             }
         }
         .onDisappear {
-            viewModel.cancelEnrichment()
+            viewModel.releaseTemporaryImageMemory(clearSourceImages: true)
         }
     }
 

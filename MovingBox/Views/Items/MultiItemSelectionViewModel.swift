@@ -92,6 +92,9 @@ final class MultiItemSelectionViewModel {
     /// Cropped secondary images keyed by item ID
     var croppedSecondaryImages: [String: [UIImage]] = [:]
 
+    /// Lightweight in-memory thumbnails for list row rendering keyed by item ID.
+    private var rowThumbnails: [String: UIImage] = [:]
+
     /// Whether cropped images have been computed
     var hasCroppedImages: Bool = false
 
@@ -124,6 +127,7 @@ final class MultiItemSelectionViewModel {
     private let lowConfidenceCropThreshold: Double = 0.75
     private let minimumDetectionAreaFraction: Double = 0.01
     private let maxCroppedImagesPerItem = 4
+    private let rowThumbnailMaxDimension: CGFloat = 144
     private let lowQualityTitlePhrases: [String] = [
         "indistinguishable",
         "indistinguisable",
@@ -226,6 +230,7 @@ final class MultiItemSelectionViewModel {
         images = newImages
         croppedPrimaryImages.removeAll()
         croppedSecondaryImages.removeAll()
+        rowThumbnails.removeAll()
         hasCroppedImages = false
     }
 
@@ -245,6 +250,7 @@ final class MultiItemSelectionViewModel {
         selectedItems = selectedItems.intersection(validIDs)
         croppedPrimaryImages = croppedPrimaryImages.filter { validIDs.contains($0.key) }
         croppedSecondaryImages = croppedSecondaryImages.filter { validIDs.contains($0.key) }
+        rowThumbnails = rowThumbnails.filter { validIDs.contains($0.key) }
         enrichedDetails = enrichedDetails.filter { validIDs.contains($0.key) }
 
         if currentCardIndex >= detectedItems.count {
@@ -277,6 +283,12 @@ final class MultiItemSelectionViewModel {
 
             if let bestPrimary = curated.first {
                 croppedPrimaryImages[item.id] = bestPrimary
+                if rowThumbnails[item.id] == nil {
+                    rowThumbnails[item.id] = RowThumbnailFactory.make(
+                        from: bestPrimary,
+                        maxDimension: rowThumbnailMaxDimension
+                    )
+                }
             }
 
             let curatedSecondary = Array(curated.dropFirst())
@@ -299,6 +311,26 @@ final class MultiItemSelectionViewModel {
         guard images.count <= 1 else { return nil }
 
         return images.first
+    }
+
+    /// Get a memory-efficient thumbnail for list rows.
+    /// Never persists thumbnails to disk for transient/unsaved items.
+    func rowThumbnail(for item: DetectedInventoryItem) -> UIImage? {
+        if let thumbnail = rowThumbnails[item.id] {
+            return thumbnail
+        }
+
+        if let primary = croppedPrimaryImages[item.id] {
+            let thumbnail = RowThumbnailFactory.make(from: primary, maxDimension: rowThumbnailMaxDimension)
+            rowThumbnails[item.id] = thumbnail
+            return thumbnail
+        }
+
+        guard images.count <= 1, let firstImage = images.first else { return nil }
+
+        let thumbnail = RowThumbnailFactory.make(from: firstImage, maxDimension: rowThumbnailMaxDimension)
+        rowThumbnails[item.id] = thumbnail
+        return thumbnail
     }
 
     // MARK: - Pass 2 Enrichment
@@ -374,6 +406,21 @@ final class MultiItemSelectionViewModel {
         enrichmentTask = nil
         isEnriching = false
         enrichmentFinished = false
+    }
+
+    /// Release temporary in-memory image buffers used during selection.
+    /// This does not touch persisted item images/thumbnails on disk.
+    func releaseTemporaryImageMemory(clearSourceImages: Bool = false) {
+        cancelEnrichment()
+        croppedPrimaryImages.removeAll()
+        croppedSecondaryImages.removeAll()
+        rowThumbnails.removeAll()
+        enrichedDetails.removeAll()
+        hasCroppedImages = false
+
+        if clearSourceImages {
+            images.removeAll(keepingCapacity: false)
+        }
     }
 
     // MARK: - Location Management
@@ -484,6 +531,9 @@ final class MultiItemSelectionViewModel {
 
             // Save all items to context
             try modelContext.save()
+
+            // Clear temporary in-memory buffers once items are persisted.
+            releaseTemporaryImageMemory(clearSourceImages: true)
 
             // Reset processing flag on success
             isProcessingSelection = false
@@ -927,6 +977,33 @@ extension DetectedInventoryItem {
     /// Whether this item has basic required information
     var hasMinimumData: Bool {
         !title.isEmpty && !category.isEmpty
+    }
+}
+
+private enum RowThumbnailFactory {
+    static func make(from image: UIImage, maxDimension: CGFloat) -> UIImage {
+        guard maxDimension > 0 else { return image }
+
+        let originalSize = image.size
+        guard originalSize.width > 0, originalSize.height > 0 else { return image }
+
+        let widthScale = maxDimension / originalSize.width
+        let heightScale = maxDimension / originalSize.height
+        let scale = min(1.0, min(widthScale, heightScale))
+        guard scale < 1.0 else { return image }
+
+        let targetSize = CGSize(
+            width: max(1, floor(originalSize.width * scale)),
+            height: max(1, floor(originalSize.height * scale))
+        )
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+
+        return UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
     }
 }
 
