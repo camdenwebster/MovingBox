@@ -26,6 +26,7 @@ struct VideoItemSelectionListView: View {
     @State private var isPreparingRows = true
     @State private var itemDisplayOrder: [String] = []
     @State private var knownDetectedItemIDs: Set<String> = []
+    @State private var rowPreparationTask: Task<Void, Never>?
 
     private let selectionHaptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -103,6 +104,7 @@ struct VideoItemSelectionListView: View {
                 viewModel.settingsManager = settingsManager
                 viewModel.updateAnalysisResponse(analysisResponse)
                 refreshItemOrdering()
+                scheduleRowPreparation(forceFullPreparation: !isStreamingResults)
             }
         }
     }
@@ -141,11 +143,12 @@ struct VideoItemSelectionListView: View {
                             thumbnail: nil,
                             duplicateGroupHint: nil,
                             isSkeleton: true,
+                            useSimplifiedRendering: true,
                             onToggleSelection: {}
                         )
                         .id("streaming-skeleton-top")
                         .disabled(true)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(insertionTransition)
                     }
 
                     ForEach(orderedDetectedItemGroups) { group in
@@ -161,6 +164,7 @@ struct VideoItemSelectionListView: View {
                                 thumbnail: viewModel.rowThumbnail(for: item),
                                 duplicateGroupHint: viewModel.duplicateHint(for: item),
                                 isSkeleton: false,
+                                useSimplifiedRendering: isPerformanceModeEnabled,
                                 onToggleSelection: {
                                     selectionHaptic.impactOccurred()
                                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -168,15 +172,15 @@ struct VideoItemSelectionListView: View {
                                     }
                                 }
                             )
-                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .transition(insertionTransition)
                         }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 12)
-                .animation(.spring(response: 0.35, dampingFraction: 0.86), value: itemDisplayOrder)
-                .animation(.easeInOut(duration: 0.2), value: isStreamingResults)
+                .animation(listMutationAnimation, value: itemDisplayOrder)
+                .animation(isPerformanceModeEnabled ? nil : .easeInOut(duration: 0.2), value: isStreamingResults)
             }
 
             selectionSummaryView
@@ -188,34 +192,29 @@ struct VideoItemSelectionListView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 10)
         }
-        .task {
-            await prepareRows()
-        }
         .onChange(of: images.count) {
-            Task {
+            Task { @MainActor in
                 await viewModel.updateImages(images)
-                await prepareRows()
+                scheduleRowPreparation(forceFullPreparation: !isStreamingResults)
             }
         }
-        .onChange(of: analysisResponse.detectedCount) {
+        .onChange(of: analysisResponseSignature) {
             viewModel.updateAnalysisResponse(analysisResponse)
             refreshItemOrdering()
-            Task {
-                await prepareRows()
+            if !isStreamingResults {
+                scheduleRowPreparation(forceFullPreparation: true)
             }
-        }
-        .onChange(of: analysisResponse.safeItems.map(\.id).joined(separator: "|")) {
-            viewModel.updateAnalysisResponse(analysisResponse)
-            refreshItemOrdering()
         }
         .onChange(of: isStreamingResults) {
             if !isStreamingResults {
-                Task {
-                    await prepareRows()
-                }
+                scheduleRowPreparation(forceFullPreparation: true)
+            } else {
+                scheduleRowPreparation(forceFullPreparation: false)
             }
         }
         .onDisappear {
+            rowPreparationTask?.cancel()
+            rowPreparationTask = nil
             viewModel.releaseTemporaryImageMemory(clearSourceImages: true)
         }
     }
@@ -410,12 +409,52 @@ struct VideoItemSelectionListView: View {
         }
 
         isPreparingRows = true
-        let prewarmCount = min(10, viewModel.detectedItems.count)
+        let prewarmCount = min(6, viewModel.detectedItems.count)
         await viewModel.computeCroppedImages(limit: prewarmCount)
+        guard !Task.isCancelled else {
+            isPreparingRows = false
+            return
+        }
         isPreparingRows = false
 
         await viewModel.computeCroppedImages()
+        guard !Task.isCancelled else { return }
         viewModel.startEnrichment(settings: settingsManager)
+    }
+
+    @MainActor
+    private func scheduleRowPreparation(forceFullPreparation: Bool) {
+        rowPreparationTask?.cancel()
+        rowPreparationTask = nil
+
+        guard forceFullPreparation else {
+            isPreparingRows = false
+            return
+        }
+
+        rowPreparationTask = Task { @MainActor in
+            await prepareRows()
+        }
+    }
+
+    private var analysisResponseSignature: String {
+        analysisResponse.safeItems
+            .map {
+                "\($0.id)|\($0.title)|\($0.category)|\($0.make)|\($0.model)|\($0.confidence)"
+            }
+            .joined(separator: "||")
+    }
+
+    private var isPerformanceModeEnabled: Bool {
+        isStreamingResults || viewModel.detectedItems.count > 12
+    }
+
+    private var listMutationAnimation: Animation? {
+        isPerformanceModeEnabled ? nil : .spring(response: 0.35, dampingFraction: 0.86)
+    }
+
+    private var insertionTransition: AnyTransition {
+        isPerformanceModeEnabled ? .identity : .move(edge: .top).combined(with: .opacity)
     }
 
     private var itemRankLookup: [String: Int] {
@@ -500,6 +539,7 @@ private struct VideoDetectedItemListCard: View {
     let thumbnail: UIImage?
     let duplicateGroupHint: String?
     let isSkeleton: Bool
+    let useSimplifiedRendering: Bool
     let onToggleSelection: () -> Void
 
     var body: some View {
@@ -567,16 +607,19 @@ private struct VideoDetectedItemListCard: View {
                 Spacer(minLength: 0)
             }
             .padding(12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(useSimplifiedRendering ? Color(.secondarySystemBackground) : Color(.systemBackground))
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(isSelected ? Color.blue : Color(.systemGray5), lineWidth: isSelected ? 2 : 1)
-                    .animation(.easeInOut(duration: 0.2), value: isSelected)
+                    .animation(useSimplifiedRendering ? nil : .easeInOut(duration: 0.2), value: isSelected)
             )
         }
         .buttonStyle(.plain)
-        .scaleEffect(isSelected ? 1.01 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .scaleEffect(useSimplifiedRendering ? 1.0 : (isSelected ? 1.01 : 1.0))
+        .animation(useSimplifiedRendering ? nil : .easeInOut(duration: 0.2), value: isSelected)
         .redacted(reason: isSkeleton ? .placeholder : [])
         .modifier(ShimmerModifier(isActive: isSkeleton))
     }

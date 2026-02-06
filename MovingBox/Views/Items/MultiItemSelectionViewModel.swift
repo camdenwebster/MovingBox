@@ -115,6 +115,11 @@ final class MultiItemSelectionViewModel {
     /// Background enrichment task
     private var enrichmentTask: Task<Void, Never>?
 
+    /// Cached duplicate grouping and label matching to avoid repeated expensive recomputation per row render.
+    private var duplicateLookupCache: [String: DuplicateGroup] = [:]
+    private var matchingLabelCache: [String: InventoryLabel?] = [:]
+    private var availableLabelsCache: [InventoryLabel] = []
+
     struct DetectedItemDisplayGroup: Identifiable {
         let id: String
         let items: [DetectedInventoryItem]
@@ -151,12 +156,11 @@ final class MultiItemSelectionViewModel {
         let items = detectedItems
         guard !items.isEmpty else { return [] }
 
-        let duplicateLookup = duplicateGroupLookup(for: items)
         var emittedGroupIDs = Set<String>()
         var groups: [DetectedItemDisplayGroup] = []
 
         for item in items {
-            if let duplicateGroup = duplicateLookup[item.id] {
+            if let duplicateGroup = duplicateLookupCache[item.id] {
                 guard !emittedGroupIDs.contains(duplicateGroup.id) else { continue }
                 emittedGroupIDs.insert(duplicateGroup.id)
                 groups.append(
@@ -221,6 +225,7 @@ final class MultiItemSelectionViewModel {
         self.location = location
         self.modelContext = modelContext
         self.aiAnalysisService = aiAnalysisService
+        refreshDisplayCaches()
     }
 
     // MARK: - Bounding Box Cropping
@@ -231,7 +236,10 @@ final class MultiItemSelectionViewModel {
         croppedPrimaryImages.removeAll()
         croppedSecondaryImages.removeAll()
         rowThumbnails.removeAll()
+        duplicateLookupCache.removeAll()
+        matchingLabelCache.removeAll()
         hasCroppedImages = false
+        refreshDisplayCaches()
     }
 
     func updateAnalysisResponse(_ response: MultiItemAnalysisResponse) {
@@ -252,6 +260,10 @@ final class MultiItemSelectionViewModel {
         croppedSecondaryImages = croppedSecondaryImages.filter { validIDs.contains($0.key) }
         rowThumbnails = rowThumbnails.filter { validIDs.contains($0.key) }
         enrichedDetails = enrichedDetails.filter { validIDs.contains($0.key) }
+        matchingLabelCache = matchingLabelCache.filter { validIDs.contains($0.key) }
+        duplicateLookupCache = duplicateLookupCache.filter { validIDs.contains($0.key) }
+
+        refreshDisplayCaches()
 
         if currentCardIndex >= detectedItems.count {
             currentCardIndex = max(0, detectedItems.count - 1)
@@ -262,12 +274,14 @@ final class MultiItemSelectionViewModel {
     /// If a limit is provided, only compute the first N items without marking as complete.
     func computeCroppedImages(limit: Int? = nil) async {
         if hasCroppedImages, limit == nil { return }
+        if Task.isCancelled { return }
 
         let items = detectedItems
         guard !items.isEmpty else { return }
 
         let maxCount = limit.map { min($0, items.count) } ?? items.count
         for (index, item) in items.enumerated() where index < maxCount {
+            if Task.isCancelled { return }
             if croppedPrimaryImages[item.id] != nil { continue }
             let (primary, secondary) = await BoundingBoxCropper.cropDetections(for: item, from: images)
 
@@ -275,30 +289,60 @@ final class MultiItemSelectionViewModel {
             if let primary { candidates.append(primary) }
             candidates.append(contentsOf: secondary)
 
-            let curated = ImageQualityCurator.curate(
-                candidates,
-                keepAtMost: maxCroppedImagesPerItem,
-                ensureAtLeast: 1
-            )
+            let curatedPayload = await curateCandidatesForDisplay(candidates)
 
-            if let bestPrimary = curated.first {
+            if let bestPrimary = curatedPayload.primary {
                 croppedPrimaryImages[item.id] = bestPrimary
-                if rowThumbnails[item.id] == nil {
-                    rowThumbnails[item.id] = RowThumbnailFactory.make(
-                        from: bestPrimary,
-                        maxDimension: rowThumbnailMaxDimension
-                    )
+                if rowThumbnails[item.id] == nil, let thumbnail = curatedPayload.rowThumbnail {
+                    rowThumbnails[item.id] = thumbnail
                 }
             }
 
-            let curatedSecondary = Array(curated.dropFirst())
-            if !curatedSecondary.isEmpty {
-                croppedSecondaryImages[item.id] = curatedSecondary
+            if !curatedPayload.secondary.isEmpty {
+                croppedSecondaryImages[item.id] = curatedPayload.secondary
+            }
+
+            if index % 2 == 0 {
+                await Task.yield()
             }
         }
 
         if limit == nil {
             hasCroppedImages = true
+        }
+    }
+
+    private struct CuratedImagePayload {
+        let primary: UIImage?
+        let secondary: [UIImage]
+        let rowThumbnail: UIImage?
+    }
+
+    private func curateCandidatesForDisplay(_ candidates: [UIImage]) async -> CuratedImagePayload {
+        guard !candidates.isEmpty else {
+            return CuratedImagePayload(primary: nil, secondary: [], rowThumbnail: nil)
+        }
+
+        let keepAtMost = maxCroppedImagesPerItem
+        let thumbnailMaxDimension = rowThumbnailMaxDimension
+
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let payload = autoreleasepool { () -> CuratedImagePayload in
+                    let curated = ImageQualityCurator.curate(
+                        candidates,
+                        keepAtMost: keepAtMost,
+                        ensureAtLeast: 1
+                    )
+                    let primary = curated.first
+                    let secondary = Array(curated.dropFirst())
+                    let thumbnail = primary.map {
+                        RowThumbnailFactory.make(from: $0, maxDimension: thumbnailMaxDimension)
+                    }
+                    return CuratedImagePayload(primary: primary, secondary: secondary, rowThumbnail: thumbnail)
+                }
+                continuation.resume(returning: payload)
+            }
         }
     }
 
@@ -416,6 +460,9 @@ final class MultiItemSelectionViewModel {
         croppedSecondaryImages.removeAll()
         rowThumbnails.removeAll()
         enrichedDetails.removeAll()
+        duplicateLookupCache.removeAll()
+        matchingLabelCache.removeAll()
+        availableLabelsCache.removeAll()
         hasCroppedImages = false
 
         if clearSourceImages {
@@ -498,6 +545,7 @@ final class MultiItemSelectionViewModel {
 
         // Fetch existing labels to match against categories
         var existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+        availableLabelsCache = existingLabels
 
         var createdItems: [InventoryItem] = []
         let selectedDetectedItems = detectedItems.filter { selectedItems.contains($0.id) }
@@ -713,13 +761,11 @@ final class MultiItemSelectionViewModel {
 
     /// Get the label that would be matched for a detected item (for preview in card)
     func getMatchingLabel(for item: DetectedInventoryItem) -> InventoryLabel? {
-        let existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-        return matchingLabels(for: item.category, in: existingLabels).first
+        matchingLabelCache[item.id] ?? nil
     }
 
     func duplicateHint(for item: DetectedInventoryItem) -> String? {
-        let lookup = duplicateGroupLookup(for: detectedItems)
-        guard let group = lookup[item.id], group.items.count > 1 else { return nil }
+        guard let group = duplicateLookupCache[item.id], group.items.count > 1 else { return nil }
         return "Potential duplicate (\(group.items.count) similar)"
     }
 
@@ -835,6 +881,24 @@ final class MultiItemSelectionViewModel {
         }
 
         return lookup
+    }
+
+    private func refreshDisplayCaches() {
+        let items = detectedItems
+        duplicateLookupCache = duplicateGroupLookup(for: items)
+
+        if availableLabelsCache.isEmpty {
+            availableLabelsCache = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+        }
+
+        var updatedLabelCache: [String: InventoryLabel?] = [:]
+        for item in items {
+            updatedLabelCache[item.id] = matchingLabels(
+                for: item.category,
+                in: availableLabelsCache
+            ).first
+        }
+        matchingLabelCache = updatedLabelCache
     }
 
     private func isPotentialDuplicate(_ lhs: DetectedInventoryItem, _ rhs: DetectedInventoryItem) -> Bool {
