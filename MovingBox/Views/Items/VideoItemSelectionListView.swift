@@ -24,6 +24,8 @@ struct VideoItemSelectionListView: View {
     @State private var selectedHome: Home?
     @State private var showingLocationPicker = false
     @State private var isPreparingRows = true
+    @State private var itemDisplayOrder: [String] = []
+    @State private var knownDetectedItemIDs: Set<String> = []
 
     private let selectionHaptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -100,6 +102,7 @@ struct VideoItemSelectionListView: View {
             .onAppear {
                 viewModel.settingsManager = settingsManager
                 viewModel.updateAnalysisResponse(analysisResponse)
+                refreshItemOrdering()
             }
         }
     }
@@ -130,12 +133,27 @@ struct VideoItemSelectionListView: View {
 
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(viewModel.detectedItemGroups) { group in
+                    if isStreamingResults {
+                        VideoDetectedItemListCard(
+                            item: placeholderItem,
+                            isSelected: false,
+                            matchedLabel: nil,
+                            thumbnail: nil,
+                            duplicateGroupHint: nil,
+                            isSkeleton: true,
+                            onToggleSelection: {}
+                        )
+                        .id("streaming-skeleton-top")
+                        .disabled(true)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
+                    ForEach(orderedDetectedItemGroups) { group in
                         if group.isPotentialDuplicateGroup {
                             duplicateGroupHeader(itemCount: group.items.count)
                         }
 
-                        ForEach(group.items) { item in
+                        ForEach(orderedItems(in: group)) { item in
                             VideoDetectedItemListCard(
                                 item: item,
                                 isSelected: viewModel.isItemSelected(item),
@@ -150,27 +168,15 @@ struct VideoItemSelectionListView: View {
                                     }
                                 }
                             )
-                        }
-                    }
-
-                    if isStreamingResults {
-                        ForEach(0..<3, id: \.self) { _ in
-                            VideoDetectedItemListCard(
-                                item: placeholderItem,
-                                isSelected: false,
-                                matchedLabel: nil,
-                                thumbnail: nil,
-                                duplicateGroupHint: nil,
-                                isSkeleton: true,
-                                onToggleSelection: {}
-                            )
-                            .disabled(true)
+                            .transition(.move(edge: .top).combined(with: .opacity))
                         }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 12)
+                .animation(.spring(response: 0.35, dampingFraction: 0.86), value: itemDisplayOrder)
+                .animation(.easeInOut(duration: 0.2), value: isStreamingResults)
             }
 
             selectionSummaryView
@@ -193,9 +199,14 @@ struct VideoItemSelectionListView: View {
         }
         .onChange(of: analysisResponse.detectedCount) {
             viewModel.updateAnalysisResponse(analysisResponse)
+            refreshItemOrdering()
             Task {
                 await prepareRows()
             }
+        }
+        .onChange(of: analysisResponse.safeItems.map(\.id).joined(separator: "|")) {
+            viewModel.updateAnalysisResponse(analysisResponse)
+            refreshItemOrdering()
         }
         .onChange(of: isStreamingResults) {
             if !isStreamingResults {
@@ -405,6 +416,66 @@ struct VideoItemSelectionListView: View {
 
         await viewModel.computeCroppedImages()
         viewModel.startEnrichment(settings: settingsManager)
+    }
+
+    private var itemRankLookup: [String: Int] {
+        var ranks: [String: Int] = [:]
+        for (index, id) in itemDisplayOrder.enumerated() {
+            ranks[id] = index
+        }
+
+        var nextRank = itemDisplayOrder.count
+        for item in viewModel.detectedItems where ranks[item.id] == nil {
+            ranks[item.id] = nextRank
+            nextRank += 1
+        }
+        return ranks
+    }
+
+    private var orderedDetectedItemGroups: [MultiItemSelectionViewModel.DetectedItemDisplayGroup] {
+        let ranks = itemRankLookup
+        return viewModel.detectedItemGroups.sorted { lhs, rhs in
+            groupRank(lhs, using: ranks) < groupRank(rhs, using: ranks)
+        }
+    }
+
+    private func orderedItems(in group: MultiItemSelectionViewModel.DetectedItemDisplayGroup) -> [DetectedInventoryItem] {
+        let ranks = itemRankLookup
+        return group.items.sorted { lhs, rhs in
+            (ranks[lhs.id] ?? Int.max) < (ranks[rhs.id] ?? Int.max)
+        }
+    }
+
+    private func groupRank(
+        _ group: MultiItemSelectionViewModel.DetectedItemDisplayGroup,
+        using ranks: [String: Int]
+    ) -> Int {
+        group.items.map { ranks[$0.id] ?? Int.max }.min() ?? Int.max
+    }
+
+    private func refreshItemOrdering() {
+        let currentIDs = viewModel.detectedItems.map(\.id)
+        let currentIDSet = Set(currentIDs)
+
+        if itemDisplayOrder.isEmpty {
+            itemDisplayOrder = currentIDs
+            knownDetectedItemIDs = currentIDSet
+            return
+        }
+
+        let newIDs = currentIDs.filter { !knownDetectedItemIDs.contains($0) }
+        itemDisplayOrder.removeAll { !currentIDSet.contains($0) }
+
+        if !newIDs.isEmpty {
+            itemDisplayOrder = newIDs + itemDisplayOrder
+        }
+
+        let missingIDs = currentIDs.filter { !itemDisplayOrder.contains($0) }
+        if !missingIDs.isEmpty {
+            itemDisplayOrder.append(contentsOf: missingIDs)
+        }
+
+        knownDetectedItemIDs = currentIDSet
     }
 
     private func handleContinue() {
