@@ -11,6 +11,9 @@ struct VideoItemSelectionListView: View {
     @EnvironmentObject var settingsManager: SettingsManager
 
     let images: [UIImage]
+    let analysisResponse: MultiItemAnalysisResponse
+    let isStreamingResults: Bool
+    let streamingStatusText: String?
     let onItemsSelected: ([InventoryItem]) -> Void
     let onCancel: () -> Void
     let onReanalyze: (() -> Void)?
@@ -32,6 +35,8 @@ struct VideoItemSelectionListView: View {
         location: InventoryLocation?,
         modelContext: ModelContext,
         aiAnalysisService: AIAnalysisServiceProtocol? = nil,
+        isStreamingResults: Bool = false,
+        streamingStatusText: String? = nil,
         onItemsSelected: @escaping ([InventoryItem]) -> Void,
         onCancel: @escaping () -> Void,
         onReanalyze: (() -> Void)? = nil
@@ -45,6 +50,9 @@ struct VideoItemSelectionListView: View {
         )
         self._viewModel = State(initialValue: viewModel)
         self.images = images
+        self.analysisResponse = analysisResponse
+        self.isStreamingResults = isStreamingResults
+        self.streamingStatusText = streamingStatusText
         self.onItemsSelected = onItemsSelected
         self.onCancel = onCancel
         self.onReanalyze = onReanalyze
@@ -91,12 +99,24 @@ struct VideoItemSelectionListView: View {
             }
             .onAppear {
                 viewModel.settingsManager = settingsManager
+                viewModel.updateAnalysisResponse(analysisResponse)
             }
         }
     }
 
     private var mainContentView: some View {
         VStack(spacing: 0) {
+            if isStreamingResults {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text(streamingStatusText ?? "Analyzing more frames...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
+            }
+
             if isPreparingRows {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -110,19 +130,42 @@ struct VideoItemSelectionListView: View {
 
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(Array(viewModel.detectedItems.enumerated()), id: \.offset) { _, item in
-                        VideoDetectedItemListCard(
-                            item: item,
-                            isSelected: viewModel.isItemSelected(item),
-                            matchedLabel: viewModel.getMatchingLabel(for: item),
-                            thumbnail: viewModel.primaryImage(for: item),
-                            onToggleSelection: {
-                                selectionHaptic.impactOccurred()
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    viewModel.toggleItemSelection(item)
+                    ForEach(viewModel.detectedItemGroups) { group in
+                        if group.isPotentialDuplicateGroup {
+                            duplicateGroupHeader(itemCount: group.items.count)
+                        }
+
+                        ForEach(group.items) { item in
+                            VideoDetectedItemListCard(
+                                item: item,
+                                isSelected: viewModel.isItemSelected(item),
+                                matchedLabel: viewModel.getMatchingLabel(for: item),
+                                thumbnail: viewModel.primaryImage(for: item),
+                                duplicateGroupHint: viewModel.duplicateHint(for: item),
+                                isSkeleton: false,
+                                onToggleSelection: {
+                                    selectionHaptic.impactOccurred()
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        viewModel.toggleItemSelection(item)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
+                    }
+
+                    if isStreamingResults {
+                        ForEach(0..<3, id: \.self) { _ in
+                            VideoDetectedItemListCard(
+                                item: placeholderItem,
+                                isSelected: false,
+                                matchedLabel: nil,
+                                thumbnail: nil,
+                                duplicateGroupHint: nil,
+                                isSkeleton: true,
+                                onToggleSelection: {}
+                            )
+                            .disabled(true)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -135,7 +178,7 @@ struct VideoItemSelectionListView: View {
 
             continueButton
                 .backport.glassProminentButtonStyle()
-                .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection)
+                .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection || isStreamingResults)
                 .padding(.horizontal)
                 .padding(.bottom, 10)
         }
@@ -146,6 +189,19 @@ struct VideoItemSelectionListView: View {
             Task {
                 await viewModel.updateImages(images)
                 await prepareRows()
+            }
+        }
+        .onChange(of: analysisResponse.detectedCount) {
+            viewModel.updateAnalysisResponse(analysisResponse)
+            Task {
+                await prepareRows()
+            }
+        }
+        .onChange(of: isStreamingResults) {
+            if !isStreamingResults {
+                Task {
+                    await prepareRows()
+                }
             }
         }
         .onDisappear {
@@ -179,6 +235,34 @@ struct VideoItemSelectionListView: View {
         .padding(.horizontal, 32)
     }
 
+    @ViewBuilder
+    private func duplicateGroupHeader(itemCount: Int) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "link")
+                .font(.caption)
+            Text("Potential duplicates (\(itemCount))")
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .foregroundStyle(.orange)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .padding(.top, 6)
+    }
+
+    private var placeholderItem: DetectedInventoryItem {
+        DetectedInventoryItem(
+            id: "placeholder",
+            title: "Analyzing item...",
+            description: "Getting details from additional frames.",
+            category: "",
+            make: "",
+            model: "",
+            estimatedPrice: "",
+            confidence: 0.0
+        )
+    }
+
     private var selectionSummaryView: some View {
         VStack(spacing: 16) {
             HStack {
@@ -207,6 +291,12 @@ struct VideoItemSelectionListView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+
+                    if isStreamingResults {
+                        Text("More items may still appear while analysis completes.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -284,10 +374,15 @@ struct VideoItemSelectionListView: View {
                 if viewModel.isProcessingSelection {
                     ProgressView()
                 } else {
-                    Text(
-                        "Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")"
-                    )
-                    .font(.headline)
+                    if isStreamingResults {
+                        Text("Finalizing analysis...")
+                            .font(.headline)
+                    } else {
+                        Text(
+                            "Add \(viewModel.selectedItemsCount) Item\(viewModel.selectedItemsCount == 1 ? "" : "s")"
+                        )
+                        .font(.headline)
+                    }
                 }
                 Spacer()
             }
@@ -332,6 +427,8 @@ private struct VideoDetectedItemListCard: View {
     let isSelected: Bool
     let matchedLabel: InventoryLabel?
     let thumbnail: UIImage?
+    let duplicateGroupHint: String?
+    let isSkeleton: Bool
     let onToggleSelection: () -> Void
 
     var body: some View {
@@ -355,6 +452,13 @@ private struct VideoDetectedItemListCard: View {
                         Label(matchedLabel.name, systemImage: "tag")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    if let duplicateGroupHint {
+                        Label(duplicateGroupHint, systemImage: "person.2.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
                             .lineLimit(1)
                     }
 
@@ -402,6 +506,8 @@ private struct VideoDetectedItemListCard: View {
         .buttonStyle(.plain)
         .scaleEffect(isSelected ? 1.01 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .redacted(reason: isSkeleton ? .placeholder : [])
+        .modifier(ShimmerModifier(isActive: isSkeleton))
     }
 
     private var thumbnailView: some View {
@@ -445,5 +551,46 @@ private struct VideoDetectedItemListCard: View {
         } else {
             return .red
         }
+    }
+}
+
+private struct ShimmerModifier: ViewModifier {
+    let isActive: Bool
+    @State private var phase: CGFloat = -0.8
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isActive {
+                    GeometryReader { geometry in
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.0),
+                                Color.white.opacity(0.45),
+                                Color.white.opacity(0.0),
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: geometry.size.width * 0.8)
+                        .offset(x: geometry.size.width * phase)
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+            .onAppear {
+                guard isActive else { return }
+                withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+                    phase = 1.2
+                }
+            }
+            .onChange(of: isActive) {
+                if isActive {
+                    phase = -0.8
+                    withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+                        phase = 1.2
+                    }
+                }
+            }
     }
 }

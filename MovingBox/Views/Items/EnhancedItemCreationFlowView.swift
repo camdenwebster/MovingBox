@@ -268,6 +268,8 @@ struct EnhancedItemCreationFlowView: View {
                         location: location,
                         modelContext: modelContext,
                         aiAnalysisService: AIAnalysisServiceFactory.create(),
+                        isStreamingResults: viewModel.isVideoAnalysisStreaming,
+                        streamingStatusText: viewModel.videoStreamingStatusText,
                         onItemsSelected: { items in
                             viewModel.handleMultiItemSelection(items)
                         },

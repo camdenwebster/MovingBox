@@ -73,6 +73,15 @@ class ItemCreationFlowViewModel: ObservableObject {
     /// Video processing progress updates
     @Published var videoProcessingProgress: VideoAnalysisProgress?
 
+    /// True while video batches are still being analyzed and merged.
+    @Published var isVideoAnalysisStreaming: Bool = false
+
+    /// Number of analyzed batches with results merged into the current streamed response.
+    @Published var streamedBatchCount: Int = 0
+
+    /// Total number of batches expected for the current video.
+    @Published var totalBatchCount: Int = 0
+
     /// Whether image processing is in progress
     @Published var processingImage: Bool = false
 
@@ -149,6 +158,14 @@ class ItemCreationFlowViewModel: ObservableObject {
     /// Progress percentage through the flow
     var progressPercentage: Double {
         Double(currentStepIndex) / Double(navigationFlow.count - 1)
+    }
+
+    var videoStreamingStatusText: String? {
+        guard isVideoAnalysisStreaming else { return nil }
+        if totalBatchCount > 0, streamedBatchCount > 0 {
+            return "Analyzing more frames (\(streamedBatchCount)/\(totalBatchCount))..."
+        }
+        return "Analyzing more frames..."
     }
 
     // MARK: - Initialization
@@ -329,6 +346,9 @@ class ItemCreationFlowViewModel: ObservableObject {
 
         processingImage = true
         videoProcessingProgress = VideoAnalysisProgress(phase: .extractingFrames, progress: 0.0, overallProgress: 0.0)
+        isVideoAnalysisStreaming = true
+        streamedBatchCount = 0
+        totalBatchCount = 0
 
         do {
             let response = try await videoAnalysisCoordinator.analyze(
@@ -346,6 +366,18 @@ class ItemCreationFlowViewModel: ObservableObject {
                         {
                             self.capturedImages = coordinator.extractedFrames.map { $0.image }
                         }
+
+                        if let coordinator = self.videoAnalysisCoordinator as? VideoAnalysisCoordinator {
+                            self.totalBatchCount = coordinator.totalBatchCount
+                            self.streamedBatchCount = coordinator.completedBatchCount
+
+                            if let streamedResponse = coordinator.progressiveMergedResponse {
+                                self.multiItemAnalysisResponse = streamedResponse
+                                if self.currentStep == .videoProcessing, !streamedResponse.safeItems.isEmpty {
+                                    self.goToStep(.multiItemSelection)
+                                }
+                            }
+                        }
                     }
                 }
             )
@@ -357,9 +389,13 @@ class ItemCreationFlowViewModel: ObservableObject {
             multiItemAnalysisResponse = response
             processingImage = false
             analysisComplete = true
-            goToStep(.multiItemSelection)
+            isVideoAnalysisStreaming = false
+            if currentStep == .videoProcessing {
+                goToStep(.multiItemSelection)
+            }
         } catch let error as VideoExtractionError {
             processingImage = false
+            isVideoAnalysisStreaming = false
             switch error {
             case .videoTooLong(let duration):
                 errorMessage = "Video is too long (\(Int(duration)) seconds). Please select a video under 3 minutes."
@@ -372,6 +408,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             }
         } catch {
             processingImage = false
+            isVideoAnalysisStreaming = false
             errorMessage = "Video processing failed: \(error.localizedDescription)"
         }
     }
@@ -776,6 +813,9 @@ class ItemCreationFlowViewModel: ObservableObject {
         videoAsset = nil
         videoURL = nil
         videoProcessingProgress = nil
+        isVideoAnalysisStreaming = false
+        streamedBatchCount = 0
+        totalBatchCount = 0
         processingImage = false
         analysisComplete = false
         errorMessage = nil
@@ -797,6 +837,9 @@ class ItemCreationFlowViewModel: ObservableObject {
         errorMessage = nil
         multiItemAnalysisResponse = nil
         videoProcessingProgress = nil
+        isVideoAnalysisStreaming = false
+        streamedBatchCount = 0
+        totalBatchCount = 0
         processingImage = false
         transitionId = UUID()
         pendingNotificationNavigation = false

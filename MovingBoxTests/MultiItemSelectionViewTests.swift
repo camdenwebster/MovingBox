@@ -295,6 +295,63 @@ import UIKit
         #expect(viewModel.selectedItemsCount == 3)
     }
 
+    @Test("ViewModel groups likely duplicates for display")
+    func testPotentialDuplicateGrouping() throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let groupedItems = [
+            DetectedInventoryItem(
+                id: "guitar-1",
+                title: "Fender Stratocaster Guitar",
+                description: "",
+                category: "Music",
+                make: "Fender",
+                model: "Stratocaster",
+                estimatedPrice: "$1200",
+                confidence: 0.9
+            ),
+            DetectedInventoryItem(
+                id: "guitar-2",
+                title: "Fender Stratocaster",
+                description: "",
+                category: "Music",
+                make: "Fender",
+                model: "Stratocaster",
+                estimatedPrice: "$1200",
+                confidence: 0.88
+            ),
+            DetectedInventoryItem(
+                id: "amp-1",
+                title: "Tube Amplifier",
+                description: "",
+                category: "Music",
+                make: "Marshall",
+                model: "JCM",
+                estimatedPrice: "$900",
+                confidence: 0.87
+            ),
+        ]
+
+        let response = MultiItemAnalysisResponse(
+            items: groupedItems,
+            detectedCount: groupedItems.count,
+            analysisType: "multi_item",
+            confidence: 0.9
+        )
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: response,
+            images: createTestImages(),
+            location: nil,
+            modelContext: context
+        )
+
+        let duplicateGroups = viewModel.detectedItemGroups.filter { $0.isPotentialDuplicateGroup }
+        #expect(duplicateGroups.count == 1)
+        #expect(duplicateGroups.first?.items.count == 2)
+    }
+
     @Test("ViewModel creates inventory items correctly")
     func testCreateInventoryItems() async throws {
         let container = try createTestContainer()

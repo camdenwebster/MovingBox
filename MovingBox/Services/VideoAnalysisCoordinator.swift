@@ -30,6 +30,9 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
     private let audioTranscriber: AudioTranscriberProtocol
 
     private(set) var extractedFrames: [TimestampedFrame] = []
+    private(set) var progressiveMergedResponse: MultiItemAnalysisResponse?
+    private(set) var totalBatchCount: Int = 0
+    private(set) var completedBatchCount: Int = 0
 
     init(
         frameExtractor: VideoFrameExtractorProtocol = VideoFrameExtractor(),
@@ -46,6 +49,9 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
         aiService: AIAnalysisServiceProtocol,
         onProgress: @escaping @Sendable (VideoAnalysisProgress) -> Void
     ) async throws -> MultiItemAnalysisResponse {
+        progressiveMergedResponse = nil
+        totalBatchCount = 0
+        completedBatchCount = 0
         await updateProgress(.extractingFrames, progress: 0.0, overall: 0.0, onProgress: onProgress)
 
         async let framesResult: [TimestampedFrame] = frameExtractor.extractFrames(
@@ -101,6 +107,7 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
 
         let batchSize = 5
         let totalBatches = Int(ceil(Double(frames.count) / Double(batchSize)))
+        totalBatchCount = totalBatches
         var batchResults: [(response: MultiItemAnalysisResponse, batchOffset: Int)] = []
         batchResults.reserveCapacity(totalBatches)
 
@@ -130,6 +137,15 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
             )
 
             batchResults.append((response: response, batchOffset: start))
+            completedBatchCount = batchIndex + 1
+            progressiveMergedResponse = VideoItemDeduplicator.deduplicate(batchResults: batchResults)
+
+            await updateProgress(
+                .analyzingBatch(current: batchIndex + 1, total: totalBatches),
+                progress: Double(batchIndex + 1) / Double(totalBatches),
+                overall: 0.55 + Double(batchIndex + 1) / Double(max(totalBatches, 1)) * 0.4,
+                onProgress: onProgress
+            )
         }
 
         await updateProgress(.deduplicating, progress: 0.2, overall: 0.95, onProgress: onProgress)
