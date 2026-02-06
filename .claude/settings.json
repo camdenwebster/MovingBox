@@ -37,7 +37,18 @@
       "WebFetch(domain:www.aiproxy.com)",
       "WebFetch(domain:github.com)",
       "WebSearch",
-      "Skill(commit-commands:commit)"
+      "Skill(commit-commands:commit)",
+      "Bash(ruby -e:*)",
+      "Skill(pfw-structured-queries)",
+      "Skill(pfw-sqlite-data)",
+      "Bash(xcodeproj show:*)",
+      "Bash(pip3 list:*)",
+      "Bash(xcresulttool get:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "WebFetch(domain:swiftpackageindex.com)",
+      "Bash(bd:*)",
+      "Bash(done)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": [
       "Bash(rm:*)"

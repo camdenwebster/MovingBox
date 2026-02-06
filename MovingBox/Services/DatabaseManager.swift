@@ -228,13 +228,18 @@ func appDatabase() throws -> any DatabaseWriter {
     var configuration = Configuration()
     configuration.foreignKeysEnabled = true
 
-    #if DEBUG
-        configuration.prepareDatabase { db in
+    configuration.prepareDatabase { db in
+        try db.attachMetadatabase()
+        #if DEBUG
             db.trace(options: .profile) {
+                guard
+                    !SyncEngine.isSynchronizing,
+                    !$0.expandedDescription.hasPrefix("--")
+                else { return }
                 logger.debug("\($0.expandedDescription)")
             }
-        }
-    #endif
+        #endif
+    }
 
     let database = try SQLiteData.defaultDatabase(configuration: configuration)
     logger.info("Opened database at '\(database.path)'")
