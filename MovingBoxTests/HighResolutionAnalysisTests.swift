@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftData
 import Testing
 import UIKit
 

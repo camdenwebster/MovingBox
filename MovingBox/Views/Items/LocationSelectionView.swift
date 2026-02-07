@@ -5,27 +5,30 @@
 //  Created by AI Assistant on 1/10/25.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct LocationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var settingsManager: SettingsManager
-    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var allLocations: [InventoryLocation]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    private var allLocations: [SQLiteInventoryLocation]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
 
-    @Binding var selectedLocation: InventoryLocation?
-    @Binding var selectedHome: Home?
-    @State private var pickedHome: Home?
+    @Binding var selectedLocation: SQLiteInventoryLocation?
+    @Binding var selectedHome: SQLiteHome?
+    @State private var pickedHome: SQLiteHome?
     @State private var searchText = ""
 
-    init(selectedLocation: Binding<InventoryLocation?>, selectedHome: Binding<Home?>) {
+    init(selectedLocation: Binding<SQLiteInventoryLocation?>, selectedHome: Binding<SQLiteHome?>) {
         self._selectedLocation = selectedLocation
         self._selectedHome = selectedHome
     }
 
-    private var activeHome: Home? {
+    private var activeHome: SQLiteHome? {
         guard let activeIdString = settingsManager.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         else {
@@ -34,14 +37,14 @@ struct LocationSelectionView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    private var locationsForPickedHome: [InventoryLocation] {
+    private var locationsForPickedHome: [SQLiteInventoryLocation] {
         guard let pickedHome = pickedHome else {
             return allLocations
         }
-        return allLocations.filter { $0.home?.id == pickedHome.id }
+        return allLocations.filter { $0.homeID == pickedHome.id }
     }
 
-    private var filteredLocations: [InventoryLocation] {
+    private var filteredLocations: [SQLiteInventoryLocation] {
         if searchText.isEmpty {
             return locationsForPickedHome
         }
@@ -58,7 +61,7 @@ struct LocationSelectionView: View {
                         Picker("Home", selection: $pickedHome) {
                             ForEach(homes) { home in
                                 Text(home.displayName)
-                                    .tag(home as Home?)
+                                    .tag(home as SQLiteHome?)
                             }
                         }
                         .accessibilityIdentifier("locationSelection-homePicker")
@@ -158,18 +161,28 @@ struct LocationSelectionView: View {
     }
 
     private func addNewLocation() {
-        let newLocation = InventoryLocation(name: "New Location", desc: "")
-        newLocation.home = pickedHome
-        modelContext.insert(newLocation)
-        selectedHome = pickedHome
-        selectedLocation = newLocation
-        dismiss()
+        let newID = UUID()
+        do {
+            try database.write { db in
+                try SQLiteInventoryLocation.insert {
+                    SQLiteInventoryLocation(id: newID, name: "New Location", homeID: pickedHome?.id)
+                }.execute(db)
+            }
+            selectedHome = pickedHome
+            selectedLocation = SQLiteInventoryLocation(id: newID, name: "New Location", homeID: pickedHome?.id)
+            dismiss()
+        } catch {
+            print("Failed to create new location: \(error)")
+        }
     }
 }
 
 #Preview {
-    @Previewable @State var location: InventoryLocation? = nil
-    @Previewable @State var home: Home? = nil
+    @Previewable @State var location: SQLiteInventoryLocation? = nil
+    @Previewable @State var home: SQLiteHome? = nil
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
     return LocationSelectionView(selectedLocation: $location, selectedHome: $home)
         .environmentObject(SettingsManager())
 }

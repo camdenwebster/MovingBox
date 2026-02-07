@@ -5,18 +5,41 @@
 //  Created by AI Assistant on 1/10/25.
 //
 
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct LocationStatisticsView: View {
-    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var allLocations: [InventoryLocation]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    private var allLocations: [SQLiteInventoryLocation]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
     @EnvironmentObject var router: Router
     @EnvironmentObject var settingsManager: SettingsManager
 
+    @State private var showingNewLocation = false
+
     private let row = GridItem(.fixed(160))
 
-    private var activeHome: Home? {
+    // Precomputed lookup for item counts/values per location
+    private var locationItemData: [UUID: (count: Int, value: Decimal)] {
+        var result: [UUID: (count: Int, value: Decimal)] = [:]
+        for item in allItems {
+            guard let locationID = item.locationID else { continue }
+            let price = item.price * Decimal(item.quantityInt)
+            if var existing = result[locationID] {
+                existing.count += 1
+                existing.value += price
+                result[locationID] = existing
+            } else {
+                result[locationID] = (count: 1, value: price)
+            }
+        }
+        return result
+    }
+
+    private var activeHome: SQLiteHome? {
         guard let activeIdString = settingsManager.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         else {
@@ -26,11 +49,11 @@ struct LocationStatisticsView: View {
     }
 
     // Filter locations by active home
-    private var locations: [InventoryLocation] {
+    private var locations: [SQLiteInventoryLocation] {
         guard let activeHome = activeHome else {
             return allLocations
         }
-        return allLocations.filter { $0.home?.id == activeHome.id }
+        return allLocations.filter { $0.homeID == activeHome.id }
     }
 
     var body: some View {
@@ -38,9 +61,14 @@ struct LocationStatisticsView: View {
             Button {
                 router.navigate(to: .locationsListView(showAllHomes: false))
             } label: {
-                DashboardSectionLabel(text: "Locations")
+                DashboardSectionLabel(text: "Locations") {
+                    showingNewLocation = true
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
             .accessibilityIdentifier("dashboard-locations-button")
 
             if locations.isEmpty {
@@ -50,7 +78,7 @@ struct LocationStatisticsView: View {
                     Text("Add locations to organize your items")
                 } actions: {
                     Button("Add a Location") {
-                        router.navigate(to: .editLocationView(location: nil))
+                        router.navigate(to: .editLocationView(locationID: nil))
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -60,10 +88,15 @@ struct LocationStatisticsView: View {
                     LazyHGrid(rows: [row], spacing: 16) {
                         ForEach(locations) { location in
                             NavigationLink(
-                                value: Router.Destination.inventoryListView(location: location, showAllHomes: false)
+                                value: Router.Destination.inventoryListView(
+                                    locationID: location.id, showAllHomes: false)
                             ) {
-                                LocationItemCard(location: location)
-                                    .frame(width: 180)
+                                LocationItemCard(
+                                    location: location,
+                                    itemCount: locationItemData[location.id]?.count ?? 0,
+                                    totalValue: locationItemData[location.id]?.value ?? 0
+                                )
+                                .frame(width: 180)
                             }
                         }
                     }
@@ -74,17 +107,25 @@ struct LocationStatisticsView: View {
                 .scrollTargetBehavior(.viewAligned)
             }
         }
+        .sheet(isPresented: $showingNewLocation) {
+            NavigationStack {
+                EditLocationView(
+                    locationID: nil,
+                    isEditing: true,
+                    presentedInSheet: true,
+                    homeID: activeHome?.id
+                )
+            }
+            .tint(.green)
+        }
     }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return LocationStatisticsView()
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    LocationStatisticsView()
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

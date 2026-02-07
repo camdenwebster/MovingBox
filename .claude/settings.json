@@ -37,7 +37,18 @@
       "WebFetch(domain:www.aiproxy.com)",
       "WebFetch(domain:github.com)",
       "WebSearch",
-      "Skill(commit-commands:commit)"
+      "Skill(commit-commands:commit)",
+      "Bash(ruby -e:*)",
+      "Skill(pfw-structured-queries)",
+      "Skill(pfw-sqlite-data)",
+      "Bash(xcodeproj show:*)",
+      "Bash(pip3 list:*)",
+      "Bash(xcresulttool get:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "WebFetch(domain:swiftpackageindex.com)",
+      "Bash(bd:*)",
+      "Bash(done)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": [
       "Bash(rm:*)"
@@ -49,6 +60,31 @@
     "sentry",
     "ios-simulator"
   ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "source ~/.movingbox_env && bash ci_scripts/ci_post_clone.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "xcrun swift-format -i -r -p .",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "swift-lsp@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
@@ -56,9 +92,9 @@
     "commit-commands@claude-plugins-official": true,
     "hookify@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true
+    "code-simplifier@claude-plugins-official": true,
+    "beads@beads-marketplace": true
   },
-  
   "alwaysThinkingEnabled": true,
   "allowedTools": [
     "Edit",
@@ -223,26 +259,5 @@
       "preferXcodebuildOverGUI": true,
       "enableContinuousIntegration": true
     }
-  },
-  "hooks": {
-    "SessionStart": [{
-      "matcher": "startup",
-      "hooks": [{
-        "type": "command",
-        "command": "source ~/.movingbox_env && bash ci_scripts/ci_post_clone.sh"
-      }]
-    }],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "xcrun swift-format -i -r -p .",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
   }
 }

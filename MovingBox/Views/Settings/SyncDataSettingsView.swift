@@ -1,7 +1,6 @@
 import CloudKit
 import Combine
 import Network
-import SwiftData
 import SwiftUI
 
 enum SyncStatus {
@@ -91,7 +90,7 @@ class SyncStatusMonitor: ObservableObject {
                 guard let self = self else { return }
                 if self.isSyncEnabled && self.isNetworkAvailable {
                     self.syncStatus = .ready
-                    // Note: lastSyncDate is now updated by ModelContainerManager via CloudKit events
+                    // Note: lastSyncDate will be updated by sqlite-data SyncEngine (Phase 4)
                 }
             }
         }

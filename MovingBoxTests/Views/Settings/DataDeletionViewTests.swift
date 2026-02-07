@@ -1,10 +1,9 @@
-import SwiftData
+import SQLiteData
 import SwiftUI
 import Testing
 
 @testable import MovingBox
 
-/// Mock implementation for testing view behavior
 @MainActor
 @Observable
 final class MockDataDeletionService: DataDeletionServiceProtocol {
@@ -51,110 +50,70 @@ final class MockDataDeletionService: DataDeletionServiceProtocol {
 @MainActor
 struct DataDeletionViewTests {
 
-    private func makeTestContainer() throws -> ModelContainer {
-        let schema = Schema([
-            InventoryItem.self, InventoryLocation.self, InventoryLabel.self,
-            Home.self, InsurancePolicy.self,
-        ])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [config])
-    }
-
     @Test("DataDeletionView displays warning section correctly")
     func testWarningSection() throws {
-        let container = try makeTestContainer()
+        let database = try makeInMemoryDatabase()
+        prepareDependencies { $0.defaultDatabase = database }
         let view = DataDeletionView()
-            .modelContainer(container)
 
-        // Test that view can be created without errors
-        // In a real UI test framework, we would verify:
-        // - Warning icon is displayed
-        // - Warning text is present
-        // - List of items to be deleted is shown
         #expect(view != nil)
     }
 
     @Test("DataDeletionView shows scope selection options")
     func testScopeSelectionSection() throws {
-        let container = try makeTestContainer()
+        let database = try makeInMemoryDatabase()
+        prepareDependencies { $0.defaultDatabase = database }
         let view = DataDeletionView()
-            .modelContainer(container)
 
-        // Test that view can be created with scope selection
-        // In a real UI test framework, we would verify:
-        // - Both deletion scope options are displayed
-        // - Local Only option is selected by default
-        // - Icons and descriptions are shown correctly
         #expect(view != nil)
     }
 
     @Test("DataDeletionView confirmation section validates input")
     func testConfirmationSection() throws {
-        let container = try makeTestContainer()
+        let database = try makeInMemoryDatabase()
+        prepareDependencies { $0.defaultDatabase = database }
         let view = DataDeletionView()
-            .modelContainer(container)
 
-        // Test that view handles confirmation correctly
-        // In a real UI test framework, we would verify:
-        // - Confirmation text field is present
-        // - Delete button is disabled until "DELETE" is typed
-        // - Button enables when correct text is entered
         #expect(view != nil)
     }
 
     @Test("DataDeletionView handles navigation correctly")
     func testNavigationElements() throws {
-        let container = try makeTestContainer()
+        let database = try makeInMemoryDatabase()
+        prepareDependencies { $0.defaultDatabase = database }
         let view = NavigationStack {
             DataDeletionView()
-                .modelContainer(container)
         }
 
-        // Test navigation setup
-        // In a real UI test framework, we would verify:
-        // - Navigation title is set correctly
-        // - Title display mode is inline
-        // - View dismisses after successful deletion
         #expect(view != nil)
     }
 
     @Test("DataDeletionView displays alerts correctly")
     func testAlertPresentation() throws {
-        let container = try makeTestContainer()
+        let database = try makeInMemoryDatabase()
+        prepareDependencies { $0.defaultDatabase = database }
         let view = DataDeletionView()
-            .modelContainer(container)
 
-        // Test alert configurations
-        // In a real UI test framework, we would verify:
-        // - Final confirmation alert shows correct message
-        // - Error alert displays when deletion fails
-        // - Alert buttons perform correct actions
         #expect(view != nil)
     }
 
     @Test("DataDeletionView responds to service state changes")
     func testServiceStateBinding() throws {
-        let container = try makeTestContainer()
+        let database = try makeInMemoryDatabase()
+        prepareDependencies { $0.defaultDatabase = database }
         let mockService = MockDataDeletionService()
         let view = DataDeletionView(deletionService: mockService)
-            .modelContainer(container)
 
-        // Test that view properly observes service state
-        // In a real UI test framework, we would verify:
-        // - isDeleting state updates button appearance
-        // - Error state triggers error alert
-        // - Completion state triggers dismiss
         #expect(view != nil)
     }
 
     @Test("DataDeletionView uses injected service for testing")
     func testDependencyInjection() throws {
-        let container = try makeTestContainer()
+        let database = try makeInMemoryDatabase()
+        prepareDependencies { $0.defaultDatabase = database }
         let mockService = MockDataDeletionService()
         let view = DataDeletionView(deletionService: mockService)
-            .modelContainer(container)
 
-        // Verify the view accepts dependency injection
         #expect(view != nil)
         #expect(!mockService.isDeleting)
         #expect(mockService.lastError == nil)

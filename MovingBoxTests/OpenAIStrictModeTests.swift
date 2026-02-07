@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftData
 import SwiftUI
 import Testing
 
@@ -18,12 +17,6 @@ import Testing
 @Suite(.disabled("Tests make real OpenAI API calls which can hang"))
 struct OpenAIStrictModeTests {
 
-    func createTestContainer() throws -> ModelContainer {
-        let schema = Schema([InventoryItem.self, InventoryLocation.self, InventoryLabel.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [config])
-    }
-
     @Test("Multi-item analysis with strict mode disabled returns items")
     func testMultiItemAnalysisWithStrictModeDisabled() async throws {
         // Skip if no API key available
@@ -33,8 +26,7 @@ struct OpenAIStrictModeTests {
             return
         }
 
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try makeInMemoryDatabase()
 
         // Create test image data (1x1 pixel PNG)
         let testImageData = createTestImageData()
@@ -48,7 +40,7 @@ struct OpenAIStrictModeTests {
             let response = try await openAIService.getMultiItemDetails(
                 from: [testImage],
                 settings: settings,
-                modelContext: context
+                database: database
             )
 
             // Log the full response for debugging
@@ -107,8 +99,7 @@ struct OpenAIStrictModeTests {
 
     @Test("Multi-item analysis handles edge cases gracefully")
     func testMultiItemAnalysisEdgeCases() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try makeInMemoryDatabase()
         let settings = SettingsManager()
 
         // Test with empty API key
@@ -124,7 +115,7 @@ struct OpenAIStrictModeTests {
             try await openAIService.getMultiItemDetails(
                 from: [testImage],
                 settings: settings,
-                modelContext: context
+                database: database
             )
         }
     }

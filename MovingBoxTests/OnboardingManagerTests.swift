@@ -1,5 +1,5 @@
 import Foundation
-import SwiftData
+import SQLiteData
 import Testing
 
 @testable import MovingBox
@@ -7,7 +7,6 @@ import Testing
 @MainActor
 @Suite struct OnboardingManagerTests {
 
-    // Helper class to mock UserDefaults
     final class TestUserDefaults {
         private var storage: [String: Any] = [:]
 
@@ -28,11 +27,9 @@ import Testing
         }
 
         func synchronize() {
-            // No-op for test environment
         }
     }
 
-    // Test wrapper for OnboardingManager that uses our test defaults
     @MainActor
     class TestOnboardingManager: ObservableObject {
         @Published var currentStep: OnboardingManager.OnboardingStep = .welcome
@@ -44,18 +41,15 @@ import Testing
 
         init(defaults: TestUserDefaults) {
             self.defaults = defaults
-            print("⚡️ TestOnboardingManager initialized")
         }
 
         func markOnboardingComplete() {
-            print("⚡️ Marking onboarding as complete")
             defaults.set(true, forKey: OnboardingManager.hasCompletedOnboardingKey)
             hasCompleted = true
         }
 
         func shouldShowWelcome() -> Bool {
             let hasLaunched = defaults.bool(forKey: OnboardingManager.hasLaunchedKey)
-            print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
             return !hasLaunched
         }
 
@@ -81,26 +75,20 @@ import Testing
         }
 
         static func checkAndUpdateOnboardingState(
-            modelContext: ModelContext, defaults: TestUserDefaults
-        ) throws -> Bool {
-            do {
-                let descriptor = FetchDescriptor<InventoryItem>()
-                let items = try modelContext.fetch(descriptor)
-                print("⚡️ Checking for existing items: \(items.count) found")
-
-                if !items.isEmpty {
-                    defaults.set(true, forKey: OnboardingManager.hasCompletedOnboardingKey)
-                    return true
-                }
-                return false
-            } catch let error as NSError {
-                print("❌ Error checking for items: \(error), \(error.userInfo)")
-                throw OnboardingManager.OnboardingError.itemCheckFailed(error)
+            database: any DatabaseReader, defaults: TestUserDefaults
+        ) async throws -> Bool {
+            let items = try await database.read { db in
+                try SQLiteInventoryItem.fetchAll(db)
             }
+
+            if !items.isEmpty {
+                defaults.set(true, forKey: OnboardingManager.hasCompletedOnboardingKey)
+                return true
+            }
+            return false
         }
     }
 
-    // Helper function to create clean test environment
     func createTestEnvironment() -> (manager: TestOnboardingManager, defaults: TestUserDefaults) {
         let defaults = TestUserDefaults()
         let manager = TestOnboardingManager(defaults: defaults)
@@ -121,7 +109,6 @@ import Testing
     func testStepNavigation() async {
         let (manager, _) = createTestEnvironment()
 
-        // When - Move forward
         manager.moveToNext()
         #expect(manager.currentStep == .item)
 
@@ -131,7 +118,6 @@ import Testing
         manager.moveToNext()
         #expect(manager.currentStep == .survey)
 
-        // When - Move backward
         manager.moveToPrevious()
         #expect(manager.currentStep == .notifications)
 
@@ -162,66 +148,56 @@ import Testing
 
     @Test("Test welcome screen conditions")
     func testWelcomeScreenConditions() async {
-        // Given - Create test environment
         let (manager, defaults) = createTestEnvironment()
 
-        // Set initial state explicitly to false
         defaults.set(false, forKey: OnboardingManager.hasLaunchedKey)
         defaults.set(false, forKey: OnboardingManager.hasCompletedOnboardingKey)
 
-        // When/Then - Check initial state
         let initialShouldShow = manager.shouldShowWelcome()
         #expect(initialShouldShow, "Should show welcome initially")
         #expect(
             !defaults.bool(forKey: OnboardingManager.hasLaunchedKey), "Should start with no launch flag")
 
-        // When - Complete onboarding
         manager.markOnboardingComplete()
         defaults.set(true, forKey: OnboardingManager.hasLaunchedKey)
 
-        // Then - Verify states are updated
         #expect(manager.hasCompleted, "Manager should be marked as completed")
         #expect(
             defaults.bool(forKey: OnboardingManager.hasCompletedOnboardingKey),
             "Completion flag should be set")
 
-        // When - Check final welcome screen state
         let finalShouldShow = manager.shouldShowWelcome()
 
-        // Then - Should not show welcome anymore
         #expect(!finalShouldShow, "Should not show welcome after completing onboarding")
     }
 
     @Test("Test onboarding state check")
     func testOnboardingStateCheck() async throws {
-        // Given
         let (_, defaults) = createTestEnvironment()
 
-        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: InventoryItem.self, configurations: config)
-        let context = ModelContext(container)
+        let database = try makeInMemoryDatabase()
 
         defaults.removeObject(forKey: OnboardingManager.hasCompletedOnboardingKey)
 
-        // Test with no items
-        let initialState = try TestOnboardingManager.checkAndUpdateOnboardingState(
-            modelContext: context,
+        let initialState = try await TestOnboardingManager.checkAndUpdateOnboardingState(
+            database: database,
             defaults: defaults
         )
         #expect(!initialState, "Should be false with no items")
 
-        // Add an inventory item
-        let item = InventoryItem(title: "Test Item")
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item")
+            }.execute(db)
+        }
 
-        // Verify item was saved
-        let items = try context.fetch(FetchDescriptor<InventoryItem>())
+        let items = try await database.read { db in
+            try SQLiteInventoryItem.fetchAll(db)
+        }
         #expect(items.count == 1, "Should have one item")
 
-        // Test with item
-        let updatedState = try TestOnboardingManager.checkAndUpdateOnboardingState(
-            modelContext: context,
+        let updatedState = try await TestOnboardingManager.checkAndUpdateOnboardingState(
+            database: database,
             defaults: defaults
         )
         #expect(updatedState, "Should be true after adding an item")
@@ -229,7 +205,8 @@ import Testing
             defaults.bool(forKey: OnboardingManager.hasCompletedOnboardingKey),
             "Completion flag should be set in defaults")
 
-        // Cleanup
-        try context.delete(model: InventoryItem.self)
+        try await database.write { db in
+            try SQLiteInventoryItem.delete().execute(db)
+        }
     }
 }

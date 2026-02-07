@@ -6,61 +6,10 @@
 //
 
 import Foundation
-import SwiftData
 import UIKit
 
 @MainActor
 struct TestData {
-    // Helper methods for generating random sample data
-    private static func generateRandomDimensions() -> String {
-        let width = Int.random(in: 5...50)
-        let height = Int.random(in: 3...30)
-        let depth = Int.random(in: 2...25)
-        return "\(width)\" x \(height)\" x \(depth)\""
-    }
-
-    private static func generateRandomWeight() -> String {
-        if Bool.random() {
-            return "\(Double.random(in: 0.5...50.0).rounded(toPlaces: 1)) lbs"
-        } else {
-            return "\(Double.random(in: 0.2...25.0).rounded(toPlaces: 2)) kg"
-        }
-    }
-
-    // Helper method to load test image from asset catalog
-    private static func loadTestImage(category: String, filename: String) -> Data? {
-        // Use bundle to load image directly from asset catalog
-        guard let image = UIImage(named: filename) else {
-            print("❌ Could not load image: \(filename)")
-            return nil
-        }
-
-        guard let data = image.jpegData(compressionQuality: 1.0) else {
-            print("❌ Could not convert image to data: \(filename)")
-            return nil
-        }
-
-        print("✅ Successfully loaded image: \(filename)")
-        return data
-    }
-
-    // Helper method to set up image URL for test data
-    private static func setupImageURL(imageName: String, id: String) async -> URL? {
-        guard let image = UIImage(named: imageName) else {
-            print("❌ Could not load image: \(imageName)")
-            return nil
-        }
-
-        do {
-            let imageURL = try await OptimizedImageManager.shared.saveImage(image, id: id)
-            print("✅ Successfully saved image and thumbnail: \(imageName)")
-            return imageURL
-        } catch {
-            print("❌ Failed to save image: \(imageName), error: \(error)")
-            return nil
-        }
-    }
-
     // Sample homes with local image paths
     static let homes:
         [(name: String, address1: String, city: String, state: String, imageName: String, isPrimary: Bool)] = [
@@ -663,157 +612,65 @@ struct TestData {
             ),
         ]
 
-    // Helper method to load default data (labels only) into SwiftData
-    // Labels are global (not per-home)
-    static func loadDefaultData(context: ModelContext) async {
-        // Create only the labels (global, not tied to any home)
-        for labelData in labels {
-            let label = InventoryLabel(
-                name: labelData.name,
-                desc: labelData.desc,
-                color: labelData.color,
-                emoji: labelData.emoji
-            )
-            context.insert(label)
-        }
-    }
-
-    @MainActor
-    static func loadTestData(modelContext: ModelContext) async {
-        // Create all homes first
-        var createdHomes = [Home]()
-        for (index, homeData) in homes.enumerated() {
-            let home = Home(
-                name: homeData.name,
-                address1: homeData.address1,
-                city: homeData.city,
-                state: homeData.state
-            )
-            home.isPrimary = homeData.isPrimary
-
-            let homeId = UUID().uuidString
-            if let imageURL = await setupImageURL(imageName: homeData.imageName, id: homeId) {
-                home.imageURL = imageURL
-            }
-
-            modelContext.insert(home)
-            createdHomes.append(home)
-            print("✅ TestData - Created home \(index): \(homeData.name)")
-        }
-
-        // Create global labels (shared across all homes)
-        var inventoryLabels = [InventoryLabel]()
-        for labelData in labels {
-            let label = InventoryLabel(
-                name: labelData.name,
-                desc: labelData.desc,
-                color: labelData.color,
-                emoji: labelData.emoji
-            )
-            modelContext.insert(label)
-            inventoryLabels.append(label)
-        }
-        print("✅ TestData - Created \(inventoryLabels.count) global labels")
-
-        // Create locations for each home based on homeIndex
-        var inventoryLocations = [(location: InventoryLocation, homeIndex: Int)]()
-        for locationData in locations {
-            let location = InventoryLocation()
-            location.name = locationData.name
-            location.desc = locationData.desc
-            location.sfSymbolName = locationData.sfSymbol
-
-            // Assign location to the correct home
-            if locationData.homeIndex < createdHomes.count {
-                location.home = createdHomes[locationData.homeIndex]
-            }
-
-            let locationId = UUID().uuidString
-            if let imageURL = await setupImageURL(imageName: locationData.imageName, id: locationId) {
-                location.imageURL = imageURL
-            }
-            modelContext.insert(location)
-            inventoryLocations.append((location: location, homeIndex: locationData.homeIndex))
-        }
-
-        print("✅ TestData - Created \(inventoryLocations.count) locations across \(createdHomes.count) homes")
-
-        // Create items and assign to correct locations/homes
-        for itemData in items {
-            // Find the location matching both name AND homeIndex
-            let matchingLocation = inventoryLocations.first {
-                $0.location.name == itemData.location && $0.homeIndex == itemData.homeIndex
-            }?.location
-
-            let location = matchingLocation ?? inventoryLocations[0].location
-            // Find label matching name (labels are global now)
-            let label = inventoryLabels.first { $0.name == itemData.label } ?? inventoryLabels[0]
-
-            let item = InventoryItem(
-                title: itemData.title,
-                quantityString: "1",
-                quantityInt: 1,
-                desc: itemData.desc,
-                serial: "SN\(UUID().uuidString.prefix(8))",
-                model: itemData.model,
-                make: itemData.make,
-                location: location,
-                labels: [label],
-                price: itemData.price,
-                insured: false,
-                assetId: "",
-                notes: "",
-                showInvalidQuantityAlert: false,
-                hasUsedAI: true,
-
-                // New properties with sample data
-                purchaseDate: Calendar.current.date(
-                    byAdding: .month, value: -Int.random(in: 1...24), to: Date()),
-                warrantyExpirationDate: Calendar.current.date(
-                    byAdding: .month, value: Int.random(in: 6...36), to: Date()),
-                purchaseLocation: ["Apple Store", "Best Buy", "Amazon", "Target", "Costco"]
-                    .randomElement()!,
-                condition: ["New", "Like New", "Good", "Fair"].randomElement()!,
-                hasWarranty: Bool.random(),
-                depreciationRate: Double.random(in: 0.05...0.25),
-                replacementCost: itemData.price * Decimal(Double.random(in: 1.1...1.5)),
-                dimensionLength: "\(Int.random(in: 5...50))",
-                dimensionWidth: "\(Int.random(in: 5...50))",
-                dimensionHeight: "\(Int.random(in: 3...30))",
-                dimensionUnit: ["inches", "feet", "cm", "m"].randomElement()!,
-                weightValue: "\(Double.random(in: 0.5...50.0).rounded(toPlaces: 1))",
-                weightUnit: ["lbs", "kg", "oz", "g"].randomElement()!,
-                color: ["Black", "White", "Silver", "Space Gray", "Blue", "Red"].randomElement()!,
-                storageRequirements: [
-                    "Keep dry", "Climate controlled", "Upright only", "Fragile - handle with care", "",
-                ].randomElement()!,
-                isFragile: ["OLED TV", "Guitar", "MacBook Pro"].contains(itemData.title),
-                movingPriority: Int.random(in: 1...5),
-                roomDestination: itemData.location
-            )
-
-            let itemId = UUID().uuidString
-            if let imageURL = await setupImageURL(imageName: itemData.imageName, id: itemId) {
-                item.imageURL = imageURL
-            }
-            modelContext.insert(item)
-        }
-
-        // Force save to persist changes
-        do {
-            try modelContext.save()
-            print("✅ TestData - Successfully saved \(items.count) test items across \(createdHomes.count) homes")
-        } catch {
-            print("❌ TestData - Error saving context: \(error)")
-        }
-    }
 }
 
-// MARK: - Extensions
+// MARK: - Deterministic UUIDs for production default seed data
 
-extension Double {
-    func rounded(toPlaces places: Int) -> Double {
-        let divisor = pow(10.0, Double(places))
-        return (self * divisor).rounded() / divisor
-    }
+/// Fixed UUIDs for the default home, rooms, and labels created on first launch.
+///
+/// **CloudKit Sync Rationale**: When a user reinstalls or sets up a new device,
+/// CloudKit will deliver previously-synced default records. If the app also seeds
+/// new defaults with random UUIDs, duplicates appear. Fixed IDs let the local
+/// insert and the synced record share the same primary key, merging cleanly.
+///
+/// The `AAAAAAAA` prefix distinguishes production defaults from the debug-only
+/// `SeedID` enum in `TestSeedDatabase.swift` (which uses `00000000`).
+/// Second UUID group encodes entity type: 0001 = home, 0002 = room, 0003 = label.
+enum DefaultSeedID {
+
+    // MARK: - Home
+
+    static let home = UUID(uuidString: "AAAAAAAA-0001-0000-0000-000000000001")!
+
+    // MARK: - Rooms (12, ordered to match TestData.defaultRooms)
+
+    static let roomIDs: [UUID] = [
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000001")!,  // Living Room
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000002")!,  // Kitchen
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000003")!,  // Master Bedroom
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000004")!,  // Bedroom
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000005")!,  // Bathroom
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000006")!,  // Home Office
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000007")!,  // Garage
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000008")!,  // Basement
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-000000000009")!,  // Attic
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-00000000000A")!,  // Dining Room
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-00000000000B")!,  // Laundry Room
+        UUID(uuidString: "AAAAAAAA-0002-0000-0000-00000000000C")!,  // Closet
+    ]
+
+    // MARK: - Labels (20, ordered to match TestData.labels)
+
+    static let labelIDs: [UUID] = [
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000001")!,  // Electronics
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000002")!,  // Furniture
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000003")!,  // Kitchen
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000004")!,  // Books
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000005")!,  // Art
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000006")!,  // Tools
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000007")!,  // Sports
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000008")!,  // Clothing
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000009")!,  // Jewelry
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000A")!,  // Documents
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000B")!,  // Collectibles
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000C")!,  // Seasonal
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000D")!,  // Bathroom
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000E")!,  // Toys
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-00000000000F")!,  // Gardening
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000010")!,  // Technology
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000011")!,  // Memorabilia
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000012")!,  // Pet Supplies
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000013")!,  // Media
+        UUID(uuidString: "AAAAAAAA-0003-0000-0000-000000000014")!,  // Decorative
+    ]
 }

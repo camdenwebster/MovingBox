@@ -5,18 +5,16 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
+import SQLiteData
 import SwiftUI
 
 struct LocationItemCard: View {
-    var location: InventoryLocation
-    var showCost: Bool = false
+    var location: SQLiteInventoryLocation
+    var itemCount: Int = 0
+    var totalValue: Decimal = 0
     @State private var thumbnail: UIImage?
     @State private var loadingError: Error?
     @State private var isDownloading = false
-
-    private var totalReplacementCost: Decimal {
-        location.inventoryItems?.reduce(0, { $0 + $1.price }) ?? 0
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -63,7 +61,7 @@ struct LocationItemCard: View {
                 loadingError = nil
                 updateDownloadState()
                 do {
-                    thumbnail = try await location.thumbnail
+                    thumbnail = try await loadThumbnail()
                     isDownloading = false
                 } catch {
                     loadingError = error
@@ -83,7 +81,7 @@ struct LocationItemCard: View {
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
-                    Text("\(location.inventoryItems?.count ?? 0)")
+                    Text("\(itemCount)")
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
                 }
@@ -92,7 +90,7 @@ struct LocationItemCard: View {
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
                     Spacer()
-                    Text(CurrencyFormatter.format(totalReplacementCost))
+                    Text(CurrencyFormatter.format(totalValue))
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(Color(.label))
@@ -110,6 +108,11 @@ struct LocationItemCard: View {
         .padding(1)
     }
 
+    private func loadThumbnail() async throws -> UIImage? {
+        guard let imageURL = location.imageURL else { return nil }
+        return try await OptimizedImageManager.shared.loadThumbnail(for: imageURL)
+    }
+
     private func updateDownloadState() {
         guard let imageURL = location.imageURL else {
             isDownloading = false
@@ -125,11 +128,12 @@ struct LocationItemCard: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return LocationItemCard(location: previewer.location)
-            .modelContainer(previewer.container)
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    LocationItemCard(
+        location: SQLiteInventoryLocation(id: UUID(), name: "Living Room", sfSymbolName: "sofa"),
+        itemCount: 12,
+        totalValue: 5000
+    )
 }

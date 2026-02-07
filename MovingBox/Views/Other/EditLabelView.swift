@@ -5,34 +5,35 @@
 //  Created by Camden Webster on 5/18/24.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
+@MainActor
 struct EditLabelView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
-    var label: InventoryLabel?
+
+    let labelID: UUID?
     var presentedInSheet: Bool
     var onDismiss: (() -> Void)?
-    var onLabelCreated: ((InventoryLabel) -> Void)?
+    var onLabelCreated: ((SQLiteInventoryLabel) -> Void)?
+
+    // Form state
     @State private var labelName = ""
     @State private var labelDesc = ""
     @State private var labelColor = Color.red
     @State private var labelEmoji = "🏷️"
     @State private var isEditing = false
     @State private var showEmojiPicker = false
-    @Query(sort: [
-        SortDescriptor(\InventoryLabel.name)
-    ]) var labels: [InventoryLabel]
 
-    // MARK: - Add initializer to accept isEditing parameter
     init(
-        label: InventoryLabel? = nil, isEditing: Bool = false, presentedInSheet: Bool = false,
+        labelID: UUID? = nil, isEditing: Bool = false, presentedInSheet: Bool = false,
         onDismiss: (() -> Void)? = nil,
-        onLabelCreated: ((InventoryLabel) -> Void)? = nil
+        onLabelCreated: ((SQLiteInventoryLabel) -> Void)? = nil
     ) {
-        self.label = label
+        self.labelID = labelID
         self._isEditing = State(initialValue: isEditing)
         self.presentedInSheet = presentedInSheet
         self.onDismiss = onDismiss
@@ -41,7 +42,7 @@ struct EditLabelView: View {
 
     // Computed properties
     private var isNewLabel: Bool {
-        label == nil
+        labelID == nil
     }
 
     private var isEditingEnabled: Bool {
@@ -71,7 +72,7 @@ struct EditLabelView: View {
                             .font(.system(size: 32))
                             .frame(width: 50, height: 40)
                             .background(isEditingEnabled ? Color.gray.opacity(0.2) : Color.clear)
-                            .cornerRadius(UIConstants.cornerRadius)
+                            .clipShape(.rect(cornerRadius: UIConstants.cornerRadius))
                     }
                     .disabled(!isEditingEnabled)
                     .sheet(isPresented: $showEmojiPicker) {
@@ -84,14 +85,13 @@ struct EditLabelView: View {
                 Section("Description") {
                     TextEditor(text: $labelDesc)
                         .disabled(!isEditingEnabled)
-                        .foregroundColor(isEditingEnabled ? .primary : .secondary)
+                        .foregroundStyle(isEditingEnabled ? .primary : .secondary)
                         .frame(height: 100)
                 }
             }
         }
-        .navigationTitle(isNewLabel ? "New Label" : "Edit \(label?.name ?? "Label")")
+        .navigationTitle(isNewLabel ? "New Label" : "Edit \(labelName.isEmpty ? "Label" : labelName)")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: labelColor, setColor)
         .toolbar {
             if presentedInSheet {
                 ToolbarItem(placement: .cancellationAction) {
@@ -110,10 +110,7 @@ struct EditLabelView: View {
                 if !isNewLabel {
                     Button(isEditing ? "Save" : "Edit") {
                         if isEditing {
-                            label?.name = labelName
-                            label?.desc = labelDesc
-                            label?.color = UIColor(labelColor)
-                            label?.emoji = labelEmoji
+                            saveExistingLabel()
                             isEditing = false
                             if presentedInSheet {
                                 dismissView()
@@ -125,15 +122,7 @@ struct EditLabelView: View {
                     .accessibilityIdentifier("label-edit-save-button")
                 } else {
                     Button("Save") {
-                        let newLabel = InventoryLabel(
-                            name: labelName, desc: labelDesc, color: UIColor(labelColor), emoji: labelEmoji)
-
-                        modelContext.insert(newLabel)
-                        TelemetryManager.shared.trackLabelCreated(name: newLabel.name)
-                        print("EditLabelView: Created new label - \(newLabel.name)")
-                        print("EditLabelView: Total number of labels after save: \(labels.count)")
-                        onLabelCreated?(newLabel)
-                        isEditing = false
+                        saveNewLabel()
                         dismissView()
                     }
                     .disabled(labelName.isEmpty)
@@ -142,14 +131,77 @@ struct EditLabelView: View {
                 }
             }
         }
-        .onAppear {
-            if let existingLabel = label {
-                // Initialize editing fields with existing values
-                labelName = existingLabel.name
-                labelDesc = existingLabel.desc
-                labelColor = Color(existingLabel.color ?? .red)
-                labelEmoji = existingLabel.emoji
+        .task(id: labelID) {
+            await loadLabelData()
+        }
+    }
+
+    private func loadLabelData() async {
+        guard let labelID = labelID else { return }
+        do {
+            guard
+                let label = try await database.read({ db in
+                    try SQLiteInventoryLabel.find(labelID).fetchOne(db)
+                })
+            else { return }
+
+            labelName = label.name
+            labelDesc = label.desc
+            labelColor = Color(label.color ?? .red)
+            labelEmoji = label.emoji
+        } catch {
+            print("Failed to load label: \(error)")
+        }
+    }
+
+    private func saveExistingLabel() {
+        guard let labelID = labelID else { return }
+        let name = labelName
+        let desc = labelDesc
+        let color = UIColor(labelColor)
+        let emoji = labelEmoji
+        do {
+            try database.write { db in
+                try SQLiteInventoryLabel.find(labelID)
+                    .update {
+                        $0.name = name
+                        $0.desc = desc
+                        $0.color = color
+                        $0.emoji = emoji
+                    }
+                    .execute(db)
             }
+        } catch {
+            print("Failed to save label: \(error)")
+        }
+    }
+
+    private func saveNewLabel() {
+        let newID = UUID()
+        let name = labelName
+        let desc = labelDesc
+        let color = UIColor(labelColor)
+        let emoji = labelEmoji
+        do {
+            try database.write { db in
+                try SQLiteInventoryLabel.insert {
+                    SQLiteInventoryLabel(
+                        id: newID,
+                        name: name,
+                        desc: desc,
+                        color: color,
+                        emoji: emoji
+                    )
+                }.execute(db)
+            }
+            let newLabel = SQLiteInventoryLabel(
+                id: newID, name: name, desc: desc, color: color, emoji: emoji
+            )
+            TelemetryManager.shared.trackLabelCreated(name: name)
+            print("EditLabelView: Created new label - \(name)")
+            onLabelCreated?(newLabel)
+        } catch {
+            print("Failed to create label: \(error)")
         }
     }
 
@@ -160,10 +212,6 @@ struct EditLabelView: View {
         } else {
             router.navigateBack()
         }
-    }
-
-    func setColor() {
-
     }
 }
 
@@ -304,7 +352,7 @@ struct EmojiPickerView: View {
                                             .background(
                                                 selectedEmoji == emoji ? Color.blue.opacity(0.2) : Color.clear
                                             )
-                                            .cornerRadius(8)
+                                            .clipShape(.rect(cornerRadius: 8))
                                     }
                                 }
                             }
@@ -328,13 +376,9 @@ struct EmojiPickerView: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-
-        return EditLabelView(label: previewer.label)
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    EditLabelView(isEditing: true, presentedInSheet: true)
+        .environmentObject(Router())
 }

@@ -5,10 +5,13 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
+import SQLiteData
 import SwiftUI
 
 struct InventoryItemRow: View {
-    var item: InventoryItem
+    var item: SQLiteInventoryItem
+    var homeName: String?
+    var labels: [SQLiteInventoryLabel] = []
     var showHomeBadge: Bool = false
     @State private var imageLoadTrigger = 0
     @State private var hasRetried = false
@@ -66,23 +69,29 @@ struct InventoryItemRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                if showHomeBadge, let home = item.effectiveHome {
-                    Label(home.displayName, systemImage: "house.circle")
-                        .detailLabelStyle()
+                if showHomeBadge, let homeName {
+                    HStack {
+                        Image(systemName: "house.circle")
+                        Text(homeName)
+                    }
+                    .detailLabelStyle()
                 }
 
                 if !item.make.isEmpty {
-                    Label("\(item.make) \(item.model)", systemImage: "info.circle")
-                        .detailLabelStyle()
+                    HStack {
+                        Image(systemName: "info.circle")
+                        Text("\(item.make) \(item.model)")
+                    }
+                    .detailLabelStyle()
                 }
             }
 
             Spacer()
 
             // Display all label emojis in a horizontal stack (max 5)
-            if !item.labels.isEmpty {
+            if !labels.isEmpty {
                 HStack(spacing: 4) {
-                    ForEach(item.labels.prefix(5)) { label in
+                    ForEach(labels.prefix(5)) { label in
                         Text(label.emoji)
                             .font(.caption)
                             .padding(5)
@@ -96,11 +105,13 @@ struct InventoryItemRow: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return InventoryItemRow(item: previewer.inventoryItem, showHomeBadge: true)
-            .modelContainer(previewer.container)
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    InventoryItemRow(
+        item: SQLiteInventoryItem(id: UUID(), title: "MacBook Pro", model: "M4 Pro", make: "Apple"),
+        homeName: "Main House",
+        labels: [SQLiteInventoryLabel(id: UUID(), name: "Electronics", color: .blue, emoji: "💻")],
+        showHomeBadge: true
+    )
 }

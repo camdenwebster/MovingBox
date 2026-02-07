@@ -5,30 +5,30 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
-import SwiftData
+import Foundation
 import SwiftUI
 
 final class Router: ObservableObject {
 
     enum SidebarDestination: Hashable, Identifiable {
         case dashboard
-        case home(PersistentIdentifier)
+        case home(UUID)
         case allInventory
-        case label(PersistentIdentifier)
-        case location(PersistentIdentifier)
+        case label(UUID)
+        case location(UUID)
 
         var id: String {
             switch self {
             case .dashboard:
                 return "dashboard"
             case .home(let id):
-                return "home-\(id.hashValue)"
+                return "home-\(id.uuidString)"
             case .allInventory:
                 return "allInventory"
             case .label(let id):
-                return "label-\(id.hashValue)"
+                return "label-\(id.uuidString)"
             case .location(let id):
-                return "location-\(id.hashValue)"
+                return "location-\(id.uuidString)"
             }
         }
     }
@@ -38,13 +38,13 @@ final class Router: ObservableObject {
         case locationsListView(showAllHomes: Bool = false)
         case labelsListView(showAllHomes: Bool = false)
         case settingsView
-        case inventoryListView(location: InventoryLocation?, showAllHomes: Bool = false)
-        case inventoryListViewForLabel(label: InventoryLabel)
-        case editLocationView(location: InventoryLocation?, isEditing: Bool = false)
+        case inventoryListView(locationID: UUID?, showAllHomes: Bool = false)
+        case inventoryListViewForLabel(labelID: UUID)
+        case editLocationView(locationID: UUID?, isEditing: Bool = false)
         case locationsSettingsView
-        case editLabelView(label: InventoryLabel?, isEditing: Bool = false)
+        case editLabelView(labelID: UUID?, isEditing: Bool = false)
         case inventoryDetailView(
-            item: InventoryItem, showSparklesButton: Bool = false, isEditing: Bool = false)
+            itemID: UUID, showSparklesButton: Bool = false, isEditing: Bool = false)
         case aISettingsView
         case subscriptionSettingsView
         case syncDataSettingsView
@@ -57,7 +57,8 @@ final class Router: ObservableObject {
         case featureRequestView
         case globalLabelSettingsView
         case insurancePolicyListView
-        case insurancePolicyDetailView(policy: InsurancePolicy?)
+        case insurancePolicyDetailView(policyID: UUID?)
+        case familySharingSettingsView
     }
 
     @Published var navigationPath = NavigationPath()

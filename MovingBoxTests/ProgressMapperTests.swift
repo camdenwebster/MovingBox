@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 import Testing
 
 @testable import MovingBox
@@ -102,17 +101,6 @@ struct ProgressMapperTests {
 
     @Test("Completed and error phases return 1.0 progress")
     func terminalPhasesReturnFullProgress() async throws {
-        let container = try ModelContainer(
-            for: InventoryItem.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        )
-        let context = ModelContext(container)
-
-        let item = InventoryItem()
-        item.title = "Test"
-        context.insert(item)
-        try context.save()
-
         let result = DataManager.ExportResult(
             archiveURL: URL(fileURLWithPath: "/tmp/test.zip"),
             itemCount: 1,

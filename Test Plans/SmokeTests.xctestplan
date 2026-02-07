@@ -9,10 +9,17 @@
     }
   ],
   "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "AIPROXY_DEVICE_CHECK_BYPASS",
+        "value" : "f3543606-afa8-4394-99a9-74bd9a2421a2"
+      }
+    ],
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
     {
+      "parallelizable" : true,
       "skippedTests" : [
         "DashboardNavigationUITests\/testBackNavigationFromListViewToDashboard()",
         "DashboardNavigationUITests\/testBackNavigationFromSettingsToDashboard()",

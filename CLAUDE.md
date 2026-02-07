@@ -1,6 +1,18 @@
 # MovingBox
-
 iOS AI-powered home inventory app. SwiftUI + SwiftData, OpenAI Vision API, RevenueCat, CloudKit.
+
+## Issue Tracking
+
+This project uses **bd (beads)** for issue tracking.
+Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for auto-injection.
+
+**Quick reference:**
+- `bd ready` - Find unblocked work
+- `bd create "Title" --type task --priority 2` - Create issue
+- `bd close <id>` - Complete work
+- `bd sync` - Sync with git (run at session end)
+
+For full workflow details: `bd prime`
 
 ## Project Configuration
 - **Project**: MovingBox.xcodeproj
@@ -17,8 +29,8 @@ xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id
 # Unit tests
 xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
-# UI tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+# UI tests (Smoke tests) — grep filter preserves failure details that xcsift drops
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData -testPlan SmokeTests -resultBundlePath ./.build/SmokeTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | grep -E 'Test Case|: error:|Executed [0-9]+ test|\*\* TEST'
 ```
 
 ## Install & Launch
