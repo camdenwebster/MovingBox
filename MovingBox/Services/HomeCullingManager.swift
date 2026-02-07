@@ -61,21 +61,22 @@ struct HomeCullingManager {
                 return nil
             }
 
-            // 2. For each home, count items associated with it
-            //    (directly via items.homeID, or indirectly via locations belonging to the home)
-            var homesWithItems: Set<String> = []
+            // 2. For each home, check if it has user content (items, policies)
+            //    or user-customized metadata (address, photos). Homes with any of
+            //    these are not phantom onboarding artifacts and must be preserved.
+            var homesInUse: Set<String> = []
 
             for row in allHomes {
                 let homeID: String = row["id"]
 
-                let directCount =
+                let itemCount =
                     try Int.fetchOne(
                         db,
                         sql: """
                             SELECT COUNT(*) FROM inventoryItems WHERE homeID = ?
                             """, arguments: [homeID]) ?? 0
 
-                let indirectCount =
+                let indirectItemCount =
                     try Int.fetchOne(
                         db,
                         sql: """
@@ -85,8 +86,26 @@ struct HomeCullingManager {
                             )
                             """, arguments: [homeID]) ?? 0
 
-                if directCount + indirectCount > 0 {
-                    homesWithItems.insert(homeID)
+                let policyCount =
+                    try Int.fetchOne(
+                        db,
+                        sql: """
+                            SELECT COUNT(*) FROM homeInsurancePolicies WHERE homeID = ?
+                            """, arguments: [homeID]) ?? 0
+
+                // A home with address or photo data was customized by the user
+                let hasMetadata =
+                    try Bool.fetchOne(
+                        db,
+                        sql: """
+                            SELECT EXISTS(
+                                SELECT 1 FROM homes WHERE id = ?
+                                AND (address1 != '' OR city != '' OR imageURL IS NOT NULL)
+                            )
+                            """, arguments: [homeID]) ?? false
+
+                if itemCount + indirectItemCount + policyCount > 0 || hasMetadata {
+                    homesInUse.insert(homeID)
                 }
             }
 
@@ -94,7 +113,7 @@ struct HomeCullingManager {
             let allHomeIDs = allHomes.map { $0["id"] as String }
             let homesToKeep: Set<String>
 
-            if homesWithItems.isEmpty {
+            if homesInUse.isEmpty {
                 // ALL homes are empty — keep only the last one (matches old homes.last behavior)
                 if let lastHomeID = allHomeIDs.last {
                     homesToKeep = [lastHomeID]
@@ -103,7 +122,7 @@ struct HomeCullingManager {
                     return nil
                 }
             } else {
-                homesToKeep = homesWithItems
+                homesToKeep = homesInUse
             }
 
             let homesToCull = allHomeIDs.filter { !homesToKeep.contains($0) }

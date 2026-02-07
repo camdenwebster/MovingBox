@@ -57,12 +57,13 @@ struct SQLiteMigrationCoordinator {
             return .alreadyCompleted
         }
 
-        // Bail out after repeated failures to avoid infinite retry loops
+        // Bail out after repeated failures to avoid infinite retry loops.
+        // Do NOT mark complete here — the old SwiftData store is preserved so a
+        // future app update can reset the attempt counter and retry successfully.
         let attempts = UserDefaults.standard.integer(forKey: migrationAttemptsKey)
         if attempts >= maxMigrationAttempts {
             let msg = "Migration abandoned after \(attempts) failed attempts"
             logger.error("\(msg)")
-            markComplete()
             return .error(msg)
         }
         UserDefaults.standard.set(attempts + 1, forKey: migrationAttemptsKey)
@@ -959,14 +960,14 @@ struct SQLiteMigrationCoordinator {
         return appSupport.appendingPathComponent("default.store").path
     }
 
-    private static let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    private static let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
     private static func tableExists(db: OpaquePointer?, table: String) -> Bool {
         var stmt: OpaquePointer?
         let query = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
         guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_text(stmt, 1, table, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 1, table, -1, sqliteTransient)
         return sqlite3_step(stmt) == SQLITE_ROW
     }
 

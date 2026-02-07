@@ -153,8 +153,8 @@ struct SQLiteMigrationCoordinatorTests {
             Issue.record("Expected .error with 'abandoned', got \(result)")
         }
 
-        // Should have set the migration-complete flag to prevent future retries
-        #expect(UserDefaults.standard.bool(forKey: Self.testMigrationKey))
+        // Should NOT mark migration complete — old store preserved for future recovery
+        #expect(!UserDefaults.standard.bool(forKey: Self.testMigrationKey))
     }
 
     // MARK: - FK Integrity After Full Insert
