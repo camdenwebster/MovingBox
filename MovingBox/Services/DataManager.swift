@@ -753,7 +753,7 @@ actor DataManager {
                             var locationDataBatch: [LocationParseData] = []
 
                             for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
+                                let values = self.parseCSVRow(row)
                                 guard values.count >= 3 else { continue }
 
                                 var photoURL: URL? = nil
@@ -864,7 +864,7 @@ actor DataManager {
                             var labelDataBatch: [LabelParseData] = []
 
                             for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
+                                let values = self.parseCSVRow(row)
                                 guard values.count >= 4 else { continue }
 
                                 labelDataBatch.append(
@@ -956,7 +956,7 @@ actor DataManager {
                             var itemDataBatch: [ItemParseData] = []
 
                             for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
+                                let values = self.parseCSVRow(row)
                                 guard values.count >= 13 else { continue }
 
                                 let photoFilename = values[11]
@@ -1723,7 +1723,7 @@ actor DataManager {
         }
     }
 
-    private func parseCSVRow(_ row: String) async -> [String] {
+    private nonisolated func parseCSVRow(_ row: String) -> [String] {
         var values: [String] = []
         var currentValue = ""
         var insideQuotes = false
