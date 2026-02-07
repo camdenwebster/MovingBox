@@ -41,6 +41,8 @@ struct InventoryListView: View {
     @State private var searchText = ""
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
+    @State private var showManualItemSheet = false
+    @State private var manualItemID: UUID?
     @State private var showingImageAnalysis = false
     @State private var analyzingImage: UIImage?
 
@@ -169,11 +171,30 @@ struct InventoryListView: View {
             .fullScreenCover(isPresented: $showItemCreationFlow) {
                 EnhancedItemCreationFlowView(
                     captureMode: .singleItem,
-                    locationID: nil
+                    locationID: locationID
                 ) {
                     // Optional callback when item creation is complete
                 }
                 .tint(.green)
+            }
+            .sheet(
+                isPresented: $showManualItemSheet,
+                onDismiss: {
+                    manualItemID = nil
+                }
+            ) {
+                if let itemID = manualItemID {
+                    NavigationStack {
+                        InventoryDetailView(
+                            itemID: itemID,
+                            navigationPath: .constant(NavigationPath()),
+                            showSparklesButton: true,
+                            isEditing: true,
+                            onSave: { showManualItemSheet = false },
+                            onCancel: { showManualItemSheet = false }
+                        )
+                    }
+                }
             }
             .alert("Delete Items", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
@@ -453,7 +474,6 @@ struct InventoryListView: View {
     }
 
     private func createManualItem() {
-        print("📱 InventoryListView - Add Manual Item button tapped")
         let newID = UUID()
         do {
             try database.write { db in
@@ -465,8 +485,8 @@ struct InventoryListView: View {
                     )
                 }.execute(db)
             }
-            router.navigate(
-                to: .inventoryDetailView(itemID: newID, showSparklesButton: true, isEditing: true))
+            manualItemID = newID
+            showManualItemSheet = true
         } catch {
             print("Failed to create new item: \(error)")
         }
@@ -559,8 +579,15 @@ struct InventoryListView: View {
     }
 
     func exportSelectedItems() {
-        // TODO: Wire up ExportCoordinator with sqlite-data items
-        print("⚠️ Export from selection not yet wired up")
+        guard !selectedItemIDs.isEmpty else { return }
+        let selectedItems = allItems.filter { selectedItemIDs.contains($0.id) }
+        guard !selectedItems.isEmpty else { return }
+        Task {
+            await exportCoordinator.exportSpecificItems(
+                items: selectedItems,
+                database: database
+            )
+        }
     }
 
     // MARK: - Sorting Functions
