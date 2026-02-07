@@ -546,15 +546,20 @@ final class MultiItemSelectionViewModel {
         // Fetch existing labels to match against categories
         var existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
         availableLabelsCache = existingLabels
+        let existingLocations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+        let fallbackHome = resolveFallbackHome()
 
         var createdItems: [InventoryItem] = []
         let selectedDetectedItems = detectedItems.filter { selectedItems.contains($0.id) }
         let totalItems = selectedDetectedItems.count
+        let progressUpdateStride = max(1, totalItems / 20)
 
         do {
             for (index, detectedItem) in selectedDetectedItems.enumerated() {
                 // Update progress
-                creationProgress = Double(index) / Double(totalItems)
+                if index == 0 || index == totalItems - 1 || index % progressUpdateStride == 0 {
+                    creationProgress = Double(index) / Double(totalItems)
+                }
 
                 let matchedLabels = LabelAutoAssignment.labels(
                     for: [detectedItem.category],
@@ -563,15 +568,19 @@ final class MultiItemSelectionViewModel {
                 )
 
                 // Create inventory item with matched labels
-                let inventoryItem = try await createInventoryItem(from: detectedItem, labels: matchedLabels)
-                for label in matchedLabels
+                let inventoryItem = try await createInventoryItem(
+                    from: detectedItem,
+                    labels: matchedLabels,
+                    availableLabels: existingLabels,
+                    availableLocations: existingLocations,
+                    fallbackHome: fallbackHome
+                )
+
+                for label in inventoryItem.labels
                 where !existingLabels.contains(where: { $0.id == label.id }) {
                     existingLabels.append(label)
                 }
                 createdItems.append(inventoryItem)
-
-                // Small delay for UI feedback
-                try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
             }
 
             // Final progress update
@@ -633,8 +642,14 @@ final class MultiItemSelectionViewModel {
 
     // MARK: - Private Methods
 
-    /// Create a single InventoryItem from a DetectedInventoryItem
-    private func createInventoryItem(from detectedItem: DetectedInventoryItem, labels: [InventoryLabel])
+    /// Create a single InventoryItem from a DetectedInventoryItem with preloaded dependency data.
+    private func createInventoryItem(
+        from detectedItem: DetectedInventoryItem,
+        labels: [InventoryLabel],
+        availableLabels: [InventoryLabel],
+        availableLocations: [InventoryLocation],
+        fallbackHome: Home?
+    )
         async throws -> InventoryItem
     {
         // Create new inventory item
@@ -660,13 +675,10 @@ final class MultiItemSelectionViewModel {
 
         if let enriched = enrichedDetails[detectedItem.id] {
             let originalTitle = inventoryItem.title
-            let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-            let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-
             inventoryItem.updateFromImageDetails(
                 enriched,
-                labels: labels,
-                locations: locations,
+                labels: availableLabels,
+                locations: availableLocations,
                 modelContext: modelContext,
                 preserveExistingLabels: true
             )
@@ -681,42 +693,26 @@ final class MultiItemSelectionViewModel {
 
         do {
             // Only save cropped images - discard original source photos
-            if let croppedPrimary = croppedPrimaryImages[detectedItem.id] {
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    croppedPrimary, id: itemId)
-                inventoryItem.imageURL = primaryImageURL
-            }
+            let primaryImage = croppedPrimaryImages[detectedItem.id]
+            let secondaryImages = croppedSecondaryImages[detectedItem.id] ?? []
 
-            // Save cropped secondary images (multi-angle crops) only
-            if let croppedSecondaries = croppedSecondaryImages[detectedItem.id], !croppedSecondaries.isEmpty {
-                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                    croppedSecondaries, itemId: itemId)
-                inventoryItem.secondaryPhotoURLs = secondaryURLs
-            }
+            async let primaryImageURL: URL? = {
+                guard let primaryImage else { return nil }
+                return try await OptimizedImageManager.shared.saveImage(primaryImage, id: itemId)
+            }()
+
+            async let secondaryImageURLs: [String]? = {
+                guard !secondaryImages.isEmpty else { return nil }
+                return try await OptimizedImageManager.shared.saveSecondaryImages(
+                    secondaryImages, itemId: itemId)
+            }()
+
+            inventoryItem.imageURL = try await primaryImageURL
+            inventoryItem.secondaryPhotoURLs = try await secondaryImageURLs ?? []
 
             // Assign active home if item has no location or location has no home
-            if inventoryItem.location == nil || inventoryItem.location?.home == nil {
-                // Get active home from SettingsManager
-                if let activeHomeIdString = settingsManager?.activeHomeId,
-                    let activeHomeId = UUID(uuidString: activeHomeIdString)
-                {
-                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
-                    if let activeHome = try? modelContext.fetch(homeDescriptor).first {
-                        inventoryItem.home = activeHome
-                    } else {
-                        // Fallback to primary home
-                        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-                        if let primaryHome = try? modelContext.fetch(primaryHomeDescriptor).first {
-                            inventoryItem.home = primaryHome
-                        }
-                    }
-                } else {
-                    // Fallback to primary home
-                    let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-                    if let primaryHome = try? modelContext.fetch(homeDescriptor).first {
-                        inventoryItem.home = primaryHome
-                    }
-                }
+            if (inventoryItem.location == nil || inventoryItem.location?.home == nil), let fallbackHome {
+                inventoryItem.home = fallbackHome
             }
 
             // Insert into context
@@ -732,6 +728,20 @@ final class MultiItemSelectionViewModel {
             print("❌ Failed to save images for item: \(error.localizedDescription)")
             throw error
         }
+    }
+
+    private func resolveFallbackHome() -> Home? {
+        if let activeHomeIdString = settingsManager?.activeHomeId,
+            let activeHomeId = UUID(uuidString: activeHomeIdString)
+        {
+            let activeHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
+            if let activeHome = try? modelContext.fetch(activeHomeDescriptor).first {
+                return activeHome
+            }
+        }
+
+        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
+        return try? modelContext.fetch(primaryHomeDescriptor).first
     }
 
     /// Parse price string to Decimal
