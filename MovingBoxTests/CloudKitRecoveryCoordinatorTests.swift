@@ -160,6 +160,25 @@ struct CloudKitRecoveryCoordinatorTests {
         #expect(count == nil)
     }
 
+    // MARK: - RecoveryError Descriptions (Fix 21)
+
+    @Test("RecoveryError.foreignKeyViolation produces informative description")
+    func foreignKeyViolationDescription() {
+        let error = RecoveryError.foreignKeyViolation(count: 3)
+        let description = error.errorDescription!
+        #expect(description.contains("3"))
+        #expect(description.contains("foreign key"))
+    }
+
+    @Test("RecoveryError.countMismatch produces informative description")
+    func countMismatchDescription() {
+        let error = RecoveryError.countMismatch(expected: 10, actual: 5)
+        let description = error.errorDescription!
+        #expect(description.contains("10"))
+        #expect(description.contains("5"))
+        #expect(description.contains("mismatch"))
+    }
+
     // MARK: - Test Helpers
 
     /// Converts plist Data to JSON string (same logic as the coordinator)

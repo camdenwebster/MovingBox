@@ -7,6 +7,7 @@
 
 import CloudKit
 import Dependencies
+import OSLog
 import RevenueCat
 import SQLiteData
 import Sentry
@@ -15,6 +16,8 @@ import TelemetryDeck
 import UIKit
 import WhatsNewKit
 import WishKit
+
+private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "App")
 
 @main
 struct MovingBoxApp: App {
@@ -29,6 +32,7 @@ struct MovingBoxApp: App {
     @State private var strandedItemCount = 0
     @State private var isRecovering = false
     @State private var recoveryContinuation: CheckedContinuation<Void, Never>?
+    @State private var migrationErrorMessage: String?
 
     private enum AppState {
         case loading
@@ -49,7 +53,12 @@ struct MovingBoxApp: App {
                     $0.defaultDatabase = try! makeInMemoryDatabase()
                     // No SyncEngine for in-memory mode
                 } else {
-                    $0.defaultDatabase = try! appDatabase()
+                    do {
+                        $0.defaultDatabase = try appDatabase()
+                    } catch {
+                        logger.error("appDatabase() failed, falling back to in-memory: \(error.localizedDescription)")
+                        $0.defaultDatabase = try! makeInMemoryDatabase()
+                    }
                     do {
                         let syncEngine = try SyncEngine(
                             for: $0.defaultDatabase,
@@ -59,15 +68,21 @@ struct MovingBoxApp: App {
                             SQLiteInventoryLabel.self,
                             SQLiteInsurancePolicy.self,
                             SQLiteInventoryItemLabel.self,
-                            SQLiteHomeInsurancePolicy.self
+                            SQLiteHomeInsurancePolicy.self,
+                            startImmediately: false
                         )
                         $0.defaultSyncEngine = syncEngine
                     } catch {
-                        print("⚠️ SyncEngine initialization failed: \(error)")
+                        logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
                     }
                 }
             #else
-                $0.defaultDatabase = try! appDatabase()
+                do {
+                    $0.defaultDatabase = try appDatabase()
+                } catch {
+                    logger.error("appDatabase() failed, falling back to in-memory: \(error.localizedDescription)")
+                    $0.defaultDatabase = try! makeInMemoryDatabase()
+                }
                 do {
                     let syncEngine = try SyncEngine(
                         for: $0.defaultDatabase,
@@ -77,11 +92,12 @@ struct MovingBoxApp: App {
                         SQLiteInventoryLabel.self,
                         SQLiteInsurancePolicy.self,
                         SQLiteInventoryItemLabel.self,
-                        SQLiteHomeInsurancePolicy.self
+                        SQLiteHomeInsurancePolicy.self,
+                        startImmediately: false
                     )
                     $0.defaultSyncEngine = syncEngine
                 } catch {
-                    print("⚠️ SyncEngine initialization failed: \(error)")
+                    logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
                 }
             #endif
         }
@@ -245,7 +261,7 @@ struct MovingBoxApp: App {
                 switch migrationResult {
                 case .freshInstall:
                     TelemetryDeck.signal("Migration.freshInstall")
-                    print("📦 sqlite-data: Fresh install — no migration needed")
+                    logger.info("sqlite-data: Fresh install — no migration needed")
                     // Check for stranded CoreData records in CloudKit
                     if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
                         strandedItemCount = count
@@ -255,21 +271,38 @@ struct MovingBoxApp: App {
                         }
                     }
                 case .alreadyCompleted:
-                    // Retry CloudKit recovery probe if it wasn't completed on a previous launch
-                    // (e.g. first launch was offline, or recovery failed)
-                    if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
-                        strandedItemCount = count
-                        showRecoveryAlert = true
-                        await withCheckedContinuation { continuation in
-                            recoveryContinuation = continuation
+                    // Skip the CloudKit probe if we already have local data (migration
+                    // succeeded on a previous launch). Only probe when the local DB is
+                    // empty, which means recovery may still be needed.
+                    let localItemCount =
+                        (try? await database.read { db in
+                            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM inventoryItems")
+                        }) ?? 0
+                    if localItemCount == 0 {
+                        if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
+                            strandedItemCount = count
+                            showRecoveryAlert = true
+                            await withCheckedContinuation { continuation in
+                                recoveryContinuation = continuation
+                            }
                         }
                     }
                 case .success(let stats):
                     TelemetryDeck.signal("Migration.success", parameters: ["stats": "\(stats)"])
-                    print("📦 sqlite-data: Migration succeeded — \(stats)")
+                    logger.info("sqlite-data: Migration succeeded — \(stats.description)")
                 case .error(let message):
                     TelemetryDeck.signal("Migration.error", parameters: ["message": message])
-                    print("📦 sqlite-data: Migration failed — \(message)")
+                    logger.error("sqlite-data: Migration failed — \(message)")
+                    migrationErrorMessage = message
+                }
+
+                // Start SyncEngine after migration/recovery to prevent sync from
+                // racing with data writes during migration.
+                do {
+                    @Dependency(\.defaultSyncEngine) var syncEngine
+                    try await syncEngine.start()
+                } catch {
+                    logger.error("SyncEngine start failed: \(error.localizedDescription)")
                 }
 
                 // Cull empty phantom homes from pre-2.2.0 onboarding re-runs (one-time).
@@ -387,13 +420,13 @@ struct MovingBoxApp: App {
                             TelemetryDeck.signal(
                                 "CloudKitRecovery.success",
                                 parameters: ["stats": "\(stats)"])
-                            print("☁️ CloudKit recovery succeeded — \(stats)")
+                            logger.info("CloudKit recovery succeeded — \(stats.description)")
                             await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
                         case .error(let message):
                             TelemetryDeck.signal(
                                 "CloudKitRecovery.error",
                                 parameters: ["message": message])
-                            print("☁️ CloudKit recovery failed — \(message)")
+                            logger.error("CloudKit recovery failed — \(message)")
                         default:
                             break
                         }
@@ -415,6 +448,26 @@ struct MovingBoxApp: App {
                 Text(
                     "Found \(strandedItemCount) item(s) from a previous installation in iCloud. Would you like to recover them?"
                 )
+            }
+            .onChange(of: showRecoveryAlert) { _, isShowing in
+                // Safety net: if alert is dismissed without a button tap (e.g. system
+                // interruption), resume the continuation to prevent a deadlock.
+                if !isShowing, let continuation = recoveryContinuation {
+                    CloudKitRecoveryCoordinator.markComplete()
+                    continuation.resume()
+                    recoveryContinuation = nil
+                }
+            }
+            .alert(
+                "Data Migration Issue",
+                isPresented: Binding(
+                    get: { migrationErrorMessage != nil },
+                    set: { if !$0 { migrationErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(migrationErrorMessage ?? "")
             }
             .environment(\.featureFlags, FeatureFlags(distribution: .current))
             .environment(\.whatsNew, .forMovingBox())

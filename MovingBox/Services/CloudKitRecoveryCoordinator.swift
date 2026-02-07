@@ -1,6 +1,7 @@
 import CloudKit
 import Dependencies
 import Foundation
+import GRDB
 import OSLog
 import SQLiteData
 import UIKit
@@ -117,7 +118,8 @@ struct CloudKitRecoveryCoordinator {
         if attempts >= maxRecoveryAttempts {
             let msg = "Recovery abandoned after \(attempts) failed attempts"
             logger.error("\(msg)")
-            markComplete()
+            // Do NOT mark complete — preserve old CloudKit data so a future app
+            // update can reset the attempt counter and retry successfully.
             return .error(msg)
         }
         UserDefaults.standard.set(attempts + 1, forKey: recoveryAttemptsKey)
@@ -296,12 +298,32 @@ struct CloudKitRecoveryCoordinator {
 
                 // 5. Items (resolve locationID, homeID, and label references)
 
+                // Build location → home UUID map for backfilling homeless items
+                var locationHomeUUIDMap: [UUID: UUID] = [:]
+                for record in locations {
+                    let locUUID = recordNameToUUID[record.recordID.recordName]!
+                    if let homeRef = resolveReference(
+                        record: record, key: "CD_home", map: recordNameToUUID)
+                    {
+                        locationHomeUUIDMap[locUUID] = homeRef
+                    } else if let fallback = fallbackHomeUUID {
+                        locationHomeUUIDMap[locUUID] = fallback
+                    }
+                }
+
                 for record in items {
                     let uuid = recordNameToUUID[record.recordID.recordName]!
                     let locationUUID = resolveReference(
                         record: record, key: "CD_location", map: recordNameToUUID)
                     var homeUUID = resolveReference(
                         record: record, key: "CD_home", map: recordNameToUUID)
+
+                    // Backfill: inherit home from location if item has no direct home
+                    if homeUUID == nil, let locationUUID,
+                        let locHome = locationHomeUUIDMap[locationUUID]
+                    {
+                        homeUUID = locHome
+                    }
 
                     // Pre-multi-home fallback: assign homeless items to primary home
                     if homeUUID == nil, let fallback = fallbackHomeUUID {
@@ -383,6 +405,8 @@ struct CloudKitRecoveryCoordinator {
                                 labelUUID.uuidString.lowercased(),
                             ])
                         stats.itemLabels += 1
+                    } else if record["CD_label"] != nil {
+                        stats.skippedRelationships += 1
                     }
                 }
 
@@ -403,10 +427,28 @@ struct CloudKitRecoveryCoordinator {
                                 policyUUID.uuidString.lowercased(),
                             ])
                         stats.homePolicies += 1
+                    } else if record["CD_insurancePolicy"] != nil {
+                        stats.skippedRelationships += 1
                     }
                 }
 
                 return stats
+            }
+
+            // Post-recovery validation: verify FK integrity and item count sanity
+            try await database.read { db in
+                let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+                guard fkViolations.isEmpty else {
+                    throw RecoveryError.foreignKeyViolation(count: fkViolations.count)
+                }
+
+                let actualItems =
+                    try Int.fetchOne(
+                        db, sql: "SELECT COUNT(*) FROM inventoryItems") ?? 0
+                guard actualItems == stats.items else {
+                    throw RecoveryError.countMismatch(
+                        expected: stats.items, actual: actualItems)
+                }
             }
 
             markComplete()
@@ -453,6 +495,7 @@ struct CloudKitRecoveryCoordinator {
         )
 
         var allRecords: [CKRecord] = []
+        var failedCount = 0
 
         let (results, cursor) = try await database.records(
             matching: query,
@@ -460,9 +503,14 @@ struct CloudKitRecoveryCoordinator {
             resultsLimit: 200
         )
 
-        for (_, result) in results {
-            if case .success(let record) = result {
+        for (recordID, result) in results {
+            switch result {
+            case .success(let record):
                 allRecords.append(record)
+            case .failure(let error):
+                failedCount += 1
+                logger.warning(
+                    "Failed to fetch \(recordType) record \(recordID.recordName): \(error.localizedDescription)")
             }
         }
 
@@ -472,14 +520,22 @@ struct CloudKitRecoveryCoordinator {
                 continuingMatchFrom: c,
                 resultsLimit: 200
             )
-            for (_, result) in batchResults {
-                if case .success(let record) = result {
+            for (recordID, result) in batchResults {
+                switch result {
+                case .success(let record):
                     allRecords.append(record)
+                case .failure(let error):
+                    failedCount += 1
+                    logger.warning(
+                        "Failed to fetch \(recordType) record \(recordID.recordName): \(error.localizedDescription)")
                 }
             }
             nextCursor = newCursor
         }
 
+        if failedCount > 0 {
+            logger.warning("Dropped \(failedCount) \(recordType) records due to fetch failures")
+        }
         logger.info("Fetched \(allRecords.count) \(recordType) records")
         return allRecords
     }
@@ -569,5 +625,21 @@ struct CloudKitRecoveryCoordinator {
         }
 
         return "[]"
+    }
+}
+
+// MARK: - Recovery Errors
+
+enum RecoveryError: LocalizedError {
+    case foreignKeyViolation(count: Int)
+    case countMismatch(expected: Int, actual: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .foreignKeyViolation(let count):
+            return "Found \(count) foreign key violation(s) after recovery"
+        case .countMismatch(let expected, let actual):
+            return "Item count mismatch after recovery: expected \(expected), got \(actual)"
+        }
     }
 }

@@ -97,6 +97,17 @@ struct SQLiteMigrationCoordinator {
 
         do {
             let stats = try performMigration(from: oldDB, to: database)
+
+            // Sanity check: onboarding always creates at least one home, so a
+            // non-empty SwiftData store that yields zero homes indicates a read
+            // failure (wrong schema, corrupted file, etc.). Bail before we
+            // archive the old store so a retry can succeed.
+            if stats.homes == 0 {
+                let msg = "Migration produced zero homes from non-empty store — aborting"
+                logger.error("\(msg)")
+                return .error(msg)
+            }
+
             try validate(database: database, expected: stats)
             archiveOldStore()
             markComplete()
@@ -151,6 +162,23 @@ struct SQLiteMigrationCoordinator {
         var locationHomeMap = readLocationHomeRelationships(db: oldDB)
         let itemLocationMap = readItemLocationRelationships(db: oldDB)
         var itemHomeMap = readItemHomeRelationships(db: oldDB)
+
+        // Backfill: items without a direct home FK but with a location that has a
+        // known home should inherit that home. This handles post-multi-home schemas
+        // where the item's ZHOME column is NULL but ZLOCATION points to a homed location.
+        var backfilledItemHomes = 0
+        for item in items {
+            if itemHomeMap[item.zpk] == nil,
+                let locZPK = itemLocationMap[item.zpk],
+                let homeZPK = locationHomeMap[locZPK]
+            {
+                itemHomeMap[item.zpk] = homeZPK
+                backfilledItemHomes += 1
+            }
+        }
+        if backfilledItemHomes > 0 {
+            logger.info("Backfilled homeID for \(backfilledItemHomes) items from their location")
+        }
 
         // Pre-multi-home fallback: v2.1.0 had no ZHOME FK on locations/items.
         // All locations and items implicitly belonged to the single visible home.
@@ -419,7 +447,10 @@ struct SQLiteMigrationCoordinator {
             "SELECT Z_PK, \(uuidCol), ZNAME, \(descCol), ZCOLOR, \(emojiCol) FROM ZINVENTORYLABEL"
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+            logPrepareError(db: db, context: "readLabels")
+            return []
+        }
         defer { sqlite3_finalize(stmt) }
 
         var results: [RawLabel] = []
@@ -480,7 +511,10 @@ struct SQLiteMigrationCoordinator {
             """
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+            logPrepareError(db: db, context: "readHomes")
+            return []
+        }
         defer { sqlite3_finalize(stmt) }
 
         var results: [RawHome] = []
@@ -522,7 +556,7 @@ struct SQLiteMigrationCoordinator {
         homes.first(where: { home in
             (!home.name.isEmpty && home.name != "My Home")
                 || !home.address1.isEmpty || !home.city.isEmpty || home.imageURL != nil
-        })?.zpk ?? homes.map(\.zpk).max()!
+        })?.zpk ?? homes.map(\.zpk).max() ?? homes[0].zpk
     }
 
     // MARK: - Reading Insurance Policies
@@ -557,7 +591,10 @@ struct SQLiteMigrationCoordinator {
             """
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+            logPrepareError(db: db, context: "readPolicies")
+            return []
+        }
         defer { sqlite3_finalize(stmt) }
 
         var results: [RawPolicy] = []
@@ -613,7 +650,10 @@ struct SQLiteMigrationCoordinator {
             """
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+            logPrepareError(db: db, context: "readLocations")
+            return []
+        }
         defer { sqlite3_finalize(stmt) }
 
         var results: [RawLocation] = []
@@ -734,7 +774,10 @@ struct SQLiteMigrationCoordinator {
             """
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+            logPrepareError(db: db, context: "readItems")
+            return []
+        }
         defer { sqlite3_finalize(stmt) }
 
         var results: [RawItem] = []
@@ -784,7 +827,7 @@ struct SQLiteMigrationCoordinator {
                     condition: readString(stmt: stmt, column: 22),
                     hasWarranty: sqlite3_column_type(stmt, 23) != SQLITE_NULL
                         && sqlite3_column_int(stmt, 23) != 0,
-                    attachmentsJSON: readCodableArrayJSON(stmt: stmt, column: 24),
+                    attachmentsJSON: readAttachmentsPlistJSON(stmt: stmt, column: 24),
                     dimensionLength: readString(stmt: stmt, column: 25),
                     dimensionWidth: readString(stmt: stmt, column: 26),
                     dimensionHeight: readString(stmt: stmt, column: 27),
@@ -1059,23 +1102,29 @@ struct SQLiteMigrationCoordinator {
             let data = Data(bytes: blobPtr, count: blobLen)
 
             // Try plist decoding (Core Data's default for Codable arrays)
-            if let plistArray = try? PropertyListSerialization.propertyList(
-                from: data, options: [], format: nil) as? [Any]
-            {
-                // Convert plist array to JSON
-                if let jsonData = try? JSONSerialization.data(
-                    withJSONObject: plistArray, options: []),
-                    let jsonString = String(data: jsonData, encoding: .utf8)
-                {
-                    return jsonString
+            do {
+                let plistObj = try PropertyListSerialization.propertyList(
+                    from: data, options: [], format: nil)
+                if let plistArray = plistObj as? [Any] {
+                    let jsonData = try JSONSerialization.data(
+                        withJSONObject: plistArray, options: [])
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        return jsonString
+                    }
                 }
+            } catch {
+                logger.warning("Plist deserialization failed for column \(column): \(error.localizedDescription)")
             }
 
             // Try JSON decoding as fallback
-            if let jsonString = String(data: data, encoding: .utf8),
-                (try? JSONSerialization.jsonObject(with: data, options: [])) != nil
-            {
-                return jsonString
+            do {
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    _ = try JSONSerialization.jsonObject(with: data, options: [])
+                    return jsonString
+                }
+            } catch {
+                logger.warning(
+                    "JSON fallback deserialization failed for column \(column): \(error.localizedDescription)")
             }
 
             return "[]"
@@ -1087,6 +1136,44 @@ struct SQLiteMigrationCoordinator {
         }
 
         return "[]"
+    }
+
+    /// Reads a Core Data `[AttachmentInfo]` plist BLOB and re-encodes it as JSON
+    /// with ISO 8601 date strings (matching sqlite-data's expected format).
+    ///
+    /// `readCodableArrayJSON` silently loses `AttachmentInfo` data because CoreData
+    /// stores `Date` values as `NSDate` objects in plists. `JSONSerialization` cannot
+    /// represent `NSDate`, so the round-trip through plist→generic-JSON drops the
+    /// `createdAt` field. This method uses `PropertyListDecoder` → typed Swift struct
+    /// → `JSONEncoder` with a custom date strategy to preserve all fields.
+    static func readAttachmentsPlistJSON(stmt: OpaquePointer?, column: Int32) -> String {
+        guard sqlite3_column_type(stmt, column) == SQLITE_BLOB else {
+            // Fallback: TEXT columns or NULL
+            return readCodableArrayJSON(stmt: stmt, column: column)
+        }
+        guard let blobPtr = sqlite3_column_blob(stmt, column) else { return "[]" }
+        let blobLen = Int(sqlite3_column_bytes(stmt, column))
+        guard blobLen > 0 else { return "[]" }
+        let data = Data(bytes: blobPtr, count: blobLen)
+
+        // Try typed decoding (preserves Date fields correctly)
+        do {
+            let attachments = try PropertyListDecoder().decode([AttachmentInfo].self, from: data)
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .custom { date, encoder in
+                var container = encoder.singleValueContainer()
+                try container.encode(date.iso8601String)
+            }
+            let jsonData = try encoder.encode(attachments)
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                return jsonString
+            }
+        } catch {
+            logger.warning("AttachmentInfo typed decode failed, falling back to generic: \(error.localizedDescription)")
+        }
+
+        // Fall back to generic plist→JSON (may lose Date fields)
+        return readCodableArrayJSON(stmt: stmt, column: column)
     }
 
     /// Deserializes a UIColor BLOB stored via UIColorValueTransformer → hex Int64.
@@ -1124,7 +1211,10 @@ struct SQLiteMigrationCoordinator {
     /// Reads two Int64 columns as pairs from a query result
     private static func readPairs(db: OpaquePointer?, query: String) -> [(Int64, Int64)] {
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+            logPrepareError(db: db, context: "readPairs")
+            return []
+        }
         defer { sqlite3_finalize(stmt) }
 
         var pairs: [(Int64, Int64)] = []
@@ -1134,6 +1224,11 @@ struct SQLiteMigrationCoordinator {
             pairs.append((first, second))
         }
         return pairs
+    }
+
+    private static func logPrepareError(db: OpaquePointer?, context: String) {
+        let errMsg = db.flatMap { sqlite3_errmsg($0) }.map { String(cString: $0) } ?? "unknown"
+        logger.error("sqlite3_prepare_v2 failed in \(context): \(errMsg)")
     }
 }
 
