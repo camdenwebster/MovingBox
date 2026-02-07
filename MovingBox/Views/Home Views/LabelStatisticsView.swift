@@ -55,8 +55,11 @@ struct LabelStatisticsView: View {
                 DashboardSectionLabel(text: "Labels") {
                     showingNewLabel = true
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
             .accessibilityIdentifier("dashboard-labels-button")
 
             if labels.isEmpty {

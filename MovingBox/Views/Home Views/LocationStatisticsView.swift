@@ -64,8 +64,11 @@ struct LocationStatisticsView: View {
                 DashboardSectionLabel(text: "Locations") {
                     showingNewLocation = true
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
             .accessibilityIdentifier("dashboard-locations-button")
 
             if locations.isEmpty {

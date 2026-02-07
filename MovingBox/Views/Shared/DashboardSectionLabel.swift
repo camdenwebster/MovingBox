@@ -19,6 +19,9 @@ struct DashboardSectionLabel: View {
                 .font(useSubTitle ? .title3 : .title)
                 .foregroundStyle(.primary)
             if isButton {
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.secondary)
+                Spacer()
                 if let onAdd {
                     Button(action: onAdd) {
                         Image(systemName: "plus")
@@ -29,9 +32,6 @@ struct DashboardSectionLabel: View {
                             .background(.tint, in: Circle())
                     }
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.secondary)
             }
         }
         .bold()

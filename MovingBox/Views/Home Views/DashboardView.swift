@@ -137,8 +137,11 @@ struct DashboardView: View {
                         router.navigate(to: .inventoryListView(locationID: nil, showAllHomes: false))
                     } label: {
                         DashboardSectionLabel(text: "All Inventory")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .accessibilityIdentifier("dashboard-all-inventory-button")
 
                     LazyVGrid(columns: columns, spacing: 16) {
