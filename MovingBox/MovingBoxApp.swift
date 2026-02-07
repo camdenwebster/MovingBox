@@ -255,7 +255,15 @@ struct MovingBoxApp: App {
                         }
                     }
                 case .alreadyCompleted:
-                    break
+                    // Retry CloudKit recovery probe if it wasn't completed on a previous launch
+                    // (e.g. first launch was offline, or recovery failed)
+                    if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
+                        strandedItemCount = count
+                        showRecoveryAlert = true
+                        await withCheckedContinuation { continuation in
+                            recoveryContinuation = continuation
+                        }
+                    }
                 case .success(let stats):
                     TelemetryDeck.signal("Migration.success", parameters: ["stats": "\(stats)"])
                     print("📦 sqlite-data: Migration succeeded — \(stats)")

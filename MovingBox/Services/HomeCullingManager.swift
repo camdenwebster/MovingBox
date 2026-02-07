@@ -93,14 +93,18 @@ struct HomeCullingManager {
                             SELECT COUNT(*) FROM homeInsurancePolicies WHERE homeID = ?
                             """, arguments: [homeID]) ?? 0
 
-                // A home with address or photo data was customized by the user
+                // A home with a custom name, address, or photo was customized by the user.
+                // Default onboarding homes use "My Home" so any other non-empty name counts.
                 let hasMetadata =
                     try Bool.fetchOne(
                         db,
                         sql: """
                             SELECT EXISTS(
                                 SELECT 1 FROM homes WHERE id = ?
-                                AND (address1 != '' OR city != '' OR imageURL IS NOT NULL)
+                                AND (
+                                    (name != '' AND name != 'My Home')
+                                    OR address1 != '' OR city != '' OR imageURL IS NOT NULL
+                                )
                             )
                             """, arguments: [homeID]) ?? false
 
