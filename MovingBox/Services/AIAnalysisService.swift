@@ -1,5 +1,5 @@
 //
-//  OpenAIService.swift
+//  AIAnalysisService.swift
 //  MovingBox
 //
 //  Created by Camden Webster on 5/14/24.
@@ -11,11 +11,15 @@ import Foundation
 import SwiftData
 import UIKit
 
+enum AnalysisPhotoLimits {
+    static let maxPhotos = 60
+}
+
 // MARK: - Mock Service for Testing
 
 #if DEBUG
     @MainActor
-    class MockOpenAIService: OpenAIServiceProtocol {
+    class MockAIAnalysisService: AIAnalysisServiceProtocol {
         var shouldFail = false
         var shouldFailMultiItem = false
 
@@ -40,7 +44,8 @@ import UIKit
                     make: "Herman Miller",
                     model: "Aeron",
                     estimatedPrice: "$1,295.00",
-                    confidence: 0.92
+                    confidence: 0.92,
+                    detections: [ItemDetection(sourceImageIndex: 0, boundingBox: [50, 100, 600, 450])]
                 ),
                 DetectedInventoryItem(
                     title: "MacBook Pro",
@@ -49,7 +54,8 @@ import UIKit
                     make: "Apple",
                     model: "MacBook Pro 15-inch",
                     estimatedPrice: "$2,399.00",
-                    confidence: 0.95
+                    confidence: 0.95,
+                    detections: [ItemDetection(sourceImageIndex: 0, boundingBox: [200, 500, 550, 900])]
                 ),
                 DetectedInventoryItem(
                     title: "Standing Desk",
@@ -58,7 +64,8 @@ import UIKit
                     make: "Uplift",
                     model: "V2",
                     estimatedPrice: "$799.00",
-                    confidence: 0.88
+                    confidence: 0.88,
+                    detections: [ItemDetection(sourceImageIndex: 0, boundingBox: [300, 50, 950, 950])]
                 ),
             ],
             detectedCount: 3,
@@ -69,34 +76,57 @@ import UIKit
         func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
             -> ImageDetails
         {
-            print("🧪 MockOpenAIService: getImageDetails called with \(images.count) images")
+            print("🧪 MockAIAnalysisService: getImageDetails called with \(images.count) images")
             if shouldFail {
-                print("🧪 MockOpenAIService: Simulating failure")
-                throw OpenAIError.invalidData
+                print("🧪 MockAIAnalysisService: Simulating failure")
+                throw AIAnalysisError.invalidData
             }
 
-            print("🧪 MockOpenAIService: Simulating analysis delay...")
+            print("🧪 MockAIAnalysisService: Simulating analysis delay...")
             try await Task.sleep(nanoseconds: 500_000_000)
 
-            print("🧪 MockOpenAIService: Returning mock response")
+            print("🧪 MockAIAnalysisService: Returning mock response")
             return mockResponse
         }
 
-        func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext)
-            async throws -> MultiItemAnalysisResponse
+        func analyzeItem(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+            -> ImageDetails
         {
-            print("🧪 MockOpenAIService: getMultiItemDetails called with \(images.count) images")
-            if shouldFailMultiItem {
-                print("🧪 MockOpenAIService: Simulating multi-item failure")
-                throw OpenAIError.invalidData
+            print("🧪 MockAIAnalysisService: analyzeItem called with \(images.count) images")
+            if shouldFail {
+                print("🧪 MockAIAnalysisService: Simulating failure")
+                throw AIAnalysisError.invalidData
             }
 
-            print("🧪 MockOpenAIService: Simulating multi-item analysis delay...")
+            print("🧪 MockAIAnalysisService: Simulating analysis delay...")
+            try await Task.sleep(nanoseconds: 500_000_000)
+
+            print("🧪 MockAIAnalysisService: Returning mock response")
+            return mockResponse
+        }
+
+        func getMultiItemDetails(
+            from images: [UIImage],
+            settings: SettingsManager,
+            modelContext: ModelContext,
+            narrationContext: String? = nil,
+            onPartialResponse: ((MultiItemAnalysisResponse) -> Void)? = nil
+        )
+            async throws -> MultiItemAnalysisResponse
+        {
+            print("🧪 MockAIAnalysisService: getMultiItemDetails called with \(images.count) images")
+            if shouldFailMultiItem {
+                print("🧪 MockAIAnalysisService: Simulating multi-item failure")
+                throw AIAnalysisError.invalidData
+            }
+
+            print("🧪 MockAIAnalysisService: Simulating multi-item analysis delay...")
             try await Task.sleep(nanoseconds: 500_000_000)
 
             print(
-                "🧪 MockOpenAIService: Returning mock multi-item response with \(mockMultiItemResponse.items?.count ?? 0) items"
+                "🧪 MockAIAnalysisService: Returning mock multi-item response with \(mockMultiItemResponse.items?.count ?? 0) items"
             )
+            onPartialResponse?(mockMultiItemResponse)
             return mockMultiItemResponse
         }
 
@@ -108,20 +138,25 @@ import UIKit
 // MARK: - Service Factory
 
 @MainActor
-enum OpenAIServiceFactory {
-    static func create() -> OpenAIServiceProtocol {
+enum AIAnalysisServiceFactory {
+    static func create() -> AIAnalysisServiceProtocol {
         #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("Mock-OpenAI") {
-                print("🧪 OpenAIServiceFactory: Creating MockOpenAIService for testing")
-                return MockOpenAIService()
+            if ProcessInfo.processInfo.arguments.contains("Mock-AI") {
+                print("🧪 AIAnalysisServiceFactory: Creating MockAIAnalysisService for testing")
+                return MockAIAnalysisService()
             }
         #endif
-        print("🔧 OpenAIServiceFactory: Creating real OpenAIService")
-        return OpenAIService()
+        print("🔧 AIAnalysisServiceFactory: Creating real AIAnalysisService")
+        return AIAnalysisService()
     }
 }
 
 // MARK: - Multi-Item Analysis Types
+
+struct ItemDetection: Codable, Equatable {
+    let sourceImageIndex: Int  // Which photo (0-indexed)
+    let boundingBox: [Int]  // [ymin, xmin, ymax, xmax] normalized 0-1000
+}
 
 struct MultiItemAnalysisResponse: Codable {
     let items: [DetectedInventoryItem]?
@@ -150,6 +185,7 @@ struct DetectedInventoryItem: Codable, Identifiable {
     let model: String
     let estimatedPrice: String
     let confidence: Double
+    let detections: [ItemDetection]?
 
     init(
         id: String = UUID().uuidString,
@@ -159,7 +195,8 @@ struct DetectedInventoryItem: Codable, Identifiable {
         make: String,
         model: String,
         estimatedPrice: String,
-        confidence: Double
+        confidence: Double,
+        detections: [ItemDetection]? = nil
     ) {
         self.id = id
         self.title = title
@@ -169,17 +206,80 @@ struct DetectedInventoryItem: Codable, Identifiable {
         self.model = model
         self.estimatedPrice = estimatedPrice
         self.confidence = confidence
+        self.detections = detections
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case description
+        case category
+        case make
+        case model
+        case estimatedPrice
+        case confidence
+        case detections
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
+        make = try container.decodeIfPresent(String.self, forKey: .make) ?? ""
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
+        estimatedPrice = try container.decodeIfPresent(String.self, forKey: .estimatedPrice) ?? ""
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence) ?? 0.0
+        detections = try container.decodeIfPresent([ItemDetection].self, forKey: .detections)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(description, forKey: .description)
+        try container.encode(category, forKey: .category)
+        try container.encode(make, forKey: .make)
+        try container.encode(model, forKey: .model)
+        try container.encode(estimatedPrice, forKey: .estimatedPrice)
+        try container.encode(confidence, forKey: .confidence)
+        try container.encodeIfPresent(detections, forKey: .detections)
     }
 }
 
 // MARK: - Service Protocols
 
-protocol OpenAIServiceProtocol {
+protocol AIAnalysisServiceProtocol {
     func getImageDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
         -> ImageDetails
-    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
-        -> MultiItemAnalysisResponse
+    func analyzeItem(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+        -> ImageDetails
+    func getMultiItemDetails(
+        from images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?
+    ) async throws -> MultiItemAnalysisResponse
     func cancelCurrentRequest()
+}
+
+extension AIAnalysisServiceProtocol {
+    func getMultiItemDetails(
+        from images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?
+    ) async throws -> MultiItemAnalysisResponse {
+        return try await getMultiItemDetails(
+            from: images,
+            settings: settings,
+            modelContext: modelContext,
+            narrationContext: narrationContext,
+            onPartialResponse: nil
+        )
+    }
 }
 
 protocol ImageManagerProtocol {
@@ -203,12 +303,12 @@ protocol PriceFormatterProtocol {
     func parsePrice(from string: String) -> Decimal?
 }
 
-// MARK: - OpenAI Request Builder
+// MARK: - AI Request Builder
 
-struct OpenAIRequestBuilder {
-    let openAIService = AIProxy.openAIService(
-        partialKey: "v2|5c7e57d7|ilrKAnl-45-YCHAB",
-        serviceURL: "https://api.aiproxy.com/1530daf2/e2ce41d0"
+struct AIRequestBuilder {
+    let openRouterService = AIProxy.openRouterService(
+        partialKey: "v2|dd24c1ca|qVU7FksJSPDTvLtM",
+        serviceURL: "https://api.aiproxy.com/1530daf2/f9f2c62b"
     )
 
     @MainActor
@@ -216,7 +316,7 @@ struct OpenAIRequestBuilder {
         with images: [UIImage],
         settings: SettingsManager,
         modelContext: ModelContext
-    ) async -> OpenAIChatCompletionRequestBody {
+    ) async -> OpenRouterChatCompletionRequestBody {
         return await buildRequestBody(with: images, settings: settings, modelContext: modelContext, isMultiItem: false)
     }
 
@@ -224,9 +324,16 @@ struct OpenAIRequestBuilder {
     func buildMultiItemRequestBody(
         with images: [UIImage],
         settings: SettingsManager,
-        modelContext: ModelContext
-    ) async -> OpenAIChatCompletionRequestBody {
-        return await buildRequestBody(with: images, settings: settings, modelContext: modelContext, isMultiItem: true)
+        modelContext: ModelContext,
+        narrationContext: String? = nil
+    ) async -> OpenRouterChatCompletionRequestBody {
+        return await buildRequestBody(
+            with: images,
+            settings: settings,
+            modelContext: modelContext,
+            isMultiItem: true,
+            narrationContext: narrationContext
+        )
     }
 
     @MainActor
@@ -234,8 +341,9 @@ struct OpenAIRequestBuilder {
         with images: [UIImage],
         settings: SettingsManager,
         modelContext: ModelContext,
-        isMultiItem: Bool
-    ) async -> OpenAIChatCompletionRequestBody {
+        isMultiItem: Bool,
+        narrationContext: String? = nil
+    ) async -> OpenRouterChatCompletionRequestBody {
         // Get active home to filter labels and locations
         let homeDescriptor = FetchDescriptor<Home>(sortBy: [SortDescriptor(\Home.purchaseDate)])
         let homes = (try? modelContext.fetch(homeDescriptor)) ?? []
@@ -270,7 +378,11 @@ struct OpenAIRequestBuilder {
         let categories = ["None"] + allLabelObjects.map { $0.name }
         let locations = ["None"] + filteredLocationObjects.map { $0.name }
 
-        let imagePrompt = createImagePrompt(for: images.count, isMultiItem: isMultiItem)
+        let imagePrompt = createImagePrompt(
+            for: images.count,
+            isMultiItem: isMultiItem,
+            narrationContext: narrationContext
+        )
         let function = buildFunctionDefinition(
             imageCount: images.count,
             categories: categories,
@@ -290,10 +402,10 @@ struct OpenAIRequestBuilder {
         // Build proper function definition with actual properties
         let parametersDict = buildFunctionParameters(function: function)
 
-        return OpenAIChatCompletionRequestBody(
-            model: settings.effectiveAIModel,
+        return OpenRouterChatCompletionRequestBody(
             messages: messageContent,
-            maxCompletionTokens: adjustedMaxTokens,
+            maxTokens: adjustedMaxTokens,
+            model: settings.effectiveAIModel,
             tools: [
                 .function(
                     name: function.name,
@@ -306,38 +418,59 @@ struct OpenAIRequestBuilder {
         )
     }
 
-    private func createImagePrompt(for imageCount: Int, isMultiItem: Bool = false) -> String {
+    private func createImagePrompt(
+        for imageCount: Int,
+        isMultiItem: Bool = false,
+        narrationContext: String? = nil
+    ) -> String {
         if isMultiItem {
-            return """
-                Analyze this image and identify ALL distinct items visible. Each item should be a separate inventory item that would be individually cataloged. Look for objects like electronics, furniture, appliances, books, tools, clothing, etc. 
-
+            let basePrompt = """
+                Analyze the provided image\(imageCount > 1 ? "s" : "") and identify ALL distinct items visible. Each item should be a separate inventory item that would be individually cataloged. Look for objects like electronics, furniture, appliances, books, tools, clothing, etc.
+                \(imageCount > 1 ? "\nImages are labeled Image 0 through Image \(imageCount - 1).\n" : "")
                 CRITICAL REQUIREMENTS:
                 1. You MUST use the process_multiple_inventory_items function
                 2. You MUST include an "items" array in your response - this field is REQUIRED
                 3. The "items" array must contain objects, even if empty: []
-                4. Each item object must have: title, description, category, make, model, estimatedPrice, confidence
+                4. Each item object must have: title, description, category, make, model, estimatedPrice, confidence, detections
                 5. The "detectedCount" must match the length of the "items" array
                 6. Set "analysisType" to "multi_item"
                 7. Provide an overall "confidence" score
+                8. Each item MUST include a "detections" array with bounding box coordinates
+                9. Each detection has "sourceImageIndex" (0-indexed image number) and "boundingBox" [ymin, xmin, ymax, xmax] normalized to 0-1000 scale
+                10. If the same item appears in multiple images, include multiple detections for that item
+                11. The first detection should be the clearest/best view of the item
+                12. Do NOT cap the number of items at 10 or any other limit; include ALL distinct items visible
+                13. For any unknown or unclear field, return an empty string (do NOT use "unknown", "n/a", "no serial number found", etc.)
 
                 EXAMPLE RESPONSE FORMAT:
                 {
                     "items": [
-                        {"title": "Laptop", "description": "Silver laptop computer", "category": "Electronics", "make": "Apple", "model": "MacBook Pro", "estimatedPrice": "$2000", "confidence": 0.95}
+                        {"title": "Laptop", "description": "Silver laptop computer", "category": "Electronics", "make": "Apple", "model": "MacBook Pro", "estimatedPrice": "$2000", "confidence": 0.95, "detections": [{"sourceImageIndex": 0, "boundingBox": [100, 200, 500, 800]}]}
                     ],
                     "detectedCount": 1,
-                    "analysisType": "multi_item", 
+                    "analysisType": "multi_item",
                     "confidence": 0.90
                 }
 
                 Pay attention to text, labels, or model numbers on each item.
                 """
+            if let narrationContext, !narrationContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return """
+                    The person recording provided this narration during this segment:
+                    \"\(narrationContext)\"
+                    Use this narration as context to identify items, locations, and details mentioned.
+
+                    \(basePrompt)
+                    """
+            }
+
+            return basePrompt
         } else if imageCount > 1 {
             return
-                "Analyze these \(imageCount) images which show the same item from different angles and perspectives. Combine all the visual information from all images to create ONE comprehensive description of this single item. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. Return only ONE response that describes the item based on all the photos together."
+                "Analyze these \(imageCount) images which show the same item from different angles and perspectives. Combine all the visual information from all images to create ONE comprehensive description of this single item. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. For any unknown or unclear field, return an empty string (do NOT use \"unknown\", \"n/a\", \"no serial number found\", etc.). Return only ONE response that describes the item based on all the photos together."
         } else {
             return
-                "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification."
+                "Analyze this image and identify the item which is the primary subject of the photo, along with its attributes. Pay special attention to any text, labels, stickers, or engravings that might contain a serial number, model number, or product identification. For any unknown or unclear field, return an empty string (do NOT use \"unknown\", \"n/a\", \"no serial number found\", etc.)."
         }
     }
 
@@ -377,7 +510,7 @@ struct OpenAIRequestBuilder {
         return FunctionDefinition(
             name: isMultiItem ? "process_multiple_inventory_items" : "process_inventory_item",
             description: isMultiItem
-                ? "Process and structure information about MULTIPLE distinct inventory items visible in the image. You MUST return a JSON object with an 'items' array containing a separate object for each unique item that would be individually cataloged. Always include the items array, even if empty."
+                ? "Process and structure information about MULTIPLE distinct inventory items visible in the image. You MUST return a JSON object with an 'items' array containing a separate object for each unique item that would be individually cataloged. Always include the items array, even if empty. Do NOT cap the number of items; include all distinct items visible."
                 : (imageCount > 1
                     ? "Process and structure information about ONE inventory item based on multiple photos. Return only ONE item description that combines information from all images."
                     : "Process and structure information about an inventory item"),
@@ -431,8 +564,8 @@ struct OpenAIRequestBuilder {
         prompt: String,
         images: [UIImage],
         settings: SettingsManager
-    ) async -> [OpenAIChatCompletionRequestBody.Message] {
-        var parts: [OpenAIChatCompletionRequestBody.Message.ContentPart] = []
+    ) async -> [OpenRouterChatCompletionRequestBody.Message] {
+        var parts: [OpenRouterChatCompletionRequestBody.Message.UserContent.Part] = []
 
         // Add the text prompt first
         parts.append(.text(prompt))
@@ -481,18 +614,23 @@ struct OpenAIRequestBuilder {
     }
 
     @MainActor
-    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager, isMultiItem: Bool = false) -> Int {
         // Base token limit for single image with low quality
         let baseTokens = 3000
 
-        // Add 300 tokens for each additional image (up to 5 images max)
-        let imageCount = min(imageCount, 5)  // Cap at 5 images
+        // Add 300 tokens for each additional image (up to 60 images max)
+        let imageCount = min(imageCount, AnalysisPhotoLimits.maxPhotos)
         let additionalTokens = max(0, (imageCount - 1)) * 300
         let lowQualityTokens = baseTokens + additionalTokens
 
         // Apply 3x multiplier for high quality images (Pro + high quality enabled)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        var finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+
+        // Multi-item needs more tokens for bounding box coordinates (~80-120 per item)
+        if isMultiItem {
+            finalTokens = max(finalTokens, 12000)
+        }
 
         return finalTokens
     }
@@ -521,7 +659,7 @@ struct OpenAIRequestBuilder {
 
             // Special handling for array properties (specifically "items" in multi-item functions)
             if parameter.type == "array" && key == "items" && function.name == "process_multiple_inventory_items" {
-                // Create a proper items schema that OpenAI expects for arrays
+                // Create a proper items schema that the model expects for arrays
                 let itemSchemaDict: [String: AIProxyJSONValue] = [
                     "type": .string("object"),
                     "description": .string("Individual inventory item with all standard properties"),
@@ -538,35 +676,152 @@ struct OpenAIRequestBuilder {
     }
 }
 
-// MARK: - OpenAI Response Parser
+// MARK: - AI Response Parser
 
-struct OpenAIResponseParser {
+struct AIResponseParser {
 
     struct ParseResult {
         let imageDetails: ImageDetails
         let usage: TokenUsage?
     }
 
+    struct MultiItemParseResult {
+        let response: MultiItemAnalysisResponse
+        let usage: TokenUsage?
+    }
+
+    private func sanitizeString(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return ""
+        }
+
+        let normalized = trimmed.lowercased()
+        let badExactValues: Set<String> = [
+            "unknown",
+            "unknown item",
+            "n/a",
+            "na",
+            "none",
+            "not available",
+            "not specified",
+            "unavailable",
+            "not found",
+        ]
+
+        if badExactValues.contains(normalized) {
+            return ""
+        }
+
+        let badSubstrings = [
+            "no serial number",
+            "serial number not found",
+            "serial not found",
+            "not visible",
+            "unable to determine",
+            "could not determine",
+        ]
+
+        if badSubstrings.contains(where: { normalized.contains($0) }) {
+            return ""
+        }
+
+        return trimmed
+    }
+
+    private func sanitizeOptional(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let sanitized = sanitizeString(value)
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
+    private func sanitizeCategories(_ categories: [String]) -> [String] {
+        categories
+            .map { sanitizeString($0) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func sanitizeImageDetails(_ details: ImageDetails) -> ImageDetails {
+        let sanitizedCategories = sanitizeCategories(details.categories)
+        let sanitizedCategory = sanitizeString(details.category)
+        let finalCategory = sanitizedCategory.isEmpty ? (sanitizedCategories.first ?? "") : sanitizedCategory
+
+        return ImageDetails(
+            title: sanitizeString(details.title),
+            quantity: sanitizeString(details.quantity),
+            description: sanitizeString(details.description),
+            make: sanitizeString(details.make),
+            model: sanitizeString(details.model),
+            category: finalCategory,
+            categories: sanitizedCategories,
+            location: sanitizeString(details.location),
+            price: sanitizeString(details.price),
+            serialNumber: sanitizeString(details.serialNumber),
+            condition: sanitizeOptional(details.condition),
+            color: sanitizeOptional(details.color),
+            dimensions: sanitizeOptional(details.dimensions),
+            dimensionLength: sanitizeOptional(details.dimensionLength),
+            dimensionWidth: sanitizeOptional(details.dimensionWidth),
+            dimensionHeight: sanitizeOptional(details.dimensionHeight),
+            dimensionUnit: sanitizeOptional(details.dimensionUnit),
+            weightValue: sanitizeOptional(details.weightValue),
+            weightUnit: sanitizeOptional(details.weightUnit),
+            purchaseLocation: sanitizeOptional(details.purchaseLocation),
+            replacementCost: sanitizeOptional(details.replacementCost),
+            depreciationRate: sanitizeOptional(details.depreciationRate),
+            storageRequirements: sanitizeOptional(details.storageRequirements),
+            isFragile: sanitizeOptional(details.isFragile)
+        )
+    }
+
+    private func sanitizeDetectedItem(_ item: DetectedInventoryItem) -> DetectedInventoryItem {
+        return DetectedInventoryItem(
+            id: item.id,
+            title: sanitizeString(item.title),
+            description: sanitizeString(item.description),
+            category: sanitizeString(item.category),
+            make: sanitizeString(item.make),
+            model: sanitizeString(item.model),
+            estimatedPrice: sanitizeString(item.estimatedPrice),
+            confidence: item.confidence,
+            detections: item.detections
+        )
+    }
+
+    func sanitizeMultiItemResponse(_ response: MultiItemAnalysisResponse) -> MultiItemAnalysisResponse {
+        let sanitizedItems = response.items?.map { sanitizeDetectedItem($0) }
+        return MultiItemAnalysisResponse(
+            items: sanitizedItems,
+            detectedCount: response.detectedCount,
+            analysisType: response.analysisType,
+            confidence: response.confidence
+        )
+    }
     @MainActor
-    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager, isMultiItem: Bool = false) -> Int {
         // Base token limit for single image with low quality
         let baseTokens = 3000
 
-        // Add 300 tokens for each additional image (up to 5 images max)
-        let imageCount = min(imageCount, 5)  // Cap at 5 images
+        // Add 300 tokens for each additional image (up to 60 images max)
+        let imageCount = min(imageCount, AnalysisPhotoLimits.maxPhotos)
         let additionalTokens = max(0, (imageCount - 1)) * 300
         let lowQualityTokens = baseTokens + additionalTokens
 
         // Apply 3x multiplier for high quality images (Pro + high quality enabled)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        var finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+
+        // Multi-item needs more tokens for bounding box coordinates (~80-120 per item)
+        if isMultiItem {
+            finalTokens = max(finalTokens, 12000)
+        }
 
         return finalTokens
     }
 
     @MainActor
     func parseAIProxyResponse(
-        response: OpenAIChatCompletionResponseBody,
+        response: OpenRouterChatCompletionResponseBody,
         imageCount: Int,
         startTime: Date,
         settings: SettingsManager
@@ -581,29 +836,34 @@ struct OpenAIResponseParser {
         // Extract and validate response
         guard let choice = response.choices.first else {
             print("❌ No choices in response")
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         guard let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty else {
             print("❌ No tool calls in response")
             print("📝 Response message: \(choice.message)")
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         let toolCall = toolCalls[0]
-        print("🎯 Tool call received: \(toolCall.function.name)")
+        guard let function = toolCall.function else {
+            print("❌ Tool call missing function payload")
+            throw AIAnalysisError.invalidData
+        }
+        print("🎯 Tool call received: \(function.name)")
 
         // Get arguments as string - AIProxy provides argumentsRaw for JSON string
-        let argumentsString = toolCall.function.argumentsRaw ?? ""
+        let argumentsString = function.argumentsRaw ?? ""
         print("📄 Arguments length: \(argumentsString.count) characters")
 
         guard let responseData = argumentsString.data(using: String.Encoding.utf8) else {
             print("❌ Cannot convert function arguments to data")
             print("📄 Raw arguments: \(argumentsString)")
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
-        let result = try JSONDecoder().decode(ImageDetails.self, from: responseData)
+        let decoded = try JSONDecoder().decode(ImageDetails.self, from: responseData)
+        let result = sanitizeImageDetails(decoded)
 
         // Convert AIProxy usage to our TokenUsage type for compatibility
         let tokenUsage = response.usage != nil ? convertAIProxyUsage(response.usage!) : nil
@@ -611,7 +871,54 @@ struct OpenAIResponseParser {
         return ParseResult(imageDetails: result, usage: tokenUsage)
     }
 
-    private func convertAIProxyUsage(_ aiProxyUsage: OpenAIChatUsage) -> TokenUsage {
+    @MainActor
+    func parseAIProxyMultiItemResponse(
+        response: OpenRouterChatCompletionResponseBody,
+        imageCount: Int,
+        startTime: Date,
+        settings: SettingsManager
+    ) throws -> MultiItemParseResult {
+        print("✅ Processing multi-item AIProxy response with \(response.choices.count) choices")
+
+        if response.usage == nil {
+            print("⚠️ No token usage information in response")
+        }
+
+        guard let choice = response.choices.first else {
+            print("❌ No choices in response")
+            throw AIAnalysisError.invalidData
+        }
+
+        guard let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty else {
+            print("❌ No tool calls in response")
+            print("📝 Response message: \(choice.message)")
+            throw AIAnalysisError.invalidData
+        }
+
+        let toolCall = toolCalls[0]
+        guard let function = toolCall.function else {
+            print("❌ Tool call missing function payload")
+            throw AIAnalysisError.invalidData
+        }
+        print("🎯 Tool call received: \(function.name)")
+
+        let argumentsString = function.argumentsRaw ?? ""
+        print("📄 Arguments length: \(argumentsString.count) characters")
+
+        guard let responseData = argumentsString.data(using: String.Encoding.utf8) else {
+            print("❌ Cannot convert function arguments to data")
+            print("📄 Raw arguments: \(argumentsString)")
+            throw AIAnalysisError.invalidData
+        }
+
+        let decoded = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
+        let result = sanitizeMultiItemResponse(decoded)
+        let tokenUsage = response.usage != nil ? convertAIProxyUsage(response.usage!) : nil
+
+        return MultiItemParseResult(response: result, usage: tokenUsage)
+    }
+
+    private func convertAIProxyUsage(_ aiProxyUsage: OpenRouterChatCompletionResponseBody.Usage) -> TokenUsage {
         return TokenUsage(
             prompt_tokens: aiProxyUsage.promptTokens ?? 0,
             completion_tokens: aiProxyUsage.completionTokens ?? 0,
@@ -848,7 +1155,7 @@ struct AIPromptConfiguration {
     }
 }
 
-enum OpenAIError: Error {
+enum AIAnalysisError: Error {
     case invalidURL
     case invalidResponse(statusCode: Int, responseData: String)
     case invalidData
@@ -863,7 +1170,7 @@ enum OpenAIError: Error {
         case .invalidURL:
             return "Invalid server configuration"
         case .invalidResponse(let statusCode, let responseData):
-            // Try to parse Lambda/OpenAI error messages
+            // Try to parse AIProxy error messages
             if let errorData = responseData.data(using: String.Encoding.utf8),
                 let errorDict = try? JSONSerialization.jsonObject(with: errorData) as? [String: Any],
                 let errorMessage = errorDict["error"] as? String
@@ -986,29 +1293,34 @@ struct FunctionDefinition: Codable {
 }
 
 @MainActor
-class OpenAIService: OpenAIServiceProtocol {
+class AIAnalysisService: AIAnalysisServiceProtocol {
 
     @MainActor
-    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager) -> Int {
+    private func calculateTokenLimit(imageCount: Int, settings: SettingsManager, isMultiItem: Bool = false) -> Int {
         // Base token limit for single image with low quality
         let baseTokens = 3000
 
-        // Add 300 tokens for each additional image (up to 5 images max)
-        let imageCount = min(imageCount, 5)  // Cap at 5 images
+        // Add 300 tokens for each additional image (up to 60 images max)
+        let imageCount = min(imageCount, AnalysisPhotoLimits.maxPhotos)
         let additionalTokens = max(0, (imageCount - 1)) * 300
         let lowQualityTokens = baseTokens + additionalTokens
 
         // Apply 3x multiplier for high quality images (Pro + high quality enabled)
         let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-        let finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+        var finalTokens = isHighQuality ? lowQualityTokens * 3 : lowQualityTokens
+
+        // Multi-item needs more tokens for bounding box coordinates (~80-120 per item)
+        if isMultiItem {
+            finalTokens = max(finalTokens, 12000)
+        }
 
         return finalTokens
     }
     // Track current request to allow cancellation
     private var currentTask: Task<ImageDetails, Error>?
 
-    private let requestBuilder = OpenAIRequestBuilder()
-    private let responseParser = OpenAIResponseParser()
+    private let requestBuilder = AIRequestBuilder()
+    private let responseParser = AIResponseParser()
 
     init() {
         // Stateless service - no stored properties needed
@@ -1032,16 +1344,31 @@ class OpenAIService: OpenAIServiceProtocol {
         return try await currentTask!.value
     }
 
-    func getMultiItemDetails(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
-        -> MultiItemAnalysisResponse
+    func analyzeItem(from images: [UIImage], settings: SettingsManager, modelContext: ModelContext) async throws
+        -> ImageDetails
     {
+        return try await performRequestWithRetry(images: images, settings: settings, modelContext: modelContext)
+    }
+
+    func getMultiItemDetails(
+        from images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String? = nil,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)? = nil
+    ) async throws -> MultiItemAnalysisResponse {
         // Cancel any existing request
         currentTask?.cancel()
 
         // Create new task for this request (reusing the same cancellation mechanism)
         let multiItemTask = Task<MultiItemAnalysisResponse, Error> {
             return try await performMultiItemStructuredResponseWithRetry(
-                images: images, settings: settings, modelContext: modelContext)
+                images: images,
+                settings: settings,
+                modelContext: modelContext,
+                narrationContext: narrationContext,
+                onPartialResponse: onPartialResponse
+            )
         }
 
         defer {
@@ -1059,7 +1386,12 @@ class OpenAIService: OpenAIServiceProtocol {
     // MARK: - Multi-Item Structured Response Implementation
 
     private func performMultiItemStructuredResponseWithRetry(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?,
+        maxAttempts: Int = 3
     ) async throws -> MultiItemAnalysisResponse {
         var lastError: Error?
 
@@ -1069,8 +1401,14 @@ class OpenAIService: OpenAIServiceProtocol {
 
             do {
                 return try await performSingleMultiItemStructuredRequest(
-                    images: images, settings: settings, modelContext: modelContext, attempt: attempt,
-                    maxAttempts: maxAttempts)
+                    images: images,
+                    settings: settings,
+                    modelContext: modelContext,
+                    narrationContext: narrationContext,
+                    onPartialResponse: onPartialResponse,
+                    attempt: attempt,
+                    maxAttempts: maxAttempts
+                )
             } catch {
                 lastError = error
 
@@ -1092,7 +1430,7 @@ class OpenAIService: OpenAIServiceProtocol {
                                 try Task.checkCancellation()
                                 continue
                             } else {
-                                throw OpenAIError.rateLimitExceeded
+                                throw AIAnalysisError.rateLimitExceeded
                             }
                         case 500...599:  // Server errors
                             if attempt < maxAttempts {
@@ -1104,7 +1442,7 @@ class OpenAIService: OpenAIServiceProtocol {
                                 try Task.checkCancellation()
                                 continue
                             } else {
-                                throw OpenAIError.serverError("Server error \(statusCode)")
+                                throw AIAnalysisError.serverError("Server error \(statusCode)")
                             }
                         default:
                             print(
@@ -1116,11 +1454,11 @@ class OpenAIService: OpenAIServiceProtocol {
                                 try Task.checkCancellation()
                                 continue
                             } else {
-                                throw OpenAIError.serverError("AIProxy error \(statusCode)")
+                                throw AIAnalysisError.serverError("AIProxy error \(statusCode)")
                             }
                         }
                     case .assertion, .deviceCheckIsUnavailable, .deviceCheckBypassIsMissing:
-                        throw OpenAIError.serverError("AIProxy configuration error")
+                        throw AIAnalysisError.serverError("AIProxy configuration error")
                     }
                 }
 
@@ -1133,7 +1471,7 @@ class OpenAIService: OpenAIServiceProtocol {
                         try Task.checkCancellation()
                         continue
                     } else {
-                        throw OpenAIError.networkUnavailable
+                        throw AIAnalysisError.networkUnavailable
                     }
                 }
 
@@ -1143,24 +1481,167 @@ class OpenAIService: OpenAIServiceProtocol {
         }
 
         // If we get here, all attempts failed
-        throw lastError ?? OpenAIError.invalidResponse(statusCode: 0, responseData: "Unknown error")
+        throw lastError ?? AIAnalysisError.invalidResponse(statusCode: 0, responseData: "Unknown error")
     }
 
     private func performSingleMultiItemStructuredRequest(
-        images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?,
+        attempt: Int,
+        maxAttempts: Int
     ) async throws -> MultiItemAnalysisResponse {
         let startTime = Date()
         let imageCount = images.count
 
         print("🔄 Multi-item structured response attempt \(attempt)/\(maxAttempts)")
 
-        // Create the JSON schema for multi-item analysis
-        let multiItemSchema: [String: AIProxyJSONValue] = [
+        let multiItemSchema = createMultiItemJSONSchema()
+
+        // Build base request body for multi-item but we'll override the responseFormat
+        let baseRequestBody = await requestBuilder.buildMultiItemRequestBody(
+            with: images,
+            settings: settings,
+            modelContext: modelContext,
+            narrationContext: narrationContext
+        )
+
+        // Calculate token limit (multi-item needs more tokens for bounding boxes)
+        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
+        let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+
+        print("🚀 Sending multi-item structured response request via AIProxy")
+        print("📊 Images: \(imageCount)")
+        print("⚙️ Quality: \(isHighQuality ? "High" : "Standard")")
+        print("📝 Max tokens: \(adjustedMaxTokens)")
+
+        if let onPartialResponse {
+            do {
+                return try await performSingleMultiItemStructuredStreamingRequest(
+                    images: images,
+                    settings: settings,
+                    modelContext: modelContext,
+                    narrationContext: narrationContext,
+                    multiItemSchema: multiItemSchema,
+                    onPartialResponse: onPartialResponse,
+                    startTime: startTime,
+                    adjustedMaxTokens: adjustedMaxTokens
+                )
+            } catch {
+                if shouldFallbackToFunctionCalling(error) {
+                    print("⚠️ Structured streaming failed; falling back to function calling: \(error)")
+                    return try await performSingleMultiItemFunctionRequest(
+                        images: images,
+                        settings: settings,
+                        modelContext: modelContext,
+                        narrationContext: narrationContext,
+                        attempt: attempt,
+                        maxAttempts: maxAttempts
+                    )
+                }
+                throw error
+            }
+        }
+
+        // Make the request using structured responses instead of function calling
+        let response: OpenRouterChatCompletionResponseBody
+        do {
+            response = try await requestBuilder.openRouterService
+                .chatCompletionRequest(
+                    body: .init(
+                        messages: baseRequestBody.messages,
+                        maxTokens: adjustedMaxTokens,
+                        model: baseRequestBody.model,
+                        responseFormat: .jsonSchema(
+                            name: "multi_item_analysis",
+                            description: "Analysis of multiple inventory items in the image",
+                            schema: multiItemSchema,
+                            strict: true
+                        )
+                    ),
+                    secondsToWait: 60
+                )
+        } catch {
+            if shouldFallbackToFunctionCalling(error) {
+                print("⚠️ Structured response failed; falling back to function calling: \(error)")
+                return try await performSingleMultiItemFunctionRequest(
+                    images: images,
+                    settings: settings,
+                    modelContext: modelContext,
+                    narrationContext: narrationContext,
+                    attempt: attempt,
+                    maxAttempts: maxAttempts
+                )
+            }
+            throw error
+        }
+
+        print("✅ Received multi-item structured response with \(response.choices.count) choices")
+
+        // Parse the structured response
+        guard let choice = response.choices.first,
+            let content = choice.message.content
+        else {
+            throw AIAnalysisError.invalidResponse(statusCode: 200, responseData: "No content in response")
+        }
+
+        print("📄 Structured response content length: \(content.count) characters")
+
+        guard let responseData = content.data(using: .utf8) else {
+            throw AIAnalysisError.invalidData
+        }
+
+        let result: MultiItemAnalysisResponse
+        do {
+            let decoded = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
+            result = responseParser.sanitizeMultiItemResponse(decoded)
+            print("✅ Successfully decoded MultiItemAnalysisResponse with \(result.safeItems.count) items")
+        } catch {
+            print("❌ Failed to decode multi-item response: \(error)")
+            print("📄 Raw response: \(content)")
+            print("↩️ Falling back to function calling for multi-item")
+            return try await performSingleMultiItemFunctionRequest(
+                images: images,
+                settings: settings,
+                modelContext: modelContext,
+                narrationContext: narrationContext,
+                attempt: attempt,
+                maxAttempts: maxAttempts
+            )
+        }
+
+        // Log token usage if available
+        if let usage = response.usage {
+            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
+            let totalTokens = usage.totalTokens ?? 0
+            let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
+            print(
+                "📦 Multi-item response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage \(String(format: "%.1f", usagePercentage))% (\(totalTokens)/\(adjustedMaxTokens))"
+            )
+            self.logAIProxyTokenUsage(
+                usage: usage,
+                elapsedTime: Date().timeIntervalSince(startTime),
+                imageCount: imageCount,
+                settings: settings
+            )
+        } else {
+            print(
+                "📦 Multi-item response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage unavailable"
+            )
+        }
+
+        return result
+    }
+
+    private func createMultiItemJSONSchema() -> [String: AIProxyJSONValue] {
+        return [
             "type": "object",
             "properties": [
                 "items": [
                     "type": "array",
-                    "description": "Array of detected inventory items",
+                    "description": "Array of detected inventory items (include ALL distinct items; do not cap at 10)",
                     "items": [
                         "type": "object",
                         "properties": [
@@ -1196,9 +1677,30 @@ class OpenAIService: OpenAIServiceProtocol {
                                 "type": "number",
                                 "description": "Confidence score between 0.0 and 1.0",
                             ],
+                            "detections": [
+                                "type": "array",
+                                "description": "Bounding box detections for this item across source images",
+                                "items": [
+                                    "type": "object",
+                                    "properties": [
+                                        "sourceImageIndex": [
+                                            "type": "integer",
+                                            "description": "0-indexed image number this detection is from",
+                                        ],
+                                        "boundingBox": [
+                                            "type": "array",
+                                            "description": "[ymin, xmin, ymax, xmax] normalized 0-1000",
+                                            "items": ["type": "integer"],
+                                        ],
+                                    ],
+                                    "required": ["sourceImageIndex", "boundingBox"],
+                                    "additionalProperties": false,
+                                ],
+                            ],
                         ],
                         "required": [
                             "id", "title", "description", "category", "make", "model", "estimatedPrice", "confidence",
+                            "detections",
                         ],
                         "additionalProperties": false,
                     ],
@@ -1219,599 +1721,313 @@ class OpenAIService: OpenAIServiceProtocol {
             "required": ["items", "detectedCount", "analysisType", "confidence"],
             "additionalProperties": false,
         ]
+    }
 
-        // Build base request body for multi-item but we'll override the responseFormat
+    private func performSingleMultiItemStructuredStreamingRequest(
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        multiItemSchema: [String: AIProxyJSONValue],
+        onPartialResponse: (MultiItemAnalysisResponse) -> Void,
+        startTime: Date,
+        adjustedMaxTokens: Int
+    ) async throws -> MultiItemAnalysisResponse {
+        let imageCount = images.count
         let baseRequestBody = await requestBuilder.buildMultiItemRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            modelContext: modelContext,
+            narrationContext: narrationContext
         )
 
-        // Calculate token limit
-        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
-        let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
+        let stream = try await requestBuilder.openRouterService
+            .streamingChatCompletionRequest(
+                body: .init(
+                    messages: baseRequestBody.messages,
+                    maxTokens: adjustedMaxTokens,
+                    model: baseRequestBody.model,
+                    responseFormat: .jsonSchema(
+                        name: "multi_item_analysis",
+                        description: "Analysis of multiple inventory items in the image",
+                        schema: multiItemSchema,
+                        strict: true
+                    )
+                ),
+                secondsToWait: 60
+            )
 
-        print("🚀 Sending multi-item structured response request via AIProxy")
-        print("📊 Images: \(imageCount)")
-        print("⚙️ Quality: \(isHighQuality ? "High" : "Standard")")
-        print("📝 Max tokens: \(adjustedMaxTokens)")
+        var contentBuffer = ""
+        var toolArgumentsBuffer = ""
+        var usage: OpenRouterChatCompletionResponseBody.Usage?
+        var lastEmittedFingerprint: String?
 
-        // Make the request using structured responses instead of function calling
-        let response: OpenAIChatCompletionResponseBody = try await requestBuilder.openAIService.chatCompletionRequest(
-            body: .init(
-                model: baseRequestBody.model,
-                messages: baseRequestBody.messages,
-                maxCompletionTokens: adjustedMaxTokens,
-                responseFormat: .jsonSchema(
-                    name: "multi_item_analysis",
-                    description: "Analysis of multiple inventory items in the image",
-                    schema: multiItemSchema,
-                    strict: true
-                )
-            ),
-            secondsToWait: 60
-        )
+        for try await chunk in stream {
+            if let chunkUsage = chunk.usage {
+                usage = chunkUsage
+            }
 
-        print("✅ Received multi-item structured response with \(response.choices.count) choices")
+            for choice in chunk.choices {
+                if let content = choice.delta.content, !content.isEmpty {
+                    contentBuffer += content
+                }
 
-        // Parse the structured response
-        guard let choice = response.choices.first,
-            let content = choice.message.content
-        else {
-            throw OpenAIError.invalidResponse(statusCode: 200, responseData: "No content in response")
+                if let toolCalls = choice.delta.toolCalls {
+                    for toolCall in toolCalls {
+                        if let arguments = toolCall.function?.arguments, !arguments.isEmpty {
+                            toolArgumentsBuffer += arguments
+                        }
+                    }
+                }
+            }
+
+            let payload = contentBuffer.isEmpty ? toolArgumentsBuffer : contentBuffer
+            if let partial = extractPartialMultiItemResponse(from: payload) {
+                let fingerprint = partialFingerprint(for: partial)
+                if fingerprint != lastEmittedFingerprint {
+                    lastEmittedFingerprint = fingerprint
+                    onPartialResponse(partial)
+                }
+            }
         }
 
-        print("📄 Structured response content length: \(content.count) characters")
-
-        guard let responseData = content.data(using: .utf8) else {
-            throw OpenAIError.invalidData
+        let finalPayload = contentBuffer.isEmpty ? toolArgumentsBuffer : contentBuffer
+        guard let responseData = finalPayload.data(using: .utf8) else {
+            throw AIAnalysisError.invalidData
         }
 
-        let result: MultiItemAnalysisResponse
-        do {
-            result = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
-            print("✅ Successfully decoded MultiItemAnalysisResponse with \(result.safeItems.count) items")
-        } catch {
-            print("❌ Failed to decode multi-item response: \(error)")
-            print("📄 Raw response: \(content)")
-            throw OpenAIError.invalidData
-        }
+        let decoded = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
+        let result = responseParser.sanitizeMultiItemResponse(decoded)
+        onPartialResponse(result)
 
-        // Log token usage if available
-        if let usage = response.usage {
+        if let usage {
+            let totalTokens = usage.totalTokens ?? 0
+            let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
+            print(
+                "📦 Multi-item streamed response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage \(String(format: "%.1f", usagePercentage))% (\(totalTokens)/\(adjustedMaxTokens))"
+            )
             self.logAIProxyTokenUsage(
                 usage: usage,
                 elapsedTime: Date().timeIntervalSince(startTime),
                 imageCount: imageCount,
                 settings: settings
+            )
+        } else {
+            print(
+                "📦 Multi-item streamed response: \(result.safeItems.count) items (detectedCount: \(result.detectedCount)); token usage unavailable"
             )
         }
 
         return result
     }
 
-    // MARK: - Deprecated Function Calling Implementation (Temporarily Disabled)
-    /*
-    private func performMultiItemRequestWithRetry(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3) async throws -> MultiItemAnalysisResponse {
-        var lastError: Error?
-    
-        for attempt in 1...maxAttempts {
-            // Check for task cancellation
-            try Task.checkCancellation()
-    
-            do {
-                return try await performSingleMultiItemRequest(images: images, settings: settings, modelContext: modelContext, attempt: attempt, maxAttempts: maxAttempts)
-            } catch {
-                lastError = error
-    
-                // Handle task cancellation errors
-                if error is CancellationError {
-                    throw error
-                }
-    
-                // Check if error is retryable
-                if let openAIError = error as? OpenAIError, !openAIError.isRetryable {
-                    throw error
-                }
-    
-                // Handle AIProxy specific errors with same retry logic as single item
-                if let aiProxyError = error as? AIProxyError {
-                    switch aiProxyError {
-                    case .unsuccessfulRequest(let statusCode, _):
-                        switch statusCode {
-                        case 429: // Rate limited
-                            if attempt < maxAttempts {
-                                print("⏱️ Multi-item rate limited, retrying attempt \(attempt + 1)/\(maxAttempts)")
-                                let delay = min(pow(2.0, Double(attempt)), 8.0)
-                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                                try Task.checkCancellation()
-                                continue
-                            } else {
-                                throw OpenAIError.rateLimitExceeded
-                            }
-                        case 500...599: // Server errors - retryable
-                            if attempt < maxAttempts {
-                                print("🔄 Multi-item server error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
-                                let delay = min(pow(2.0, Double(attempt)), 8.0)
-                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                                try Task.checkCancellation()
-                                continue
-                            }
-                        default:
-                            throw error
-                        }
-                    default:
-                        throw error
-                    }
-                }
-    
-                // If not retryable or last attempt, throw the error
-                if attempt == maxAttempts {
-                    throw lastError ?? error
-                }
-    
-                // Wait before retry with exponential backoff
-                let delay = min(pow(2.0, Double(attempt)), 8.0)
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                try Task.checkCancellation()
-            }
+    private func extractPartialMultiItemResponse(from payload: String) -> MultiItemAnalysisResponse? {
+        let trimmedPayload = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPayload.isEmpty else { return nil }
+
+        if let complete = decodeMultiItemResponse(from: trimmedPayload) {
+            return complete
         }
-    
-        throw lastError ?? OpenAIError.invalidData
-    }
-    
-    private func performRequestWithRetry(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, maxAttempts: Int = 3) async throws -> ImageDetails {
-        var lastError: Error?
-    
-        for attempt in 1...maxAttempts {
-            // Check for task cancellation
-            try Task.checkCancellation()
-    
-            do {
-                return try await performSingleRequest(images: images, settings: settings, modelContext: modelContext, attempt: attempt, maxAttempts: maxAttempts)
-            } catch {
-                lastError = error
-    
-                // Handle task cancellation errors
-                if error is CancellationError {
-                    throw error
-                }
-    
-                // Check if error is retryable
-                if let openAIError = error as? OpenAIError, !openAIError.isRetryable {
-                    throw error
-                }
-    
-                // Handle AIProxy specific errors
-                if let aiProxyError = error as? AIProxyError {
-                    switch aiProxyError {
-                    case .unsuccessfulRequest(let statusCode, let responseBody):
-                        print("🌐 AIProxy error \(statusCode): \(responseBody)")
-    
-                        // Handle specific HTTP status codes
-                        switch statusCode {
-                        case 429: // Rate limited
-                            if attempt < maxAttempts {
-                                print("⏱️ Rate limited, retrying attempt \(attempt + 1)/\(maxAttempts)")
-                                let delay = min(pow(2.0, Double(attempt)), 8.0)
-                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                                try Task.checkCancellation()
-                                continue
-                            } else {
-                                throw OpenAIError.rateLimitExceeded
-                            }
-                        case 413: // Payload too large
-                            throw OpenAIError.serverError("Image is too large. Please try with a smaller image.")
-                        case 500...599: // Server errors - retryable
-                            if attempt < maxAttempts {
-                                print("🔄 Server error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
-                                let delay = min(pow(2.0, Double(attempt)), 8.0)
-                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                                try Task.checkCancellation()
-                                continue
-                            } else {
-                                throw OpenAIError.serverError("Server is temporarily unavailable. Please try again later.")
-                            }
-                        case 400...499: // Client errors - not retryable
-                            throw OpenAIError.invalidResponse(statusCode: statusCode, responseData: responseBody)
-                        default:
-                            if attempt < maxAttempts {
-                                print("🔄 Unknown AIProxy error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
-                                let delay = min(pow(2.0, Double(attempt)), 8.0)
-                                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                                try Task.checkCancellation()
-                                continue
-                            } else {
-                                throw OpenAIError.serverError(responseBody)
-                            }
-                        }
-                    case .assertion(let message):
-                        throw OpenAIError.serverError("Assertion error: \(message)")
-                    case .deviceCheckIsUnavailable:
-                        throw OpenAIError.serverError("Device verification is unavailable")
-                    case .deviceCheckBypassIsMissing:
-                        throw OpenAIError.serverError("Device verification bypass is missing")
-                    @unknown default:
-                        // Handle any future AIProxy error cases
-                        if attempt < maxAttempts {
-                            print("🔄 Unknown AIProxy error, retrying attempt \(attempt + 1)/\(maxAttempts)")
-                            let delay = min(pow(2.0, Double(attempt)), 8.0)
-                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            try Task.checkCancellation()
-                            continue
-                        } else {
-                            throw OpenAIError.serverError("Unknown AIProxy error occurred")
-                        }
-                    }
-                }
-    
-                // Handle URLError for network-level issues (still possible with AIProxy)
-                if let urlError = error as? URLError {
-                    switch urlError.code {
-                    case .cancelled:
-                        if attempt < maxAttempts {
-                            print("🔄 Request cancelled, retrying attempt \(attempt + 1)/\(maxAttempts)")
-                            let delay = min(pow(2.0, Double(attempt)), 8.0)
-                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            try Task.checkCancellation()
-                            continue
-                        } else {
-                            throw OpenAIError.networkCancelled
-                        }
-                    case .timedOut:
-                        if attempt < maxAttempts {
-                            print("⏱️ Request timed out, retrying attempt \(attempt + 1)/\(maxAttempts)")
-                            let delay = min(pow(2.0, Double(attempt)), 8.0)
-                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            try Task.checkCancellation()
-                            continue
-                        } else {
-                            throw OpenAIError.networkTimeout
-                        }
-                    case .notConnectedToInternet, .networkConnectionLost:
-                        throw OpenAIError.networkUnavailable
-                    default:
-                        if attempt < maxAttempts {
-                            print("🌐 Network error: \(urlError.localizedDescription), retrying attempt \(attempt + 1)/\(maxAttempts)")
-                            let delay = min(pow(2.0, Double(attempt)), 8.0)
-                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            try Task.checkCancellation()
-                            continue
-                        }
-                    }
-                }
-    
-                // For other retryable errors
-                if attempt < maxAttempts {
-                    print("🔄 Request failed: \(error.localizedDescription), retrying attempt \(attempt + 1)/\(maxAttempts)")
-                    let delay = min(pow(2.0, Double(attempt)), 8.0)
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    try Task.checkCancellation() // Check again after delay
-                    continue
-                } else {
-                    throw error
-                }
-            }
+
+        let itemJSONObjects = extractCompleteItemObjects(from: trimmedPayload)
+        guard !itemJSONObjects.isEmpty else { return nil }
+
+        let decodedItems: [DetectedInventoryItem] = itemJSONObjects.compactMap { itemJSON in
+            guard let data = itemJSON.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(DetectedInventoryItem.self, from: data)
         }
-    
-        throw lastError ?? OpenAIError.serverError("Maximum retry attempts exceeded")
-    }
-    
-    private func performSingleRequest(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int) async throws -> ImageDetails {
-        guard !images.isEmpty else {
-            throw OpenAIError.invalidData
-        }
-    
-        // Build request body using AIProxy with UIImages directly - no base64 conversion needed
-        // AIProxy handles image encoding internally via encodeImageAsURL
-        let requestBody = await requestBuilder.buildRequestBody(
-            with: images,
-            settings: settings,
-            modelContext: modelContext
+
+        guard !decodedItems.isEmpty else { return nil }
+
+        let inferredConfidence = extractTopLevelNumber(forKey: "confidence", in: trimmedPayload) ?? 0.7
+        return responseParser.sanitizeMultiItemResponse(
+            MultiItemAnalysisResponse(
+                items: decodedItems,
+                detectedCount: decodedItems.count,
+                analysisType: "multi_item",
+                confidence: inferredConfidence
+            )
         )
-    
-        let imageCount = images.count
-        let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-    
-        if attempt == 1 {
-            print("🚀 Sending \(imageCount == 1 ? "single" : "multi") image request via AIProxy")
-            print("📊 Images: \(imageCount)")
-    
-            // Calculate and log the token limit being used
-            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
-            let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-            print("🤖 AI Settings - Model: \(settings.effectiveAIModel), Detail: \(settings.effectiveDetailLevel), Pro: \(settings.isPro), High Quality: \(isHighQuality)")
-            print("🎯 Token limit: \(adjustedMaxTokens) (base: 3000, \(imageCount) images, \(isHighQuality ? "3x quality multiplier" : "standard quality"))")
-    
-            // Track analysis start (only on first attempt)
-            TelemetryManager.shared.trackAIAnalysisStarted(
-                isProUser: settings.isPro,
-                useHighQuality: useHighQuality,
-                model: settings.effectiveAIModel,
-                detailLevel: settings.effectiveDetailLevel,
-                imageResolution: settings.effectiveImageResolution,
-                imageCount: imageCount
-            )
-        } else {
-            print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
-        }
-    
-        let startTime = Date()
-        let response = try await requestBuilder.openAIService.chatCompletionRequest(body: requestBody, secondsToWait: 60)
-    
-        print("✅ Received AIProxy response with \(response.choices.count) choices")
-    
-        do {
-            // Parse AIProxy response directly
-            let parseResult = try await responseParser.parseAIProxyResponse(
-                response: response,
-                imageCount: imageCount,
-                startTime: startTime,
-                settings: settings
-            )
-    
-            let result = parseResult.imageDetails
-    
-            // Track successful completion
-            let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
-            TelemetryManager.shared.trackAIAnalysisCompleted(
-                isProUser: settings.isPro,
-                useHighQuality: useHighQuality,
-                model: settings.effectiveAIModel,
-                detailLevel: settings.effectiveDetailLevel,
-                imageResolution: settings.effectiveImageResolution,
-                imageCount: imageCount,
-                responseTimeMs: responseTime,
-                success: true
-            )
-    
-            return result
-        } catch DecodingError.dataCorrupted(let context) {
-            print("❌ Data corruption error: \(context)")
-            throw OpenAIError.invalidData
-        } catch DecodingError.keyNotFound(let key, let context) {
-            print("❌ Key not found: \(key) in \(context)")
-            throw OpenAIError.invalidData
-        } catch DecodingError.typeMismatch(let type, let context) {
-            print("❌ Type mismatch: \(type) in \(context)")
-            throw OpenAIError.invalidData
-        } catch DecodingError.valueNotFound(let type, let context) {
-            print("❌ Value not found: \(type) in \(context)")
-            throw OpenAIError.invalidData
-        } catch {
-            print("❌ Error processing response: \(error)")
-    
-            // Track failure for any unhandled errors
-            let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
-            TelemetryManager.shared.trackAIAnalysisCompleted(
-                isProUser: settings.isPro,
-                useHighQuality: useHighQuality,
-                model: settings.effectiveAIModel,
-                detailLevel: settings.effectiveDetailLevel,
-                imageResolution: settings.effectiveImageResolution,
-                imageCount: imageCount,
-                responseTimeMs: responseTime,
-                success: false
-            )
-    
-            if error is OpenAIError {
-                throw error
-            }
-            throw OpenAIError.invalidData
-        }
     }
-    
-    private func performSingleMultiItemRequest(images: [UIImage], settings: SettingsManager, modelContext: ModelContext, attempt: Int, maxAttempts: Int) async throws -> MultiItemAnalysisResponse {
-        guard !images.isEmpty else {
-            throw OpenAIError.invalidData
+
+    private func decodeMultiItemResponse(from payload: String) -> MultiItemAnalysisResponse? {
+        guard let data = payload.data(using: .utf8),
+            let decoded = try? JSONDecoder().decode(MultiItemAnalysisResponse.self, from: data)
+        else {
+            return nil
         }
-    
-        // Build multi-item request body
+
+        return responseParser.sanitizeMultiItemResponse(decoded)
+    }
+
+    private func partialFingerprint(for response: MultiItemAnalysisResponse) -> String {
+        response.safeItems
+            .map {
+                "\($0.id)|\($0.title)|\($0.make)|\($0.model)|\($0.estimatedPrice)|\($0.detections?.count ?? 0)"
+            }
+            .joined(separator: "||")
+    }
+
+    private func extractTopLevelNumber(forKey key: String, in payload: String) -> Double? {
+        let pattern = "\"\(NSRegularExpression.escapedPattern(for: key))\"\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(payload.startIndex..<payload.endIndex, in: payload)
+        guard
+            let match = regex.firstMatch(in: payload, options: [], range: range),
+            let valueRange = Range(match.range(at: 1), in: payload)
+        else {
+            return nil
+        }
+
+        return Double(payload[valueRange])
+    }
+
+    private func extractCompleteItemObjects(from payload: String) -> [String] {
+        guard let itemsKeyRange = payload.range(of: "\"items\""),
+            let arrayStart = payload[itemsKeyRange.upperBound...].firstIndex(of: "[")
+        else {
+            return []
+        }
+
+        var itemObjects: [String] = []
+        var depth = 0
+        var inString = false
+        var isEscaping = false
+        var currentObjectStart: String.Index?
+        var index = payload.index(after: arrayStart)
+
+        while index < payload.endIndex {
+            let character = payload[index]
+
+            if inString {
+                if isEscaping {
+                    isEscaping = false
+                } else if character == "\\" {
+                    isEscaping = true
+                } else if character == "\"" {
+                    inString = false
+                }
+            } else {
+                if character == "\"" {
+                    inString = true
+                } else if character == "{" {
+                    if depth == 0 {
+                        currentObjectStart = index
+                    }
+                    depth += 1
+                } else if character == "}" {
+                    if depth > 0 {
+                        depth -= 1
+                        if depth == 0, let objectStart = currentObjectStart {
+                            itemObjects.append(String(payload[objectStart...index]))
+                            currentObjectStart = nil
+                        }
+                    }
+                } else if character == "]", depth == 0 {
+                    break
+                }
+            }
+
+            index = payload.index(after: index)
+        }
+
+        return itemObjects
+    }
+
+    private func performSingleMultiItemFunctionRequest(
+        images: [UIImage],
+        settings: SettingsManager,
+        modelContext: ModelContext,
+        narrationContext: String?,
+        attempt: Int,
+        maxAttempts: Int
+    ) async throws -> MultiItemAnalysisResponse {
+        let startTime = Date()
+        let imageCount = images.count
+
         let requestBody = await requestBuilder.buildMultiItemRequestBody(
             with: images,
             settings: settings,
-            modelContext: modelContext
+            modelContext: modelContext,
+            narrationContext: narrationContext
         )
-    
-        let imageCount = images.count
-        let useHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-    
+
         if attempt == 1 {
-            print("🚀 Sending multi-item analysis request via AIProxy")
-            print("📊 Images: \(imageCount)")
-    
-            // Calculate and log the token limit being used
-            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
+            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
             let isHighQuality = settings.isPro && settings.highQualityAnalysisEnabled
-            print("🤖 AI Settings - Model: \(settings.effectiveAIModel), Detail: \(settings.effectiveDetailLevel), Pro: \(settings.isPro), High Quality: \(isHighQuality)")
-            print("🎯 Token limit: \(adjustedMaxTokens) (base: 3000, \(imageCount) images, \(isHighQuality ? "3x quality multiplier" : "standard quality"))")
-    
-            // Debug: Print function schema info
-            print("🔧 Multi-item function schema: process_multiple_inventory_items")
-            print("   Required fields include: items (array), detectedCount, analysisType, confidence")
-    
-            // Enhanced debugging would go here, but functions array not available in this scope
-    
-            // Track analysis start (only on first attempt)
-            TelemetryManager.shared.trackAIAnalysisStarted(
-                isProUser: settings.isPro,
-                useHighQuality: useHighQuality,
-                model: settings.effectiveAIModel,
-                detailLevel: settings.effectiveDetailLevel,
-                imageResolution: settings.effectiveImageResolution,
-                imageCount: imageCount
-            )
+            print("🚀 Sending multi-item function request via AIProxy (fallback)")
+            print("📊 Images: \(imageCount)")
+            print("⚙️ Quality: \(isHighQuality ? "High" : "Standard")")
+            print("📝 Max tokens: \(adjustedMaxTokens)")
         } else {
-            print("🔄 Multi-item retry attempt \(attempt)/\(maxAttempts)")
+            print("🔄 Retry attempt \(attempt)/\(maxAttempts) (fallback)")
         }
-    
-        let startTime = Date()
-        let response = try await requestBuilder.openAIService.chatCompletionRequest(body: requestBody, secondsToWait: 60)
-    
-        print("✅ Received multi-item AIProxy response with \(response.choices.count) choices")
-    
-        do {
-            // Parse multi-item response
-            let result = try await parseMultiItemResponse(
-                response: response,
-                imageCount: imageCount,
-                startTime: startTime,
-                settings: settings
-            )
-    
-            // Track successful completion
-            let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
-            TelemetryManager.shared.trackAIAnalysisCompleted(
-                isProUser: settings.isPro,
-                useHighQuality: useHighQuality,
-                model: settings.effectiveAIModel,
-                detailLevel: settings.effectiveDetailLevel,
-                imageResolution: settings.effectiveImageResolution,
-                imageCount: imageCount,
-                responseTimeMs: responseTime,
-                success: true
-            )
-    
-            return result
-        } catch DecodingError.dataCorrupted(let context) {
-            print("❌ Multi-item data corruption error: \(context)")
-            throw OpenAIError.invalidData
-        } catch DecodingError.keyNotFound(let key, let context) {
-            print("❌ Multi-item key not found: \(key) in \(context)")
-            throw OpenAIError.invalidData
-        } catch DecodingError.typeMismatch(let type, let context) {
-            print("❌ Multi-item type mismatch: \(type) in \(context)")
-            throw OpenAIError.invalidData
-        } catch DecodingError.valueNotFound(let type, let context) {
-            print("❌ Multi-item value not found: \(type) in \(context)")
-            throw OpenAIError.invalidData
-        } catch {
-            print("❌ Error processing multi-item response: \(error)")
-    
-            // Track failure for any unhandled errors
-            let responseTime = Int(Date().timeIntervalSince(startTime) * 1000)
-            TelemetryManager.shared.trackAIAnalysisCompleted(
-                isProUser: settings.isPro,
-                useHighQuality: useHighQuality,
-                model: settings.effectiveAIModel,
-                detailLevel: settings.effectiveDetailLevel,
-                imageResolution: settings.effectiveImageResolution,
-                imageCount: imageCount,
-                responseTimeMs: responseTime,
-                success: false
-            )
-    
-            if error is OpenAIError {
-                throw error
-            }
-            throw OpenAIError.invalidData
-        }
-    }
-    
-    @MainActor
-    private func parseMultiItemResponse(
-        response: OpenAIChatCompletionResponseBody,
-        imageCount: Int,
-        startTime: Date,
-        settings: SettingsManager
-    ) async throws -> MultiItemAnalysisResponse {
-        guard let choice = response.choices.first else {
-            print("❌ No choices in multi-item response")
-            throw OpenAIError.invalidData
-        }
-    
-        guard let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty else {
-            print("❌ No tool calls in multi-item response")
-            print("📝 Response message: \(choice.message)")
-            throw OpenAIError.invalidData
-        }
-    
-        let toolCall = toolCalls[0]
-        print("🎯 Multi-item tool call received: \(toolCall.function.name)")
-    
-        // Get arguments as string - AIProxy provides argumentsRaw for JSON string
-        let argumentsString = toolCall.function.argumentsRaw ?? ""
-        print("📄 Multi-item arguments length: \(argumentsString.count) characters")
-    
-        guard let responseData = argumentsString.data(using: String.Encoding.utf8) else {
-            print("❌ Cannot convert multi-item function arguments to data")
-            print("📄 Raw arguments: \(argumentsString)")
-            throw OpenAIError.invalidData
-        }
-    
-        // Debug: Print the raw JSON for inspection
-        print("🔍 Multi-item JSON to decode:")
-        if let prettyJSON = try? JSONSerialization.jsonObject(with: responseData),
-           let prettyData = try? JSONSerialization.data(withJSONObject: prettyJSON, options: .prettyPrinted),
-           let prettyString = String(data: prettyData, encoding: .utf8) {
-            print(prettyString)
-        } else {
-            print("📄 Raw JSON: \(argumentsString)")
-        }
-    
-        let result: MultiItemAnalysisResponse
-        do {
-            result = try JSONDecoder().decode(MultiItemAnalysisResponse.self, from: responseData)
-            print("✅ Successfully decoded MultiItemAnalysisResponse with \(result.safeItems.count) items")
-    
-            // Validation: Check if we have a mismatch between detected count and actual items
-            if result.detectedCount > 0 && result.safeItems.isEmpty {
-                print("⚠️ CRITICAL: OpenAI detected \(result.detectedCount) items but returned empty items array!")
-                print("🔄 This indicates a function schema issue - OpenAI is not following the items array requirement")
-    
-                // For now, we'll continue with the empty result, but log this as a major issue
-                // In the future, we could implement a fallback single-item analysis
-            } else if result.detectedCount != result.safeItems.count {
-                print("⚠️ WARNING: Count mismatch - detected: \(result.detectedCount), actual items: \(result.safeItems.count)")
-            }
-        } catch {
-            print("❌ Failed to decode MultiItemAnalysisResponse: \(error)")
-            print("📄 Raw JSON that failed: \(argumentsString)")
-            if let decodingError = error as? DecodingError {
-                print("🔍 Decoding error details:")
-                switch decodingError {
-                case .typeMismatch(let type, let context):
-                    print("   Type mismatch: \(type) at \(context.codingPath)")
-                case .valueNotFound(let type, let context):
-                    print("   Value not found: \(type) at \(context.codingPath)")
-                case .keyNotFound(let key, let context):
-                    print("   Key not found: \(key) at \(context.codingPath)")
-                case .dataCorrupted(let context):
-                    print("   Data corrupted at \(context.codingPath): \(context.debugDescription)")
-                @unknown default:
-                    print("   Unknown decoding error: \(error)")
-                }
-            }
-            throw OpenAIError.invalidData
-        }
-    
-        // Apply item limit if needed (max 10 items)
-        var limitedItems = result.safeItems
-        if limitedItems.count > 10 {
-            limitedItems = Array(limitedItems.prefix(10))
-            print("⚠️ Limited multi-item response to 10 items (originally \(result.safeItems.count))")
-        }
-    
-        let finalResult = MultiItemAnalysisResponse(
-            items: limitedItems,
-            detectedCount: result.detectedCount,
-            analysisType: result.analysisType,
-            confidence: result.confidence
+
+        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService
+            .chatCompletionRequest(body: requestBody, secondsToWait: 60)
+
+        print("✅ Received multi-item function response with \(response.choices.count) choices")
+
+        let parseResult = try responseParser.parseAIProxyMultiItemResponse(
+            response: response,
+            imageCount: imageCount,
+            startTime: startTime,
+            settings: settings
         )
-    
-        // Log token usage if available
+
         if let usage = response.usage {
+            let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
+            let totalTokens = usage.totalTokens ?? 0
+            let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
+            let formattedUsage = String(format: "%.1f", usagePercentage)
+            print(
+                "📦 Multi-item response (fallback): \(parseResult.response.safeItems.count) items (detectedCount: \(parseResult.response.detectedCount)); token usage \(formattedUsage)% (\(totalTokens)/\(adjustedMaxTokens))"
+            )
             self.logAIProxyTokenUsage(
                 usage: usage,
                 elapsedTime: Date().timeIntervalSince(startTime),
                 imageCount: imageCount,
                 settings: settings
             )
+        } else {
+            print(
+                "📦 Multi-item response (fallback): \(parseResult.response.safeItems.count) items (detectedCount: \(parseResult.response.detectedCount)); token usage unavailable"
+            )
         }
-    
-        return finalResult
+
+        return parseResult.response
     }
-    */
+
+    private func shouldFallbackToFunctionCalling(_ error: Error) -> Bool {
+        if error is DecodingError {
+            return true
+        }
+
+        if let aiProxyError = error as? AIProxyError {
+            switch aiProxyError {
+            case .unsuccessfulRequest(_, let responseBody):
+                let lowerBody = responseBody.lowercased()
+                if lowerBody.contains("response_format")
+                    || lowerBody.contains("json_schema")
+                    || lowerBody.contains("json schema")
+                    || (lowerBody.contains("schema") && lowerBody.contains("unsupported"))
+                    || (lowerBody.contains("stream") && lowerBody.contains("unsupported"))
+                    || lowerBody.contains("cannot stream")
+                {
+                    return true
+                }
+            default:
+                break
+            }
+        }
+
+        let lowerDescription = error.localizedDescription.lowercased()
+        if lowerDescription.contains("choices") && lowerDescription.contains("keynotfound") {
+            return true
+        }
+
+        return false
+    }
 
     // MARK: - Single-Item Analysis (Function Calling - Working)
 
@@ -1852,10 +2068,10 @@ class OpenAIService: OpenAIServiceProtocol {
                                 try Task.checkCancellation()
                                 continue
                             } else {
-                                throw OpenAIError.rateLimitExceeded
+                                throw AIAnalysisError.rateLimitExceeded
                             }
                         case 413:  // Payload too large
-                            throw OpenAIError.invalidResponse(statusCode: statusCode, responseData: responseBody)
+                            throw AIAnalysisError.invalidResponse(statusCode: statusCode, responseData: responseBody)
                         case 500...599:  // Server errors - retryable
                             if attempt < maxAttempts {
                                 print("🔄 Server error \(statusCode), retrying attempt \(attempt + 1)/\(maxAttempts)")
@@ -1864,10 +2080,10 @@ class OpenAIService: OpenAIServiceProtocol {
                                 try Task.checkCancellation()
                                 continue
                             } else {
-                                throw OpenAIError.serverError("Server error \(statusCode)")
+                                throw AIAnalysisError.serverError("Server error \(statusCode)")
                             }
                         case 400...499:  // Client errors - not retryable
-                            throw OpenAIError.invalidResponse(statusCode: statusCode, responseData: responseBody)
+                            throw AIAnalysisError.invalidResponse(statusCode: statusCode, responseData: responseBody)
                         default:
                             if attempt < maxAttempts {
                                 print(
@@ -1878,11 +2094,11 @@ class OpenAIService: OpenAIServiceProtocol {
                                 try Task.checkCancellation()
                                 continue
                             } else {
-                                throw OpenAIError.serverError("Unknown AIProxy error occurred")
+                                throw AIAnalysisError.serverError("Unknown AIProxy error occurred")
                             }
                         }
                     case .assertion, .deviceCheckIsUnavailable, .deviceCheckBypassIsMissing:
-                        throw OpenAIError.serverError("AIProxy configuration error")
+                        throw AIAnalysisError.serverError("AIProxy configuration error")
                     }
                 }
 
@@ -1897,7 +2113,7 @@ class OpenAIService: OpenAIServiceProtocol {
                             try Task.checkCancellation()
                             continue
                         } else {
-                            throw OpenAIError.networkCancelled
+                            throw AIAnalysisError.networkCancelled
                         }
                     case .timedOut:
                         if attempt < maxAttempts {
@@ -1907,7 +2123,7 @@ class OpenAIService: OpenAIServiceProtocol {
                             try Task.checkCancellation()
                             continue
                         } else {
-                            throw OpenAIError.networkTimeout
+                            throw AIAnalysisError.networkTimeout
                         }
                     case .notConnectedToInternet, .networkConnectionLost:
                         if attempt < maxAttempts {
@@ -1919,10 +2135,10 @@ class OpenAIService: OpenAIServiceProtocol {
                             try Task.checkCancellation()
                             continue
                         } else {
-                            throw OpenAIError.networkUnavailable
+                            throw AIAnalysisError.networkUnavailable
                         }
                     default:
-                        throw OpenAIError.serverError(urlError.localizedDescription)
+                        throw AIAnalysisError.serverError(urlError.localizedDescription)
                     }
                 }
 
@@ -1932,7 +2148,7 @@ class OpenAIService: OpenAIServiceProtocol {
         }
 
         // If we get here, all attempts failed
-        throw lastError ?? OpenAIError.invalidResponse(statusCode: 0, responseData: "Unknown error")
+        throw lastError ?? AIAnalysisError.invalidResponse(statusCode: 0, responseData: "Unknown error")
     }
 
     private func performSingleRequest(
@@ -1963,8 +2179,9 @@ class OpenAIService: OpenAIServiceProtocol {
             print("🔄 Retry attempt \(attempt)/\(maxAttempts)")
         }
 
-        let response: OpenAIChatCompletionResponseBody = try await requestBuilder.openAIService.chatCompletionRequest(
-            body: requestBody, secondsToWait: 60)
+        let response: OpenRouterChatCompletionResponseBody = try await requestBuilder.openRouterService
+            .chatCompletionRequest(
+                body: requestBody, secondsToWait: 60)
 
         print("✅ Received AIProxy response with \(response.choices.count) choices")
 
@@ -1986,7 +2203,7 @@ class OpenAIService: OpenAIServiceProtocol {
 
     @MainActor
     private func logAIProxyTokenUsage(
-        usage: OpenAIChatUsage,
+        usage: OpenRouterChatCompletionResponseBody.Usage,
         elapsedTime: TimeInterval,
         imageCount: Int,
         settings: SettingsManager
@@ -2004,7 +2221,7 @@ class OpenAIService: OpenAIServiceProtocol {
         print("   🚀 Efficiency: \(String(format: "%.1f", tokensPerSecond)) tokens/sec")
 
         // Check if we're approaching token limits
-        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings)
+        let adjustedMaxTokens = calculateTokenLimit(imageCount: imageCount, settings: settings, isMultiItem: true)
         let usagePercentage = Double(totalTokens) / Double(adjustedMaxTokens) * 100.0
 
         if usagePercentage > 90.0 {

@@ -71,15 +71,17 @@ import UIKit
         let allSteps = ItemCreationStep.allCases
 
         #expect(allSteps.contains(.camera))
+        #expect(allSteps.contains(.videoProcessing))
         #expect(allSteps.contains(.analyzing))
         #expect(allSteps.contains(.multiItemSelection))
         #expect(allSteps.contains(.details))
-        #expect(allSteps.count == 4)
+        #expect(allSteps.count == 5)
     }
 
     @Test("ItemCreationStep provides correct display names")
     func testItemCreationStepDisplayNames() {
         #expect(ItemCreationStep.camera.displayName == "Camera")
+        #expect(ItemCreationStep.videoProcessing.displayName == "Video Processing")
         #expect(ItemCreationStep.analyzing.displayName == "Analyzing")
         #expect(ItemCreationStep.multiItemSelection.displayName == "Select Items")
         #expect(ItemCreationStep.details.displayName == "Details")
@@ -94,6 +96,10 @@ import UIKit
         // Test multi-item flow
         let multiItemFlow = ItemCreationStep.getNavigationFlow(for: .multiItem)
         #expect(multiItemFlow == [.camera, .analyzing, .multiItemSelection, .details])
+
+        // Test video flow
+        let videoFlow = ItemCreationStep.getNavigationFlow(for: .video)
+        #expect(videoFlow == [.camera, .videoProcessing, .multiItemSelection, .details])
     }
 
     // MARK: - ItemCreationFlowViewModel Tests
@@ -310,14 +316,14 @@ import UIKit
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        let mockOpenAIService = MockOpenAIService()
+        let mockAIService = MockAIAnalysisService()
         let mockSettings = MockSettingsManager()
 
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .singleItem,
             location: nil,
             modelContext: context,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 
@@ -354,20 +360,20 @@ import UIKit
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        let mockOpenAIService = MockOpenAIService()
+        let mockAIService = MockAIAnalysisService()
         let mockSettings = MockSettingsManager()
 
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
             location: nil,
             modelContext: context,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 
         // Set up mock response
         let mockResponse = createMockMultiItemAnalysisResponse()
-        mockOpenAIService.mockMultiItemResponse = mockResponse
+        mockAIService.mockMultiItemResponse = mockResponse
 
         // Set up for analysis
         viewModel.capturedImages = createTestImages(count: 1)
@@ -385,15 +391,15 @@ import UIKit
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        let mockOpenAIService = MockOpenAIService()
-        mockOpenAIService.shouldFailMultiItem = true
+        let mockAIService = MockAIAnalysisService()
+        mockAIService.shouldFailMultiItem = true
         let mockSettings = MockSettingsManager()
 
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
             location: nil,
             modelContext: context,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 
@@ -577,12 +583,13 @@ import UIKit
 
 extension ItemCreationStep: CaseIterable {
     public static var allCases: [ItemCreationStep] {
-        return [.camera, .analyzing, .multiItemSelection, .details]
+        return [.camera, .videoProcessing, .analyzing, .multiItemSelection, .details]
     }
 
     var displayName: String {
         switch self {
         case .camera: return "Camera"
+        case .videoProcessing: return "Video Processing"
         case .analyzing: return "Analyzing"
         case .multiItemSelection: return "Select Items"
         case .details: return "Details"
@@ -595,6 +602,8 @@ extension ItemCreationStep: CaseIterable {
             return [.camera, .analyzing, .details]
         case .multiItem:
             return [.camera, .analyzing, .multiItemSelection, .details]
+        case .video:
+            return [.camera, .videoProcessing, .multiItemSelection, .details]
         }
     }
 }

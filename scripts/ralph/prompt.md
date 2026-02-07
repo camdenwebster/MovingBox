@@ -65,7 +65,7 @@ Before committing, check if any edited files have learnings worth preserving in 
 **Examples of good CLAUDE.md additions:**
 - "When modifying Item model, also update ItemViewModel to keep computed properties in sync"
 - "All Views in this module inject Router via @EnvironmentObject"
-- "UI tests for this feature require -Mock-OpenAI launch argument"
+- "UI tests for this feature require -Mock-AI launch argument"
 - "SwiftData relationships must be bidirectional or cascade delete fails"
 - "Simulator screenshot issues: use mcp__ios-simulator__screenshot with display: internal"
 
@@ -125,7 +125,7 @@ xcrun simctl install 31D4A8DF-E68A-4884-BAAA-DFDF61090577 ./.build/DerivedData/B
 
 3. Launch the app with test arguments:
 ```bash
-xcrun simctl launch 31D4A8DF-E68A-4884-BAAA-DFDF61090577 com.mothersound.movingbox --args -Mock-OpenAI -Use-Test-Data
+xcrun simctl launch 31D4A8DF-E68A-4884-BAAA-DFDF61090577 com.mothersound.movingbox --args -Mock-AI -Use-Test-Data
 ```
 
 ### Verification Using ios-simulator MCP
@@ -181,6 +181,6 @@ If there are still stories with `passes: false`, end your response normally (ano
 - ALL tests must pass before committing
 - Read the Codebase Patterns section in progress.txt before starting
 - Read CLAUDE.md in project root for MovingBox-specific patterns
-- Use -Mock-OpenAI, -UI-Testing-Mock-Camera -Use-Test-Data launch arguments for simulator testing
+- Use -Mock-AI, -UI-Testing-Mock-Camera -Use-Test-Data launch arguments for simulator testing
 - Follow MVVM pattern: Views → ViewModels (@Observable) → Models (@Model)
 - SwiftData operations require ModelContext from environment

@@ -77,7 +77,7 @@ import Testing
 
         init(defaults: TestUserDefaults) {
             self.defaults = defaults
-            self.aiModel = "gpt-4o-mini"
+            self.aiModel = "google/gemini-3-flash-preview"
             self.temperature = 0.7
             self.maxTokens = 300
             self.apiKey = ""
@@ -87,7 +87,7 @@ import Testing
         }
 
         func resetToDefaults() {
-            aiModel = "gpt-4o-mini"
+            aiModel = "google/gemini-3-flash-preview"
             temperature = 0.7
             maxTokens = 300
             apiKey = ""
@@ -117,7 +117,7 @@ import Testing
         let (manager, _) = createTestEnvironment()
 
         // Then
-        #expect(manager.aiModel == "gpt-4o-mini")
+        #expect(manager.aiModel == "google/gemini-3-flash-preview")
         #expect(manager.temperature == 0.7)
         #expect(manager.maxTokens == 300)
         #expect(manager.apiKey == "")
@@ -181,7 +181,7 @@ import Testing
 
         // Then - Reset and verify
         manager.resetToDefaults()
-        #expect(manager.aiModel == "gpt-4o-mini")
+        #expect(manager.aiModel == "google/gemini-3-flash-preview")
         #expect(manager.temperature == 0.7)
         #expect(manager.maxTokens == 300)
         #expect(manager.isPro == false)

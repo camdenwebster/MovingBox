@@ -87,16 +87,6 @@ struct ImageAnalysisView: View {
                                                 removal: .scale.combined(with: .opacity)
                                             ))
                                 }
-
-                                // Photo indicator dots
-                                HStack(spacing: 8) {
-                                    ForEach(0..<images.count, id: \.self) { index in
-                                        Circle()
-                                            .fill(index == currentImageIndex ? Color.blue : Color.gray.opacity(0.4))
-                                            .frame(width: 8, height: 8)
-                                            .animation(.easeInOut(duration: 0.2), value: currentImageIndex)
-                                    }
-                                }
                             }
                         } else {
                             // Single image display (backward compatibility)
@@ -127,16 +117,16 @@ struct ImageAnalysisView: View {
                 // AI Analysis section
                 VStack(spacing: 24) {
                     // Apple Intelligence icon with pulse animation
-                    Image(systemName: "apple.intelligence")
-                        .font(.system(size: 64))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .symbolEffect(.pulse)
+                    //                    Image(systemName: "apple.intelligence")
+                    //                        .font(.system(size: 64))
+                    //                        .foregroundStyle(
+                    //                            LinearGradient(
+                    //                                colors: [.blue, .purple],
+                    //                                startPoint: .topLeading,
+                    //                                endPoint: .bottomTrailing
+                    //                            )
+                    //                        )
+                    //                        .symbolEffect(.pulse)
 
                     // Photo count
                     if images.count > 1 {

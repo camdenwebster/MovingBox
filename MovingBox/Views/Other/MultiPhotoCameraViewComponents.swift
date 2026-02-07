@@ -34,21 +34,29 @@ struct PhotoThumbnailScrollView: View {
 struct PhotoThumbnailView: View {
     let image: UIImage
     let index: Int
+    let size: CGFloat
     let onDelete: (Int) -> Void
 
     @State private var isPressed = false
 
+    init(image: UIImage, index: Int, size: CGFloat = 60, onDelete: @escaping (Int) -> Void) {
+        self.image = image
+        self.index = index
+        self.size = size
+        self.onDelete = onDelete
+    }
+
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             // Thumbnail image
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: 60, height: 60)
+                .frame(width: size, height: size)
                 .clipped()
-                .cornerRadius(8)
+                .cornerRadius(size * 0.18)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: size * 0.18)
                         .stroke(Color.white.opacity(0.3), lineWidth: 1)
                 )
                 .scaleEffect(isPressed ? 0.95 : 1.0)
@@ -61,16 +69,16 @@ struct PhotoThumbnailView: View {
                 }
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
+                    .font(.system(size: max(18, size * 0.3)))
                     .foregroundColor(.white)
                     .background(
                         Circle()
                             .fill(Color.black.opacity(0.7))
-                            .frame(width: 20, height: 20)
+                            .frame(width: max(20, size * 0.33), height: max(20, size * 0.33))
                     )
             }
-            .frame(width: 20, height: 20)
-            .offset(x: 25, y: -25)
+            .frame(width: max(20, size * 0.33), height: max(20, size * 0.33))
+            .offset(x: max(6, size * 0.12), y: -max(6, size * 0.12))
             .accessibilityLabel("Delete photo \(index + 1)")
         }
         .onTapGesture {
@@ -84,6 +92,53 @@ struct PhotoThumbnailView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Gallery Thumbnail Button
+
+struct GalleryThumbnailButton: View {
+    let image: UIImage?
+    let count: Int
+    let maxCount: Int
+    let action: () -> Void
+
+    private let size: CGFloat = 54
+
+    var body: some View {
+        Button(action: action) {
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if let image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.white.opacity(0.15))
+                    }
+                }
+                .frame(width: size, height: size)
+                .clipped()
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                )
+
+                Text("\(count)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(6)
+                    .background(Circle().fill(Color.black.opacity(0.7)))
+                    .offset(x: 6, y: 6)
+            }
+        }
+        .accessibilityLabel("Open gallery, \(count) of \(maxCount) photos")
+        .accessibilityIdentifier("cameraGalleryButton")
     }
 }
 
@@ -483,7 +538,7 @@ struct CaptureModePicker: View {
 
     var body: some View {
         Picker("Capture Mode", selection: $selectedMode) {
-            ForEach(CaptureMode.allCases, id: \.self) { mode in
+            ForEach(availableModes, id: \.self) { mode in
                 HStack(spacing: 4) {
                     Text(mode.displayName)
                     if mode == .multiItem && !settings.isPro {
@@ -519,6 +574,10 @@ struct CaptureModePicker: View {
         .accessibilityLabel("Camera mode selector")
         .accessibilityHint("Switch between single item and multi item capture modes")
         .accessibilityIdentifier("cameraModePicker")
+    }
+
+    private var availableModes: [CaptureMode] {
+        CaptureMode.allCases.filter { $0 != .video }
     }
 }
 
@@ -655,11 +714,14 @@ struct CameraTopControls: View {
 struct CameraBottomControls: View {
     let captureMode: CaptureMode
     let photoCount: Int
+    let maxPhotoCount: Int
+    let galleryThumbnail: UIImage?
     let photoCounterText: String
     let hasPhotoCaptured: Bool
     let onShutterTap: () -> Void
     let onRetakeTap: () -> Void
     let onPhotoPickerTap: () -> Void
+    let onGalleryTap: () -> Void
     @Binding var selectedCaptureMode: CaptureMode
     @EnvironmentObject var settings: SettingsManager
 
@@ -667,7 +729,7 @@ struct CameraBottomControls: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            if captureMode == .multiItem && hasPhotoCaptured {
+            if !captureMode.allowsMultipleCaptures && hasPhotoCaptured {
                 Button {
                     onRetakeTap()
                 } label: {
@@ -681,19 +743,45 @@ struct CameraBottomControls: View {
                 .tint(.red)
                 .accessibilityIdentifier("cameraRetakeButton")
             } else {
-                Button {
-                    onShutterTap()
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 70, height: 70)
-                        Circle()
-                            .strokeBorder(.white.opacity(0.5), lineWidth: 3)
-                            .frame(width: 80, height: 80)
+                HStack(spacing: 16) {
+                    GalleryThumbnailButton(
+                        image: galleryThumbnail,
+                        count: photoCount,
+                        maxCount: maxPhotoCount,
+                        action: onGalleryTap
+                    )
+
+                    Spacer()
+
+                    Button {
+                        onShutterTap()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 70, height: 70)
+                            Circle()
+                                .strokeBorder(.white.opacity(0.5), lineWidth: 3)
+                                .frame(width: 80, height: 80)
+                        }
+                        .accessibilityIdentifier("cameraShutterButton")
                     }
-                    .accessibilityIdentifier("cameraShutterButton")
+
+                    Spacer()
+
+                    if captureMode.showsPhotoPickerButton {
+                        CameraControlButton(
+                            icon: "photo.on.rectangle",
+                            size: 50,
+                            action: onPhotoPickerTap,
+                            accessibilityLabel: "Choose from library"
+                        )
+                    } else {
+                        Color.clear
+                            .frame(width: 50, height: 50)
+                    }
                 }
+                .padding(.horizontal)
             }
 
             HStack(spacing: 12) {
@@ -710,23 +798,72 @@ struct CameraBottomControls: View {
 
                 Spacer()
 
-                if captureMode.showsPhotoPickerButton {
-                    CameraControlButton(
-                        icon: "photo.on.rectangle",
-                        size: 50,
-                        action: onPhotoPickerTap,
-                        accessibilityLabel: "Choose from library"
-                    )
-                } else {
-                    Color.clear
-                        .frame(width: 50, height: 50)
-                }
+                Color.clear
+                    .frame(width: 50, height: 50)
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal)
             .padding(.bottom)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Gallery Sheet
+
+struct PhotoGallerySheet: View {
+    let images: [UIImage]
+    let maxPhotos: Int
+    let onDelete: (Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private let columns = [GridItem(.adaptive(minimum: 90), spacing: 16)]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                Text("\(images.count)/\(maxPhotos) photos have been taken")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                if images.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 32))
+                            .foregroundColor(.secondary)
+                        Text("No photos yet.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 16) {
+                            ForEach(Array(images.enumerated()), id: \.offset) { index, image in
+                                PhotoThumbnailView(
+                                    image: image,
+                                    index: index,
+                                    size: 90,
+                                    onDelete: onDelete
+                                )
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom)
+                    }
+                }
+            }
+            .padding(.top)
+            .navigationTitle("Gallery")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 //
-//  OpenAIStrictModeTests.swift
+//  AIAnalysisStrictModeTests.swift
 //  MovingBoxTests
 //
 //  Created by Claude Code on 9/29/25.
@@ -12,11 +12,11 @@ import Testing
 
 @testable import MovingBox
 
-/// Tests for OpenAI service with strict mode disabled
+/// Tests for AI analysis service with strict mode disabled
 /// NOTE: These tests are disabled because they make real API calls which can hang
 @MainActor
-@Suite(.disabled("Tests make real OpenAI API calls which can hang"))
-struct OpenAIStrictModeTests {
+@Suite(.disabled("Tests make real Gemini API calls which can hang"))
+struct AIAnalysisStrictModeTests {
 
     func createTestContainer() throws -> ModelContainer {
         let schema = Schema([InventoryItem.self, InventoryLocation.self, InventoryLabel.self])
@@ -29,7 +29,7 @@ struct OpenAIStrictModeTests {
         // Skip if no API key available
         let settings = SettingsManager()
         guard !settings.apiKey.isEmpty else {
-            print("⚠️ Skipping OpenAI test - no API key configured")
+            print("⚠️ Skipping AI analysis test - no API key configured")
             return
         }
 
@@ -41,18 +41,18 @@ struct OpenAIStrictModeTests {
         let testImage = UIImage(data: testImageData)!
 
         // Create service with real images array
-        let openAIService = OpenAIService()
+        let aiService = AIAnalysisService()
 
         do {
             print("🔄 Testing multi-item analysis with strict mode disabled...")
-            let response = try await openAIService.getMultiItemDetails(
+            let response = try await aiService.getMultiItemDetails(
                 from: [testImage],
                 settings: settings,
                 modelContext: context
             )
 
             // Log the full response for debugging
-            print("📊 OpenAI Response:")
+            print("📊 AI Response:")
             print("   - Detected Count: \(response.detectedCount)")
             print("   - Analysis Type: \(response.analysisType)")
             print("   - Confidence: \(response.confidence)")
@@ -66,7 +66,7 @@ struct OpenAIStrictModeTests {
 
             // Test the critical issue: items array should be present
             if let items = response.items {
-                print("✅ SUCCESS: OpenAI returned items array with \(items.count) items")
+                print("✅ SUCCESS: AI returned items array with \(items.count) items")
 
                 // Validate items structure if present
                 for (index, item) in items.enumerated() {
@@ -84,7 +84,7 @@ struct OpenAIStrictModeTests {
                 )
 
             } else {
-                print("⚠️ WARNING: OpenAI response missing items array")
+                print("⚠️ WARNING: AI response missing items array")
                 print("   This suggests the API is still not following the function schema properly")
                 print("   Safe items count: \(response.safeItems.count)")
 
@@ -93,11 +93,11 @@ struct OpenAIStrictModeTests {
             }
 
         } catch {
-            print("❌ OpenAI Service Error: \(error)")
+            print("❌ AI Service Error: \(error)")
 
             // Log specific error details
-            if let openAIError = error as? OpenAIError {
-                print("   OpenAI Error Type: \(openAIError)")
+            if let aiError = error as? AIAnalysisError {
+                print("   AI Error Type: \(aiError)")
             }
 
             // Don't fail the test for API errors - this is about testing behavior
@@ -117,11 +117,11 @@ struct OpenAIStrictModeTests {
         let testImageData = createTestImageData()
         let testImage = UIImage(data: testImageData)!
 
-        let openAIService = OpenAIService()
+        let aiService = AIAnalysisService()
 
         // Should throw appropriate error for missing API key
-        await #expect(throws: OpenAIError.self) {
-            try await openAIService.getMultiItemDetails(
+        await #expect(throws: AIAnalysisError.self) {
+            try await aiService.getMultiItemDetails(
                 from: [testImage],
                 settings: settings,
                 modelContext: context

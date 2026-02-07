@@ -6,7 +6,7 @@ Business logic and utilities for MovingBox.
 
 | Service | Purpose | Protocol |
 |---------|---------|----------|
-| `OpenAIService` | AI image analysis via AIProxy | `OpenAIServiceProtocol` |
+| `AIAnalysisService` | AI image analysis via AIProxy | `AIAnalysisServiceProtocol` |
 | `OptimizedImageManager` | Image storage/compression | `ImageManagerProtocol` |
 | `DataManager` | CSV/ZIP export (actor) | - |
 | `SettingsManager` | User preferences | `ObservableObject` |
@@ -17,11 +17,11 @@ Business logic and utilities for MovingBox.
 ## Mock Services for Testing
 
 ```swift
-// OpenAI mock - use "Mock-OpenAI" launch argument
-OpenAIServiceFactory.create() // Returns MockOpenAIService in test mode
+// AI analysis mock - use "Mock-AI" launch argument
+AIAnalysisServiceFactory.create() // Returns MockAIAnalysisService in test mode
 
 // Mock configuration
-let mock = MockOpenAIService()
+let mock = MockAIAnalysisService()
 mock.shouldFail = true           // Simulate API failure
 mock.shouldFailMultiItem = true  // Simulate multi-item failure
 mock.mockResponse = ImageDetails(...) // Custom response
@@ -39,10 +39,11 @@ mock.mockResponse = ImageDetails(...) // Custom response
 @EnvironmentObject var router: Router
 ```
 
-## OpenAI Service Notes
-- Uses AIProxy SDK (not direct OpenAI calls)
-- Partial key: `v2|5c7e57d7|ilrKAnl-45-YCHAB`
-- Service URL: `https://api.aiproxy.com/1530daf2/e2ce41d0`
+## AI Analysis Service Notes
+- Uses AIProxy SDK via OpenRouter (Gemini 3 Flash)
+- Partial key: `v2|dd24c1ca|qVU7FksJSPDTvLtM`
+- Service URL: `https://api.aiproxy.com/1530daf2/f9f2c62b`
+- Model: `google/gemini-3-flash-preview`
 - Retry logic: 3 attempts with exponential backoff
 - Token limits: Base 3000, +300 per image, 3x for high quality
 
@@ -53,5 +54,5 @@ mock.mockResponse = ImageDetails(...) // Custom response
 - Migration from `@Attribute(.externalStorage)` handled in model init
 
 ## Error Types
-- `OpenAIError`: API errors with `userFriendlyMessage` and `isRetryable`
+- `AIAnalysisError`: API errors with `userFriendlyMessage` and `isRetryable`
 - `DataManager.DataError`: Export/import errors

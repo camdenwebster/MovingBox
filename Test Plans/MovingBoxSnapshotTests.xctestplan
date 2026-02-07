@@ -77,7 +77,7 @@
             "name" : "JWTManagerTests"
           },
           {
-            "name" : "OpenAIServiceTests"
+            "name" : "AIAnalysisServiceTests"
           }
         ]
       },

@@ -4,9 +4,9 @@ import UIKit
 @testable import MovingBox
 
 @MainActor
-struct OpenAIMultiPhotoIntegrationTests {
+struct AIAnalysisMultiPhotoIntegrationTests {
     
-    @Test("OpenAI Service - Single Image Request Format")
+    @Test("AIAnalysis Service - Single Image Request Format")
     func testSingleImageRequestFormat() async throws {
         // Setup
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -23,7 +23,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         }
         
         // Test single image service initialization
-        let singleImageService = OpenAIService()
+        let singleImageService = AIAnalysisService()
         
         // Verify service properties
         #expect(singleImageService.imageBase64 == base64String)
@@ -63,7 +63,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         print("✅ Single image request format verified")
     }
     
-    @Test("OpenAI Service - Multi Image Request Format")
+    @Test("AIAnalysis Service - Multi Image Request Format")
     func testMultiImageRequestFormat() async throws {
         // Setup
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -78,7 +78,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         #expect(base64Images.count == 3)
         
         // Test multi-image service initialization
-        let multiImageService = OpenAIService()
+        let multiImageService = AIAnalysisService()
         
         // Verify service properties
         #expect(multiImageService.imageBase64Array.count == 3)
@@ -129,7 +129,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         print("  - Tool choice: \(payload.tool_choice)")
     }
     
-    @Test("OpenAI Service - Live Backend Integration (Multi-Photo)", .disabled("Requires live API"))
+    @Test("AIAnalysis Service - Live Backend Integration (Multi-Photo)", .disabled("Requires live API"))
     func testLiveMultiPhotoAPICall() async throws {
         // This test is disabled by default but can be enabled for debugging
         // Remove .disabled() to run with live API
@@ -143,7 +143,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         let testImages = [createTestImage(), createTestImage()]
         let base64Images = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: testImages)
         
-        let service = OpenAIService()
+        let service = AIAnalysisService()
         
         do {
             let result = try await service.getImageDetails()
@@ -155,8 +155,8 @@ struct OpenAIMultiPhotoIntegrationTests {
             #expect(!result.description.isEmpty)
             #expect(!result.category.isEmpty)
             
-        } catch let error as OpenAIError {
-            print("❌ OpenAI API Error: \(error)")
+        } catch let error as AIAnalysisError {
+            print("❌ AIAnalysis API Error: \(error)")
             print("📄 User-friendly message: \(error.userFriendlyMessage)")
             throw error
         } catch {
@@ -165,7 +165,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         }
     }
     
-    @Test("OpenAI Service - Token Limit Adjustment for Multi-Image")
+    @Test("AIAnalysis Service - Token Limit Adjustment for Multi-Image")
     func testTokenLimitAdjustmentForMultiImage() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: InventoryItem.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
@@ -176,12 +176,12 @@ struct OpenAIMultiPhotoIntegrationTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Test single image request - should use default token limit
-        let singleImageService = OpenAIService()
+        let singleImageService = AIAnalysisService()
         let singleRequest = try singleImageService.generateURLRequest(httpMethod: .post)
         let singlePayload = try singleImageService.decodePayload(from: singleRequest.httpBody!)
         
         // Test multi-image request - should use increased token limit
-        let multiImageService = OpenAIService()
+        let multiImageService = AIAnalysisService()
         let multiRequest = try multiImageService.generateURLRequest(httpMethod: .post)
         let multiPayload = try multiImageService.decodePayload(from: multiRequest.httpBody!)
         
@@ -192,7 +192,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         
         // Test with more images to verify scaling
         let manyImages = [base64String, base64String, base64String, base64String]
-        let manyImageService = OpenAIService()
+        let manyImageService = AIAnalysisService()
         let manyImageRequest = try manyImageService.generateURLRequest(httpMethod: .post)
         let manyImagePayload = try manyImageService.decodePayload(from: manyImageRequest.httpBody!)
         
@@ -204,7 +204,7 @@ struct OpenAIMultiPhotoIntegrationTests {
         print("📊 Multi-image (4) tokens: \(manyImagePayload.max_completion_tokens)")
     }
     
-    @Test("OpenAI Service - Compare Single vs Multi Photo Responses")
+    @Test("AIAnalysis Service - Compare Single vs Multi Photo Responses")
     func testSingleVsMultiPhotoResponseFormat() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: InventoryItem.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
@@ -215,12 +215,12 @@ struct OpenAIMultiPhotoIntegrationTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Test single image request
-        let singleImageService = OpenAIService()
+        let singleImageService = AIAnalysisService()
         let singleRequest = try singleImageService.generateURLRequest(httpMethod: .post)
         let singlePayload = try singleImageService.decodePayload(from: singleRequest.httpBody!)
         
         // Test multi-image request
-        let multiImageService = OpenAIService()
+        let multiImageService = AIAnalysisService()
         let multiRequest = try multiImageService.generateURLRequest(httpMethod: .post)
         let multiPayload = try multiImageService.decodePayload(from: multiRequest.httpBody!)
         

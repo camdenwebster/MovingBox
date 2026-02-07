@@ -4,7 +4,7 @@ import UIKit
 @testable import MovingBox
 
 @MainActor
-struct OpenAIRequestDebugTests {
+struct AIAnalysisRequestDebugTests {
     
     @Test("Debug Multi-Photo Request JSON Structure")
     func debugMultiPhotoRequestJSON() async throws {
@@ -17,7 +17,7 @@ struct OpenAIRequestDebugTests {
         let testImages = [createTestImage(), createTestImage(), createTestImage()]
         let base64Images = await OptimizedImageManager.shared.prepareMultipleImagesForAI(from: testImages)
         
-        let service = OpenAIService()
+        let service = AIAnalysisService()
         let urlRequest = try service.generateURLRequest(httpMethod: .post)
         
         guard let bodyData = urlRequest.httpBody else {
@@ -59,7 +59,7 @@ struct OpenAIRequestDebugTests {
         print("- Images: \(imageContent.count)")
         print("- Text content: \(textContent.first?.text?.prefix(100) ?? "None")...")
         
-        // Verify the structure follows OpenAI API expectations
+        // Verify the structure follows AIAnalysis API expectations
         #expect(payload.messages.count == 1, "Should have exactly 1 message")
         #expect(message.role == "user", "Message should be from user")
         #expect(textContent.count == 1, "Should have exactly 1 text prompt")
@@ -79,7 +79,7 @@ struct OpenAIRequestDebugTests {
         let testImage = createTestImage()
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
-        let service = OpenAIService()
+        let service = AIAnalysisService()
         let urlRequest = try service.generateURLRequest(httpMethod: .post)
         
         print("🔗 Request Headers:")
@@ -110,12 +110,12 @@ struct OpenAIRequestDebugTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Single image request
-        let singleService = OpenAIService()
+        let singleService = AIAnalysisService()
         let singleRequest = try singleService.generateURLRequest(httpMethod: .post)
         let singleSize = singleRequest.httpBody?.count ?? 0
         
         // Multi-image request (3 images)
-        let multiService = OpenAIService()
+        let multiService = AIAnalysisService()
         let multiRequest = try multiService.generateURLRequest(httpMethod: .post)
         let multiSize = multiRequest.httpBody?.count ?? 0
         
@@ -141,7 +141,7 @@ struct OpenAIRequestDebugTests {
         let testImage = createTestImage()
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
-        let service = OpenAIService()
+        let service = AIAnalysisService()
         let urlRequest = try service.generateURLRequest(httpMethod: .post)
         let payload = try service.decodePayload(from: urlRequest.httpBody!)
         

@@ -11,7 +11,7 @@ xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destinati
 
 | Argument | Purpose |
 |----------|---------|
-| `Mock-OpenAI` | Mock AI API calls |
+| `Mock-AI` | Mock AI API calls |
 | `Use-Test-Data` | Load 53+ test items |
 | `Disable-Animations` | Faster, stable tests |
 | `Skip-Onboarding` | Skip welcome flow |
@@ -30,7 +30,7 @@ final class FeatureUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app.launchArguments = [
-            "Mock-OpenAI",
+            "Mock-AI",
             "Use-Test-Data",
             "Disable-Animations",
             "Skip-Onboarding"

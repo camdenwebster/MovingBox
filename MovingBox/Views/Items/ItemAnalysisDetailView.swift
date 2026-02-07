@@ -86,9 +86,9 @@ struct ItemAnalysisDetailView: View {
             throw AnalysisError.itemNotFound
         }
 
-        let openAi = OpenAIServiceFactory.create()
+        let aiService = AIAnalysisServiceFactory.create()
 
-        let imageDetails = try await openAi.getImageDetails(
+        let imageDetails = try await aiService.getImageDetails(
             from: [image],
             settings: settings,
             modelContext: modelContext

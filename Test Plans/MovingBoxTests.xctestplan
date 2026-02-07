@@ -52,7 +52,7 @@
             "name" : "ItemCreationFlowTests"
           },
           {
-            "name" : "OpenAIMultiItemAnalysisTests",
+            "name" : "AIAnalysisMultiItemAnalysisTests",
             "testFunctions" : [
               "testAnalysisPerformance()",
               "testProVsFreeSettings()"

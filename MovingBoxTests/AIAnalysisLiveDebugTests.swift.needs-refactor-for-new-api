@@ -4,7 +4,7 @@ import UIKit
 @testable import MovingBox
 
 @MainActor
-struct OpenAILiveDebugTests {
+struct AIAnalysisLiveDebugTests {
     
     // Enable this test by removing .disabled() when you want to debug with live API
     @Test("Live API - Single Image Test", .disabled("Enable for live debugging"))
@@ -19,7 +19,7 @@ struct OpenAILiveDebugTests {
         
         print("🧪 Testing SINGLE image API call...")
         
-        let service = OpenAIService()
+        let service = AIAnalysisService()
         
         do {
             let result = try await service.getImageDetails()
@@ -45,7 +45,7 @@ struct OpenAILiveDebugTests {
         
         print("🧪 Testing MULTI image API call with \(base64Images.count) images...")
         
-        let service = OpenAIService()
+        let service = AIAnalysisService()
         
         do {
             let result = try await service.getImageDetails()
@@ -75,11 +75,11 @@ struct OpenAILiveDebugTests {
         let base64String = await OptimizedImageManager.shared.prepareImageForAI(from: testImage)!
         
         // Single image request
-        let singleService = OpenAIService()
+        let singleService = AIAnalysisService()
         let singleRequest = try singleService.generateURLRequest(httpMethod: .post)
         
         // Multi-image request (2 copies of same image)
-        let multiService = OpenAIService()
+        let multiService = AIAnalysisService()
         let multiRequest = try multiService.generateURLRequest(httpMethod: .post)
         
         // Compare sizes

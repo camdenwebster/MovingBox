@@ -29,6 +29,11 @@ final class OptimizedImageManager {
         return containerURL
     }
 
+    private var videosDirectoryURL: URL {
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsURL.appendingPathComponent("Videos", isDirectory: true)
+    }
+
     private enum ImageConfig {
         static let maxDimension: CGFloat = 2500
         static let jpegQuality: CGFloat = 0.8
@@ -40,6 +45,7 @@ final class OptimizedImageManager {
     private init() {
         self.customImagesDirectory = nil
         setupImageDirectory()
+        setupVideoDirectory()
         cache.countLimit = 100
         // Limit cache to ~50MB to prevent excessive memory usage
         cache.totalCostLimit = 50 * 1024 * 1024
@@ -51,6 +57,7 @@ final class OptimizedImageManager {
     internal init(testDirectory: URL) {
         self.customImagesDirectory = testDirectory
         setupImageDirectory()
+        setupVideoDirectory()
         cache.countLimit = 100
         cache.totalCostLimit = 50 * 1024 * 1024
         // Skip ubiquity and memory monitoring for test instances
@@ -66,6 +73,20 @@ final class OptimizedImageManager {
                     "📸 OptimizedImageManager - ERROR creating images directory: \(error.localizedDescription)"
                 )
                 print("📸 OptimizedImageManager - Attempted path: \(imagesDirectoryURL.path)")
+            }
+        }
+    }
+
+    private func setupVideoDirectory() {
+        if !fileManager.fileExists(atPath: videosDirectoryURL.path) {
+            do {
+                try fileManager.createDirectory(at: videosDirectoryURL, withIntermediateDirectories: true)
+                print("📹 OptimizedImageManager - Created videos directory at: \(videosDirectoryURL)")
+            } catch {
+                print(
+                    "📹 OptimizedImageManager - ERROR creating videos directory: \(error.localizedDescription)"
+                )
+                print("📹 OptimizedImageManager - Attempted path: \(videosDirectoryURL.path)")
             }
         }
     }
@@ -162,6 +183,38 @@ final class OptimizedImageManager {
         // Ensure thumbnail is saved before returning to prevent race conditions
         await saveThumbnail(optimizedImage, id: id)
         return imageURL
+    }
+
+    func saveVideo(_ sourceURL: URL) async throws -> URL {
+        if !fileManager.fileExists(atPath: videosDirectoryURL.path) {
+            do {
+                try fileManager.createDirectory(at: videosDirectoryURL, withIntermediateDirectories: true)
+                print("📹 OptimizedImageManager - Created videos directory at: \(videosDirectoryURL)")
+            } catch {
+                print(
+                    "📹 OptimizedImageManager - CRITICAL: Failed to create videos directory: \(error.localizedDescription)"
+                )
+                throw error
+            }
+        }
+
+        let destinationURL = videosDirectoryURL.appendingPathComponent("\(UUID().uuidString).mov")
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    if self.fileManager.fileExists(atPath: destinationURL.path) {
+                        try self.fileManager.removeItem(at: destinationURL)
+                    }
+                    try self.fileManager.copyItem(at: sourceURL, to: destinationURL)
+                    print("📹 OptimizedImageManager - Saved video to: \(destinationURL)")
+                    continuation.resume(returning: destinationURL)
+                } catch {
+                    print("📹 OptimizedImageManager - Error saving video: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     func loadImage(url: URL) async throws -> UIImage {

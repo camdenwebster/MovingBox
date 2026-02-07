@@ -1,6 +1,6 @@
 # MovingBox
 
-iOS AI-powered home inventory app. SwiftUI + SwiftData, OpenAI Vision API, RevenueCat, CloudKit.
+iOS AI-powered home inventory app. SwiftUI + SwiftData, Google Gemini AI via OpenRouter, RevenueCat, CloudKit.
 
 ## Project Configuration
 - **Project**: MovingBox.xcodeproj
@@ -33,11 +33,11 @@ xcrun simctl install F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 ./.build/DerivedData/B
 xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox
 
 # Launch with arguments (for exploratory testing - UI tests already use the necessary arguments)
-xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox --args -Mock-OpenAI -Use-Test-Data
+xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox --args -Mock-AI -Use-Test-Data
 ```
 
 ## Test Launch Arguments
-- `Mock-OpenAI` - Mock AI API (prevents real API calls)
+- `Mock-AI` - Mock AI API (prevents real API calls)
 - `Use-Test-Data` - Load test data
 - `Disable-Animations` - Stable UI tests
 - `Is-Pro` - Enable pro features

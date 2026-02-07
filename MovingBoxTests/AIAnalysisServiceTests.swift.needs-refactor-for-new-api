@@ -6,16 +6,16 @@ import SwiftData
 @testable import MovingBox
 
 @MainActor
-@Suite struct OpenAIServiceTests {
+@Suite struct AIAnalysisServiceTests {
     
-    func createTestService() async throws -> OpenAIService {
+    func createTestService() async throws -> AIAnalysisService {
         let testImage = UIImage(systemName: "photo")!
         let imageData = testImage.pngData()!
         let base64String = imageData.base64EncodedString()
         
         let settings = SettingsManager()
         settings.apiKey = "test_key_123"
-        settings.aiModel = "gpt-4o-mini"
+        settings.aiModel = "google/gemini-3-flash-preview"
         settings.maxTokens = 150
         settings.isHighDetail = false
         
@@ -23,7 +23,7 @@ import SwiftData
         let container = try ModelContainer(for: InventoryItem.self, configurations: config)
         let context = ModelContext(container)
         
-        let service = OpenAIService()
+        let service = AIAnalysisService()
         return service
     }
     
@@ -95,7 +95,7 @@ import SwiftData
             let payload = try decoder.decode(GPTPayload.self, from: body)
             
             // Verify payload structure  
-            #expect(payload.model == "gpt-4o")
+            #expect(payload.model == "google/gemini-3-flash-preview")
             #expect(payload.max_completion_tokens == 150)
             #expect(payload.messages.count == 1)
             #expect(payload.messages[0].role == "user")
@@ -492,35 +492,35 @@ import SwiftData
         #expect(Bool(true), "Concurrent cancellation handled without errors")
     }
     
-    @Test("Test OpenAI error retryability")
-    func testOpenAIErrorRetryability() async throws {
+    @Test("Test AIAnalysis error retryability")
+    func testAIAnalysisErrorRetryability() async throws {
         // Test retryable errors
-        #expect(OpenAIError.networkCancelled.isRetryable == true)
-        #expect(OpenAIError.networkTimeout.isRetryable == true)
-        #expect(OpenAIError.networkUnavailable.isRetryable == true)
-        #expect(OpenAIError.rateLimitExceeded.isRetryable == true)
-        #expect(OpenAIError.serverError("test").isRetryable == true)
+        #expect(AIAnalysisError.networkCancelled.isRetryable == true)
+        #expect(AIAnalysisError.networkTimeout.isRetryable == true)
+        #expect(AIAnalysisError.networkUnavailable.isRetryable == true)
+        #expect(AIAnalysisError.rateLimitExceeded.isRetryable == true)
+        #expect(AIAnalysisError.serverError("test").isRetryable == true)
         
         // Test non-retryable errors
-        #expect(OpenAIError.invalidURL.isRetryable == false)
-        #expect(OpenAIError.invalidResponse(statusCode: 400, responseData: "test").isRetryable == false)
-        #expect(OpenAIError.invalidData.isRetryable == false)
+        #expect(AIAnalysisError.invalidURL.isRetryable == false)
+        #expect(AIAnalysisError.invalidResponse(statusCode: 400, responseData: "test").isRetryable == false)
+        #expect(AIAnalysisError.invalidData.isRetryable == false)
     }
     
     @Test("Test user-friendly error messages")
     func testUserFriendlyErrorMessages() async throws {
         // Test network error messages
-        let cancelledError = OpenAIError.networkCancelled
+        let cancelledError = AIAnalysisError.networkCancelled
         #expect(cancelledError.userFriendlyMessage == "Request was cancelled. Please try again.")
         
-        let timeoutError = OpenAIError.networkTimeout
+        let timeoutError = AIAnalysisError.networkTimeout
         #expect(timeoutError.userFriendlyMessage == "Request timed out. Please check your connection and try again.")
         
-        let unavailableError = OpenAIError.networkUnavailable
+        let unavailableError = AIAnalysisError.networkUnavailable
         #expect(unavailableError.userFriendlyMessage == "Network unavailable. Please check your internet connection.")
         
         // Test existing error messages still work
-        let rateLimitError = OpenAIError.rateLimitExceeded
+        let rateLimitError = AIAnalysisError.rateLimitExceeded
         #expect(rateLimitError.userFriendlyMessage == "Too many requests. Please try again later.")
     }
     
