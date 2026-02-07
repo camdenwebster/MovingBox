@@ -2,6 +2,24 @@
 
 This guide covers architecture, patterns, and the SDLC workflow for developing MovingBox.
 
+## Git Hooks Setup
+
+This repository uses versioned git hooks:
+- `.githooks/pre-commit` runs Swift formatting and linting on staged Swift files.
+- `.githooks/pre-push` runs app build + unit tests before push.
+
+Run this once per clone/worktree:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+If you need to bypass pre-push checks temporarily:
+
+```bash
+SKIP_PRE_PUSH=1 git push
+```
+
 ## Architecture
 
 ### Core Data Flow

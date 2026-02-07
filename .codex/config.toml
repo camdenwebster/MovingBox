@@ -1,19 +1,30 @@
-# Repo-local Codex config
-[app]
-log_level = "info"
+#:schema https://developers.openai.com/codex/config-schema.json
 
-[models]
-# default model used by Codex CLI
-default = "gpt-5.2-codex"
+model = "gpt-5.3-codex"
+approval_policy = "untrusted"
+sandbox_mode = "workspace-write"
+web_search = "cached"
 
-[sandbox]
-# options: "read-only", "workspace-write", "danger-full-access"
-mode = "workspace-write"
+[sandbox_workspace_write]
+network_access = false
 
-[network]
-# options: "restricted", "enabled"
-access = "restricted"
+[shell_environment_policy]
+inherit = "all"
+set = { IOS_SIMULATOR_DEVICE = "iPhone 17 Pro", XCODE_PROJECT = "MovingBox.xcodeproj", MAIN_SCHEME = "MovingBox", TEST_SCHEME = "MovingBoxTests", UI_TEST_SCHEME = "MovingBoxUITests", SNAPSHOT_DEVICE = "iPhone 14 Pro" }
 
-[approvals]
-# options: "on-request", "on-failure", "never", "untrusted"
-policy = "on-request"
+[mcp_servers.sosumi]
+enabled = true
+
+[mcp_servers.sentry]
+enabled = true
+
+[mcp_servers."ios-simulator"]
+enabled = true
+
+[[skills.config]]
+path = "/Users/camden.webster/.codex/skills/.system/skill-creator/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = "/Users/camden.webster/.codex/skills/.system/skill-installer/SKILL.md"
+enabled = false
