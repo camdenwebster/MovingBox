@@ -253,12 +253,28 @@ struct CloudKitRecoveryCoordinator {
                     stats.policies += 1
                 }
 
+                // Determine fallback home for legacy v2.1.0 records missing CD_home.
+                // Prefer the primary home, or first alphabetically if none is marked primary.
+                let primaryHome =
+                    homes.first(where: {
+                        ($0["CD_isPrimary"] as? Int64).map { $0 != 0 } ?? false
+                    })
+                    ?? homes.sorted(by: {
+                        ($0["CD_name"] as? String ?? "") < ($1["CD_name"] as? String ?? "")
+                    }).first
+                let fallbackHomeUUID = primaryHome.flatMap { recordNameToUUID[$0.recordID.recordName] }
+
                 // 4. Locations (resolve homeID via CKRecord.Reference)
                 for record in locations {
                     let uuid = recordNameToUUID[record.recordID.recordName]!
-                    let homeUUID = resolveReference(
+                    var homeUUID = resolveReference(
                         record: record, key: "CD_home", map: recordNameToUUID)
                     let secondaryPhotos = jsonFromCKAssetOrData(record: record, key: "CD_secondaryPhotoURLs")
+
+                    // Pre-multi-home fallback: assign homeless locations to primary home
+                    if homeUUID == nil, let fallback = fallbackHomeUUID {
+                        homeUUID = fallback
+                    }
 
                     try db.execute(
                         sql: """
@@ -279,16 +295,6 @@ struct CloudKitRecoveryCoordinator {
                 }
 
                 // 5. Items (resolve locationID, homeID, and label references)
-                // For v2.1.0 items without CD_home, we'll assign to the primary home
-                // (or first home alphabetically if none is marked primary)
-                let primaryHome =
-                    homes.first(where: {
-                        ($0["CD_isPrimary"] as? Int64).map { $0 != 0 } ?? false
-                    })
-                    ?? homes.sorted(by: {
-                        ($0["CD_name"] as? String ?? "") < ($1["CD_name"] as? String ?? "")
-                    }).first
-                let fallbackHomeUUID = primaryHome.flatMap { recordNameToUUID[$0.recordID.recordName] }
 
                 for record in items {
                     let uuid = recordNameToUUID[record.recordID.recordName]!

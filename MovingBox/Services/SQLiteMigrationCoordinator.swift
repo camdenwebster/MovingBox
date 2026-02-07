@@ -516,11 +516,12 @@ struct SQLiteMigrationCoordinator {
 
     /// Picks the "real" home from a list that may contain phantom homes from
     /// pre-2.2.0 onboarding re-runs. A home is considered user-customized if
-    /// any of name, address, or photo were set. Falls back to the last-created
-    /// home (highest Z_PK), matching pre-2.2.0 `homes.last` behavior.
+    /// it has a non-default name, address, or photo. Falls back to the
+    /// last-created home (highest Z_PK), matching pre-2.2.0 `homes.last` behavior.
     private static func bestHomeZPK(from homes: [RawHome]) -> Int64 {
         homes.first(where: { home in
-            !home.name.isEmpty || !home.address1.isEmpty || !home.city.isEmpty || home.imageURL != nil
+            (!home.name.isEmpty && home.name != "My Home")
+                || !home.address1.isEmpty || !home.city.isEmpty || home.imageURL != nil
         })?.zpk ?? homes.map(\.zpk).max()!
     }
 
