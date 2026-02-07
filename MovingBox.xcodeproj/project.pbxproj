@@ -49,6 +49,7 @@
 		19F0A0012E570A0000000001 /* HomeCullingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F0A0002E570A0000000001 /* HomeCullingManager.swift */; };
 		19F30A022F3100A2003DF002 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A012F3100A1003DF001 /* DatabaseManager.swift */; };
 		19F30A042F3100A4003DF004 /* SQLiteMigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */; };
+		19F30A0C2F3300B0003DF00C /* SQLiteRecordWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */; };
 		19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */; };
 		19F30A0A2F3200A1003DF00A /* CloudKitRecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A092F3200A0003DF009 /* CloudKitRecoveryCoordinator.swift */; };
 		19F30B012F32000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B002F32000000000001 /* AppDelegate.swift */; };
@@ -128,6 +129,7 @@
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
 		19F30A012F3100A1003DF001 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteMigrationCoordinator.swift; sourceTree = "<group>"; };
+		19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteRecordWriter.swift; sourceTree = "<group>"; };
 		19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabaseHelper.swift; sourceTree = "<group>"; };
 		19F30A092F3200A0003DF009 /* CloudKitRecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitRecoveryCoordinator.swift; sourceTree = "<group>"; };
 		19F30B002F32000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -331,6 +333,7 @@
 				1961F51A2EC2E67E00C8E0A4 /* ExportCoordinator.swift */,
 				19F30A012F3100A1003DF001 /* DatabaseManager.swift */,
 				19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */,
+				19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */,
 				19F30A092F3200A0003DF009 /* CloudKitRecoveryCoordinator.swift */,
 				B65433A40EA29E772843D04D /* ShareMetadataStore.swift */,
 				19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */,
@@ -649,6 +652,7 @@
 				19C01D5E2D93088300773DA4 /* JWTManager.swift in Sources */,
 				19F30A022F3100A2003DF002 /* DatabaseManager.swift in Sources */,
 				19F30A042F3100A4003DF004 /* SQLiteMigrationCoordinator.swift in Sources */,
+				19F30A0C2F3300B0003DF00C /* SQLiteRecordWriter.swift in Sources */,
 				19F30A0A2F3200A1003DF00A /* CloudKitRecoveryCoordinator.swift in Sources */,
 				810FB0E2246E896DD548B208 /* ShareMetadataStore.swift in Sources */,
 				19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */,

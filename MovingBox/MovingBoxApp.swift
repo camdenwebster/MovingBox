@@ -31,6 +31,7 @@ struct MovingBoxApp: App {
     @State private var showRecoveryAlert = false
     @State private var strandedItemCount = 0
     @State private var isRecovering = false
+    @State private var recoveryActionTaken = false
     @State private var recoveryContinuation: CheckedContinuation<Void, Never>?
     @State private var migrationErrorMessage: String?
 
@@ -48,58 +49,35 @@ struct MovingBoxApp: App {
             #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
                     $0.defaultDatabase = try! makeSeededTestDatabase()
-                    // No SyncEngine for test data mode
+                    return
                 } else if ProcessInfo.processInfo.arguments.contains("Disable-Persistence") {
                     $0.defaultDatabase = try! makeInMemoryDatabase()
-                    // No SyncEngine for in-memory mode
-                } else {
-                    do {
-                        $0.defaultDatabase = try appDatabase()
-                    } catch {
-                        logger.error("appDatabase() failed, falling back to in-memory: \(error.localizedDescription)")
-                        $0.defaultDatabase = try! makeInMemoryDatabase()
-                    }
-                    do {
-                        let syncEngine = try SyncEngine(
-                            for: $0.defaultDatabase,
-                            tables: SQLiteHome.self,
-                            SQLiteInventoryLocation.self,
-                            SQLiteInventoryItem.self,
-                            SQLiteInventoryLabel.self,
-                            SQLiteInsurancePolicy.self,
-                            SQLiteInventoryItemLabel.self,
-                            SQLiteHomeInsurancePolicy.self,
-                            startImmediately: false
-                        )
-                        $0.defaultSyncEngine = syncEngine
-                    } catch {
-                        logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
-                    }
-                }
-            #else
-                do {
-                    $0.defaultDatabase = try appDatabase()
-                } catch {
-                    logger.error("appDatabase() failed, falling back to in-memory: \(error.localizedDescription)")
-                    $0.defaultDatabase = try! makeInMemoryDatabase()
-                }
-                do {
-                    let syncEngine = try SyncEngine(
-                        for: $0.defaultDatabase,
-                        tables: SQLiteHome.self,
-                        SQLiteInventoryLocation.self,
-                        SQLiteInventoryItem.self,
-                        SQLiteInventoryLabel.self,
-                        SQLiteInsurancePolicy.self,
-                        SQLiteInventoryItemLabel.self,
-                        SQLiteHomeInsurancePolicy.self,
-                        startImmediately: false
-                    )
-                    $0.defaultSyncEngine = syncEngine
-                } catch {
-                    logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
+                    return
                 }
             #endif
+
+            do {
+                $0.defaultDatabase = try appDatabase()
+            } catch {
+                logger.error("appDatabase() failed, falling back to in-memory: \(error.localizedDescription)")
+                $0.defaultDatabase = try! makeInMemoryDatabase()
+            }
+            do {
+                let syncEngine = try SyncEngine(
+                    for: $0.defaultDatabase,
+                    tables: SQLiteHome.self,
+                    SQLiteInventoryLocation.self,
+                    SQLiteInventoryItem.self,
+                    SQLiteInventoryLabel.self,
+                    SQLiteInsurancePolicy.self,
+                    SQLiteInventoryItemLabel.self,
+                    SQLiteHomeInsurancePolicy.self,
+                    startImmediately: false
+                )
+                $0.defaultSyncEngine = syncEngine
+            } catch {
+                logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
+            }
         }
 
         // Configure TelemetryDeck
@@ -276,7 +254,7 @@ struct MovingBoxApp: App {
                     // empty, which means recovery may still be needed.
                     let localItemCount =
                         (try? await database.read { db in
-                            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM inventoryItems")
+                            try SQLiteInventoryItem.count().fetchOne(db)
                         }) ?? 0
                     if localItemCount == 0 {
                         if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
@@ -298,11 +276,14 @@ struct MovingBoxApp: App {
 
                 // Start SyncEngine after migration/recovery to prevent sync from
                 // racing with data writes during migration.
-                do {
-                    @Dependency(\.defaultSyncEngine) var syncEngine
-                    try await syncEngine.start()
-                } catch {
-                    logger.error("SyncEngine start failed: \(error.localizedDescription)")
+                let syncEnabled = UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool ?? true
+                if syncEnabled {
+                    do {
+                        @Dependency(\.defaultSyncEngine) var syncEngine
+                        try await syncEngine.start()
+                    } catch {
+                        logger.error("SyncEngine start failed: \(error.localizedDescription)")
+                    }
                 }
 
                 // Cull empty phantom homes from pre-2.2.0 onboarding re-runs (one-time).
@@ -348,17 +329,17 @@ struct MovingBoxApp: App {
                             }
                         }
                         settings.activeHomeId = newHomeID.uuidString
-                        print("🏠 MovingBoxApp - Created default home (no homes found in database)")
+                        logger.info("Created default home (no homes found in database)")
                     }
                 } catch {
-                    print("⚠️ MovingBoxApp - Error ensuring default home exists: \(error)")
+                    logger.warning("Error ensuring default home exists: \(error.localizedDescription)")
                 }
 
                 // Check RevenueCat subscription status
                 do {
                     try await revenueCatManager.updateCustomerInfo()
                 } catch {
-                    print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
+                    logger.warning("Error checking RevenueCat status: \(error.localizedDescription)")
                 }
 
                 // If splash was shown, ensure it stays visible for at least 1s
@@ -371,7 +352,7 @@ struct MovingBoxApp: App {
                 splashTimer.cancel()
 
                 // Determine if we should show the welcome screen
-                print("📱 MovingBoxApp - Startup complete, transitioning to app")
+                logger.info("Startup complete, transitioning to app")
 
                 // If launching from a share link on first launch, route to abbreviated joining flow
                 if OnboardingManager.shouldShowWelcome(),
@@ -410,6 +391,7 @@ struct MovingBoxApp: App {
             }
             .alert("Recover Your Data?", isPresented: $showRecoveryAlert) {
                 Button("Recover Data") {
+                    recoveryActionTaken = true
                     Task {
                         isRecovering = true
                         @Dependency(\.defaultDatabase) var database
@@ -436,6 +418,7 @@ struct MovingBoxApp: App {
                     }
                 }
                 Button("Start Fresh", role: .destructive) {
+                    recoveryActionTaken = true
                     Task {
                         CloudKitRecoveryCoordinator.markComplete()
                         await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
@@ -452,7 +435,8 @@ struct MovingBoxApp: App {
             .onChange(of: showRecoveryAlert) { _, isShowing in
                 // Safety net: if alert is dismissed without a button tap (e.g. system
                 // interruption), resume the continuation to prevent a deadlock.
-                if !isShowing, let continuation = recoveryContinuation {
+                // Skip when a button action was taken — those handle their own cleanup.
+                if !isShowing, !recoveryActionTaken, let continuation = recoveryContinuation {
                     CloudKitRecoveryCoordinator.markComplete()
                     continuation.resume()
                     recoveryContinuation = nil

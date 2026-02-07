@@ -59,7 +59,7 @@ struct CloudKitRecoveryCoordinatorTests {
         let data = try NSKeyedArchiver.archivedData(
             withRootObject: color, requiringSecureCoding: true)
 
-        let hex = CloudKitRecoveryCoordinator.colorHexFromData(data)
+        let hex = SQLiteRecordWriter.colorHexFromData(data)
         #expect(hex != nil)
         // Red = 0xFF0000FF
         #expect(hex == 0xFF00_00FF)
@@ -68,7 +68,7 @@ struct CloudKitRecoveryCoordinatorTests {
     @Test("Invalid color data returns fallback gray")
     func invalidColorDataReturnsFallback() {
         let invalidData = Data([0x00, 0x01, 0x02, 0x03])
-        let hex = CloudKitRecoveryCoordinator.colorHexFromData(invalidData)
+        let hex = SQLiteRecordWriter.colorHexFromData(invalidData)
         #expect(hex == 0x8080_80FF)
     }
 
@@ -78,7 +78,7 @@ struct CloudKitRecoveryCoordinatorTests {
         let data = try NSKeyedArchiver.archivedData(
             withRootObject: color, requiringSecureCoding: true)
 
-        let hex = CloudKitRecoveryCoordinator.colorHexFromData(data)
+        let hex = SQLiteRecordWriter.colorHexFromData(data)
         #expect(hex != nil)
         // Blue = 0x0000FFFF
         #expect(hex == 0x0000_FFFF)
@@ -88,19 +88,19 @@ struct CloudKitRecoveryCoordinatorTests {
 
     @Test("Decimal from CK Double preserves common values")
     func decimalFromDouble() {
-        let result = CloudKitRecoveryCoordinator.decimalFromCKDouble(99.99)
+        let result = SQLiteRecordWriter.decimalFromDouble(99.99)
         #expect("\(result)" == "99.99")
     }
 
     @Test("Decimal from nil returns zero")
     func decimalFromNil() {
-        let result = CloudKitRecoveryCoordinator.decimalFromCKDouble(nil)
+        let result = SQLiteRecordWriter.decimalFromDouble(nil)
         #expect(result == 0)
     }
 
     @Test("Decimal from zero")
     func decimalFromZero() {
-        let result = CloudKitRecoveryCoordinator.decimalFromCKDouble(0.0)
+        let result = SQLiteRecordWriter.decimalFromDouble(0.0)
         #expect(result == 0)
     }
 

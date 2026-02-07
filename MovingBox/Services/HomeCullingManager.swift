@@ -49,69 +49,41 @@ struct HomeCullingManager {
         activeHomeId: String?
     ) async throws -> String? {
         try await database.write { db in
-            // 1. Fetch all homes ordered by purchaseDate (matching old homes.last behavior)
-            let allHomes = try Row.fetchAll(
+            // 1. Fetch all homes with usage data in a single query
+            let rows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT id FROM homes ORDER BY purchaseDate ASC
+                    SELECT h.id,
+                        (SELECT COUNT(*) FROM inventoryItems WHERE homeID = h.id) +
+                        (SELECT COUNT(*) FROM inventoryItems WHERE locationID IN
+                            (SELECT id FROM inventoryLocations WHERE homeID = h.id)) AS itemCount,
+                        (SELECT COUNT(*) FROM homeInsurancePolicies WHERE homeID = h.id) AS policyCount,
+                        CASE WHEN (h.name != '' AND h.name != 'My Home')
+                            OR h.address1 != '' OR h.city != '' OR h.imageURL IS NOT NULL
+                        THEN 1 ELSE 0 END AS hasMetadata
+                    FROM homes h ORDER BY h.purchaseDate ASC
                     """)
 
-            guard allHomes.count > 1 else {
-                logger.info("Only \(allHomes.count) home(s) found, no culling needed")
+            guard rows.count > 1 else {
+                logger.info("Only \(rows.count) home(s) found, no culling needed")
                 return nil
             }
 
-            // 2. For each home, check if it has user content (items, policies)
-            //    or user-customized metadata (address, photos). Homes with any of
-            //    these are not phantom onboarding artifacts and must be preserved.
+            // 2. Determine which homes have user content or metadata
             var homesInUse: Set<String> = []
 
-            for row in allHomes {
+            for row in rows {
                 let homeID: String = row["id"]
+                let itemCount: Int = row["itemCount"]
+                let policyCount: Int = row["policyCount"]
+                let hasMetadata: Bool = row["hasMetadata"]
 
-                let itemCount =
-                    try Int.fetchOne(
-                        db,
-                        sql: """
-                            SELECT COUNT(*) FROM inventoryItems WHERE homeID = ?
-                            """, arguments: [homeID]) ?? 0
-
-                let indirectItemCount =
-                    try Int.fetchOne(
-                        db,
-                        sql: """
-                            SELECT COUNT(*) FROM inventoryItems
-                            WHERE locationID IN (
-                                SELECT id FROM inventoryLocations WHERE homeID = ?
-                            )
-                            """, arguments: [homeID]) ?? 0
-
-                let policyCount =
-                    try Int.fetchOne(
-                        db,
-                        sql: """
-                            SELECT COUNT(*) FROM homeInsurancePolicies WHERE homeID = ?
-                            """, arguments: [homeID]) ?? 0
-
-                // A home with a custom name, address, or photo was customized by the user.
-                // Default onboarding homes use "My Home" so any other non-empty name counts.
-                let hasMetadata =
-                    try Bool.fetchOne(
-                        db,
-                        sql: """
-                            SELECT EXISTS(
-                                SELECT 1 FROM homes WHERE id = ?
-                                AND (
-                                    (name != '' AND name != 'My Home')
-                                    OR address1 != '' OR city != '' OR imageURL IS NOT NULL
-                                )
-                            )
-                            """, arguments: [homeID]) ?? false
-
-                if itemCount + indirectItemCount + policyCount > 0 || hasMetadata {
+                if itemCount + policyCount > 0 || hasMetadata {
                     homesInUse.insert(homeID)
                 }
             }
+
+            let allHomes = rows
 
             // 3. Determine which homes to keep
             let allHomeIDs = allHomes.map { $0["id"] as String }

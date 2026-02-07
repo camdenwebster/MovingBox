@@ -211,7 +211,7 @@ struct SQLiteMigrationCoordinatorTests {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .custom { date, enc in
             var container = enc.singleValueContainer()
-            try container.encode(date.iso8601String)
+            try container.encode(date.sqliteDateString)
         }
         let decoded = try PropertyListDecoder().decode([AttachmentInfo].self, from: plistData)
         let jsonData = try encoder.encode(decoded)

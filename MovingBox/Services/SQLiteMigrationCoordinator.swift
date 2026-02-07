@@ -204,72 +204,56 @@ struct SQLiteMigrationCoordinator {
         try database.write { db in
             // 1. Labels
             for label in labels {
-                try db.execute(
-                    sql: """
-                        INSERT INTO "inventoryLabels" ("id", "name", "desc", "color", "emoji")
-                        VALUES (?, ?, ?, ?, ?)
-                        """,
-                    arguments: [
-                        label.uuid.uuidString.lowercased(),
-                        label.name,
-                        label.desc,
-                        label.colorHex,
-                        label.emoji,
-                    ])
+                try SQLiteRecordWriter.insertLabel(
+                    .init(
+                        id: label.uuid.uuidString.lowercased(),
+                        name: label.name,
+                        desc: label.desc,
+                        colorHex: label.colorHex,
+                        emoji: label.emoji
+                    ), into: db)
             }
             stats.labels = labels.count
             stats.skippedColors = skippedColors
 
             // 2. Homes
             for home in homes {
-                try db.execute(
-                    sql: """
-                        INSERT INTO "homes" ("id", "name", "address1", "address2", "city", "state", "zip", "country",
-                            "purchaseDate", "purchasePrice", "imageURL", "secondaryPhotoURLs", "isPrimary", "colorName")
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                    arguments: [
-                        home.uuid.uuidString.lowercased(),
-                        home.name,
-                        home.address1,
-                        home.address2,
-                        home.city,
-                        home.state,
-                        home.zip,
-                        home.country,
-                        home.purchaseDate.iso8601String,
-                        "\(home.purchasePrice)",
-                        home.imageURL,
-                        home.secondaryPhotoURLsJSON,
-                        home.isPrimary,
-                        home.colorName,
-                    ])
+                try SQLiteRecordWriter.insertHome(
+                    .init(
+                        id: home.uuid.uuidString.lowercased(),
+                        name: home.name,
+                        address1: home.address1,
+                        address2: home.address2,
+                        city: home.city,
+                        state: home.state,
+                        zip: home.zip,
+                        country: home.country,
+                        purchaseDate: home.purchaseDate.sqliteDateString,
+                        purchasePrice: "\(home.purchasePrice)",
+                        imageURL: home.imageURL,
+                        secondaryPhotoURLs: home.secondaryPhotoURLsJSON,
+                        isPrimary: home.isPrimary,
+                        colorName: home.colorName
+                    ), into: db)
             }
             stats.homes = homes.count
 
             // 3. Insurance Policies
             for policy in policies {
-                try db.execute(
-                    sql: """
-                        INSERT INTO "insurancePolicies" ("id", "providerName", "policyNumber",
-                            "deductibleAmount", "dwellingCoverageAmount", "personalPropertyCoverageAmount",
-                            "lossOfUseCoverageAmount", "liabilityCoverageAmount", "medicalPaymentsCoverageAmount",
-                            "startDate", "endDate")
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                    arguments: [
-                        policy.uuid.uuidString.lowercased(),
-                        policy.providerName,
-                        policy.policyNumber,
-                        "\(policy.deductibleAmount)",
-                        "\(policy.dwellingCoverageAmount)",
-                        "\(policy.personalPropertyCoverageAmount)",
-                        "\(policy.lossOfUseCoverageAmount)",
-                        "\(policy.liabilityCoverageAmount)",
-                        "\(policy.medicalPaymentsCoverageAmount)",
-                        policy.startDate.iso8601String,
-                        policy.endDate.iso8601String,
-                    ])
+                try SQLiteRecordWriter.insertPolicy(
+                    .init(
+                        id: policy.uuid.uuidString.lowercased(),
+                        providerName: policy.providerName,
+                        policyNumber: policy.policyNumber,
+                        deductibleAmount: "\(policy.deductibleAmount)",
+                        dwellingCoverageAmount: "\(policy.dwellingCoverageAmount)",
+                        personalPropertyCoverageAmount: "\(policy.personalPropertyCoverageAmount)",
+                        lossOfUseCoverageAmount: "\(policy.lossOfUseCoverageAmount)",
+                        liabilityCoverageAmount: "\(policy.liabilityCoverageAmount)",
+                        medicalPaymentsCoverageAmount: "\(policy.medicalPaymentsCoverageAmount)",
+                        startDate: policy.startDate.sqliteDateString,
+                        endDate: policy.endDate.sqliteDateString
+                    ), into: db)
             }
             stats.policies = policies.count
 
@@ -282,21 +266,16 @@ struct SQLiteMigrationCoordinator {
                         nil
                     }
 
-                try db.execute(
-                    sql: """
-                        INSERT INTO "inventoryLocations" ("id", "name", "desc", "sfSymbolName", "imageURL",
-                            "secondaryPhotoURLs", "homeID")
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                    arguments: [
-                        location.uuid.uuidString.lowercased(),
-                        location.name,
-                        location.desc,
-                        location.sfSymbolName,
-                        location.imageURL,
-                        location.secondaryPhotoURLsJSON,
-                        homeUUID,
-                    ])
+                try SQLiteRecordWriter.insertLocation(
+                    .init(
+                        id: location.uuid.uuidString.lowercased(),
+                        name: location.name,
+                        desc: location.desc,
+                        sfSymbolName: location.sfSymbolName,
+                        imageURL: location.imageURL,
+                        secondaryPhotoURLs: location.secondaryPhotoURLsJSON,
+                        homeID: homeUUID
+                    ), into: db)
             }
             stats.locations = locations.count
 
@@ -316,56 +295,46 @@ struct SQLiteMigrationCoordinator {
                         nil
                     }
 
-                try db.execute(
-                    sql: """
-                        INSERT INTO "inventoryItems" ("id", "title", "quantityString", "quantityInt", "desc", "serial",
-                            "model", "make", "price", "insured", "assetId", "notes", "replacementCost", "depreciationRate",
-                            "imageURL", "secondaryPhotoURLs", "hasUsedAI", "createdAt", "purchaseDate",
-                            "warrantyExpirationDate", "purchaseLocation", "condition", "hasWarranty", "attachments",
-                            "dimensionLength", "dimensionWidth", "dimensionHeight", "dimensionUnit", "weightValue",
-                            "weightUnit", "color", "storageRequirements", "isFragile", "movingPriority", "roomDestination",
-                            "locationID", "homeID")
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                    arguments: [
-                        item.uuid.uuidString.lowercased(),
-                        item.title,
-                        item.quantityString,
-                        item.quantityInt,
-                        item.desc,
-                        item.serial,
-                        item.model,
-                        item.make,
-                        "\(item.price)",
-                        item.insured,
-                        item.assetId,
-                        item.notes,
-                        item.replacementCost.map { "\($0)" },
-                        item.depreciationRate,
-                        item.imageURL,
-                        item.secondaryPhotoURLsJSON,
-                        item.hasUsedAI,
-                        item.createdAt.iso8601String,
-                        item.purchaseDate?.iso8601String,
-                        item.warrantyExpirationDate?.iso8601String,
-                        item.purchaseLocation,
-                        item.condition,
-                        item.hasWarranty,
-                        item.attachmentsJSON,
-                        item.dimensionLength,
-                        item.dimensionWidth,
-                        item.dimensionHeight,
-                        item.dimensionUnit,
-                        item.weightValue,
-                        item.weightUnit,
-                        item.color,
-                        item.storageRequirements,
-                        item.isFragile,
-                        item.movingPriority,
-                        item.roomDestination,
-                        locationUUID,
-                        homeUUID,
-                    ])
+                try SQLiteRecordWriter.insertItem(
+                    .init(
+                        id: item.uuid.uuidString.lowercased(),
+                        title: item.title,
+                        quantityString: item.quantityString,
+                        quantityInt: item.quantityInt,
+                        desc: item.desc,
+                        serial: item.serial,
+                        model: item.model,
+                        make: item.make,
+                        price: "\(item.price)",
+                        insured: item.insured,
+                        assetId: item.assetId,
+                        notes: item.notes,
+                        replacementCost: item.replacementCost.map { "\($0)" },
+                        depreciationRate: item.depreciationRate,
+                        imageURL: item.imageURL,
+                        secondaryPhotoURLs: item.secondaryPhotoURLsJSON,
+                        hasUsedAI: item.hasUsedAI,
+                        createdAt: item.createdAt.sqliteDateString,
+                        purchaseDate: item.purchaseDate?.sqliteDateString,
+                        warrantyExpirationDate: item.warrantyExpirationDate?.sqliteDateString,
+                        purchaseLocation: item.purchaseLocation,
+                        condition: item.condition,
+                        hasWarranty: item.hasWarranty,
+                        attachments: item.attachmentsJSON,
+                        dimensionLength: item.dimensionLength,
+                        dimensionWidth: item.dimensionWidth,
+                        dimensionHeight: item.dimensionHeight,
+                        dimensionUnit: item.dimensionUnit,
+                        weightValue: item.weightValue,
+                        weightUnit: item.weightUnit,
+                        color: item.color,
+                        storageRequirements: item.storageRequirements,
+                        isFragile: item.isFragile,
+                        movingPriority: item.movingPriority,
+                        roomDestination: item.roomDestination,
+                        locationID: locationUUID,
+                        homeID: homeUUID
+                    ), into: db)
             }
             stats.items = items.count
 
@@ -380,16 +349,12 @@ struct SQLiteMigrationCoordinator {
                     continue
                 }
 
-                try db.execute(
-                    sql: """
-                        INSERT INTO "inventoryItemLabels" ("id", "inventoryItemID", "inventoryLabelID")
-                        VALUES (?, ?, ?)
-                        """,
-                    arguments: [
-                        UUID().uuidString.lowercased(),
-                        itemUUID.uuidString.lowercased(),
-                        labelUUID.uuidString.lowercased(),
-                    ])
+                try SQLiteRecordWriter.insertItemLabel(
+                    .init(
+                        id: UUID().uuidString.lowercased(),
+                        inventoryItemID: itemUUID.uuidString.lowercased(),
+                        inventoryLabelID: labelUUID.uuidString.lowercased()
+                    ), into: db)
                 stats.itemLabels += 1
             }
 
@@ -404,16 +369,12 @@ struct SQLiteMigrationCoordinator {
                     continue
                 }
 
-                try db.execute(
-                    sql: """
-                        INSERT INTO "homeInsurancePolicies" ("id", "homeID", "insurancePolicyID")
-                        VALUES (?, ?, ?)
-                        """,
-                    arguments: [
-                        UUID().uuidString.lowercased(),
-                        homeUUID.uuidString.lowercased(),
-                        policyUUID.uuidString.lowercased(),
-                    ])
+                try SQLiteRecordWriter.insertHomePolicy(
+                    .init(
+                        id: UUID().uuidString.lowercased(),
+                        homeID: homeUUID.uuidString.lowercased(),
+                        insurancePolicyID: policyUUID.uuidString.lowercased()
+                    ), into: db)
                 stats.homePolicies += 1
             }
         }
@@ -1162,7 +1123,7 @@ struct SQLiteMigrationCoordinator {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .custom { date, encoder in
                 var container = encoder.singleValueContainer()
-                try container.encode(date.iso8601String)
+                try container.encode(date.sqliteDateString)
             }
             let jsonData = try encoder.encode(attachments)
             if let jsonString = String(data: jsonData, encoding: .utf8) {
@@ -1187,25 +1148,13 @@ struct SQLiteMigrationCoordinator {
         guard blobLen > 0 else { return nil }
 
         let data = Data(bytes: blobPtr, count: blobLen)
+        let hex = SQLiteRecordWriter.colorHexFromData(data)
 
-        guard
-            let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: UIColor.self, from: data)
-        else {
+        if hex == 0x8080_80FF {
             logger.warning("Failed to deserialize UIColor BLOB — using fallback gray")
             skippedColors += 1
-            return 0x8080_80FF  // medium gray fallback
         }
-
-        // Convert UIColor to hex integer (RGBA), normalizing to sRGB for grayscale safety
-        let converted = color.cgColor.converted(
-            to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil
-        )
-        guard let components = converted?.components, components.count >= 3 else { return nil }
-        let r = Int64(components[0] * 0xFF) << 24
-        let g = Int64(components[1] * 0xFF) << 16
-        let b = Int64(components[2] * 0xFF) << 8
-        let a = Int64((components.count >= 4 ? components[3] : 1) * 0xFF)
-        return r | g | b | a
+        return hex
     }
 
     /// Reads two Int64 columns as pairs from a query result
@@ -1244,7 +1193,7 @@ extension Date {
         return f
     }()
 
-    var iso8601String: String {
+    var sqliteDateString: String {
         Self.sqliteDateFormatter.string(from: self)
     }
 }
