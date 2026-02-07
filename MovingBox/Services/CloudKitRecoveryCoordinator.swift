@@ -279,8 +279,16 @@ struct CloudKitRecoveryCoordinator {
                 }
 
                 // 5. Items (resolve locationID, homeID, and label references)
-                // For v2.1.0 items without CD_home, we'll assign to the first recovered home
-                let firstHomeUUID = homes.first.flatMap { recordNameToUUID[$0.recordID.recordName] }
+                // For v2.1.0 items without CD_home, we'll assign to the primary home
+                // (or first home alphabetically if none is marked primary)
+                let primaryHome =
+                    homes.first(where: {
+                        ($0["CD_isPrimary"] as? Int64).map { $0 != 0 } ?? false
+                    })
+                    ?? homes.sorted(by: {
+                        ($0["CD_name"] as? String ?? "") < ($1["CD_name"] as? String ?? "")
+                    }).first
+                let fallbackHomeUUID = primaryHome.flatMap { recordNameToUUID[$0.recordID.recordName] }
 
                 for record in items {
                     let uuid = recordNameToUUID[record.recordID.recordName]!
@@ -289,8 +297,8 @@ struct CloudKitRecoveryCoordinator {
                     var homeUUID = resolveReference(
                         record: record, key: "CD_home", map: recordNameToUUID)
 
-                    // Pre-multi-home fallback: assign homeless items to first home
-                    if homeUUID == nil, let fallback = firstHomeUUID {
+                    // Pre-multi-home fallback: assign homeless items to primary home
+                    if homeUUID == nil, let fallback = fallbackHomeUUID {
                         homeUUID = fallback
                     }
 

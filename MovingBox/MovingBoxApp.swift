@@ -380,6 +380,7 @@ struct MovingBoxApp: App {
                                 "CloudKitRecovery.success",
                                 parameters: ["stats": "\(stats)"])
                             print("☁️ CloudKit recovery succeeded — \(stats)")
+                            await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
                         case .error(let message):
                             TelemetryDeck.signal(
                                 "CloudKitRecovery.error",
@@ -388,7 +389,6 @@ struct MovingBoxApp: App {
                         default:
                             break
                         }
-                        await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
                         isRecovering = false
                         recoveryContinuation?.resume()
                         recoveryContinuation = nil
