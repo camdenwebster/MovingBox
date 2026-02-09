@@ -511,23 +511,28 @@ struct ItemSummaryCard: View {
     let item: SQLiteInventoryItem
     let onTap: () -> Void
 
+    @Dependency(\.defaultDatabase) private var database
+    @State private var thumbnail: UIImage?
+
     var body: some View {
         HStack {
             // Image thumbnail
-            AsyncImage(url: item.imageURL) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.2))
-                    .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                    )
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.2))
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                        )
+                }
             }
             .frame(width: 60, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(.rect(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title.isEmpty ? "Untitled Item" : item.title)
@@ -564,6 +569,11 @@ struct ItemSummaryCard: View {
         .cornerRadius(12)
         .onTapGesture {
             onTap()
+        }
+        .task {
+            thumbnail = try? await database.read { db in
+                try SQLiteInventoryItemPhoto.primaryImage(for: item.id, in: db)
+            }
         }
     }
 }

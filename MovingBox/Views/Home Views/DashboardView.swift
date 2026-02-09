@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import Dependencies
 import PhotosUI
 import RevenueCatUI
 import SQLiteData
@@ -14,6 +15,7 @@ import WhatsNewKit
 
 @MainActor
 struct DashboardView: View {
+    @Dependency(\.defaultDatabase) var database
     let specificHomeID: UUID?
 
     @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
@@ -307,22 +309,8 @@ struct DashboardView: View {
                 }
             }
         }
-        .task(id: home?.imageURL) {
-            guard let home = home,
-                let imageURL = home.imageURL,
-                !isLoading
-            else { return }
-
-            // If the imageURL changed, clear the cached image
-            if cachedImageURL != imageURL {
-                await MainActor.run {
-                    loadedImage = nil
-                    cachedImageURL = imageURL
-                }
-            }
-
-            // Only load if we don't have a cached image for this URL
-            guard loadedImage == nil else { return }
+        .task(id: home?.id) {
+            guard let home = home, !isLoading else { return }
 
             await MainActor.run {
                 isLoading = true
@@ -342,15 +330,12 @@ struct DashboardView: View {
                 }
             }
 
-            do {
-                let photo = try await OptimizedImageManager.shared.loadImage(url: imageURL)
+            if let photo = try? await database.read({ db in
+                try SQLiteHomePhoto.primaryPhoto(for: home.id, in: db)
+            }) {
+                let image = UIImage(data: photo.data)
                 await MainActor.run {
-                    loadedImage = photo
-                }
-            } catch {
-                await MainActor.run {
-                    loadingError = error
-                    print("Failed to load image: \(error)")
+                    loadedImage = image
                 }
             }
         }

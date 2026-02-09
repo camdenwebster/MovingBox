@@ -91,6 +91,7 @@ struct InventoryDetailView: View {
     @State private var capturedImages: [UIImage] = []
     @State private var capturedSingleImage: UIImage?
     @State private var loadedImages: [UIImage] = []
+    @State private var loadedPhotos: [SQLiteInventoryItemPhoto] = []
     @State private var selectedImageIndex: Int = 0
     @State private var showingFullScreenPhoto = false
     @State private var showPhotoSourceAlert = false
@@ -315,33 +316,15 @@ struct InventoryDetailView: View {
                         screenWidth: UIScreen.main.bounds.width,
                         isEditing: isEditing,
                         onAddPhoto: {
-                            let currentPhotoCount =
-                                (item.imageURL != nil ? 1 : 0)
-                                + item.secondaryPhotoURLs.count
-                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
+                            if loadedPhotos.count < (settings.isPro ? 5 : 1) {
                                 showPhotoSourceAlert = true
                             }
                         },
                         onDeletePhoto: { index in
                             Task {
-                                let urlString: String
-                                if index == 0 {
-                                    // Deleting primary image
-                                    if let imageURL = item.imageURL {
-                                        urlString = imageURL.absoluteString
-                                    } else {
-                                        return
-                                    }
-                                } else {
-                                    // Deleting secondary image
-                                    let secondaryIndex = index - 1
-                                    if secondaryIndex < item.secondaryPhotoURLs.count {
-                                        urlString = item.secondaryPhotoURLs[secondaryIndex]
-                                    } else {
-                                        return
-                                    }
-                                }
-                                await deletePhoto(urlString: urlString)
+                                guard index < loadedPhotos.count else { return }
+                                let photoID = loadedPhotos[index].id
+                                await deletePhoto(photoID: photoID)
                             }
                         },
                         onImageTap: { tappedIndex in
@@ -369,24 +352,9 @@ struct InventoryDetailView: View {
                             if !loadedImages.isEmpty {
                                 Button(action: {
                                     Task {
-                                        let urlString: String
-                                        if selectedImageIndex == 0 {
-                                            // Deleting primary image
-                                            if let imageURL = item.imageURL {
-                                                urlString = imageURL.absoluteString
-                                            } else {
-                                                return
-                                            }
-                                        } else {
-                                            // Deleting secondary image
-                                            let secondaryIndex = selectedImageIndex - 1
-                                            if secondaryIndex < item.secondaryPhotoURLs.count {
-                                                urlString = item.secondaryPhotoURLs[secondaryIndex]
-                                            } else {
-                                                return
-                                            }
-                                        }
-                                        await deletePhoto(urlString: urlString)
+                                        guard selectedImageIndex < loadedPhotos.count else { return }
+                                        let photoID = loadedPhotos[selectedImageIndex].id
+                                        await deletePhoto(photoID: photoID)
                                     }
                                 }) {
                                     Image(systemName: "trash")
@@ -401,10 +369,7 @@ struct InventoryDetailView: View {
                             Spacer()
 
                             // Add photo button
-                            let currentPhotoCount =
-                                (item.imageURL != nil ? 1 : 0)
-                                + item.secondaryPhotoURLs.count
-                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
+                            if loadedPhotos.count < (settings.isPro ? 5 : 1) {
                                 Button(action: {
                                     showPhotoSourceAlert = true
                                 }) {
@@ -442,7 +407,7 @@ struct InventoryDetailView: View {
     private var formContent: some View {
         VStack(spacing: 0) {
             // AI Button and Receipt Button Section
-            if isEditing && item.imageURL != nil {
+            if isEditing && !loadedPhotos.isEmpty {
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         aiButtonView
@@ -1240,7 +1205,7 @@ struct InventoryDetailView: View {
             } message: {
                 Text("Are you sure you want to delete this item? This action cannot be undone.")
             }
-            .task(id: item.imageURL) {
+            .task {
                 await loadAllImages()
             }
             .sentryTrace("InventoryDetailView")
@@ -1517,47 +1482,27 @@ struct InventoryDetailView: View {
         guard !images.isEmpty else { return }
 
         do {
-            // Ensure we have a consistent itemId for all operations
-            let itemId =
-                item.assetId.isEmpty ? UUID().uuidString : item.assetId
+            let currentMaxSortOrder = loadedPhotos.map(\.sortOrder).max() ?? -1
+            let itemID = item.id
 
-            if item.imageURL == nil {
-                // No primary image yet, save the first image as primary
-                guard let firstImage = images.first else {
-                    throw NSError(
-                        domain: "InventoryDetailView", code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "No images provided"])
+            for (index, image) in images.enumerated() {
+                guard let imageData = await OptimizedImageManager.shared.processImage(image) else {
+                    continue
                 }
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    firstImage, id: itemId)
-
-                await MainActor.run {
-                    item.imageURL = primaryImageURL
-                    item.assetId = itemId
-                }
-
-                // Save remaining images as secondary photos
-                if images.count > 1 {
-                    let secondaryImages = Array(images.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                        secondaryImages, itemId: itemId)
-
-                    await MainActor.run {
-                        item.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
-                    }
-                }
-            } else {
-                // Primary image exists, add all new images as secondary photos
-                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                    images, itemId: itemId)
-
-                await MainActor.run {
-                    item.assetId = itemId
-                    item.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
+                let photoID = UUID()
+                let sortOrder = currentMaxSortOrder + 1 + index
+                try await database.write { db in
+                    try SQLiteInventoryItemPhoto.insert {
+                        SQLiteInventoryItemPhoto(
+                            id: photoID,
+                            inventoryItemID: itemID,
+                            data: imageData,
+                            sortOrder: sortOrder
+                        )
+                    }.execute(db)
                 }
             }
 
-            await saveItemToSQLite()
             TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
 
             // Reload images after adding new photos
@@ -1567,38 +1512,12 @@ struct InventoryDetailView: View {
         }
     }
 
-    private func deletePhoto(urlString: String) async {
-        guard URL(string: urlString) != nil else { return }
-
+    private func deletePhoto(photoID: UUID) async {
         do {
-            // Delete from storage
-            try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: urlString)
-
-            await MainActor.run {
-                if item.imageURL?.absoluteString == urlString {
-                    // Deleting primary image
-                    item.imageURL = nil
-
-                    // If there are secondary photos, promote the first one to primary
-                    if !item.secondaryPhotoURLs.isEmpty {
-                        if let firstSecondaryURLString = item.secondaryPhotoURLs.first,
-                            let firstSecondaryURL = URL(string: firstSecondaryURLString)
-                        {
-                            item.imageURL = firstSecondaryURL
-                            item.secondaryPhotoURLs.removeFirst()
-                        }
-                    }
-                } else {
-                    // Deleting secondary image
-                    item.secondaryPhotoURLs.removeAll { $0 == urlString }
-                }
-
-                // Save and reload images after deletion
-                Task {
-                    await saveItemToSQLite()
-                    await loadAllImages()
-                }
+            try await database.write { db in
+                try SQLiteInventoryItemPhoto.find(photoID).delete().execute(db)
             }
+            await loadAllImages()
         } catch {
             print("Error deleting photo: \(error)")
         }
@@ -1609,46 +1528,29 @@ struct InventoryDetailView: View {
         loadingError = nil
         defer { isLoading = false }
 
-        var images: [UIImage] = []
-        var encounteredError: Error?
-
-        // Load primary image
-        if let imageURL = item.imageURL {
-            do {
-                let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                images.append(image)
-            } catch {
-                print("Failed to load primary image: \(error)")
-                encounteredError = error
+        do {
+            let itemID = item.id
+            let photos = try await database.read { db in
+                try SQLiteInventoryItemPhoto.photos(for: itemID, in: db)
             }
+            loadedPhotos = photos
+            loadedImages = photos.compactMap { UIImage(data: $0.data) }
+            loadingError = nil
+        } catch {
+            print("Failed to load photos: \(error)")
+            loadedPhotos = []
+            loadedImages = []
+            loadingError = error
         }
 
-        // Load secondary images
-        if !item.secondaryPhotoURLs.isEmpty {
-            do {
-                let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(
-                    from: item.secondaryPhotoURLs)
-                images.append(contentsOf: secondaryImages)
-                encounteredError = nil
-            } catch {
-                print("Failed to load secondary images: \(error)")
-                if images.isEmpty { encounteredError = error }
-            }
-        }
-
-        loadedImages = images
-        loadingError = images.isEmpty ? encounteredError : nil
-        if selectedImageIndex >= images.count {
-            selectedImageIndex = max(0, images.count - 1)
+        if selectedImageIndex >= loadedImages.count {
+            selectedImageIndex = max(0, loadedImages.count - 1)
         }
     }
 
     private func calculateRemainingPhotoCount() -> Int {
-        let currentPhotoCount =
-            (item.imageURL != nil ? 1 : 0)
-            + item.secondaryPhotoURLs.count
         let maxPhotos = settings.isPro ? 5 : 1
-        return max(0, maxPhotos - currentPhotoCount)
+        return max(0, maxPhotos - loadedPhotos.count)
     }
 
     private func formatInitialPrice(_ price: Decimal) -> String {
@@ -1684,22 +1586,11 @@ struct InventoryDetailView: View {
 
     private func deleteItemAndCloseSheet() {
         Task {
-            do {
-                if let imageURL = item.imageURL {
-                    try await OptimizedImageManager.shared.deleteSecondaryImage(
-                        urlString: imageURL.absoluteString)
-                }
-                for photoURL in item.secondaryPhotoURLs {
-                    try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: photoURL)
-                }
-            } catch {
-                print("Error deleting images during cancellation: \(error)")
-            }
-
-            // Delete from SQLite
+            // Delete from SQLite (photos, labels, and item)
             let id = item.id
             do {
                 try await database.write { db in
+                    try SQLiteInventoryItemPhoto.where { $0.inventoryItemID == id }.delete().execute(db)
                     try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
                     try SQLiteInventoryItem.find(id).delete().execute(db)
                 }
@@ -1712,27 +1603,11 @@ struct InventoryDetailView: View {
     }
 
     private func deleteItem() async {
-        do {
-            // Delete all associated images
-            if let imageURL = item.imageURL {
-                try await OptimizedImageManager.shared.deleteSecondaryImage(
-                    urlString: imageURL.absoluteString)
-            }
-            for photoURL in item.secondaryPhotoURLs {
-                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: photoURL)
-            }
-            // Delete all attachments
-            for attachment in item.attachments {
-                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: attachment.url)
-            }
-        } catch {
-            print("Error deleting images during item deletion: \(error)")
-        }
-
-        // Delete from SQLite
+        // Delete from SQLite (photos, labels, and item)
         let id = item.id
         do {
             try await database.write { db in
+                try SQLiteInventoryItemPhoto.where { $0.inventoryItemID == id }.delete().execute(db)
                 try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
                 try SQLiteInventoryItem.find(id).delete().execute(db)
             }
@@ -1830,8 +1705,6 @@ struct InventoryDetailView: View {
                         $0.notes = currentItem.notes
                         $0.replacementCost = currentItem.replacementCost
                         $0.depreciationRate = currentItem.depreciationRate
-                        $0.imageURL = currentItem.imageURL
-                        $0.secondaryPhotoURLs = currentItem.secondaryPhotoURLs
                         $0.hasUsedAI = currentItem.hasUsedAI
                         $0.purchaseDate = currentItem.purchaseDate
                         $0.warrantyExpirationDate = currentItem.warrantyExpirationDate
@@ -2021,24 +1894,8 @@ struct InventoryDetailView: View {
     }
 
     private func regenerateMissingThumbnails() async {
-        // Check and regenerate primary image thumbnail
-        if let imageURL = item.imageURL {
-            do {
-                try await OptimizedImageManager.shared.regenerateThumbnail(for: imageURL)
-            } catch {
-                print("📸 Failed to regenerate thumbnail for primary image: \(error)")
-            }
-        }
-
-        // Check and regenerate secondary image thumbnails
-        for urlString in item.secondaryPhotoURLs {
-            guard let url = URL(string: urlString) else { continue }
-            do {
-                try await OptimizedImageManager.shared.regenerateThumbnail(for: url)
-            } catch {
-                print("📸 Failed to regenerate thumbnail for secondary image: \(error)")
-            }
-        }
+        // Thumbnails are now generated on-demand from BLOB data via NSCache in OptimizedImageManager.
+        // No file-based regeneration needed.
     }
 }
 
@@ -2241,23 +2098,25 @@ struct AttachmentRowView: View {
     private func loadThumbnail() async {
         guard let fileURL = URL(string: url) else { return }
 
-        do {
-            // Try to load as image first
-            let image = try await OptimizedImageManager.shared.loadImage(url: fileURL)
+        // Try to load as image from file URL
+        if let data = try? Data(contentsOf: fileURL),
+            let image = UIImage(data: data)
+        {
             await MainActor.run {
                 thumbnail = image
             }
-        } catch {
-            // Generate PDF thumbnail if it's a PDF file
-            if fileURL.pathExtension.lowercased() == "pdf" {
-                if let pdfThumbnail = await generatePDFThumbnail(from: fileURL) {
-                    await MainActor.run {
-                        thumbnail = pdfThumbnail
-                    }
+            return
+        }
+
+        // Generate PDF thumbnail if it's a PDF file
+        if fileURL.pathExtension.lowercased() == "pdf" {
+            if let pdfThumbnail = await generatePDFThumbnail(from: fileURL) {
+                await MainActor.run {
+                    thumbnail = pdfThumbnail
                 }
             }
-            // For other document types, use the default document icon
         }
+        // For other document types, use the default document icon
     }
 
     private func generatePDFThumbnail(from url: URL) async -> UIImage? {
@@ -2321,15 +2180,13 @@ struct AttachmentRowView: View {
 
 extension InventoryDetailView {
     private func deleteAttachment(_ urlString: String) async {
-        guard URL(string: urlString) != nil else { return }
+        guard let fileURL = URL(string: urlString) else { return }
 
-        do {
-            try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: urlString)
-            item.attachments.removeAll { $0.url == urlString }
-            await saveItemToSQLite()
-        } catch {
-            print("Error deleting attachment: \(error)")
-        }
+        // Delete the file from disk
+        try? FileManager.default.removeItem(at: fileURL)
+
+        item.attachments.removeAll { $0.url == urlString }
+        await saveItemToSQLite()
     }
 
     private func handleAttachmentFileImport(_ result: Result<[URL], Error>) async {
@@ -2349,19 +2206,15 @@ extension InventoryDetailView {
                 let data = try Data(contentsOf: url)
                 let originalName = url.lastPathComponent
 
+                let documentsURL = URL.documentsDirectory
                 let destinationURL: URL
-                if let image = UIImage(data: data) {
-                    destinationURL = try await OptimizedImageManager.shared.saveImage(image, id: attachmentId)
+                if UIImage(data: data) != nil {
+                    // Save image attachment as file
+                    let imageExtension = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
+                    destinationURL = documentsURL.appendingPathComponent(
+                        attachmentId + "." + imageExtension)
+                    try data.write(to: destinationURL)
                 } else {
-                    guard
-                        let documentsURL = FileManager.default.urls(
-                            for: .documentDirectory, in: .userDomainMask
-                        ).first
-                    else {
-                        throw NSError(
-                            domain: "InventoryDetailView", code: 2,
-                            userInfo: [NSLocalizedDescriptionKey: "Cannot access documents directory"])
-                    }
                     destinationURL = documentsURL.appendingPathComponent(
                         attachmentId + "." + url.pathExtension)
                     try data.write(to: destinationURL)

@@ -1,28 +1,30 @@
+import Dependencies
 import SQLiteData
 import SwiftUI
 
 struct HorizontalPhotoScrollView: View {
-    let item: SQLiteInventoryItem
+    @Dependency(\.defaultDatabase) var database
+    let itemID: UUID
     let isEditing: Bool
     let onAddPhoto: () -> Void
-    let onDeletePhoto: (String) -> Void
+    let onDeletePhoto: (UUID) -> Void
     let showOnlyThumbnails: Bool
     let onThumbnailTap: ((Int) -> Void)?
 
-    @State private var loadedImages: [UIImage] = []
-    @State private var primaryImage: UIImage?
+    @State private var photos: [SQLiteInventoryItemPhoto] = []
+    @State private var loadedImages: [UUID: UIImage] = [:]
     @State private var isLoadingImages = false
     @State private var selectedImageIndex: Int = 0
 
     init(
-        item: SQLiteInventoryItem,
+        itemID: UUID,
         isEditing: Bool,
         onAddPhoto: @escaping () -> Void,
-        onDeletePhoto: @escaping (String) -> Void,
+        onDeletePhoto: @escaping (UUID) -> Void,
         showOnlyThumbnails: Bool = false,
         onThumbnailTap: ((Int) -> Void)? = nil
     ) {
-        self.item = item
+        self.itemID = itemID
         self.isEditing = isEditing
         self.onAddPhoto = onAddPhoto
         self.onDeletePhoto = onDeletePhoto
@@ -34,194 +36,138 @@ struct HorizontalPhotoScrollView: View {
     private let primaryImageHeight: CGFloat = 300
     private let thumbnailSize: CGFloat = 80
 
-    var allImages: [UIImage] {
-        var images: [UIImage] = []
-        if let primaryImage = primaryImage {
-            images.append(primaryImage)
+    private var orderedImages: [(id: UUID, image: UIImage)] {
+        photos.compactMap { photo in
+            guard let image = loadedImages[photo.id] else { return nil }
+            return (id: photo.id, image: image)
         }
-        images.append(contentsOf: loadedImages)
-        return images
     }
 
     var body: some View {
         Group {
             if showOnlyThumbnails {
-                // Thumbnail-only mode
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        // All image thumbnails
-                        ForEach(Array(allImages.enumerated()), id: \.offset) { index, image in
-                            ThumbnailView(
-                                image: image,
-                                isSelected: index == selectedImageIndex,
-                                isPrimary: index == 0,
-                                isEditing: isEditing,
-                                onTap: {
-                                    selectedImageIndex = index
-                                    onThumbnailTap?(index)
-                                },
-                                onDelete: {
-                                    if index == 0 {
-                                        // Deleting primary image
-                                        if let imageURL = item.imageURL {
-                                            onDeletePhoto(imageURL.absoluteString)
-                                        }
-                                    } else {
-                                        // Deleting secondary image
-                                        let secondaryIndex = index - 1
-                                        if secondaryIndex < item.secondaryPhotoURLs.count {
-                                            let urlString = item.secondaryPhotoURLs[secondaryIndex]
-                                            onDeletePhoto(urlString)
-                                        }
-                                    }
-                                }
-                            )
-                        }
-
-                        // Add photo button (only in editing mode)
-                        if isEditing {
-                            AddPhotoThumbnailButton(onTap: onAddPhoto)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .frame(height: thumbnailSize + 20)
-            } else if hasPhotos {
-                // Primary image display
-                if !allImages.isEmpty {
-                    Image(uiImage: allImages[selectedImageIndex])
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: primaryImageHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
-                }
-
-                // Thumbnail scroll view
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        // All image thumbnails
-                        ForEach(Array(allImages.enumerated()), id: \.offset) { index, image in
-                            ThumbnailView(
-                                image: image,
-                                isSelected: index == selectedImageIndex,
-                                isPrimary: index == 0,
-                                isEditing: isEditing,
-                                onTap: {
-                                    selectedImageIndex = index
-                                },
-                                onDelete: {
-                                    if index == 0 {
-                                        // Deleting primary image
-                                        if let imageURL = item.imageURL {
-                                            onDeletePhoto(imageURL.absoluteString)
-                                        }
-                                    } else {
-                                        // Deleting secondary image
-                                        let secondaryIndex = index - 1
-                                        if secondaryIndex < item.secondaryPhotoURLs.count {
-                                            let urlString = item.secondaryPhotoURLs[secondaryIndex]
-                                            onDeletePhoto(urlString)
-                                        }
-                                    }
-                                }
-                            )
-                        }
-
-                        // Add photo button (only in editing mode)
-                        if isEditing {
-                            AddPhotoThumbnailButton(onTap: onAddPhoto)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .frame(height: thumbnailSize + 20)
+                thumbnailOnlyMode
+            } else if !orderedImages.isEmpty {
+                fullPhotoMode
             } else if isEditing {
-                // Show add photo button when no photos exist
-                VStack(spacing: 16) {
-                    RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(height: primaryImageHeight)
-                        .overlay(
-                            VStack(spacing: 12) {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(.gray)
-                                Text("No photos yet")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
+                emptyEditMode
+            }
+        }
+        .task(id: itemID) {
+            await loadPhotos()
+        }
+    }
+
+    private var thumbnailOnlyMode: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(orderedImages.enumerated()), id: \.element.id) { index, entry in
+                    ThumbnailView(
+                        image: entry.image,
+                        isSelected: index == selectedImageIndex,
+                        isPrimary: index == 0,
+                        isEditing: isEditing,
+                        onTap: {
+                            selectedImageIndex = index
+                            onThumbnailTap?(index)
+                        },
+                        onDelete: {
+                            onDeletePhoto(entry.id)
+                        }
+                    )
+                }
+
+                if isEditing {
+                    AddPhotoThumbnailButton(onTap: onAddPhoto)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .frame(height: thumbnailSize + 20)
+    }
+
+    private var fullPhotoMode: some View {
+        VStack {
+            if selectedImageIndex < orderedImages.count {
+                Image(uiImage: orderedImages[selectedImageIndex].image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: primaryImageHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(orderedImages.enumerated()), id: \.element.id) { index, entry in
+                        ThumbnailView(
+                            image: entry.image,
+                            isSelected: index == selectedImageIndex,
+                            isPrimary: index == 0,
+                            isEditing: isEditing,
+                            onTap: {
+                                selectedImageIndex = index
+                            },
+                            onDelete: {
+                                onDeletePhoto(entry.id)
                             }
                         )
+                    }
 
-                    HStack {
+                    if isEditing {
                         AddPhotoThumbnailButton(onTap: onAddPhoto)
-                        Spacer()
                     }
-                    .padding(.horizontal, 16)
-                    .frame(height: thumbnailSize + 20)
                 }
+                .padding(.horizontal, 16)
             }
-        }
-        .onAppear {
-            loadImages()
-        }
-        .onChange(of: item.imageURL) { _, _ in
-            loadImages()
-            selectedImageIndex = 0
-        }
-        .onChange(of: item.secondaryPhotoURLs) { _, _ in
-            Task {
-                await loadSecondaryImages()
-            }
+            .frame(height: thumbnailSize + 20)
         }
     }
 
-    private var hasPhotos: Bool {
-        item.imageURL != nil || !item.secondaryPhotoURLs.isEmpty
-    }
-
-    private func loadImages() {
-        Task {
-            await MainActor.run {
-                isLoadingImages = true
-            }
-
-            // Load primary image
-            if let imageURL = item.imageURL {
-                do {
-                    let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                    await MainActor.run {
-                        primaryImage = image
+    private var emptyEditMode: some View {
+        VStack(spacing: 16) {
+            RoundedRectangle(cornerRadius: UIConstants.cornerRadius)
+                .fill(Color.gray.opacity(0.1))
+                .frame(height: primaryImageHeight)
+                .overlay(
+                    VStack(spacing: 12) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 48))
+                            .foregroundColor(.gray)
+                        Text("No photos yet")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
                     }
-                } catch {
-                    print("Failed to load primary image: \(error)")
-                }
-            }
+                )
 
-            // Load secondary images
-            await loadSecondaryImages()
-
-            await MainActor.run {
-                isLoadingImages = false
+            HStack {
+                AddPhotoThumbnailButton(onTap: onAddPhoto)
+                Spacer()
             }
+            .padding(.horizontal, 16)
+            .frame(height: thumbnailSize + 20)
         }
     }
 
-    private func loadSecondaryImages() async {
-        if !item.secondaryPhotoURLs.isEmpty {
-            do {
-                let images = try await OptimizedImageManager.shared.loadSecondaryImages(
-                    from: item.secondaryPhotoURLs)
-                await MainActor.run {
-                    loadedImages = images
-                }
-            } catch {
-                print("Failed to load secondary images: \(error)")
-            }
-        } else {
-            await MainActor.run {
-                loadedImages = []
+    private func loadPhotos() async {
+        isLoadingImages = true
+        defer { isLoadingImages = false }
+
+        guard
+            let fetchedPhotos = try? await database.read({ db in
+                try SQLiteInventoryItemPhoto.photos(for: itemID, in: db)
+            })
+        else { return }
+
+        photos = fetchedPhotos
+
+        var images: [UUID: UIImage] = [:]
+        for photo in fetchedPhotos {
+            if let image = UIImage(data: photo.data) {
+                images[photo.id] = image
             }
         }
+        loadedImages = images
+        selectedImageIndex = 0
     }
 }
 
@@ -250,7 +196,6 @@ struct ThumbnailView: View {
             }
             .buttonStyle(.plain)
 
-            // Delete button (only show in edit mode)
             if isEditing {
                 VStack {
                     HStack {
@@ -316,11 +261,11 @@ struct AddPhotoThumbnailButton: View {
 }
 
 #Preview {
-    // Create a sample item for preview
-    let sampleItem = SQLiteInventoryItem(id: UUID(), title: "Sample Item")
-
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
     HorizontalPhotoScrollView(
-        item: sampleItem,
+        itemID: UUID(),
         isEditing: true,
         onAddPhoto: {},
         onDeletePhoto: { _ in }

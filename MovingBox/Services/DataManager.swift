@@ -1205,20 +1205,32 @@ actor DataManager {
                                 return results
                             }
 
-                            // Update image URLs on objects via database.write
+                            // Insert photo BLOBs from copied image files
                             try await database.write { db in
                                 for (originalIndex, _, copiedURL) in copyResults {
-                                    guard let copiedURL = copiedURL else { continue }
+                                    guard let copiedURL = copiedURL,
+                                        let imageData = try? Data(contentsOf: copiedURL)
+                                    else { continue }
 
                                     let task = imageCopyTasks[originalIndex]
 
                                     if task.isLocation {
-                                        try SQLiteInventoryLocation.find(task.targetID).update {
-                                            $0.imageURL = copiedURL
+                                        try SQLiteInventoryLocationPhoto.insert {
+                                            SQLiteInventoryLocationPhoto(
+                                                id: UUID(),
+                                                inventoryLocationID: task.targetID,
+                                                data: imageData,
+                                                sortOrder: 0
+                                            )
                                         }.execute(db)
                                     } else {
-                                        try SQLiteInventoryItem.find(task.targetID).update {
-                                            $0.imageURL = copiedURL
+                                        try SQLiteInventoryItemPhoto.insert {
+                                            SQLiteInventoryItemPhoto(
+                                                id: UUID(),
+                                                inventoryItemID: task.targetID,
+                                                data: imageData,
+                                                sortOrder: 0
+                                            )
                                         }.execute(db)
                                     }
                                 }
@@ -1337,13 +1349,11 @@ actor DataManager {
                         price: item.price,
                         insured: item.insured,
                         notes: item.notes,
-                        imageURL: item.imageURL,
+                        imageURL: nil,
                         hasUsedAI: item.hasUsedAI
                     ))
 
-                if let imageURL = item.imageURL {
-                    allPhotoURLs.append(imageURL)
-                }
+                // TODO: Export photo BLOBs from inventoryItemPhotos table
             }
 
             return (allItemData, allPhotoURLs)
@@ -1365,18 +1375,16 @@ actor DataManager {
                 .fetchAll(db)
 
             var allLocationData: [LocationData] = []
-            var allPhotoURLs: [URL] = []
+            let allPhotoURLs: [URL] = []
 
             for location in locations {
                 allLocationData.append(
                     (
                         name: location.name,
                         desc: location.desc,
-                        imageURL: location.imageURL
+                        imageURL: nil
                     ))
-                if let imageURL = location.imageURL {
-                    allPhotoURLs.append(imageURL)
-                }
+                // TODO: Export photo BLOBs from inventoryLocationPhotos table
             }
 
             return (allLocationData, allPhotoURLs)
@@ -1856,14 +1864,10 @@ actor DataManager {
                     price: item.price,
                     insured: item.insured,
                     notes: item.notes,
-                    imageURL: item.imageURL,
+                    imageURL: nil,
                     hasUsedAI: item.hasUsedAI
                 )
                 itemData.append(data)
-
-                if let imageURL = item.imageURL {
-                    photoURLs.append(imageURL)
-                }
             }
 
             return (itemData, photoURLs)

@@ -287,13 +287,11 @@ struct SQLiteModelCRUDTests {
             #expect(item?.movingPriority == 3)
             #expect(item?.dimensionUnit == "inches")
             #expect(item?.weightUnit == "lbs")
-            #expect(item?.secondaryPhotoURLs == [])
             #expect(item?.attachments == [])
             #expect(item?.locationID == nil)
             #expect(item?.homeID == nil)
             #expect(item?.replacementCost == nil)
             #expect(item?.depreciationRate == nil)
-            #expect(item?.imageURL == nil)
         }
 
         @Test("Home has correct defaults when inserted with minimal fields")
@@ -315,7 +313,6 @@ struct SQLiteModelCRUDTests {
             #expect(home?.isPrimary == false)
             #expect(home?.colorName == "green")
             #expect(home?.purchasePrice == 0)
-            #expect(home?.secondaryPhotoURLs == [])
         }
 
         @Test("Label has correct defaults when inserted with minimal fields")
@@ -353,9 +350,7 @@ struct SQLiteModelCRUDTests {
             #expect(location?.name == "")
             #expect(location?.desc == "")
             #expect(location?.sfSymbolName == nil)
-            #expect(location?.imageURL == nil)
             #expect(location?.homeID == nil)
-            #expect(location?.secondaryPhotoURLs == [])
         }
 
         @Test("Insurance policy has correct defaults when inserted with minimal fields")

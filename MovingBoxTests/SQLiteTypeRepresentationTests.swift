@@ -131,44 +131,4 @@ struct SQLiteTypeRepresentationTests {
         }
     }
 
-    // MARK: - JSON Array Representation
-
-    @Suite("JSON Array via Database")
-    struct JSONArrayDBTests {
-
-        @Test("String array round-trip through database")
-        func stringArrayRoundTrip() throws {
-            let db = try makeInMemoryDatabase()
-            let id = UUID()
-            let photos = ["photo1.jpg", "photo2.jpg", "photo3.jpg"]
-
-            try db.write { db in
-                try SQLiteInventoryItem.insert(
-                    SQLiteInventoryItem(id: id, title: "Photos Test", secondaryPhotoURLs: photos)
-                ).execute(db)
-            }
-
-            let item = try db.read { db in
-                try SQLiteInventoryItem.find(id).fetchOne(db)
-            }
-            #expect(item?.secondaryPhotoURLs == photos)
-        }
-
-        @Test("Empty array round-trip through database")
-        func emptyArrayRoundTrip() throws {
-            let db = try makeInMemoryDatabase()
-            let id = UUID()
-
-            try db.write { db in
-                try SQLiteInventoryItem.insert(
-                    SQLiteInventoryItem(id: id, title: "No Photos")
-                ).execute(db)
-            }
-
-            let item = try db.read { db in
-                try SQLiteInventoryItem.find(id).fetchOne(db)
-            }
-            #expect(item?.secondaryPhotoURLs == [])
-        }
-    }
 }

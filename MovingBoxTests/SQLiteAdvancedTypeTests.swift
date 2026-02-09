@@ -246,47 +246,6 @@ struct SQLiteAdvancedTypeTests {
         }
     }
 
-    // MARK: - URL Fields
-
-    @Suite("URL Fields")
-    struct URLFieldTests {
-
-        @Test("imageURL round-trip through item")
-        func imageURLRoundTrip() throws {
-            let db = try makeInMemoryDatabase()
-            let id = UUID()
-            let url = URL(string: "file:///images/photo.jpg")!
-
-            try db.write { db in
-                try SQLiteInventoryItem.insert(
-                    SQLiteInventoryItem(id: id, title: "With Photo", imageURL: url)
-                ).execute(db)
-            }
-
-            let item = try db.read { db in
-                try SQLiteInventoryItem.find(id).fetchOne(db)
-            }
-            #expect(item?.imageURL == url)
-        }
-
-        @Test("Nil imageURL round-trip")
-        func nilImageURL() throws {
-            let db = try makeInMemoryDatabase()
-            let id = UUID()
-
-            try db.write { db in
-                try SQLiteInventoryItem.insert(
-                    SQLiteInventoryItem(id: id, title: "No Photo")
-                ).execute(db)
-            }
-
-            let item = try db.read { db in
-                try SQLiteInventoryItem.find(id).fetchOne(db)
-            }
-            #expect(item?.imageURL == nil)
-        }
-    }
-
     // MARK: - Home Computed Properties
 
     @Suite("Home Computed Properties")

@@ -287,16 +287,11 @@ class ItemCreationFlowViewModel: ObservableObject {
         )
 
         do {
-            if let primaryImage = capturedImages.first {
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    primaryImage, id: itemId)
-                newItem.imageURL = primaryImageURL
-
-                if capturedImages.count > 1 {
-                    let secondaryImages = Array(capturedImages.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                        secondaryImages, itemId: itemId)
-                    newItem.secondaryPhotoURLs = secondaryURLs
+            // Process images to JPEG data before DB write
+            var photoDataList: [(Data, Int)] = []
+            for (sortOrder, image) in capturedImages.enumerated() {
+                if let imageData = await OptimizedImageManager.shared.processImage(image) {
+                    photoDataList.append((imageData, sortOrder))
                 }
             }
 
@@ -304,6 +299,17 @@ class ItemCreationFlowViewModel: ObservableObject {
             let itemToInsert = newItem
             try await database.write { db in
                 try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
+
+                for (imageData, sortOrder) in photoDataList {
+                    try SQLiteInventoryItemPhoto.insert {
+                        SQLiteInventoryItemPhoto(
+                            id: UUID(),
+                            inventoryItemID: newItem.id,
+                            data: imageData,
+                            sortOrder: sortOrder
+                        )
+                    }.execute(db)
+                }
             }
 
             TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
@@ -517,6 +523,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             }) ?? []
 
         var items: [SQLiteInventoryItem] = []
+        var photoDataByItem: [UUID: [(Data, Int)]] = [:]
 
         for detectedItem in selectedMultiItems {
             let newID = UUID()
@@ -538,12 +545,14 @@ class ItemCreationFlowViewModel: ObservableObject {
             )
 
             do {
-                if let primaryImage = capturedImages.first {
-                    let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                        primaryImage, id: itemId)
-                    inventoryItem.imageURL = primaryImageURL
-                }
                 items.append(inventoryItem)
+
+                // Process primary image for this item
+                if let primaryImage = capturedImages.first,
+                    let imageData = await OptimizedImageManager.shared.processImage(primaryImage)
+                {
+                    photoDataByItem[inventoryItem.id] = [(imageData, 0)]
+                }
             } catch {
                 throw InventoryItemCreationError.imageProcessingFailed
             }
@@ -554,6 +563,20 @@ class ItemCreationFlowViewModel: ObservableObject {
             try await database.write { [selectedMultiItems] db in
                 for (index, item) in items.enumerated() {
                     try SQLiteInventoryItem.insert { item }.execute(db)
+
+                    // Insert photo BLOBs
+                    if let photoEntries = photoDataByItem[item.id] {
+                        for (imageData, sortOrder) in photoEntries {
+                            try SQLiteInventoryItemPhoto.insert {
+                                SQLiteInventoryItemPhoto(
+                                    id: UUID(),
+                                    inventoryItemID: item.id,
+                                    data: imageData,
+                                    sortOrder: sortOrder
+                                )
+                            }.execute(db)
+                        }
+                    }
 
                     // Match label for this item's category
                     let detectedCategory = selectedMultiItems[index].category

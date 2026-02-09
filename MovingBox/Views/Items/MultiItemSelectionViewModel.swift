@@ -223,27 +223,6 @@ final class MultiItemSelectionViewModel {
                     userMessage = "Failed to compress images. Please try again with different photos."
                 case .invalidImageData:
                     userMessage = "Invalid image data. Please use a different photo."
-                case .iCloudNotAvailable:
-                    userMessage =
-                        "iCloud is not available. Please check your iCloud settings or try again later."
-                case .invalidBaseURL:
-                    userMessage = "Storage configuration error. Please restart the app."
-                }
-            } else if let nsError = error as NSError? {
-                if nsError.domain == NSCocoaErrorDomain {
-                    switch nsError.code {
-                    case NSFileWriteOutOfSpaceError:
-                        userMessage =
-                            "Not enough storage space available. Please free up some space and try again."
-                    case NSFileWriteNoPermissionError:
-                        userMessage = "Permission denied. Please check app permissions in Settings."
-                    case NSFileWriteVolumeReadOnlyError:
-                        userMessage = "Storage is read-only. Please check your device settings."
-                    default:
-                        userMessage = "Failed to save images: \(nsError.localizedDescription)"
-                    }
-                } else {
-                    userMessage = error.localizedDescription
                 }
             } else {
                 userMessage = error.localizedDescription
@@ -281,24 +260,30 @@ final class MultiItemSelectionViewModel {
             homeID: resolvedHomeID
         )
 
+        // Process images to JPEG data before DB write
+        var photoDataList: [(Data, Int)] = []
+        for (sortOrder, image) in images.enumerated() {
+            if let imageData = await OptimizedImageManager.shared.processImage(image) {
+                photoDataList.append((imageData, sortOrder))
+            }
+        }
+
         do {
-            if let primaryImage = images.first {
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    primaryImage, id: itemId)
-                inventoryItem.imageURL = primaryImageURL
-            }
-
-            if images.count > 1 {
-                let secondaryImages = Array(images.dropFirst())
-                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                    secondaryImages, itemId: itemId)
-                inventoryItem.secondaryPhotoURLs = secondaryURLs
-            }
-
-            // Insert into SQLite
+            // Insert item + photos in a single transaction
             let itemToInsert = inventoryItem
             try await database.write { db in
                 try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
+
+                for (imageData, sortOrder) in photoDataList {
+                    try SQLiteInventoryItemPhoto.insert {
+                        SQLiteInventoryItemPhoto(
+                            id: UUID(),
+                            inventoryItemID: itemToInsert.id,
+                            data: imageData,
+                            sortOrder: sortOrder
+                        )
+                    }.execute(db)
+                }
 
                 // Insert label join if matched
                 if let label {
@@ -316,7 +301,7 @@ final class MultiItemSelectionViewModel {
             return inventoryItem
 
         } catch {
-            print("❌ Failed to save images for item: \(error.localizedDescription)")
+            print("❌ Failed to save item: \(error.localizedDescription)")
             throw error
         }
     }

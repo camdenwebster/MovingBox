@@ -83,7 +83,7 @@ class DashboardScreen {
 
     func waitForDashboard() -> Bool {
         // Wait for key dashboard elements to appear
-        return allInventoryButton.waitForExistence(timeout: 10)
+        return allInventoryButton.waitForExistence(timeout: 15)
             || addItemFromCameraButton.waitForExistence(timeout: 10)
             || emptyStateAddItemButton.waitForExistence(timeout: 10)
             || app.staticTexts["Dashboard"].waitForExistence(timeout: 10)

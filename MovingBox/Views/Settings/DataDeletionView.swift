@@ -74,7 +74,6 @@ final class DataDeletionService: DataDeletionServiceProtocol {
                 SQLiteHome(
                     id: newHomeID,
                     name: "My Home",
-                    imageURL: nil,
                     isPrimary: true,
                     colorName: "green"
                 )

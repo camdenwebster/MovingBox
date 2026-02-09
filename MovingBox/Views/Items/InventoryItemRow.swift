@@ -5,64 +5,40 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
+import Dependencies
 import SQLiteData
 import SwiftUI
 
 struct InventoryItemRow: View {
+    @Dependency(\.defaultDatabase) var database
     var item: SQLiteInventoryItem
     var homeName: String?
     var labels: [SQLiteInventoryLabel] = []
     var showHomeBadge: Bool = false
-    @State private var imageLoadTrigger = 0
-    @State private var hasRetried = false
+    @State private var thumbnail: UIImage?
 
     var body: some View {
         HStack {
-            AsyncImage(url: item.thumbnailURL) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        Color(.systemGray6)
-                        Image(systemName: "photo")
-                            .foregroundColor(.gray)
-                    }
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                case .success(let image):
-                    image
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 60, height: 60)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                case .failure:
-                    ZStack {
-                        Color(.systemGray6)
-                        Image(systemName: "photo.trianglebadge.exclamationmark")
-                            .foregroundColor(.gray)
-                    }
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                    .onAppear {
-                        // Retry loading once after a brief delay to handle race conditions
-                        // where thumbnail file isn't quite ready yet
-                        guard !hasRetried else { return }
-                        hasRetried = true
-                        Task {
-                            try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
-                            imageLoadTrigger += 1
-                        }
-                    }
-                @unknown default:
+                        .clipShape(.rect(cornerRadius: 12))
+                } else {
                     ZStack {
                         Color(.systemGray6)
                         Image(systemName: "photo")
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.gray)
                     }
                     .frame(width: 60, height: 60)
-                    .cornerRadius(8)
+                    .clipShape(.rect(cornerRadius: 8))
                 }
             }
-            .id(imageLoadTrigger)
+            .task(id: item.id) {
+                thumbnail = await loadThumbnail()
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
@@ -101,6 +77,15 @@ struct InventoryItemRow: View {
                 }
             }
         }
+    }
+
+    private func loadThumbnail() async -> UIImage? {
+        guard
+            let photo = try? await database.read({ db in
+                try SQLiteInventoryItemPhoto.primaryPhoto(for: item.id, in: db)
+            })
+        else { return nil }
+        return await OptimizedImageManager.shared.thumbnailImage(from: photo.data, photoID: photo.id.uuidString)
     }
 }
 

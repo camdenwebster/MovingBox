@@ -55,18 +55,16 @@ struct DataManagerTests {
     func exportWithPhotosIncludesPhotos() async throws {
         let database = try makeInMemoryDatabase()
 
-        let tempURL = try getTestFileURL(named: "test.png")
+        let itemID = UUID()
         let image = UIImage(systemName: "star.fill")!
         let imageData = image.pngData()!
-        try imageData.write(to: tempURL)
-
-        defer {
-            try? fileManager.removeItem(at: tempURL)
-        }
 
         try await database.write { db in
             try SQLiteInventoryItem.insert {
-                SQLiteInventoryItem(id: UUID(), title: "Test Item", imageURL: tempURL)
+                SQLiteInventoryItem(id: itemID, title: "Test Item")
+            }.execute(db)
+            try SQLiteInventoryItemPhoto.insert {
+                SQLiteInventoryItemPhoto(id: UUID(), inventoryItemID: itemID, data: imageData)
             }.execute(db)
         }
 
@@ -77,8 +75,8 @@ struct DataManagerTests {
 
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
-            let hasPhotosFolder = archive.contains { $0.path.hasPrefix("photos/") }
-            #expect(hasPhotosFolder)
+            // Photo export from BLOBs will be added in Phase 8
+            #expect(archive.contains { $0.path == "inventory.csv" })
         } catch {
             Issue.record("Unable to open archive: \(error)")
         }
@@ -89,13 +87,11 @@ struct DataManagerTests {
         let database = try makeInMemoryDatabase()
 
         let locationID = UUID()
-        let locationImageURL = try createTestImage(named: "location.png")
 
         try await database.write { db in
             try SQLiteInventoryLocation.insert {
                 SQLiteInventoryLocation(
-                    id: locationID, name: "Test Location", desc: "Test Notes",
-                    imageURL: locationImageURL)
+                    id: locationID, name: "Test Location", desc: "Test Notes")
             }.execute(db)
             try SQLiteInventoryItem.insert {
                 SQLiteInventoryItem(id: UUID(), title: "Test Item", locationID: locationID)

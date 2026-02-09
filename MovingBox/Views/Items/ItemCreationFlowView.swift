@@ -265,22 +265,28 @@ struct ItemCreationFlowView: View {
         )
 
         do {
-            if let primaryImage = images.first {
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    primaryImage, id: itemId)
-                newItem.imageURL = primaryImageURL
-
-                if images.count > 1 {
-                    let secondaryImages = Array(images.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                        secondaryImages, itemId: itemId)
-                    newItem.secondaryPhotoURLs = secondaryURLs
+            // Process images to JPEG data before DB write
+            var photoDataList: [(Data, Int)] = []
+            for (sortOrder, image) in images.enumerated() {
+                if let imageData = await OptimizedImageManager.shared.processImage(image) {
+                    photoDataList.append((imageData, sortOrder))
                 }
             }
 
             let itemToInsert = newItem
             try await database.write { db in
                 try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
+
+                for (imageData, sortOrder) in photoDataList {
+                    try SQLiteInventoryItemPhoto.insert {
+                        SQLiteInventoryItemPhoto(
+                            id: UUID(),
+                            inventoryItemID: newItem.id,
+                            data: imageData,
+                            sortOrder: sortOrder
+                        )
+                    }.execute(db)
+                }
             }
             TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
             self.item = newItem

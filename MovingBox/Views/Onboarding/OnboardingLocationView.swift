@@ -12,11 +12,8 @@ struct OnboardingLocationView: View {
     @FetchAll(SQLiteInventoryLocation.all, animation: .default)
     private var locations: [SQLiteInventoryLocation]
 
-    // SQLiteInventoryLocation used only as PhotoManageable bridge for PhotoPickerView
-    @State private var locationPhotoAdapter = SQLiteInventoryLocation(id: UUID(), name: "")
     @State private var locationName = ""
     @State private var locationDesc = ""
-    @State private var imageURL: URL?
     @State private var tempUIImage: UIImage?
     @State private var isLoading = false
 
@@ -24,34 +21,14 @@ struct OnboardingLocationView: View {
         if let existingLocation = locations.first {
             locationName = existingLocation.name
             locationDesc = existingLocation.desc
-            imageURL = existingLocation.imageURL
 
-            if let url = existingLocation.imageURL {
-                do {
-                    let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: url)
-                    tempUIImage = thumbnail
-                } catch {
-                    do {
-                        let photo = try await OptimizedImageManager.shared.loadImage(url: url)
-                        tempUIImage = photo
-                    } catch {
-                        print("Failed to load location photo: \(error)")
-                    }
-                }
+            // Load photo from BLOB
+            if let photo = try? await database.read({ db in
+                try SQLiteInventoryLocationPhoto.primaryPhoto(for: existingLocation.id, in: db)
+            }) {
+                tempUIImage = UIImage(data: photo.data)
             }
         }
-    }
-
-    private var photoAdapterBinding: Binding<SQLiteInventoryLocation> {
-        Binding(
-            get: {
-                locationPhotoAdapter.imageURL = imageURL
-                return locationPhotoAdapter
-            },
-            set: { newValue in
-                imageURL = newValue.imageURL
-            }
-        )
     }
 
     var body: some View {
@@ -79,7 +56,6 @@ struct OnboardingLocationView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
-                                                model: photoAdapterBinding,
                                                 loadedImage: $tempUIImage,
                                                 isLoading: $isLoading
                                             )
@@ -90,7 +66,6 @@ struct OnboardingLocationView: View {
                                         .frame(height: UIScreen.main.bounds.height / 3)
                                 } else {
                                     PhotoPickerView(
-                                        model: photoAdapterBinding,
                                         loadedImage: $tempUIImage,
                                         isLoading: $isLoading
                                     ) { showPhotoSourceAlert in
@@ -159,30 +134,62 @@ struct OnboardingLocationView: View {
     private func saveLocationAndContinue() async throws {
         let saveName = locationName
         let saveDesc = locationDesc
-        let saveImageURL = imageURL
+        let image = tempUIImage
+
+        // Process photo before DB write
+        var photoData: Data?
+        if let image {
+            photoData = await OptimizedImageManager.shared.processImage(image)
+        }
 
         if let existingLocation = locations.first {
             try await database.write { db in
                 try SQLiteInventoryLocation.find(existingLocation.id).update {
                     $0.name = saveName
                     $0.desc = saveDesc
-                    $0.imageURL = saveImageURL
                 }.execute(db)
+
+                // Replace photo
+                try SQLiteInventoryLocationPhoto
+                    .where { $0.inventoryLocationID == existingLocation.id }
+                    .delete()
+                    .execute(db)
+
+                if let photoData {
+                    try SQLiteInventoryLocationPhoto.insert {
+                        SQLiteInventoryLocationPhoto(
+                            id: UUID(),
+                            inventoryLocationID: existingLocation.id,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
             }
         } else {
-            // Get the active home ID for the new location
             let homeID: UUID? = settings.activeHomeId.flatMap { UUID(uuidString: $0) }
+            let newLocationID = UUID()
 
             try await database.write { db in
                 try SQLiteInventoryLocation.insert {
                     SQLiteInventoryLocation(
-                        id: UUID(),
+                        id: newLocationID,
                         name: saveName,
                         desc: saveDesc,
-                        imageURL: saveImageURL,
                         homeID: homeID
                     )
                 }.execute(db)
+
+                if let photoData {
+                    try SQLiteInventoryLocationPhoto.insert {
+                        SQLiteInventoryLocationPhoto(
+                            id: UUID(),
+                            inventoryLocationID: newLocationID,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
             }
             TelemetryManager.shared.trackLocationCreated(name: saveName)
         }

@@ -31,46 +31,30 @@ struct BatchAnalysisView: View {
 
     @State private var filteredItemsWithImages: [SQLiteInventoryItem] = []
     @State private var isFilteringItems = true
+    @State private var photoCounts: [UUID: Int] = [:]
 
     private var itemsWithImages: [SQLiteInventoryItem] {
         filteredItemsWithImages
     }
 
-    private func hasAnalyzableImage(_ item: SQLiteInventoryItem) -> Bool {
-        if let imageURL = item.imageURL,
-            !imageURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return true
-        }
-
-        if !item.secondaryPhotoURLs.isEmpty {
-            let validURLs = item.secondaryPhotoURLs.filter { url in
-                !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
-            if !validURLs.isEmpty {
-                return true
-            }
-        }
-
-        return false
-    }
-
     @MainActor
     private func filterItemsWithImages() async {
         isFilteringItems = true
-        filteredItemsWithImages = selectedItems.filter { hasAnalyzableImage($0) }
+        var itemsWithPhotos: [SQLiteInventoryItem] = []
+        var counts: [UUID: Int] = [:]
+        for item in selectedItems {
+            let count =
+                (try? await database.read { db in
+                    try SQLiteInventoryItemPhoto.photos(for: item.id, in: db).count
+                }) ?? 0
+            if count > 0 {
+                itemsWithPhotos.append(item)
+                counts[item.id] = count
+            }
+        }
+        filteredItemsWithImages = itemsWithPhotos
+        photoCounts = counts
         isFilteringItems = false
-    }
-
-    private func getImageCount(for item: SQLiteInventoryItem) -> Int {
-        let primaryCount =
-            (item.imageURL != nil
-                && !item.imageURL!.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            ? 1 : 0
-        let secondaryCount = item.secondaryPhotoURLs.filter {
-            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }.count
-        return primaryCount + secondaryCount
     }
 
     var body: some View {
@@ -104,7 +88,7 @@ struct BatchAnalysisView: View {
                                         Text(item.title.isEmpty ? "Untitled Item" : item.title)
                                             .font(.headline)
 
-                                        let imageCount = getImageCount(for: item)
+                                        let imageCount = photoCounts[item.id] ?? 0
                                         Text("\(imageCount) image\(imageCount == 1 ? "" : "s")")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
@@ -224,26 +208,11 @@ struct BatchAnalysisView: View {
     }
 
     private func analyzeItem(_ item: SQLiteInventoryItem) async throws {
-        var images: [UIImage] = []
-
-        if let imageURL = item.imageURL {
-            do {
-                let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                images.append(image)
-            } catch {
-                // Failed to load primary image - continue with secondary images
-            }
+        let photos = try await database.read { db in
+            try SQLiteInventoryItemPhoto.photos(for: item.id, in: db)
         }
 
-        if !item.secondaryPhotoURLs.isEmpty {
-            do {
-                let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(
-                    from: item.secondaryPhotoURLs)
-                images.append(contentsOf: secondaryImages)
-            } catch {
-                // Failed to load secondary images - continue with available images
-            }
-        }
+        let images = photos.compactMap { UIImage(data: $0.data) }
 
         guard !images.isEmpty else {
             throw NSError(

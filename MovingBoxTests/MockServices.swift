@@ -220,11 +220,6 @@ func createTestItemWithImages(in database: DatabaseQueue) throws -> SQLiteInvent
         make: "Test Make",
         price: Decimal(100.0)
     )
-    item.imageURL = URL(string: "file:///test/primary.jpg")
-    item.secondaryPhotoURLs = [
-        "file:///test/secondary1.jpg",
-        "file:///test/secondary2.jpg",
-    ]
     try database.write { db in
         try SQLiteInventoryItem.insert { item }.execute(db)
     }

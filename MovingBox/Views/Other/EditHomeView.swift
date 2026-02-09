@@ -25,9 +25,7 @@ struct EditHomeView: View {
 
     @State private var isEditing = false
     @State private var loadedImage: UIImage?
-    @State private var loadingError: Error?
     @State private var isLoading = false
-    @State private var cachedImageURL: URL?
     @State private var isDataLoaded = false
 
     // Form state
@@ -38,10 +36,6 @@ struct EditHomeView: View {
     @State private var state: String = ""
     @State private var zip: String = ""
     @State private var country: String = ""
-    @State private var imageURL: URL?
-
-    // PhotoPickerView adapter — SQLiteHome used only as PhotoManageable bridge
-    @State private var photoAdapter = SQLiteHome(id: UUID(), name: "")
 
     init(
         homeID: UUID? = nil,
@@ -91,7 +85,6 @@ struct EditHomeView: View {
                             .overlay(alignment: .bottomTrailing) {
                                 if isEditingEnabled {
                                     PhotoPickerView(
-                                        model: photoAdapterBinding,
                                         loadedImage: $loadedImage,
                                         isLoading: $isLoading
                                     )
@@ -103,7 +96,6 @@ struct EditHomeView: View {
                             .frame(height: 200)
                     } else if isEditingEnabled {
                         PhotoPickerView(
-                            model: photoAdapterBinding,
                             loadedImage: $loadedImage,
                             isLoading: $isLoading
                         ) { isPresented in
@@ -183,30 +175,16 @@ struct EditHomeView: View {
         }
         .navigationTitle(isNewHome ? "New Home" : (activeHome?.displayName ?? "Home"))
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: imageURL) {
-            guard let url = imageURL, !isLoading else { return }
-
-            if cachedImageURL != url {
-                loadedImage = nil
-                cachedImageURL = url
-            }
-
-            guard loadedImage == nil else { return }
+        .task {
+            guard let homeID, !isLoading else { return }
 
             isLoading = true
             defer { isLoading = false }
 
-            do {
-                let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: url)
-                loadedImage = thumbnail
-            } catch {
-                do {
-                    let photo = try await OptimizedImageManager.shared.loadImage(url: url)
-                    loadedImage = photo
-                } catch {
-                    loadingError = error
-                    print("Failed to load image: \(error)")
-                }
+            if let photo = try? await database.read({ db in
+                try SQLiteHomePhoto.primaryPhoto(for: homeID, in: db)
+            }) {
+                loadedImage = UIImage(data: photo.data)
             }
         }
         .onAppear {
@@ -261,20 +239,6 @@ struct EditHomeView: View {
         }
     }
 
-    // MARK: - Photo Adapter
-
-    private var photoAdapterBinding: Binding<SQLiteHome> {
-        Binding(
-            get: {
-                photoAdapter.imageURL = imageURL
-                return photoAdapter
-            },
-            set: { newValue in
-                imageURL = newValue.imageURL
-            }
-        )
-    }
-
     // MARK: - Data Operations
 
     private func loadFromHome(_ home: SQLiteHome) {
@@ -285,7 +249,6 @@ struct EditHomeView: View {
         state = home.state
         zip = home.zip
         country = home.country
-        imageURL = home.imageURL
     }
 
     private func saveExistingHome() {
@@ -298,23 +261,45 @@ struct EditHomeView: View {
         let saveState = state
         let saveZip = zip
         let saveCountry = country
-        let saveImageURL = imageURL
+        let image = loadedImage
 
-        do {
-            try database.write { db in
-                try SQLiteHome.find(home.id).update {
-                    $0.name = saveName
-                    $0.address1 = saveAddr1
-                    $0.address2 = saveAddr2
-                    $0.city = saveCity
-                    $0.state = saveState
-                    $0.zip = saveZip
-                    $0.country = saveCountry
-                    $0.imageURL = saveImageURL
-                }.execute(db)
+        Task {
+            do {
+                try await database.write { db in
+                    try SQLiteHome.find(home.id).update {
+                        $0.name = saveName
+                        $0.address1 = saveAddr1
+                        $0.address2 = saveAddr2
+                        $0.city = saveCity
+                        $0.state = saveState
+                        $0.zip = saveZip
+                        $0.country = saveCountry
+                    }.execute(db)
+
+                    // Replace photo
+                    try SQLiteHomePhoto
+                        .where { $0.homeID == home.id }
+                        .delete()
+                        .execute(db)
+                }
+
+                if let image,
+                    let imageData = await OptimizedImageManager.shared.processImage(image)
+                {
+                    try await database.write { db in
+                        try SQLiteHomePhoto.insert {
+                            SQLiteHomePhoto(
+                                id: UUID(),
+                                homeID: home.id,
+                                data: imageData,
+                                sortOrder: 0
+                            )
+                        }.execute(db)
+                    }
+                }
+            } catch {
+                print("Failed to save home: \(error)")
             }
-        } catch {
-            print("Failed to save home: \(error)")
         }
     }
 
@@ -327,10 +312,16 @@ struct EditHomeView: View {
         let saveState = state
         let saveZip = zip
         let saveCountry = country
-        let saveImageURL = imageURL
+        let image = loadedImage
         let shouldBePrimary = homes.isEmpty
 
         do {
+            // Process photo before DB write
+            var photoData: Data?
+            if let image {
+                photoData = await OptimizedImageManager.shared.processImage(image)
+            }
+
             try await database.write { db in
                 try SQLiteHome.insert {
                     SQLiteHome(
@@ -342,11 +333,21 @@ struct EditHomeView: View {
                         state: saveState,
                         zip: saveZip,
                         country: saveCountry,
-                        imageURL: saveImageURL,
                         isPrimary: shouldBePrimary,
                         colorName: "green"
                     )
                 }.execute(db)
+
+                if let photoData {
+                    try SQLiteHomePhoto.insert {
+                        SQLiteHomePhoto(
+                            id: UUID(),
+                            homeID: newHomeID,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
 
                 // Create default locations
                 for roomData in TestData.defaultRooms {

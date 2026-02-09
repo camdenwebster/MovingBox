@@ -72,6 +72,9 @@ struct MovingBoxApp: App {
                     SQLiteInsurancePolicy.self,
                     SQLiteInventoryItemLabel.self,
                     SQLiteHomeInsurancePolicy.self,
+                    SQLiteInventoryItemPhoto.self,
+                    SQLiteHomePhoto.self,
+                    SQLiteInventoryLocationPhoto.self,
                     startImmediately: false
                 )
                 $0.defaultSyncEngine = syncEngine
@@ -272,6 +275,19 @@ struct MovingBoxApp: App {
                     TelemetryDeck.signal("Migration.error", parameters: ["message": message])
                     logger.error("sqlite-data: Migration failed — \(message)")
                     migrationErrorMessage = message
+                }
+
+                // Migrate photo files to BLOB storage (runs once, after schema migration)
+                let photoResult = await PhotoBlobMigrationCoordinator.migrateIfNeeded(database: database)
+                switch photoResult {
+                case .success(let stats):
+                    TelemetryDeck.signal("PhotoMigration.success", parameters: ["stats": "\(stats)"])
+                    logger.info("Photo BLOB migration succeeded — \(stats.description)")
+                case .error(let message):
+                    TelemetryDeck.signal("PhotoMigration.error", parameters: ["message": message])
+                    logger.error("Photo BLOB migration failed — \(message)")
+                case .noPhotos, .alreadyCompleted:
+                    break
                 }
 
                 // Start SyncEngine after migration/recovery to prevent sync from

@@ -13,13 +13,8 @@ struct OnboardingHomeView: View {
     private var homes: [SQLiteHome]
 
     @State private var homeName = ""
-    @State private var imageURL: URL?
     @State private var loadedImage: UIImage?
-    @State private var loadingError: Error?
     @State private var isLoading = false
-
-    // PhotoPickerView adapter — SQLiteHome used only as PhotoManageable bridge
-    @State private var photoAdapter = SQLiteHome(id: UUID(), name: "")
 
     private var activeHome: SQLiteHome? {
         homes.last
@@ -29,35 +24,14 @@ struct OnboardingHomeView: View {
     private func loadExistingData() async {
         if let existingHome = activeHome {
             homeName = existingHome.name
-            imageURL = existingHome.imageURL
 
-            if let url = existingHome.imageURL {
-                do {
-                    let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: url)
-                    loadedImage = thumbnail
-                } catch {
-                    do {
-                        let photo = try await OptimizedImageManager.shared.loadImage(url: url)
-                        loadedImage = photo
-                    } catch {
-                        loadingError = error
-                        print("Failed to load home photo: \(error)")
-                    }
-                }
+            // Load photo from BLOB
+            if let photo = try? await database.read({ db in
+                try SQLiteHomePhoto.primaryPhoto(for: existingHome.id, in: db)
+            }) {
+                loadedImage = UIImage(data: photo.data)
             }
         }
-    }
-
-    private var photoAdapterBinding: Binding<SQLiteHome> {
-        Binding(
-            get: {
-                photoAdapter.imageURL = imageURL
-                return photoAdapter
-            },
-            set: { newValue in
-                imageURL = newValue.imageURL
-            }
-        )
     }
 
     var body: some View {
@@ -81,7 +55,6 @@ struct OnboardingHomeView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
-                                                model: photoAdapterBinding,
                                                 loadedImage: $loadedImage,
                                                 isLoading: $isLoading
                                             )
@@ -92,7 +65,6 @@ struct OnboardingHomeView: View {
                                         .frame(height: UIScreen.main.bounds.height / 3)
                                 } else {
                                     PhotoPickerView(
-                                        model: photoAdapterBinding,
                                         loadedImage: $loadedImage,
                                         isLoading: $isLoading
                                     ) { isPresented in
@@ -132,7 +104,6 @@ struct OnboardingHomeView: View {
                                 do {
                                     try await handleContinueButton()
                                 } catch {
-                                    loadingError = error
                                     manager.showError(message: "Failed to save home: \(error.localizedDescription)")
                                 }
                             }
@@ -158,31 +129,60 @@ struct OnboardingHomeView: View {
     @MainActor
     private func saveHomeAndContinue() async throws {
         let saveName = homeName
-        let saveImageURL = imageURL
+        let image = loadedImage
+
+        // Process photo before DB write
+        var photoData: Data?
+        if let image {
+            photoData = await OptimizedImageManager.shared.processImage(image)
+        }
 
         if let existingHome = activeHome {
             try await database.write { db in
                 try SQLiteHome.find(existingHome.id).update {
                     $0.name = saveName
-                    $0.imageURL = saveImageURL
                 }.execute(db)
+
+                // Replace photo
+                try SQLiteHomePhoto
+                    .where { $0.homeID == existingHome.id }
+                    .delete()
+                    .execute(db)
+
+                if let photoData {
+                    try SQLiteHomePhoto.insert {
+                        SQLiteHomePhoto(
+                            id: UUID(),
+                            homeID: existingHome.id,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
             }
         } else {
-            // Deterministic IDs so CloudKit sync won't create duplicate default
-            // records when a user reinstalls or sets up a new device.
             let newHomeID = DefaultSeedID.home
             try await database.write { db in
                 try SQLiteHome.insert {
                     SQLiteHome(
                         id: newHomeID,
                         name: saveName,
-                        imageURL: saveImageURL,
                         isPrimary: true,
                         colorName: "green"
                     )
                 }.execute(db)
 
-                // Create default locations for the new home
+                if let photoData {
+                    try SQLiteHomePhoto.insert {
+                        SQLiteHomePhoto(
+                            id: UUID(),
+                            homeID: newHomeID,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
+
                 for (index, roomData) in TestData.defaultRooms.enumerated() {
                     try SQLiteInventoryLocation.insert {
                         SQLiteInventoryLocation(

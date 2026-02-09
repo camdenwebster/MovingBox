@@ -49,14 +49,15 @@
 		19F0A0012E570A0000000001 /* HomeCullingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F0A0002E570A0000000001 /* HomeCullingManager.swift */; };
 		19F30A022F3100A2003DF002 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A012F3100A1003DF001 /* DatabaseManager.swift */; };
 		19F30A042F3100A4003DF004 /* SQLiteMigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */; };
-		19F30A0C2F3300B0003DF00C /* SQLiteRecordWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */; };
 		19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */; };
 		19F30A0A2F3200A1003DF00A /* CloudKitRecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A092F3200A0003DF009 /* CloudKitRecoveryCoordinator.swift */; };
+		19F30A0C2F3300B0003DF00C /* SQLiteRecordWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */; };
+		19F30A0E2F3400B1003DF00E /* PhotoBlobMigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30A0D2F3400B0003DF00D /* PhotoBlobMigrationCoordinator.swift */; };
 		19F30B012F32000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B002F32000000000001 /* AppDelegate.swift */; };
 		19F30B032F32000000000004 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F30B022F32000000000003 /* SceneDelegate.swift */; };
-		810FB0E2246E896DD548B208 /* ShareMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65433A40EA29E772843D04D /* ShareMetadataStore.swift */; };
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
+		810FB0E2246E896DD548B208 /* ShareMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65433A40EA29E772843D04D /* ShareMetadataStore.swift */; };
 		C1083E5906EC3ACD9B80C40F /* TestSeedDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */; };
 /* End PBXBuildFile section */
 
@@ -129,16 +130,17 @@
 		19F2CC3F2D9D85210053050B /* .gitattributes */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitattributes; sourceTree = "<group>"; };
 		19F30A012F3100A1003DF001 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteMigrationCoordinator.swift; sourceTree = "<group>"; };
-		19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteRecordWriter.swift; sourceTree = "<group>"; };
 		19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabaseHelper.swift; sourceTree = "<group>"; };
 		19F30A092F3200A0003DF009 /* CloudKitRecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitRecoveryCoordinator.swift; sourceTree = "<group>"; };
+		19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteRecordWriter.swift; sourceTree = "<group>"; };
+		19F30A0D2F3400B0003DF00D /* PhotoBlobMigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBlobMigrationCoordinator.swift; sourceTree = "<group>"; };
 		19F30B002F32000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		19F30B022F32000000000003 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		B65433A40EA29E772843D04D /* ShareMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareMetadataStore.swift; sourceTree = "<group>"; };
 		19F765D42DAB558000AE287D /* OptimizedImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedImageManager.swift; sourceTree = "<group>"; };
 		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
 		496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestSeedDatabase.swift; path = MovingBox/Services/TestSeedDatabase.swift; sourceTree = SOURCE_ROOT; };
 		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
+		B65433A40EA29E772843D04D /* ShareMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareMetadataStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -334,6 +336,7 @@
 				19F30A012F3100A1003DF001 /* DatabaseManager.swift */,
 				19F30A032F3100A3003DF003 /* SQLiteMigrationCoordinator.swift */,
 				19F30A0B2F3300AF003DF00B /* SQLiteRecordWriter.swift */,
+				19F30A0D2F3400B0003DF00D /* PhotoBlobMigrationCoordinator.swift */,
 				19F30A092F3200A0003DF009 /* CloudKitRecoveryCoordinator.swift */,
 				B65433A40EA29E772843D04D /* ShareMetadataStore.swift */,
 				19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */,
@@ -653,6 +656,7 @@
 				19F30A022F3100A2003DF002 /* DatabaseManager.swift in Sources */,
 				19F30A042F3100A4003DF004 /* SQLiteMigrationCoordinator.swift in Sources */,
 				19F30A0C2F3300B0003DF00C /* SQLiteRecordWriter.swift in Sources */,
+				19F30A0E2F3400B1003DF00E /* PhotoBlobMigrationCoordinator.swift in Sources */,
 				19F30A0A2F3200A1003DF00A /* CloudKitRecoveryCoordinator.swift in Sources */,
 				810FB0E2246E896DD548B208 /* ShareMetadataStore.swift in Sources */,
 				19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */,

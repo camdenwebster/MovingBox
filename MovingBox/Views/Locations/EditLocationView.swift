@@ -29,7 +29,6 @@ struct EditLocationView: View {
     @State private var locationName: String
     @State private var locationDesc: String
     @State private var selectedSFSymbol: String?
-    @State private var imageURL: URL?
     @State private var isEditing = false
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
@@ -244,20 +243,15 @@ struct EditLocationView: View {
             locationName = location.name
             locationDesc = location.desc
             selectedSFSymbol = location.sfSymbolName
-            imageURL = location.imageURL
 
-            // Load photo
-            if let url = location.imageURL {
-                isLoading = true
-                do {
-                    let photo = try await OptimizedImageManager.shared.loadImage(url: url)
-                    loadedImage = photo
-                } catch {
-                    loadingError = error
-                    print("Failed to load image: \(error)")
-                }
-                isLoading = false
+            // Load photo from BLOB
+            isLoading = true
+            if let photo = try await database.read({ db in
+                try SQLiteInventoryLocationPhoto.primaryPhoto(for: locationID, in: db)
+            }) {
+                loadedImage = UIImage(data: photo.data)
             }
+            isLoading = false
         } catch {
             print("Failed to load location: \(error)")
         }
@@ -269,31 +263,52 @@ struct EditLocationView: View {
         let name = locationName
         let desc = locationDesc
         let symbol = selectedSFSymbol
-        let url = imageURL
-        do {
-            try database.write { db in
-                try SQLiteInventoryLocation.find(locationID)
-                    .update {
-                        $0.name = name
-                        $0.desc = desc
-                        $0.sfSymbolName = symbol
-                        $0.imageURL = url
+        let image = loadedImage
+        Task {
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryLocation.find(locationID)
+                        .update {
+                            $0.name = name
+                            $0.desc = desc
+                            $0.sfSymbolName = symbol
+                        }
+                        .execute(db)
+
+                    // Replace photo: delete existing, insert new if present
+                    try SQLiteInventoryLocationPhoto
+                        .where { $0.inventoryLocationID == locationID }
+                        .delete()
+                        .execute(db)
+                }
+
+                if let image,
+                    let imageData = await OptimizedImageManager.shared.processImage(image)
+                {
+                    try await database.write { db in
+                        try SQLiteInventoryLocationPhoto.insert {
+                            SQLiteInventoryLocationPhoto(
+                                id: UUID(),
+                                inventoryLocationID: locationID,
+                                data: imageData,
+                                sortOrder: 0
+                            )
+                        }.execute(db)
                     }
-                    .execute(db)
+                }
+            } catch {
+                print("Failed to save location: \(error)")
             }
-        } catch {
-            print("Failed to save location: \(error)")
         }
     }
 
     private func saveNewLocation() async {
         let newID = UUID()
 
-        // Save photo if one was selected
-        var savedImageURL: URL?
+        // Process photo if one was selected
+        var photoData: Data?
         if let image = loadedImage {
-            let id = UUID().uuidString
-            savedImageURL = try? await OptimizedImageManager.shared.saveImage(image, id: id)
+            photoData = await OptimizedImageManager.shared.processImage(image)
         }
 
         // Capture state values for the closure
@@ -310,10 +325,20 @@ struct EditLocationView: View {
                         name: name,
                         desc: desc,
                         sfSymbolName: symbol,
-                        imageURL: savedImageURL,
                         homeID: homeId
                     )
                 }.execute(db)
+
+                if let photoData {
+                    try SQLiteInventoryLocationPhoto.insert {
+                        SQLiteInventoryLocationPhoto(
+                            id: UUID(),
+                            inventoryLocationID: newID,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
             }
             TelemetryManager.shared.trackLocationCreated(name: name)
             print("EditLocationView: Created new location - \(name)")

@@ -224,6 +224,68 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
         .execute(db)
     }
 
+    migrator.registerMigration("Create photo tables") { db in
+        try #sql(
+            """
+            CREATE TABLE "inventoryItemPhotos" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "inventoryItemID" TEXT NOT NULL REFERENCES "inventoryItems"("id") ON DELETE CASCADE,
+                "data" BLOB NOT NULL,
+                "sortOrder" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE TABLE "homePhotos" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "homeID" TEXT NOT NULL REFERENCES "homes"("id") ON DELETE CASCADE,
+                "data" BLOB NOT NULL,
+                "sortOrder" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE TABLE "inventoryLocationPhotos" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "inventoryLocationID" TEXT NOT NULL REFERENCES "inventoryLocations"("id") ON DELETE CASCADE,
+                "data" BLOB NOT NULL,
+                "sortOrder" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX "idx_inventoryItemPhotos_inventoryItemID"
+                ON "inventoryItemPhotos"("inventoryItemID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX "idx_homePhotos_homeID"
+                ON "homePhotos"("homeID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX "idx_inventoryLocationPhotos_inventoryLocationID"
+                ON "inventoryLocationPhotos"("inventoryLocationID")
+            """
+        )
+        .execute(db)
+    }
+
     migrator.registerMigration("Drop unique indexes on join tables") { db in
         // SyncEngine does not support UNIQUE constraints on synchronized tables.
         // Replace unique indexes with regular composite indexes.

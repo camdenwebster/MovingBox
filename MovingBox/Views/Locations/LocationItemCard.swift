@@ -5,16 +5,16 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
+import Dependencies
 import SQLiteData
 import SwiftUI
 
 struct LocationItemCard: View {
+    @Dependency(\.defaultDatabase) var database
     var location: SQLiteInventoryLocation
     var itemCount: Int = 0
     var totalValue: Decimal = 0
     @State private var thumbnail: UIImage?
-    @State private var loadingError: Error?
-    @State private var isDownloading = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,30 +44,14 @@ struct LocationItemCard: View {
                         .fill(Color(.secondarySystemGroupedBackground))
                         .frame(width: 160, height: 100)
                         .overlay(
-                            Group {
-                                if isDownloading {
-                                    ProgressView()
-                                        .tint(.secondary)
-                                } else {
-                                    Image(systemName: "photo")
-                                        .font(.system(size: 40))
-                                        .tint(.secondary)
-                                }
-                            }
+                            Image(systemName: "photo")
+                                .font(.system(size: 40))
+                                .tint(.secondary)
                         )
                 }
             }
-            .task(id: location.imageURL) {
-                loadingError = nil
-                updateDownloadState()
-                do {
-                    thumbnail = try await loadThumbnail()
-                    isDownloading = false
-                } catch {
-                    loadingError = error
-                    thumbnail = nil
-                    isDownloading = false
-                }
+            .task(id: location.id) {
+                thumbnail = await loadThumbnail()
             }
 
             // Location details
@@ -108,22 +92,13 @@ struct LocationItemCard: View {
         .padding(1)
     }
 
-    private func loadThumbnail() async throws -> UIImage? {
-        guard let imageURL = location.imageURL else { return nil }
-        return try await OptimizedImageManager.shared.loadThumbnail(for: imageURL)
-    }
-
-    private func updateDownloadState() {
-        guard let imageURL = location.imageURL else {
-            isDownloading = false
-            return
-        }
-
-        let id = imageURL.deletingPathExtension().lastPathComponent
-        let thumbnailURL = OptimizedImageManager.shared.getThumbnailURL(for: id)
-        isDownloading =
-            OptimizedImageManager.shared.isUbiquitousItemDownloading(thumbnailURL)
-            || OptimizedImageManager.shared.isUbiquitousItemDownloading(imageURL)
+    private func loadThumbnail() async -> UIImage? {
+        guard
+            let photo = try? await database.read({ db in
+                try SQLiteInventoryLocationPhoto.primaryPhoto(for: location.id, in: db)
+            })
+        else { return nil }
+        return await OptimizedImageManager.shared.thumbnailImage(from: photo.data, photoID: photo.id.uuidString)
     }
 }
 

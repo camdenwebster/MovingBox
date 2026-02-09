@@ -35,7 +35,6 @@ final class HomeDetailSettingsViewModel {
     var country: String = ""
     var colorName: String = "green"
     var isPrimary: Bool = false
-    var imageURL: URL?
 
     // MARK: - Dependencies
 
@@ -125,7 +124,6 @@ final class HomeDetailSettingsViewModel {
                 country = home.country
                 colorName = home.colorName
                 isPrimary = home.isPrimary
-                imageURL = home.imageURL
                 addressInput = Self.composeAddressString(
                     address1: home.address1,
                     address2: home.address2,
@@ -222,7 +220,6 @@ final class HomeDetailSettingsViewModel {
         let saveCountry = country
         let saveColor = colorName
         let savePrimary = isPrimary
-        let saveImageURL = imageURL
 
         do {
             try await database.write { db in
@@ -236,7 +233,6 @@ final class HomeDetailSettingsViewModel {
                     $0.country = saveCountry
                     $0.colorName = saveColor
                     $0.isPrimary = savePrimary
-                    $0.imageURL = saveImageURL
                 }.execute(db)
             }
         } catch {
@@ -261,7 +257,6 @@ final class HomeDetailSettingsViewModel {
             let saveZip = zip
             let saveCountry = country
             let saveColor = colorName
-            let saveImageURL = imageURL
             let shouldBePrimary = allHomes.isEmpty
 
             try await database.write { db in
@@ -275,7 +270,6 @@ final class HomeDetailSettingsViewModel {
                         state: saveState,
                         zip: saveZip,
                         country: saveCountry,
-                        imageURL: saveImageURL,
                         isPrimary: shouldBePrimary,
                         colorName: saveColor
                     )

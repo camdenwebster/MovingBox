@@ -24,11 +24,6 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
     var replacementCost: Decimal?
     var depreciationRate: Double?
 
-    // MARK: - Images
-    var imageURL: URL?
-    @Column(as: [String].JSONRepresentation.self)
-    var secondaryPhotoURLs: [String] = []
-
     // MARK: - AI & Metadata
     var hasUsedAI: Bool = false
     var createdAt: Date = Date()
@@ -63,11 +58,4 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
     var locationID: SQLiteInventoryLocation.ID?
     var homeID: SQLiteHome.ID?
 
-    var thumbnailURL: URL? {
-        guard let imageURL = imageURL else { return nil }
-        let id = imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: "")
-        return OptimizedImageManager.shared.getThumbnailURL(for: id)
-    }
 }
-
-extension SQLiteInventoryItem: PhotoManageable {}

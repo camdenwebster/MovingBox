@@ -23,12 +23,9 @@ struct HomeDetailSettingsView: View {
 
     @State private var viewModel: HomeDetailSettingsViewModel?
 
-    // Photo state — SQLiteHome used solely as a PhotoManageable adapter for PhotoPickerView
-    @State private var photoAdapter = SQLiteHome(id: UUID(), name: "")
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var photoIsLoading = false
-    @State private var cachedImageURL: URL?
 
     private let availableColors: [(name: String, color: Color)] = [
         ("green", .green),
@@ -86,32 +83,16 @@ struct HomeDetailSettingsView: View {
                     .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .task(id: viewModel?.imageURL) {
-            guard let vm = viewModel,
-                let imageURL = vm.imageURL,
-                !photoIsLoading
-            else { return }
-
-            if cachedImageURL != imageURL {
-                loadedImage = nil
-                cachedImageURL = imageURL
-            }
-
-            guard loadedImage == nil else { return }
+        .task {
+            guard let vm = viewModel, let homeID = vm.originalHomeID else { return }
 
             photoIsLoading = true
             defer { photoIsLoading = false }
 
-            do {
-                let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: imageURL)
-                loadedImage = thumbnail
-            } catch {
-                do {
-                    let photo = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                    loadedImage = photo
-                } catch {
-                    print("Failed to load home image: \(error)")
-                }
+            if let photo = try? await database.read({ db in
+                try SQLiteHomePhoto.primaryPhoto(for: homeID, in: db)
+            }) {
+                loadedImage = UIImage(data: photo.data)
             }
         }
         .onAppear {
@@ -126,11 +107,8 @@ struct HomeDetailSettingsView: View {
             }
         }
         .task(id: homeID) {
-            // Load home data after ViewModel is initialized
             if let vm = viewModel {
                 await vm.loadHomeData()
-                // Sync photo adapter
-                photoAdapter.imageURL = vm.imageURL
             }
         }
         .onChange(of: allHomes) { _, newHomes in
@@ -195,7 +173,6 @@ struct HomeDetailSettingsView: View {
                         .overlay(alignment: .bottomTrailing) {
                             if viewModel.isEditing {
                                 PhotoPickerView(
-                                    model: photoAdapterBinding(viewModel: viewModel),
                                     loadedImage: viewModel.isNewHome ? $tempUIImage : $loadedImage,
                                     isLoading: $photoIsLoading
                                 )
@@ -207,7 +184,6 @@ struct HomeDetailSettingsView: View {
                         .frame(height: 200)
                 } else if viewModel.isEditing {
                     PhotoPickerView(
-                        model: photoAdapterBinding(viewModel: viewModel),
                         loadedImage: viewModel.isNewHome ? $tempUIImage : $loadedImage,
                         isLoading: $photoIsLoading
                     ) { showPhotoSourceAlert in
@@ -221,19 +197,6 @@ struct HomeDetailSettingsView: View {
                 }
             }
         }
-    }
-
-    private func photoAdapterBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<SQLiteHome> {
-        Binding(
-            get: {
-                photoAdapter.imageURL = viewModel.imageURL
-                return photoAdapter
-            },
-            set: { newValue in
-                // Sync imageURL back from PhotoPickerView to ViewModel
-                viewModel.imageURL = newValue.imageURL
-            }
-        )
     }
 
     // MARK: - Home Details Section
@@ -417,20 +380,49 @@ struct HomeDetailSettingsView: View {
             if viewModel.isEditing {
                 Button("Save") {
                     Task {
-                        // Save photo if one was selected
-                        if let uiImage = tempUIImage {
-                            let id = UUID().uuidString
-                            if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                                viewModel.imageURL = imageURL
-                            }
-                            tempUIImage = nil
-                        }
-
                         if viewModel.isNewHome {
                             if await viewModel.createHome() {
+                                // Save photo BLOB for the new home
+                                if let uiImage = tempUIImage,
+                                    let homeID = viewModel.originalHomeID,
+                                    let imageData = await OptimizedImageManager.shared.processImage(uiImage)
+                                {
+                                    try? await database.write { db in
+                                        try SQLiteHomePhoto.insert {
+                                            SQLiteHomePhoto(
+                                                id: UUID(),
+                                                homeID: homeID,
+                                                data: imageData,
+                                                sortOrder: 0
+                                            )
+                                        }.execute(db)
+                                    }
+                                }
+                                tempUIImage = nil
                                 dismissView()
                             }
                         } else {
+                            // Save photo BLOB for existing home
+                            if let uiImage = tempUIImage ?? loadedImage,
+                                let homeID = viewModel.originalHomeID,
+                                let imageData = await OptimizedImageManager.shared.processImage(uiImage)
+                            {
+                                try? await database.write { db in
+                                    try SQLiteHomePhoto
+                                        .where { $0.homeID == homeID }
+                                        .delete()
+                                        .execute(db)
+                                    try SQLiteHomePhoto.insert {
+                                        SQLiteHomePhoto(
+                                            id: UUID(),
+                                            homeID: homeID,
+                                            data: imageData,
+                                            sortOrder: 0
+                                        )
+                                    }.execute(db)
+                                }
+                            }
+                            tempUIImage = nil
                             await viewModel.saveChanges()
                             viewModel.isEditing = false
                         }

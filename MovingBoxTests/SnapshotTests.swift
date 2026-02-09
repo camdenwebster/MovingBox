@@ -358,19 +358,8 @@ extension SnapshotTests {
             try SQLiteInventoryItem.order(by: \.title).fetchAll(db)
         }
 
-        var item = items.first ?? SQLiteInventoryItem(id: UUID())
+        let item = items.first ?? SQLiteInventoryItem(id: UUID())
         let itemID = item.id
-
-        item.secondaryPhotoURLs = [
-            "file:///mock/path/secondary1.jpg",
-            "file:///mock/path/secondary2.jpg",
-            "file:///mock/path/secondary3.jpg",
-        ]
-        try await database.write { db in
-            try SQLiteInventoryItem.find(itemID).update {
-                $0.secondaryPhotoURLs = item.secondaryPhotoURLs
-            }.execute(db)
-        }
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
@@ -403,18 +392,8 @@ extension SnapshotTests {
             try SQLiteInventoryItem.order(by: \.title).fetchAll(db)
         }
 
-        var item = items.first ?? SQLiteInventoryItem(id: UUID())
+        let item = items.first ?? SQLiteInventoryItem(id: UUID())
         let itemID = item.id
-
-        item.secondaryPhotoURLs = [
-            "file:///mock/path/secondary1.jpg",
-            "file:///mock/path/secondary2.jpg",
-        ]
-        try await database.write { db in
-            try SQLiteInventoryItem.find(itemID).update {
-                $0.secondaryPhotoURLs = item.secondaryPhotoURLs
-            }.execute(db)
-        }
 
         let view = configureViewForSnapshot(
             InventoryDetailView(

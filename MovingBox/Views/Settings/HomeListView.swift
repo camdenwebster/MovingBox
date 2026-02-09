@@ -89,23 +89,38 @@ struct HomeListView: View {
 
     @ViewBuilder
     private func homeThumbnail(home: SQLiteHome) -> some View {
-        if let imageURL = home.imageURL {
-            let thumbnailURL = OptimizedImageManager.shared.getThumbnailURL(
-                for: imageURL.lastPathComponent.replacingOccurrences(of: ".jpg", with: ""))
-            AsyncImage(url: thumbnailURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
+        HomeThumbnailView(home: home)
+    }
+
+    private struct HomeThumbnailView: View {
+        @Dependency(\.defaultDatabase) var database
+        let home: SQLiteHome
+        @State private var thumbnail: UIImage?
+
+        var body: some View {
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 44, height: 44)
                         .clipShape(.rect(cornerRadius: 8))
-                default:
-                    homeIconPlaceholder(home: home)
+                } else {
+                    Image(systemName: "house.fill")
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(home.color)
+                        .clipShape(.rect(cornerRadius: 8))
                 }
             }
-        } else {
-            homeIconPlaceholder(home: home)
+            .task(id: home.id) {
+                if let photo = try? await database.read({ db in
+                    try SQLiteHomePhoto.primaryPhoto(for: home.id, in: db)
+                }) {
+                    thumbnail = await OptimizedImageManager.shared.thumbnailImage(
+                        from: photo.data, photoID: photo.id.uuidString)
+                }
+            }
         }
     }
 

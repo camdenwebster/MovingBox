@@ -15,9 +15,6 @@ nonisolated struct SQLiteHome: Hashable, Identifiable {
     var purchaseDate: Date = Date()
     @Column(as: Decimal.TextRepresentation.self)
     var purchasePrice: Decimal = 0
-    var imageURL: URL?
-    @Column(as: [String].JSONRepresentation.self)
-    var secondaryPhotoURLs: [String] = []
     var isPrimary: Bool = false
     var colorName: String = "green"
 
@@ -29,8 +26,6 @@ nonisolated struct SQLiteHome: Hashable, Identifiable {
         Color.homeColor(for: colorName)
     }
 }
-
-extension SQLiteHome: PhotoManageable {}
 
 extension Color {
     static func homeColor(for name: String) -> Color {
