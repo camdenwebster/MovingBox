@@ -132,15 +132,16 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
             channels: 1,
             interleaved: true
         )
-        var outputSettings = audioFormat?.settings ?? [
-            AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: 16_000,
-            AVNumberOfChannelsKey: 1,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false,
-            AVLinearPCMIsNonInterleaved: false,
-        ]
+        var outputSettings =
+            audioFormat?.settings ?? [
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: 16_000,
+                AVNumberOfChannelsKey: 1,
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false,
+            ]
         outputSettings[AVLinearPCMIsNonInterleaved] = false
 
         let readerOutput = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
@@ -211,13 +212,18 @@ final class AudioTranscriber: AudioTranscriberProtocol, @unchecked Sendable {
         with recognizer: SFSpeechRecognizer
     ) async throws -> SFSpeechRecognitionResult {
         try await withCheckedThrowingContinuation { continuation in
+            var hasResumed = false
             recognizer.recognitionTask(with: request) { result, error in
+                guard !hasResumed else { return }
+
                 if let error {
+                    hasResumed = true
                     continuation.resume(throwing: error)
                     return
                 }
 
                 if let result, result.isFinal {
+                    hasResumed = true
                     continuation.resume(returning: result)
                 }
             }

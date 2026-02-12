@@ -1,4 +1,5 @@
 import AVFoundation
+import MovingBoxAIAnalysis
 import SwiftData
 import UIKit
 
@@ -130,17 +131,21 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
             )
 
             let completedBatchResults = batchResults
+            let aiContext = await MainActor.run {
+                AIAnalysisContext.from(modelContext: modelContext, settings: settings)
+            }
             let response = try await aiService.getMultiItemDetails(
                 from: batchImages,
                 settings: settings,
-                modelContext: modelContext,
+                context: aiContext,
                 narrationContext: narrationContext,
                 onPartialResponse: { [weak self] partialResponse in
                     guard let self else { return }
 
-                    let progressivelyMergedBatchResults = completedBatchResults + [
-                        (response: partialResponse, batchOffset: start)
-                    ]
+                    let progressivelyMergedBatchResults =
+                        completedBatchResults + [
+                            (response: partialResponse, batchOffset: start)
+                        ]
                     self.progressiveMergedResponse = VideoItemDeduplicator.deduplicate(
                         batchResults: progressivelyMergedBatchResults
                     )

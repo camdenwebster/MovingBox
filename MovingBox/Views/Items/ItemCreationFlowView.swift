@@ -1,4 +1,5 @@
 import AVFoundation
+import MovingBoxAIAnalysis
 import StoreKit
 import SwiftData
 import SwiftUI
@@ -335,10 +336,11 @@ struct ItemCreationFlowView: View {
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
             print("Calling AI service for image analysis...")
+            let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
             let imageDetails = try await aiService.getImageDetails(
                 from: [capturedImage].compactMap { $0 },
                 settings: settings,
-                modelContext: modelContext
+                context: context
             )
             print("AI analysis complete, updating item...")
 
@@ -420,10 +422,11 @@ struct ItemCreationFlowView: View {
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
             print("Calling AI service for multi-image analysis...")
+            let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
             let imageDetails = try await aiService.getImageDetails(
                 from: capturedImages,
                 settings: settings,
-                modelContext: modelContext
+                context: context
             )
             print("AI multi-image analysis complete, updating item...")
 

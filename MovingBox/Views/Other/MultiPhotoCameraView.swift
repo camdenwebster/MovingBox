@@ -2,6 +2,7 @@ import AVFoundation
 import AVKit
 import Combine
 import Foundation
+import MovingBoxAIAnalysis
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -319,7 +320,8 @@ struct MultiPhotoCameraView: View {
                 if captureMode == .video && onVideoSelected == nil {
                     return
                 }
-                if model.handleCaptureModeChange(from: model.selectedCaptureMode, to: captureMode, isPro: settings.isPro)
+                if model.handleCaptureModeChange(
+                    from: model.selectedCaptureMode, to: captureMode, isPro: settings.isPro)
                 {
                     model.saveCaptureMode(to: settings)
                 }
@@ -429,16 +431,16 @@ struct MultiPhotoCameraView: View {
                     CaptureModePicker(
                         selectedMode: Binding(
                             get: { model.selectedCaptureMode },
-                        set: { newMode in
-                            let oldMode = model.selectedCaptureMode
-                            if newMode == .video && onVideoSelected == nil {
-                                return
+                            set: { newMode in
+                                let oldMode = model.selectedCaptureMode
+                                if newMode == .video && onVideoSelected == nil {
+                                    return
+                                }
+                                if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
+                                    model.saveCaptureMode(to: settings)
+                                }
                             }
-                            if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
-                                model.saveCaptureMode(to: settings)
-                            }
-                        }
-                    )
+                        )
                     )
                     .frame(width: 150)
 
@@ -505,16 +507,16 @@ struct MultiPhotoCameraView: View {
                         onGalleryTap: { showingGallery = true },
                         selectedCaptureMode: Binding(
                             get: { model.selectedCaptureMode },
-                        set: { newMode in
-                            let oldMode = model.selectedCaptureMode
-                            if newMode == .video && onVideoSelected == nil {
-                                return
+                            set: { newMode in
+                                let oldMode = model.selectedCaptureMode
+                                if newMode == .video && onVideoSelected == nil {
+                                    return
+                                }
+                                if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
+                                    model.saveCaptureMode(to: settings)
+                                }
                             }
-                            if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
-                                model.saveCaptureMode(to: settings)
-                            }
-                        }
-                    )
+                        )
                     )
                     .padding(.top, 10)
                     .background(Color.black)

@@ -55,6 +55,9 @@
 		63ED39C6794246589EDD08CD /* AudioTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18664E7D3E37457388D53C98 /* AudioTranscriber.swift */; };
 		69C109B16D4E4F288F99DD09 /* VideoItemDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CADC5AF0A3CC4435BC2E8F3A /* VideoItemDeduplicator.swift */; };
 		974C83E1D7EB4E20871E5AA8 /* VideoFrameExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D9C682E57248F482B9E597 /* VideoFrameExtractor.swift */; };
+		AA000001AABB000100000001 /* MovingBoxAIAnalysis in Frameworks */ = {isa = PBXBuildFile; productRef = AA000001AABB000100000002 /* MovingBoxAIAnalysis */; };
+		AA000001AABB000100000003 /* MovingBoxAIAnalysis in Frameworks */ = {isa = PBXBuildFile; productRef = AA000001AABB000100000004 /* MovingBoxAIAnalysis */; };
+		AA000001AABB000100000005 /* AIAnalysisService+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AABB000100000006 /* AIAnalysisService+App.swift */; };
 		B3B2B26CBF80443F90A9B9D0 /* LabelEmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B559C9AF80B849A98B0BD199 /* LabelEmojiCatalog.swift */; };
 		FA36BEBB1DBE4FAA9E675896 /* LabelAutoAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3683ACD84B6C42209DF50F14 /* LabelAutoAssignment.swift */; };
 /* End PBXBuildFile section */
@@ -134,6 +137,7 @@
 		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
 		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
 		824579EAF1DCC03BD61B1782 /* BoundingBoxCropper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundingBoxCropper.swift; sourceTree = "<group>"; };
+		AA000001AABB000100000006 /* AIAnalysisService+App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIAnalysisService+App.swift"; sourceTree = "<group>"; };
 		B559C9AF80B849A98B0BD199 /* LabelEmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelEmojiCatalog.swift; sourceTree = "<group>"; };
 		C6D9C682E57248F482B9E597 /* VideoFrameExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFrameExtractor.swift; sourceTree = "<group>"; };
 		CADC5AF0A3CC4435BC2E8F3A /* VideoItemDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoItemDeduplicator.swift; sourceTree = "<group>"; };
@@ -179,6 +183,7 @@
 		19D133BC2D72BFB8002448A9 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19FE38412EA033D0004F043A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
 		19D133CA2D75455B002448A9 /* MovingBoxTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (19F2CC3E2D9D83580053050B /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MovingBoxTests; sourceTree = "<group>"; };
 		19EC18002F36453200F8E28D /* .codex */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = .codex; sourceTree = "<group>"; };
+		19EC57ED2F3A77CA00F8E28D /* Packages */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Packages; sourceTree = "<group>"; };
 		19FE36542EA03233004F043A /* ViewModels */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ViewModels; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
@@ -199,6 +204,7 @@
 				19BA299C2DC465170064C5A9 /* ZIPFoundation in Frameworks */,
 				1979BBBD2EF5E08400CB8A01 /* AcknowList in Frameworks */,
 				196450542E4D6DC300918795 /* SwiftUIBackports in Frameworks */,
+				AA000001AABB000100000001 /* MovingBoxAIAnalysis in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -215,6 +221,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1965A96F2D9D5A4E00B799C9 /* SnapshotTesting in Frameworks */,
+				AA000001AABB000100000003 /* MovingBoxAIAnalysis in Frameworks */,
 				19A9AB102DB274C7001CEDA2 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -233,6 +240,8 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				19EC18002F36453200F8E28D /* .codex */,
+				19EC57ED2F3A77CA00F8E28D /* Packages */,
 				19EC18002F36453200F8E28D /* .codex */,
 				191881AD2EC61EB9009FB4F4 /* opencode.json */,
 				191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */,
@@ -340,6 +349,7 @@
 				190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */,
 				1942DC952BF3DBBD00734AF4 /* ImageEncoder.swift */,
 				1942DC8B2BF3D4BE00734AF4 /* AIAnalysisService.swift */,
+				AA000001AABB000100000006 /* AIAnalysisService+App.swift */,
 				18664E7D3E37457388D53C98 /* AudioTranscriber.swift */,
 				824579EAF1DCC03BD61B1782 /* BoundingBoxCropper.swift */,
 				E84530A593114B4C9D3CAF87 /* VideoAnalysisCoordinator.swift */,
@@ -395,6 +405,7 @@
 				1979BBB92EF5E07300CB8A01 /* WishKit */,
 				1979BBBC2EF5E08400CB8A01 /* AcknowList */,
 				1979BE532EF6E18700CB8A01 /* WhatsNewKit */,
+				AA000001AABB000100000002 /* MovingBoxAIAnalysis */,
 			);
 			productName = MovingBox;
 			productReference = 1942DC7A2BF391CB00734AF4 /* MovingBox.app */;
@@ -442,6 +453,7 @@
 			name = MovingBoxTests;
 			packageProductDependencies = (
 				1965A96E2D9D5A4E00B799C9 /* SnapshotTesting */,
+				AA000001AABB000100000004 /* MovingBoxAIAnalysis */,
 			);
 			productName = MovingBoxTests;
 			productReference = 19D133C92D75455B002448A9 /* MovingBoxTests.xctest */;
@@ -536,6 +548,7 @@
 				1979BBB82EF5E07300CB8A01 /* XCRemoteSwiftPackageReference "wishkit-ios" */,
 				1979BBBB2EF5E08400CB8A01 /* XCRemoteSwiftPackageReference "AcknowList" */,
 				1979BE522EF6E18700CB8A01 /* XCRemoteSwiftPackageReference "WhatsNewKit" */,
+				AA000001AABB000100000007 /* XCLocalSwiftPackageReference "Packages/MovingBoxAIAnalysis" */,
 			);
 			productRefGroup = 1942DC7B2BF391CB00734AF4 /* Products */;
 			projectDirPath = "";
@@ -644,6 +657,7 @@
 				1942DC7E2BF391CB00734AF4 /* MovingBoxApp.swift in Sources */,
 				1920B1172D88B29100CFA1E9 /* TelemetryManager.swift in Sources */,
 				1942DC8C2BF3D4BE00734AF4 /* AIAnalysisService.swift in Sources */,
+				AA000001AABB000100000005 /* AIAnalysisService+App.swift in Sources */,
 				27BFED706F9A3AECAD44B0A5 /* BoundingBoxCropper.swift in Sources */,
 				190DFBA42D6FC2170062D079 /* CurrencyFormatter.swift in Sources */,
 				19750C382DA07FF40056F0FC /* OnboardingManager.swift in Sources */,
@@ -1388,6 +1402,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		AA000001AABB000100000007 /* XCLocalSwiftPackageReference "Packages/MovingBoxAIAnalysis" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/MovingBoxAIAnalysis;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		1920B0D42D88B13000CFA1E9 /* XCRemoteSwiftPackageReference "SwiftSDK" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1526,6 +1547,14 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
+		};
+		AA000001AABB000100000002 /* MovingBoxAIAnalysis */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MovingBoxAIAnalysis;
+		};
+		AA000001AABB000100000004 /* MovingBoxAIAnalysis */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MovingBoxAIAnalysis;
 		};
 		D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */ = {
 			isa = XCSwiftPackageProductDependency;

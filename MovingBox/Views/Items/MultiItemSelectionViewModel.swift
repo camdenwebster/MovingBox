@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 
@@ -406,13 +407,14 @@ final class MultiItemSelectionViewModel {
         enrichmentTask = Task { @MainActor [weak self] in
             guard let self else { return }
 
+            let aiContext = AIAnalysisContext.from(modelContext: self.modelContext, settings: settings)
             await withTaskGroup(of: (String, ImageDetails?).self) { group in
                 for item in itemsToEnrich {
                     group.addTask { @MainActor in
                         guard !item.images.isEmpty else { return (item.id, nil) }
                         do {
                             let details = try await service.analyzeItem(
-                                from: item.images, settings: settings, modelContext: self.modelContext)
+                                from: item.images, settings: settings, context: aiContext)
                             return (item.id, details)
                         } catch {
                             print("Pass 2 failed for '\(item.title)': \(error.localizedDescription)")
@@ -711,7 +713,7 @@ final class MultiItemSelectionViewModel {
             inventoryItem.secondaryPhotoURLs = try await secondaryImageURLs ?? []
 
             // Assign active home if item has no location or location has no home
-            if (inventoryItem.location == nil || inventoryItem.location?.home == nil), let fallbackHome {
+            if inventoryItem.location == nil || inventoryItem.location?.home == nil, let fallbackHome {
                 inventoryItem.home = fallbackHome
             }
 
@@ -903,10 +905,11 @@ final class MultiItemSelectionViewModel {
 
         var updatedLabelCache: [String: InventoryLabel?] = [:]
         for item in items {
-            updatedLabelCache[item.id] = matchingLabels(
-                for: item.category,
-                in: availableLabelsCache
-            ).first
+            updatedLabelCache[item.id] =
+                matchingLabels(
+                    for: item.category,
+                    in: availableLabelsCache
+                ).first
         }
         matchingLabelCache = updatedLabelCache
     }
@@ -953,7 +956,8 @@ final class MultiItemSelectionViewModel {
 
     private func normalizedTitle(_ value: String) -> String {
         let stopWords: Set<String> = ["a", "an", "the", "item", "object"]
-        return value
+        return
+            value
             .lowercased()
             .split(separator: " ")
             .map { token -> String in
@@ -1153,7 +1157,8 @@ private enum ImageQualityCurator {
 
     private static func score(_ image: UIImage) -> ScoredImage? {
         guard let downsampled = downsampledGrayscalePixels(for: image, side: 64) else { return nil }
-        let sharpness = gradientSharpness(pixels: downsampled.pixels, width: downsampled.width, height: downsampled.height)
+        let sharpness = gradientSharpness(
+            pixels: downsampled.pixels, width: downsampled.width, height: downsampled.height)
         let contrast = luminanceStdDev(downsampled.pixels)
         let hash = perceptualHash(for: image)
         return ScoredImage(image: image, sharpness: sharpness, contrast: contrast, perceptualHash: hash)
@@ -1204,10 +1209,11 @@ private enum ImageQualityCurator {
         guard !pixels.isEmpty else { return 0 }
         let values = pixels.map { Double($0) / 255.0 }
         let mean = values.reduce(0, +) / Double(values.count)
-        let variance = values.reduce(0) { partial, value in
-            let delta = value - mean
-            return partial + (delta * delta)
-        } / Double(values.count)
+        let variance =
+            values.reduce(0) { partial, value in
+                let delta = value - mean
+                return partial + (delta * delta)
+            } / Double(values.count)
         return sqrt(variance)
     }
 

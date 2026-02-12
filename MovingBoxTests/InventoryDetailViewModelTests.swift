@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/10/25.
 //
 
+import MovingBoxAIAnalysis
 import SwiftData
 import Testing
 import UIKit

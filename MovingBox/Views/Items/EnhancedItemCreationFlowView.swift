@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 
@@ -17,7 +18,7 @@ struct EnhancedItemCreationFlowView: View {
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
 
-    @StateObject private var viewModel: ItemCreationFlowViewModel
+    @State private var viewModel: ItemCreationFlowViewModel
     @State private var showingPermissionDenied = false
     @State private var hasBootstrappedInitialVideo = false
 
@@ -42,9 +43,8 @@ struct EnhancedItemCreationFlowView: View {
         self.initialVideoURL = initialVideoURL
         self.onComplete = onComplete
 
-        // Initialize StateObject with nil context - will be set in onAppear
-        self._viewModel = StateObject(
-            wrappedValue: ItemCreationFlowViewModel(
+        self._viewModel = State(
+            initialValue: ItemCreationFlowViewModel(
                 captureMode: captureMode,
                 location: location
             ))
@@ -343,8 +343,8 @@ struct EnhancedItemCreationFlowView: View {
             // Fallback if no analysis response
             VStack(spacing: 24) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 64))
-                    .foregroundColor(.orange)
+                    .font(.largeTitle)
+                    .foregroundStyle(.orange)
 
                 Text("No Items Found")
                     .font(.headline)
@@ -519,8 +519,8 @@ struct MultiItemSummaryView: View {
                 // Header
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundColor(.green)
+                        .font(.largeTitle)
+                        .foregroundStyle(.green)
                         .scaleEffect(showConfetti ? 1.0 : 0.5)
                         .opacity(showConfetti ? 1.0 : 0.0)
 

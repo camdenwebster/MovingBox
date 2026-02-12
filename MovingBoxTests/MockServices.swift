@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import UIKit
@@ -51,7 +52,7 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
     )
 
     func getImageDetails(
-        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+        from images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext
     ) async throws -> ImageDetails {
         if shouldFail {
             throw AIAnalysisError.invalidData
@@ -64,7 +65,7 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     func analyzeItem(
-        from images: [UIImage], settings: SettingsManager, modelContext: ModelContext
+        from images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext
     ) async throws -> ImageDetails {
         analyzeItemCallCount += 1
 
@@ -80,8 +81,8 @@ class MockAIAnalysisService: AIAnalysisServiceProtocol {
 
     func getMultiItemDetails(
         from images: [UIImage],
-        settings: SettingsManager,
-        modelContext: ModelContext,
+        settings: AIAnalysisSettings,
+        context: AIAnalysisContext,
         narrationContext: String?,
         onPartialResponse: ((MultiItemAnalysisResponse) -> Void)?
     ) async throws -> MultiItemAnalysisResponse {

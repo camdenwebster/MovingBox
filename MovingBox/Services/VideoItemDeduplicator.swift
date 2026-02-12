@@ -1,4 +1,5 @@
 import Foundation
+import MovingBoxAIAnalysis
 
 enum VideoItemDeduplicator {
     struct MergedItem {
@@ -20,8 +21,12 @@ enum VideoItemDeduplicator {
                 let adjustedDetections = adjustDetections(item.detections, offset: batch.batchOffset)
                 let normalizedTitle = normalizeTitle(item.title)
 
-                if let index = mergedItems.firstIndex(where: { isMatch(candidate: item, normalizedCandidate: normalizedTitle, existing: $0) }) {
-                    merge(into: &mergedItems[index], newItem: item, normalizedTitle: normalizedTitle, detections: adjustedDetections)
+                if let index = mergedItems.firstIndex(where: {
+                    isMatch(candidate: item, normalizedCandidate: normalizedTitle, existing: $0)
+                }) {
+                    merge(
+                        into: &mergedItems[index], newItem: item, normalizedTitle: normalizedTitle,
+                        detections: adjustedDetections)
                 } else {
                     let merged = MergedItem(
                         item: DetectedInventoryItem(
@@ -163,7 +168,8 @@ enum VideoItemDeduplicator {
 
     private static func normalizeTitle(_ title: String) -> String {
         let articles: Set<String> = ["a", "an", "the"]
-        let tokens = title
+        let tokens =
+            title
             .lowercased()
             .split(separator: " ")
             .map { token -> String in
@@ -215,13 +221,14 @@ enum VideoItemDeduplicator {
             return candidate
         case (.some, nil):
             return current
-        case let (.some(currentValue), .some(candidateValue)):
+        case (.some(let currentValue), .some(let candidateValue)):
             return candidateValue > currentValue ? candidate : current
         }
     }
 
     private static func parsePrice(_ value: String) -> Decimal? {
-        let cleaned = value
+        let cleaned =
+            value
             .replacingOccurrences(of: "$", with: "")
             .replacingOccurrences(of: ",", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)

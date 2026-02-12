@@ -5,6 +5,7 @@
 //  Created by Codex on 2/4/26.
 //
 
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import Testing

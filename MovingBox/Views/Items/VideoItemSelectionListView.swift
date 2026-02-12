@@ -1,3 +1,4 @@
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import SwiftUIBackports
@@ -219,7 +220,7 @@ struct VideoItemSelectionListView: View {
     private var noItemsView: some View {
         VStack(spacing: 24) {
             Image(systemName: "photo.stack")
-                .font(.system(size: 64))
+                .font(.largeTitle)
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 8) {
@@ -528,7 +529,8 @@ struct VideoItemSelectionListView: View {
         }
     }
 
-    private func orderedItems(in group: MultiItemSelectionViewModel.DetectedItemDisplayGroup) -> [DetectedInventoryItem] {
+    private func orderedItems(in group: MultiItemSelectionViewModel.DetectedItemDisplayGroup) -> [DetectedInventoryItem]
+    {
         let ranks = itemRankLookup
         return group.items.sorted { lhs, rhs in
             (ranks[lhs.id] ?? Int.max) < (ranks[rhs.id] ?? Int.max)

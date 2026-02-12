@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import Testing
@@ -41,14 +42,16 @@ struct AIAnalysisStrictModeTests {
         let testImage = UIImage(data: testImageData)!
 
         // Create service with real images array
-        let aiService = AIAnalysisService()
+        let aiService = AIAnalysisService(
+            imageOptimizer: OptimizedImageManager.shared, telemetryTracker: TelemetryManager.shared)
 
         do {
             print("🔄 Testing multi-item analysis with strict mode disabled...")
+            let aiContext = AIAnalysisContext.from(modelContext: context, settings: settings)
             let response = try await aiService.getMultiItemDetails(
                 from: [testImage],
                 settings: settings,
-                modelContext: context
+                context: aiContext
             )
 
             // Log the full response for debugging
@@ -117,14 +120,16 @@ struct AIAnalysisStrictModeTests {
         let testImageData = createTestImageData()
         let testImage = UIImage(data: testImageData)!
 
-        let aiService = AIAnalysisService()
+        let aiService = AIAnalysisService(
+            imageOptimizer: OptimizedImageManager.shared, telemetryTracker: TelemetryManager.shared)
 
         // Should throw appropriate error for missing API key
+        let aiContext = AIAnalysisContext.from(modelContext: context, settings: settings)
         await #expect(throws: AIAnalysisError.self) {
             try await aiService.getMultiItemDetails(
                 from: [testImage],
                 settings: settings,
-                modelContext: context
+                context: aiContext
             )
         }
     }

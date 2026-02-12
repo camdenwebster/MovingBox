@@ -8,6 +8,7 @@
 // NOTE: THIS IS NOT IN USE YET - ALL BUSINESS LOGIC IS IN InventoryDetailView.swift
 
 import Foundation
+import MovingBoxAIAnalysis
 import PhotosUI
 import StoreKit
 import SwiftData
@@ -95,10 +96,11 @@ final class InventoryDetailViewModel {
             throw AIAnalysisError.invalidData
         }
 
+        let context = await MainActor.run { AIAnalysisContext.from(modelContext: modelContext, settings: settings) }
         let imageDetails = try await aiAnalysisService.getImageDetails(
             from: loadedImages,
             settings: settings,
-            modelContext: modelContext
+            context: context
         )
 
         TelemetryManager.shared.trackCameraAnalysisUsed()

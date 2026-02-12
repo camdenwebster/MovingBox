@@ -127,7 +127,8 @@ enum LabelAutoAssignment {
         let lhsTokens = Set(lhs.split(separator: " ").map(String.init))
         let rhsTokens = Set(rhs.split(separator: " ").map(String.init))
         let common = lhsTokens.intersection(rhsTokens).count
-        let tokenSimilarity = lhsTokens.isEmpty || rhsTokens.isEmpty
+        let tokenSimilarity =
+            lhsTokens.isEmpty || rhsTokens.isEmpty
             ? 0.0
             : Double(common) / Double(max(lhsTokens.count, rhsTokens.count))
 
@@ -147,7 +148,8 @@ enum LabelAutoAssignment {
 
     private static func normalizeForMatching(_ value: String) -> String {
         let stopWords: Set<String> = ["and", "&", "item", "items", "stuff", "misc", "miscellaneous"]
-        return value
+        return
+            value
             .lowercased()
             .split(separator: " ")
             .map { token -> String in
@@ -230,7 +232,7 @@ enum LabelAutoAssignment {
         let options = LabelEmojiCatalog.emojis(for: fallbackCategory)
         guard !options.isEmpty else { return "🏷️" }
         let stableHash = normalizedLabelName(category).unicodeScalars.reduce(0) { partial, scalar in
-            (partial * 31 + Int(scalar.value)) & 0x7fffffff
+            (partial * 31 + Int(scalar.value)) & 0x7fff_ffff
         }
         return options[stableHash % options.count]
     }

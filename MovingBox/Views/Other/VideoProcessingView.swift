@@ -29,8 +29,8 @@ struct VideoProcessingView: View {
                         .frame(width: 240, height: 180)
                         .overlay(
                             Image(systemName: "video")
-                                .font(.system(size: 40))
-                                .foregroundColor(.white.opacity(0.7))
+                                .font(.largeTitle)
+                                .foregroundStyle(.white.opacity(0.7))
                         )
                 }
 
@@ -71,7 +71,7 @@ struct VideoProcessingView: View {
             return "Extracting frames..."
         case .transcribingAudio:
             return "Transcribing narration..."
-        case let .analyzingBatch(current, total):
+        case .analyzingBatch(let current, let total):
             return "Analyzing items (batch \(current) of \(total))..."
         case .deduplicating:
             return "Removing duplicates..."

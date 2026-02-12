@@ -5,6 +5,7 @@
 //  Created by Claude Code on 2/3/26.
 //
 
+import MovingBoxAIAnalysis
 import UIKit
 
 enum BoundingBoxCropper {

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MovingBoxAIAnalysis
 import SwiftData
 import Testing
 import UIKit

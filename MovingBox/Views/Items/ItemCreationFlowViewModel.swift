@@ -7,19 +7,21 @@
 
 import AVFoundation
 import Foundation
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import UIKit
 import UserNotifications
 
 @MainActor
-class ItemCreationFlowViewModel: ObservableObject {
+@Observable
+class ItemCreationFlowViewModel {
 
     // MARK: - Properties
 
     /// The capture mode (single item or multi-item)
     /// Can be updated if user switches modes during camera capture
-    @Published var captureMode: CaptureMode
+    var captureMode: CaptureMode
 
     /// Location to assign to created items
     let location: InventoryLocation?
@@ -34,7 +36,7 @@ class ItemCreationFlowViewModel: ObservableObject {
     var settingsManager: SettingsManager?
 
     /// Current step in the creation flow
-    @Published var currentStep: ItemCreationStep = .camera
+    var currentStep: ItemCreationStep = .camera
 
     /// Navigation flow based on capture mode and detected items
     var navigationFlow: [ItemCreationStep] {
@@ -62,52 +64,52 @@ class ItemCreationFlowViewModel: ObservableObject {
     }
 
     /// Captured images from camera
-    @Published var capturedImages: [UIImage] = []
+    var capturedImages: [UIImage] = []
 
     /// Selected video asset for video analysis
-    @Published var videoAsset: AVAsset?
+    var videoAsset: AVAsset?
 
     /// Selected video URL (saved to Documents)
-    @Published var videoURL: URL?
+    var videoURL: URL?
 
     /// Video processing progress updates
-    @Published var videoProcessingProgress: VideoAnalysisProgress?
+    var videoProcessingProgress: VideoAnalysisProgress?
 
     /// True while video batches are still being analyzed and merged.
-    @Published var isVideoAnalysisStreaming: Bool = false
+    var isVideoAnalysisStreaming: Bool = false
 
     /// Number of analyzed batches with results merged into the current streamed response.
-    @Published var streamedBatchCount: Int = 0
+    var streamedBatchCount: Int = 0
 
     /// Total number of batches expected for the current video.
-    @Published var totalBatchCount: Int = 0
+    var totalBatchCount: Int = 0
 
     /// Whether image processing is in progress
-    @Published var processingImage: Bool = false
+    var processingImage: Bool = false
 
     /// Whether analysis is complete
-    @Published var analysisComplete: Bool = false
+    var analysisComplete: Bool = false
 
     /// Error message if analysis fails
-    @Published var errorMessage: String?
+    var errorMessage: String?
 
     /// Multi-item analysis response (for multi-item mode)
-    @Published var multiItemAnalysisResponse: MultiItemAnalysisResponse?
+    var multiItemAnalysisResponse: MultiItemAnalysisResponse?
 
     /// Selected items from multi-item analysis
-    @Published var selectedMultiItems: [DetectedInventoryItem] = []
+    var selectedMultiItems: [DetectedInventoryItem] = []
 
     /// Created inventory items
-    @Published var createdItems: [InventoryItem] = []
+    var createdItems: [InventoryItem] = []
 
     /// Unique transition ID for animations
-    @Published var transitionId = UUID()
+    var transitionId = UUID()
 
     /// Whether the app is currently in background
-    @Published var isAppInBackground: Bool = false
+    var isAppInBackground: Bool = false
 
     /// Whether we should navigate to multi-item selection on foreground
-    @Published var pendingNotificationNavigation: Bool = false
+    var pendingNotificationNavigation: Bool = false
 
     private var hasScheduledAnalysisNotification: Bool = false
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
@@ -466,14 +468,14 @@ class ItemCreationFlowViewModel: ObservableObject {
                 }
             }
 
-            await MainActor.run {
-                if let context = modelContext {
-                    assignHomeToItemIfNeeded(newItem, context: context)
-                    context.insert(newItem)
-                    try? context.save()
-                }
-                TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
+            guard let context = modelContext else {
+                throw InventoryItemCreationError.imageProcessingFailed
             }
+
+            assignHomeToItemIfNeeded(newItem, context: context)
+            context.insert(newItem)
+            try context.save()
+            TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
 
             return newItem
 
@@ -521,13 +523,14 @@ class ItemCreationFlowViewModel: ObservableObject {
             let aiService = aiAnalysisService ?? createAIAnalysisService()
             activeAIService = aiService
             print("🔍 ItemCreationFlowViewModel: Using AI service: \(type(of: aiService))")
+            let aiContext = AIAnalysisContext.from(modelContext: context, settings: settings)
             let imageDetails = try await aiService.getImageDetails(
                 from: capturedImages,
                 settings: settings,
-                modelContext: context
+                context: aiContext
             )
 
-            await MainActor.run {
+            try await MainActor.run {
                 // Get all labels and locations for the unified update
                 let labels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? context.fetch(FetchDescriptor<InventoryLocation>())) ?? []
@@ -538,7 +541,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                     locations: locations,
                     modelContext: context
                 )
-                try? context.save()
+                try context.save()
 
                 // For single-item mode, also create a MultiItemAnalysisResponse
                 // This allows routing through multi-item selection view for consistency
@@ -636,19 +639,20 @@ class ItemCreationFlowViewModel: ObservableObject {
             print("🔍 ItemCreationFlowViewModel (Multi-Item): Using AI service: \(type(of: aiService))")
             let response: MultiItemAnalysisResponse
             let batchSize = 5
+            let multiContext = AIAnalysisContext.from(modelContext: context, settings: settings)
             if capturedImages.count > batchSize {
                 response = try await performBatchedMultiItemAnalysis(
                     images: capturedImages,
                     batchSize: batchSize,
                     settings: settings,
-                    modelContext: context,
+                    context: multiContext,
                     aiService: aiService
                 )
             } else {
                 response = try await aiService.getMultiItemDetails(
                     from: capturedImages,
                     settings: settings,
-                    modelContext: context,
+                    context: multiContext,
                     narrationContext: nil
                 )
             }
@@ -691,8 +695,8 @@ class ItemCreationFlowViewModel: ObservableObject {
     private func performBatchedMultiItemAnalysis(
         images: [UIImage],
         batchSize: Int,
-        settings: SettingsManager,
-        modelContext: ModelContext,
+        settings: AIAnalysisSettings,
+        context: AIAnalysisContext,
         aiService: AIAnalysisServiceProtocol
     ) async throws -> MultiItemAnalysisResponse {
         guard !images.isEmpty else {
@@ -711,7 +715,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             let response = try await aiService.getMultiItemDetails(
                 from: batchImages,
                 settings: settings,
-                modelContext: modelContext,
+                context: context,
                 narrationContext: nil
             )
 

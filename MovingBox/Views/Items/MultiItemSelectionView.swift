@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import SwiftUIBackports
@@ -159,7 +160,7 @@ struct MultiItemSelectionView: View {
     private var noItemsView: some View {
         VStack(spacing: 24) {
             Image(systemName: "photo.stack")
-                .font(.system(size: 64))
+                .font(.largeTitle)
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 8) {

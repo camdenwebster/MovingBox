@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 5/16/24.
 //
 
+import MovingBoxAIAnalysis
 import PDFKit
 import PhotosUI
 import QuickLook
@@ -1421,10 +1422,11 @@ struct InventoryDetailView: View {
 
         TelemetryManager.shared.trackCameraAnalysisUsed()
 
+        let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
         return try await aiService.getImageDetails(
             from: loadedImages,
             settings: settings,
-            modelContext: modelContext
+            context: context
         )
     }
 

@@ -1,3 +1,4 @@
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 
@@ -88,10 +89,11 @@ struct ItemAnalysisDetailView: View {
 
         let aiService = AIAnalysisServiceFactory.create()
 
+        let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
         let imageDetails = try await aiService.getImageDetails(
             from: [image],
             settings: settings,
-            modelContext: modelContext
+            context: context
         )
 
         await MainActor.run {
