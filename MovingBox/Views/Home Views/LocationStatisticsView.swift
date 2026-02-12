@@ -58,18 +58,31 @@ struct LocationStatisticsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                router.navigate(to: .locationsListView(showAllHomes: false))
-            } label: {
-                DashboardSectionLabel(text: "Locations") {
-                    showingNewLocation = true
+            HStack {
+                Button {
+                    router.navigate(to: .locationsListView(showAllHomes: false))
+                } label: {
+                    DashboardSectionLabel(text: "Locations")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
                 .contentShape(Rectangle())
+                .accessibilityIdentifier("dashboard-locations-button")
+
+                Button {
+                    showingNewLocation = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(.tint, in: Circle())
+                }
+                .accessibilityIdentifier("dashboard-locations-add-button")
+                .padding(.trailing)
             }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .accessibilityIdentifier("dashboard-locations-button")
 
             if locations.isEmpty {
                 ContentUnavailableView {

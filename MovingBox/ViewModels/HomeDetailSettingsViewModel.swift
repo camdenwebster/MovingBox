@@ -87,7 +87,7 @@ final class HomeDetailSettingsViewModel {
         self.settings = settings
         self.allHomesProvider = allHomesProvider
 
-        if let homeID {
+        if homeID != nil {
             // Editing existing home — fields will be loaded in loadHomeData()
             self.isEditing = false
         } else {
@@ -240,8 +240,8 @@ final class HomeDetailSettingsViewModel {
         }
     }
 
-    func createHome() async -> Bool {
-        guard let database else { return false }
+    func createHome() async -> UUID? {
+        guard let database else { return nil }
         isCreating = true
         saveError = nil
 
@@ -296,11 +296,11 @@ final class HomeDetailSettingsViewModel {
             TelemetryManager.shared.trackHomeCreated(name: trimmedName.isEmpty ? saveAddr1 : trimmedName)
 
             isCreating = false
-            return true
+            return newHomeID
         } catch {
             saveError = "Failed to create home: \(error.localizedDescription)"
             isCreating = false
-            return false
+            return nil
         }
     }
 

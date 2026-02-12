@@ -80,7 +80,6 @@
       "Query-Docs",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:docs.sentry.io)",
-      "WebFetch(domain:www.aiproxy.com)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:swiftpackageindex.com)",
@@ -96,21 +95,9 @@
   },
   "enabledMcpjsonServers": [
     "sosumi",
-    "sentry",
     "ios-simulator"
   ],
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "source ~/.movingbox_env && bash ci_scripts/ci_post_clone.sh"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",

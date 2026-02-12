@@ -49,18 +49,31 @@ struct LabelStatisticsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                router.navigate(to: .labelsListView(showAllHomes: false))
-            } label: {
-                DashboardSectionLabel(text: "Labels") {
-                    showingNewLabel = true
+            HStack {
+                Button {
+                    router.navigate(to: .labelsListView(showAllHomes: false))
+                } label: {
+                    DashboardSectionLabel(text: "Labels")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
                 .contentShape(Rectangle())
+                .accessibilityIdentifier("dashboard-labels-button")
+
+                Button {
+                    showingNewLabel = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(.tint, in: Circle())
+                }
+                .accessibilityIdentifier("dashboard-labels-add-button")
+                .padding(.trailing)
             }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .accessibilityIdentifier("dashboard-labels-button")
 
             if labels.isEmpty {
                 ContentUnavailableView {

@@ -11,27 +11,15 @@ struct DashboardSectionLabel: View {
     var text: String
     var isButton = true
     var useSubTitle: Bool = false
-    var onAdd: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack {
             Text(self.text)
                 .font(useSubTitle ? .title3 : .title)
                 .foregroundStyle(.primary)
             if isButton {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(.secondary)
-                Spacer()
-                if let onAdd {
-                    Button(action: onAdd) {
-                        Image(systemName: "plus")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .frame(width: 26, height: 26)
-                            .background(.tint, in: Circle())
-                    }
-                }
             }
         }
         .bold()

@@ -275,6 +275,29 @@ import Testing
         #expect(count == 0)
     }
 
+    @Test("createHome returns created home ID and persists default locations")
+    func testCreateHomeReturnsIDAndPersists() async throws {
+        let db = try makeInMemoryDatabase()
+
+        let viewModel = createViewModel(homeID: nil, db: db)
+        viewModel.name = "New Home"
+
+        let newHomeID = try #require(await viewModel.createHome())
+
+        let home = try await db.read { database in
+            try SQLiteHome.find(newHomeID).fetchOne(database)
+        }
+        #expect(home?.name == "New Home")
+        #expect(home?.isPrimary == true)
+
+        let locations = try await db.read { database in
+            try SQLiteInventoryLocation
+                .where { $0.homeID == newHomeID }
+                .fetchAll(database)
+        }
+        #expect(locations.count == TestData.defaultRooms.count)
+    }
+
     // MARK: - Delete Home Tests
 
     @Test("deleteHome removes home from context")

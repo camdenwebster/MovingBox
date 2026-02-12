@@ -381,10 +381,9 @@ struct HomeDetailSettingsView: View {
                 Button("Save") {
                     Task {
                         if viewModel.isNewHome {
-                            if await viewModel.createHome() {
+                            if let homeID = await viewModel.createHome() {
                                 // Save photo BLOB for the new home
                                 if let uiImage = tempUIImage,
-                                    let homeID = viewModel.originalHomeID,
                                     let imageData = await OptimizedImageManager.shared.processImage(uiImage)
                                 {
                                     try? await database.write { db in
