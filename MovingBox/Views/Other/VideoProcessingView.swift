@@ -1,9 +1,22 @@
 import SwiftUI
 import UIKit
 
+enum VideoAnalysisPhase: Sendable {
+    case extractingFrames
+    case transcribingAudio
+    case analyzingBatch(current: Int, total: Int)
+    case deduplicating
+}
+
+struct SimpleVideoAnalysisProgress: Sendable {
+    let phase: VideoAnalysisPhase
+    let progress: Double
+    let overallProgress: Double
+}
+
 struct VideoProcessingView: View {
     let thumbnail: UIImage?
-    let progress: VideoAnalysisCoordinator.VideoAnalysisProgress?
+    let progress: SimpleVideoAnalysisProgress?
     let onComplete: () -> Void
 
     @State private var hasCompleted = false

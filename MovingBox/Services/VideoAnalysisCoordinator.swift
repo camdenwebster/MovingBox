@@ -1,6 +1,6 @@
 import AVFoundation
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import UIKit
 
 struct VideoAnalysisProgress: Sendable {
@@ -20,7 +20,7 @@ protocol VideoAnalysisCoordinatorProtocol: Sendable {
     func analyze(
         videoAsset: AVAsset,
         settings: SettingsManager,
-        modelContext: ModelContext,
+        database: any DatabaseReader,
         aiService: AIAnalysisServiceProtocol,
         onProgress: @escaping @Sendable (VideoAnalysisProgress) -> Void
     ) async throws -> MultiItemAnalysisResponse
@@ -46,7 +46,7 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
     func analyze(
         videoAsset: AVAsset,
         settings: SettingsManager,
-        modelContext: ModelContext,
+        database: any DatabaseReader,
         aiService: AIAnalysisServiceProtocol,
         onProgress: @escaping @Sendable (VideoAnalysisProgress) -> Void
     ) async throws -> MultiItemAnalysisResponse {
@@ -132,7 +132,7 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
 
             let completedBatchResults = batchResults
             let aiContext = await MainActor.run {
-                AIAnalysisContext.from(modelContext: modelContext, settings: settings)
+                AIAnalysisContext.from(database: database, settings: settings)
             }
             let response = try await aiService.getMultiItemDetails(
                 from: batchImages,

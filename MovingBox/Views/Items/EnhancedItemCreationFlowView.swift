@@ -31,6 +31,22 @@ struct EnhancedItemCreationFlowView: View {
 
     init(
         captureMode: CaptureMode,
+        location: SQLiteInventoryLocation?,
+        onComplete: (() -> Void)? = nil
+    ) {
+        self.captureMode = captureMode
+        self.locationID = location?.id
+        self.onComplete = onComplete
+
+        self._viewModel = StateObject(
+            wrappedValue: ItemCreationFlowViewModel(
+                captureMode: captureMode,
+                locationID: location?.id
+            ))
+    }
+
+    init(
+        captureMode: CaptureMode,
         locationID: UUID?,
         onComplete: (() -> Void)? = nil
     ) {

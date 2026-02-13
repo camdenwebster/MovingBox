@@ -368,8 +368,8 @@ struct VideoItemSelectionListView: View {
             )
         }
         .onAppear {
-            if selectedHome == nil {
-                selectedHome = selectedLocation?.home
+            if selectedHome == nil, let location = selectedLocation, let homeID = location.homeID {
+                selectedHome = SQLiteHome(id: homeID)
             }
         }
     }

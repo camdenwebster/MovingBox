@@ -10,6 +10,7 @@ import Foundation
 import MovingBoxAIAnalysis
 import SQLiteData
 import SwiftUI
+import UIKit
 
 // MARK: - Supporting Types
 
@@ -78,6 +79,15 @@ final class MultiItemSelectionViewModel {
     /// Error message if item creation fails
     var errorMessage: String?
 
+    // MARK: - Supporting Types
+
+    /// Represents a group of detected items for display (e.g., potential duplicates)
+    struct DetectedItemDisplayGroup: Identifiable {
+        let id: String
+        let items: [DetectedInventoryItem]
+        let isPotentialDuplicateGroup: Bool
+    }
+
     // MARK: - Computed Properties
 
     /// Whether there are no detected items
@@ -106,18 +116,80 @@ final class MultiItemSelectionViewModel {
         return detectedItems[currentCardIndex]
     }
 
+    /// Groups of detected items for display (currently returns single group with all items)
+    var detectedItemGroups: [DetectedItemDisplayGroup] {
+        [
+            DetectedItemDisplayGroup(
+                id: "all-items",
+                items: detectedItems,
+                isPotentialDuplicateGroup: false
+            )
+        ]
+    }
+
+    /// Get duplicate hint for an item (currently returns nil - duplicate grouping not implemented)
+    func duplicateHint(for item: DetectedInventoryItem) -> String? {
+        nil
+    }
+
     // MARK: - Initialization
 
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
-        locationID: UUID?,
-        homeID: UUID? = nil
+        location: SQLiteInventoryLocation? = nil,
+        homeID: UUID? = nil,
+        database: (any DatabaseWriter)? = nil,
+        aiAnalysisService: (any AIAnalysisServiceProtocol)? = nil
+    ) {
+        self.analysisResponse = analysisResponse
+        self.images = images
+        self.locationID = location?.id
+        self.homeID = homeID
+    }
+
+    init(
+        analysisResponse: MultiItemAnalysisResponse,
+        images: [UIImage],
+        locationID: UUID? = nil,
+        homeID: UUID? = nil,
+        database: (any DatabaseWriter)? = nil,
+        aiAnalysisService: (any AIAnalysisServiceProtocol)? = nil
     ) {
         self.analysisResponse = analysisResponse
         self.images = images
         self.locationID = locationID
         self.homeID = homeID
+    }
+
+    /// Update the analysis response (for streaming scenarios)
+    func updateAnalysisResponse(_ response: MultiItemAnalysisResponse) {
+    }
+
+    /// Number of items filtered out due to low quality
+    var filteredOutCount: Int { 0 }
+
+    /// Whether enrichment is in progress
+    var isEnriching: Bool { false }
+
+    /// Start enrichment process
+    func startEnrichment(settings: SettingsManager) {}
+
+    /// Compute cropped images for detected items
+    func computeCroppedImages(limit: Int? = nil) async {}
+
+    /// Get thumbnail for a detected item row
+    func rowThumbnail(for item: DetectedInventoryItem) -> UIImage? { nil }
+
+    /// Release temporary image memory
+    func releaseTemporaryImageMemory(clearSourceImages: Bool = false) {}
+
+    /// Update images for the view model
+    func updateImages(_ images: [UIImage]) async {}
+
+    /// Update selected location
+    func updateSelectedLocation(_ location: SQLiteInventoryLocation?) {
+        self.locationID = location?.id
     }
 
     // MARK: - Location Management

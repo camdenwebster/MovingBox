@@ -39,7 +39,28 @@ struct MultiItemSelectionView: View {
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
-        locationID: UUID?,
+        location: SQLiteInventoryLocation? = nil,
+        homeID: UUID? = nil,
+        onItemsSelected: @escaping ([SQLiteInventoryItem]) -> Void,
+        onCancel: @escaping () -> Void,
+        onReanalyze: (() -> Void)? = nil
+    ) {
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: analysisResponse,
+            images: images,
+            location: location,
+            homeID: homeID
+        )
+        self._viewModel = State(initialValue: viewModel)
+        self.onItemsSelected = onItemsSelected
+        self.onCancel = onCancel
+        self.onReanalyze = onReanalyze
+    }
+
+    init(
+        analysisResponse: MultiItemAnalysisResponse,
+        images: [UIImage],
+        locationID: UUID? = nil,
         homeID: UUID? = nil,
         onItemsSelected: @escaping ([SQLiteInventoryItem]) -> Void,
         onCancel: @escaping () -> Void,
@@ -555,7 +576,7 @@ struct DetectedItemCard: View {
     MultiItemSelectionView(
         analysisResponse: mockResponse,
         images: [UIImage()],
-        locationID: nil,
+        location: nil,
         onItemsSelected: { items in
             print("Selected \(items.count) items")
         },

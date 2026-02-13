@@ -56,6 +56,11 @@
         static func itemLabel(_ n: Int) -> UUID {
             UUID(uuidString: String(format: "00000000-0005-0000-0000-%012X", n))!
         }
+
+        // Item Photos — sequential UUIDs
+        static func itemPhoto(_ n: Int) -> UUID {
+            UUID(uuidString: String(format: "00000000-0006-0000-0000-%012X", n))!
+        }
     }
 
     // MARK: - Seed database factory
@@ -1136,6 +1141,126 @@
                     id: SeedID.itemLabel(100), inventoryItemID: SeedID.item(100), inventoryLabelID: SeedID.furniture)
                 SQLiteInventoryItemLabel(
                     id: SeedID.itemLabel(101), inventoryItemID: SeedID.item(101), inventoryLabelID: SeedID.sports)
+
+                // ─────────────────────────────────────────────
+                // MARK: Item Photos
+                // ─────────────────────────────────────────────
+
+                // Map item indices to test asset names based on item titles
+                let photoAssets: [Int: String] = [
+                    1: "macbook",
+                    2: "desk-chair",
+                    3: "desktop-computer",
+                    4: "monitor",
+                    5: "printer",
+                    6: "webcam",
+                    7: "projector",
+                    8: "filing-cabinet",
+                    9: "bookshelf",
+                    10: "bookcase",
+                    11: "office-desk",
+                    12: "wireless-router",
+                    13: "router-wifi",
+                    14: "smart-bulbs",
+                    15: "weight-set",
+                    16: "headphones",
+                    17: "camera-dslr",
+                    18: "tv",
+                    19: "gaming-console",
+                    20: "smart-speaker",
+                    21: "sofa",
+                    22: "dining-table",
+                    23: "area-rug",
+                    24: "floor-lamp",
+                    25: "smart-tv",
+                    26: "tv-stand",
+                    27: "armchair",
+                    28: "coffee-table",
+                    29: "chandelier",
+                    30: "table-lamps",
+                    31: "sound-bar",
+                    32: "tablet",
+                    33: "record-player",
+                    34: "board-games",
+                    35: "canvas-print",
+                    36: "digital-piano",
+                    37: "sax",
+                    38: "drum-kit",
+                    39: "tablet",
+                    40: "gaming-console",
+                    41: "dining-chairs",
+                    42: "console-table",
+                    43: "mirror-wall",
+                    44: "vase-ceramic",
+                    45: "picture-frame",
+                    46: "throw-blanket",
+                    47: "decorative-pillows",
+                    48: "candle-holder",
+                    49: "plant-indoor",
+                    50: "guitar",
+                    51: "coffee-maker",
+                    52: "stand-mixer",
+                    53: "blender",
+                    54: "air-fryer",
+                    55: "espresso-machine",
+                    56: "food-processor",
+                    57: "wine-fridge",
+                    58: "microwave",
+                    59: "toaster",
+                    60: "knife-set",
+                    61: "pots-pans",
+                    62: "cutting-board",
+                    63: "kettle-electric",
+                    64: "dishwasher",
+                    65: "bed-frame",
+                    66: "closet-system",
+                    67: "nightstand",
+                    68: "dresser",
+                    69: "wardrobe",
+                    70: "mattress",
+                    71: "lamp-bedside",
+                    72: "smart-watch",
+                    73: "bedding-set",
+                    74: "towel-set",
+                    75: "treadmill",
+                    76: "washer",
+                    77: "dryer",
+                    78: "vacuum-cleaner",
+                    79: "power-drill",
+                    80: "table-saw",
+                    81: "tool-chest",
+                    82: "grill",
+                    83: "patio-set",
+                    84: "fire-pit",
+                    85: "storage-bench",
+                    86: "toolbox",
+                    87: "ladder",
+                    88: "lawn-mower",
+                    89: "bicycle",
+                    90: "sofa",
+                    91: "smart-tv",
+                    92: "dining-table",
+                    93: "bicycle",
+                    94: "bed-frame",
+                    95: "nightstand",
+                    96: "blender",
+                    97: "coffee-maker",
+                    98: "grill",
+                    99: "patio-set",
+                    100: "fire-pit",
+                    101: "bicycle",
+                ]
+
+                for (itemIndex, assetName) in photoAssets {
+                    if let photoData = testImageData(for: assetName) {
+                        SQLiteInventoryItemPhoto(
+                            id: SeedID.itemPhoto(itemIndex),
+                            inventoryItemID: SeedID.item(itemIndex),
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }
+                }
             }
         }
 
@@ -1150,5 +1275,11 @@
         // Fixed reference: 2025-01-15T12:00:00Z
         let reference = Date(timeIntervalSince1970: 1_736_942_400)
         return reference.addingTimeInterval(Double(hoursOffset) * 3600)
+    }
+
+    /// Creates image data from a test asset, or returns nil if not found
+    private func testImageData(for imageName: String) -> Data? {
+        guard let image = UIImage(named: imageName) else { return nil }
+        return image.jpegData(compressionQuality: 0.8)
     }
 #endif
