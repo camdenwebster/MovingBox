@@ -11,6 +11,7 @@ import Sentry
 import StoreKit
 import SwiftUI
 import SwiftUIBackports
+import UserNotifications
 
 enum SettingsSection: Hashable {
     case categories
@@ -196,6 +197,17 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Notifications") {
+                NavigationLink(value: "notifications") {
+                    Label {
+                        Text("Notifications")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "bell.badge")
+                    }
+                }
+            }
+
             Section {
                 HStack {
                     Label {
@@ -374,6 +386,7 @@ struct SettingsView: View {
             case "locations": LocationSettingsView()
             case "labels": LabelSettingsView()
             case "syncData": SyncDataSettingsView()
+            case "notifications": NotificationSettingsView()
             case "importData": ImportDataView()
             case "exportData": ExportDataView()
             case "deleteData": DataDeletionView()
@@ -464,31 +477,195 @@ struct AppearanceSettingsView: View {
 }
 
 struct NotificationSettingsView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var isRequesting = false
+
     var body: some View {
-        Text("Notifications Settings Here")
+        Form {
+            Section("Status") {
+                HStack {
+                    Label {
+                        Text(statusTitle)
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: statusIcon)
+                            .foregroundStyle(statusColor)
+                    }
+
+                    Spacer()
+
+                    Text(statusDetail)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Analysis Alerts") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Get notified when multi-item analysis finishes in the background.")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+
+                    Text("Example: “Item analysis ready — tap to review detected items.”")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section {
+                switch authorizationStatus {
+                case .notDetermined:
+                    Button {
+                        Task {
+                            await requestPermissions()
+                        }
+                    } label: {
+                        Label("Enable Notifications", systemImage: "bell.badge.fill")
+                    }
+                    .disabled(isRequesting)
+
+                case .denied:
+                    Button {
+                        openSystemSettings()
+                    } label: {
+                        Label("Open Settings", systemImage: "gear")
+                    }
+
+                case .authorized, .provisional, .ephemeral:
+                    Button {
+                        openSystemSettings()
+                    } label: {
+                        Label("Manage in Settings", systemImage: "gear")
+                    }
+
+                @unknown default:
+                    EmptyView()
+                }
+            }
+        }
+        .navigationTitle("Notifications")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            Task {
+                await refreshStatus()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task {
+                    await refreshStatus()
+                }
+            }
+        }
+    }
+
+    private var statusTitle: String {
+        switch authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return "Enabled"
+        case .denied:
+            return "Disabled"
+        case .notDetermined:
+            return "Not Enabled"
+        @unknown default:
+            return "Unknown"
+        }
+    }
+
+    private var statusDetail: String {
+        switch authorizationStatus {
+        case .authorized:
+            return "Authorized"
+        case .provisional:
+            return "Provisional"
+        case .ephemeral:
+            return "Temporary"
+        case .denied:
+            return "Denied"
+        case .notDetermined:
+            return "Not requested"
+        @unknown default:
+            return "Unknown"
+        }
+    }
+
+    private var statusIcon: String {
+        switch authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return "checkmark.circle.fill"
+        case .denied:
+            return "xmark.circle.fill"
+        case .notDetermined:
+            return "bell.badge"
+        @unknown default:
+            return "questionmark.circle"
+        }
+    }
+
+    private var statusColor: Color {
+        switch authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return .green
+        case .denied:
+            return .red
+        case .notDetermined:
+            return .orange
+        @unknown default:
+            return .secondary
+        }
+    }
+
+    private func refreshStatus() async {
+        let center = UNUserNotificationCenter.current()
+        authorizationStatus = await center.notificationSettings().authorizationStatus
+    }
+
+    private func requestPermissions() async {
+        isRequesting = true
+        defer { isRequesting = false }
+        do {
+            let center = UNUserNotificationCenter.current()
+            _ = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+            await refreshStatus()
+        } catch {
+            await refreshStatus()
+        }
+    }
+
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 }
 
 struct AISettingsView: View {
     @State private var isEditing = false
     @EnvironmentObject var settings: SettingsManager
-    let models = ["gpt-4o", "gpt-4o-mini"]
+    private let modelOptions: [(id: String, label: String)] = [
+        ("google/gemini-3-flash-preview", "Gemini 3 Flash")
+    ]
     @FocusState private var isApiKeyFieldFocused: Bool
+
+    private var currentModelLabel: String {
+        modelOptions.first(where: { $0.id == settings.aiModel })?.label ?? settings.aiModel
+    }
 
     var body: some View {
         Form {
             Section(header: Text("Model Settings")) {
                 if isEditing {
                     Picker("Model", selection: $settings.aiModel) {
-                        ForEach(models, id: \.self) { model in
-                            Text(model)
+                        ForEach(modelOptions, id: \.id) { option in
+                            Text(option.label)
+                                .tag(option.id)
                         }
                     }
                 } else {
                     HStack {
                         Text("Model")
                         Spacer()
-                        Text(settings.aiModel)
+                        Text(currentModelLabel)
                             .foregroundStyle(.secondary)
                     }
                 }

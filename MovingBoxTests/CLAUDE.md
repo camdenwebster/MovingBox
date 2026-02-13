@@ -69,12 +69,12 @@ assertSnapshot(of: view, as: .image(layout: .device(config: .iPhone14Pro)))
 
 ```swift
 // Use protocol-based mocking
-class MockOpenAIService: OpenAIServiceProtocol {
+class MockAIAnalysisService: AIAnalysisServiceProtocol {
     var shouldFail = false
     var mockResponse: ImageDetails?
 
     func getImageDetails(...) async throws -> ImageDetails {
-        if shouldFail { throw OpenAIError.invalidData }
+        if shouldFail { throw AIAnalysisError.invalidData }
         return mockResponse ?? ImageDetails.empty()
     }
 }
@@ -87,5 +87,5 @@ class MockOpenAIService: OpenAIServiceProtocol {
 | `CurrencyFormatterTests.swift` | Currency formatting |
 | `SettingsManagerTests.swift` | User preferences |
 | `DataManagerTests.swift` | CSV/ZIP export |
-| `OpenAIServiceTests.swift` | AI analysis |
+| `AIAnalysisServiceTests.swift` | AI analysis |
 | `SnapshotTests.swift` | View rendering |

@@ -52,7 +52,7 @@ struct OnboardingItemView: View {
                                         icon: "exclamationmark.triangle",
                                         iconColor: .orange,
                                         title: "AI Processing",
-                                        description: "OpenAI will process your photos"
+                                        description: "Google Gemini AI will process your photos"
                                     )
                                 }
                                 .padding(20)
@@ -61,8 +61,8 @@ struct OnboardingItemView: View {
                                         .fill(.ultraThinMaterial)
                                 }
 
-                                Button("Read OpenAI's Privacy Policy") {
-                                    if let url = URL(string: "https://openai.com/policies/privacy-policy") {
+                                Button("Read Google's Privacy Policy") {
+                                    if let url = URL(string: "https://policies.google.com/privacy") {
                                         UIApplication.shared.open(url)
                                     }
                                 }
@@ -108,7 +108,7 @@ struct OnboardingItemView: View {
             }
         } message: {
             Text(
-                "Photos you take will be processed by OpenAI's vision API. Please ensure no sensitive information is visible in your photos.\n\nAI can make mistakes and may not always accurately identify items."
+                "Photos you take will be processed by Google's Gemini AI. Please ensure no sensitive information is visible in your photos.\n\nAI can make mistakes and may not always accurately identify items."
             )
         }
     }

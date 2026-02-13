@@ -39,12 +39,16 @@ struct HighResolutionAnalysisTests {
             let currentHighQualityEnabled = settingsManager.highQualityAnalysisEnabled
 
             if currentProStatus && currentHighQualityEnabled {
-                #expect(effectiveModel == "gpt-5-mini", "Pro users with high quality should use gpt-5-mini")
+                #expect(
+                    effectiveModel == "google/gemini-3-flash-preview",
+                    "Pro users with high quality should use google/gemini-3-flash-preview")
                 #expect(
                     effectiveResolution == 1250.0, "Pro users with high quality should use 1250px resolution")
                 #expect(effectiveDetail == "high", "Pro users with high quality should use high detail")
             } else {
-                #expect(effectiveModel == "gpt-4o", "Standard users should use gpt-4o")
+                #expect(
+                    effectiveModel == "google/gemini-3-flash-preview",
+                    "Standard users should use google/gemini-3-flash-preview")
                 #expect(effectiveResolution == 512.0, "Standard users should use 512px resolution")
                 #expect(effectiveDetail == "low", "Standard users should use low detail")
             }
@@ -69,12 +73,12 @@ struct HighResolutionAnalysisTests {
 
             if settingsManager.isPro && settingsManager.highQualityAnalysisEnabled {
                 #expect(
-                    settingsManager.effectiveAIModel == "gpt-5-mini",
-                    "Pro users with high quality enabled should use gpt-5-mini")
+                    settingsManager.effectiveAIModel == "google/gemini-3-flash-preview",
+                    "Pro users with high quality enabled should use google/gemini-3-flash-preview")
             } else {
                 #expect(
-                    settingsManager.effectiveAIModel == "gpt-4o",
-                    "Standard users or Pro users with high quality disabled should use gpt-4o")
+                    settingsManager.effectiveAIModel == "google/gemini-3-flash-preview",
+                    "Standard users or Pro users with high quality disabled should use google/gemini-3-flash-preview")
             }
         }
     }
@@ -226,7 +230,7 @@ struct HighResolutionAnalysisTests {
         telemetryManager.trackAIAnalysisStarted(
             isProUser: true,
             useHighQuality: true,
-            model: "gpt-5-mini",
+            model: "google/gemini-3-flash-preview",
             detailLevel: "high",
             imageResolution: 1250.0,
             imageCount: 2
@@ -236,7 +240,7 @@ struct HighResolutionAnalysisTests {
         telemetryManager.trackAIAnalysisCompleted(
             isProUser: true,
             useHighQuality: true,
-            model: "gpt-5-mini",
+            model: "google/gemini-3-flash-preview",
             detailLevel: "high",
             imageResolution: 1250.0,
             imageCount: 2,
@@ -290,8 +294,8 @@ struct HighResolutionAnalysisTests {
                         settingsManager.effectiveImageResolution == 1250.0,
                         "Pro users with high quality should get 1250px resolution")
                     #expect(
-                        settingsManager.effectiveAIModel == "gpt-5-mini",
-                        "Pro users with high quality should use gpt-5-mini model")
+                        settingsManager.effectiveAIModel == "google/gemini-3-flash-preview",
+                        "Pro users with high quality should use google/gemini-3-flash-preview model")
                     #expect(
                         settingsManager.effectiveDetailLevel == "high",
                         "Pro users with high quality should use high detail level")
@@ -301,8 +305,8 @@ struct HighResolutionAnalysisTests {
                         settingsManager.effectiveImageResolution == 512.0,
                         "Pro users with high quality disabled should get 512px resolution")
                     #expect(
-                        settingsManager.effectiveAIModel == "gpt-4o",
-                        "Pro users with high quality disabled should use gpt-4o model")
+                        settingsManager.effectiveAIModel == "google/gemini-3-flash-preview",
+                        "Pro users with high quality disabled should use google/gemini-3-flash-preview model")
                     #expect(
                         settingsManager.effectiveDetailLevel == "low",
                         "Pro users with high quality disabled should use low detail level")
@@ -311,7 +315,7 @@ struct HighResolutionAnalysisTests {
                 // Non-Pro user tests
                 #expect(settingsManager.isHighQualityToggleAvailable == false)
                 #expect(settingsManager.effectiveImageResolution == 512.0)
-                #expect(settingsManager.effectiveAIModel == "gpt-4o")
+                #expect(settingsManager.effectiveAIModel == "google/gemini-3-flash-preview")
                 #expect(settingsManager.effectiveDetailLevel == "low")
             }
         }
@@ -335,7 +339,7 @@ struct HighResolutionAnalysisTests {
                 "High quality should be disabled after reset")
 
             // Model should be back to default
-            #expect(settingsManager.aiModel == "gpt-4o", "AI model should be back to default")
+            #expect(settingsManager.aiModel == "google/gemini-3-flash-preview", "AI model should be back to default")
         }
     }
 
@@ -352,7 +356,7 @@ struct HighResolutionAnalysisTests {
 
                 // Test that effective settings are consistent
                 #expect(settingsManager.effectiveImageResolution == 1250.0)
-                #expect(settingsManager.effectiveAIModel == "gpt-5-mini")
+                #expect(settingsManager.effectiveAIModel == "google/gemini-3-flash-preview")
                 #expect(settingsManager.effectiveDetailLevel == "high")
 
                 // Return settings for async image processing
