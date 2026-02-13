@@ -1,5 +1,5 @@
+import CoreGraphics
 import Testing
-import UIKit
 
 @testable import MovingBoxAIAnalysis
 
@@ -65,7 +65,7 @@ struct AIRequestBuilderTests {
 // MARK: - Test Doubles
 
 private struct MockImageOptimizer: AIImageOptimizer {
-    func optimizeImage(_ image: UIImage, maxDimension: CGFloat) async -> UIImage {
+    func optimizeImage(_ image: AIImage, maxDimension: CGFloat) async -> AIImage {
         image
     }
 }

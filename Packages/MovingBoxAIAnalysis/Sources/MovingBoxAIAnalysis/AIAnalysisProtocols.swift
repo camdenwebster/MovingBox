@@ -3,18 +3,18 @@
 //  MovingBoxAIAnalysis
 //
 
+import CoreGraphics
 import Foundation
-import UIKit
 
 // MARK: - Service Protocol
 
 public protocol AIAnalysisServiceProtocol {
-    func getImageDetails(from images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext) async throws
+    func getImageDetails(from images: [AIImage], settings: AIAnalysisSettings, context: AIAnalysisContext) async throws
         -> ImageDetails
-    func analyzeItem(from images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext) async throws
+    func analyzeItem(from images: [AIImage], settings: AIAnalysisSettings, context: AIAnalysisContext) async throws
         -> ImageDetails
     func getMultiItemDetails(
-        from images: [UIImage],
+        from images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String?,
@@ -25,7 +25,7 @@ public protocol AIAnalysisServiceProtocol {
 
 extension AIAnalysisServiceProtocol {
     public func getMultiItemDetails(
-        from images: [UIImage],
+        from images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String?
@@ -52,7 +52,7 @@ public protocol AIAnalysisSettings: Sendable {
 // MARK: - Image Optimizer Abstraction
 
 public protocol AIImageOptimizer: Sendable {
-    func optimizeImage(_ image: UIImage, maxDimension: CGFloat) async -> UIImage
+    func optimizeImage(_ image: AIImage, maxDimension: CGFloat) async -> AIImage
 }
 
 // MARK: - Telemetry Abstraction

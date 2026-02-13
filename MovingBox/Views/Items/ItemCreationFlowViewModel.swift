@@ -366,12 +366,18 @@ class ItemCreationFlowViewModel {
         streamedBatchCount = 0
         totalBatchCount = 0
 
+        let aiService = sharedAIAnalysisService
+        activeAIService = aiService
+        defer {
+            activeAIService = nil
+        }
+
         do {
             let response = try await videoAnalysisCoordinator.analyze(
                 videoAsset: asset,
                 settings: settings,
                 modelContext: context,
-                aiService: sharedAIAnalysisService,
+                aiService: aiService,
                 onProgress: { [weak self] progress in
                     guard let self else { return }
                     Task { @MainActor in

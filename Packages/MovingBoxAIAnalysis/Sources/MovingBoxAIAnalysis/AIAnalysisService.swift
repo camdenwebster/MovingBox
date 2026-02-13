@@ -5,11 +5,11 @@
 
 import AIProxy
 import Foundation
-import UIKit
 
 @MainActor
 public class AIAnalysisService: AIAnalysisServiceProtocol {
-    private var currentTask: Task<ImageDetails, Error>?
+    private var currentImageTask: Task<ImageDetails, Error>?
+    private var currentMultiItemTask: Task<MultiItemAnalysisResponse, Error>?
 
     private let requestBuilder: AIRequestBuilder
     private let responseParser = AIResponseParser()
@@ -21,37 +21,39 @@ public class AIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     public func getImageDetails(
-        from images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext
+        from images: [AIImage], settings: AIAnalysisSettings, context: AIAnalysisContext
     ) async throws -> ImageDetails {
-        currentTask?.cancel()
+        currentImageTask?.cancel()
+        currentMultiItemTask?.cancel()
 
-        currentTask = Task {
+        currentImageTask = Task {
             return try await performRequestWithRetry(images: images, settings: settings, context: context)
         }
 
         defer {
-            currentTask = nil
+            currentImageTask = nil
         }
 
-        return try await currentTask!.value
+        return try await currentImageTask!.value
     }
 
     public func analyzeItem(
-        from images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext
+        from images: [AIImage], settings: AIAnalysisSettings, context: AIAnalysisContext
     ) async throws -> ImageDetails {
         return try await performRequestWithRetry(images: images, settings: settings, context: context)
     }
 
     public func getMultiItemDetails(
-        from images: [UIImage],
+        from images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String? = nil,
         onPartialResponse: ((MultiItemAnalysisResponse) -> Void)? = nil
     ) async throws -> MultiItemAnalysisResponse {
-        currentTask?.cancel()
+        currentImageTask?.cancel()
+        currentMultiItemTask?.cancel()
 
-        let multiItemTask = Task<MultiItemAnalysisResponse, Error> {
+        currentMultiItemTask = Task<MultiItemAnalysisResponse, Error> {
             return try await performMultiItemStructuredResponseWithRetry(
                 images: images,
                 settings: settings,
@@ -62,21 +64,23 @@ public class AIAnalysisService: AIAnalysisServiceProtocol {
         }
 
         defer {
-            currentTask = nil
+            currentMultiItemTask = nil
         }
 
-        return try await multiItemTask.value
+        return try await currentMultiItemTask!.value
     }
 
     public func cancelCurrentRequest() {
-        currentTask?.cancel()
-        currentTask = nil
+        currentImageTask?.cancel()
+        currentMultiItemTask?.cancel()
+        currentImageTask = nil
+        currentMultiItemTask = nil
     }
 
     // MARK: - Multi-Item Structured Response Implementation
 
     private func performMultiItemStructuredResponseWithRetry(
-        images: [UIImage],
+        images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String?,
@@ -169,7 +173,7 @@ public class AIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     private func performSingleMultiItemStructuredRequest(
-        images: [UIImage],
+        images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String?,
@@ -407,7 +411,7 @@ public class AIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     private func performSingleMultiItemStructuredStreamingRequest(
-        images: [UIImage],
+        images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String?,
@@ -618,7 +622,7 @@ public class AIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     private func performSingleMultiItemFunctionRequest(
-        images: [UIImage],
+        images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String?,
@@ -725,7 +729,7 @@ public class AIAnalysisService: AIAnalysisServiceProtocol {
     // MARK: - Single-Item Analysis
 
     private func performRequestWithRetry(
-        images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext, maxAttempts: Int = 3
+        images: [AIImage], settings: AIAnalysisSettings, context: AIAnalysisContext, maxAttempts: Int = 3
     ) async throws -> ImageDetails {
         var lastError: Error?
 
@@ -838,7 +842,7 @@ public class AIAnalysisService: AIAnalysisServiceProtocol {
     }
 
     private func performSingleRequest(
-        images: [UIImage], settings: AIAnalysisSettings, context: AIAnalysisContext, attempt: Int, maxAttempts: Int
+        images: [AIImage], settings: AIAnalysisSettings, context: AIAnalysisContext, attempt: Int, maxAttempts: Int
     ) async throws -> ImageDetails {
         let startTime = Date()
         let imageCount = images.count

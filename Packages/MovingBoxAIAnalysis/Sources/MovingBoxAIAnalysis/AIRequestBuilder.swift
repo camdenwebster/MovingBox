@@ -5,7 +5,6 @@
 
 import AIProxy
 import Foundation
-import UIKit
 
 // MARK: - AI Property Configuration
 
@@ -151,20 +150,20 @@ public struct AIPromptConfiguration {
 struct FunctionParameterProperty: Codable {
     let type: String
     let description: String?
-    let enum_values: [String]?
+    let enumValues: [String]?
     let items: ArrayItemSchema?
 
-    init(type: String, description: String? = nil, enum_values: [String]? = nil, items: ArrayItemSchema? = nil) {
+    init(type: String, description: String? = nil, enumValues: [String]? = nil, items: ArrayItemSchema? = nil) {
         self.type = type
         self.description = description
-        self.enum_values = enum_values
+        self.enumValues = enumValues
         self.items = items
     }
 
     enum CodingKeys: String, CodingKey {
         case type
         case description
-        case enum_values = "enum"
+        case enumValues = "enum"
         case items
     }
 }
@@ -211,7 +210,7 @@ public struct AIRequestBuilder {
 
     @MainActor
     public func buildRequestBody(
-        with images: [UIImage],
+        with images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext
     ) async -> OpenRouterChatCompletionRequestBody {
@@ -220,7 +219,7 @@ public struct AIRequestBuilder {
 
     @MainActor
     public func buildMultiItemRequestBody(
-        with images: [UIImage],
+        with images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         narrationContext: String? = nil
@@ -236,7 +235,7 @@ public struct AIRequestBuilder {
 
     @MainActor
     private func buildRequestBody(
-        with images: [UIImage],
+        with images: [AIImage],
         settings: AIAnalysisSettings,
         context: AIAnalysisContext,
         isMultiItem: Bool,
@@ -368,7 +367,7 @@ public struct AIRequestBuilder {
             properties[propertyName] = FunctionParameterProperty(
                 type: getPropertyType(for: propertyName),
                 description: description,
-                enum_values: config.enumValues
+                enumValues: config.enumValues
             )
 
             if AIPromptConfiguration.coreProperties.keys.contains(propertyName) {
@@ -430,7 +429,7 @@ public struct AIRequestBuilder {
     @MainActor
     private func buildMessageContent(
         prompt: String,
-        images: [UIImage],
+        images: [AIImage],
         settings: AIAnalysisSettings
     ) async -> [OpenRouterChatCompletionRequestBody.Message] {
         var parts: [OpenRouterChatCompletionRequestBody.Message.UserContent.Part] = []
@@ -493,7 +492,7 @@ public struct AIRequestBuilder {
                 propertyDict["description"] = .string(description)
             }
 
-            if let enumValues = parameter.enum_values {
+            if let enumValues = parameter.enumValues {
                 propertyDict["enum"] = .array(enumValues.map { .string($0) })
             }
 

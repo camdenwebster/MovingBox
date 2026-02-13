@@ -1,15 +1,6 @@
 {
-  "originHash" : "bad92a52c6a522baafa9112b1e524952c97d333871611f0d2c2f2e57ad8c0276",
+  "originHash" : "4fb63195791a6cf64600f74c7d6d99e8aa1360bae384cebcd6ca5e6a8b38186c",
   "pins" : [
-    {
-      "identity" : "acknowlist",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/vtourraine/AcknowList",
-      "state" : {
-        "revision" : "2b8be7841af2eefa0e75640d0c1a2312a1ba75be",
-        "version" : "3.4.0"
-      }
-    },
     {
       "identity" : "aiproxyswift",
       "kind" : "remoteSourceControl",
@@ -17,114 +8,6 @@
       "state" : {
         "revision" : "443133123b08c97481c90712ecfa880d6d71c496",
         "version" : "0.145.0"
-      }
-    },
-    {
-      "identity" : "ios-backports",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/superwall/iOS-Backports",
-      "state" : {
-        "revision" : "06fccbe8fd9c16ab967a71abe50db99d272cfaf4",
-        "version" : "0.1.5"
-      }
-    },
-    {
-      "identity" : "purchases-ios-spm",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/RevenueCat/purchases-ios-spm.git",
-      "state" : {
-        "revision" : "d9155fd20755ce900878275d56e4878c7fdfe2c1",
-        "version" : "5.34.0"
-      }
-    },
-    {
-      "identity" : "sentry-cocoa",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/getsentry/sentry-cocoa/",
-      "state" : {
-        "revision" : "156495496cb101e2f0a6b059f12dafcff1912197",
-        "version" : "8.54.0"
-      }
-    },
-    {
-      "identity" : "swift-custom-dump",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-custom-dump",
-      "state" : {
-        "revision" : "82645ec760917961cfa08c9c0c7104a57a0fa4b1",
-        "version" : "1.3.3"
-      }
-    },
-    {
-      "identity" : "swift-snapshot-testing",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-snapshot-testing.git",
-      "state" : {
-        "revision" : "d7e40607dcd6bc26543f5d9433103f06e0b28f8f",
-        "version" : "1.18.6"
-      }
-    },
-    {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax",
-      "state" : {
-        "revision" : "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
-        "version" : "601.0.1"
-      }
-    },
-    {
-      "identity" : "swiftsdk",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/TelemetryDeck/SwiftSDK.git",
-      "state" : {
-        "revision" : "a7fd1eb469589a3c8fd8cc3abe19b092b5d674dc",
-        "version" : "2.9.4"
-      }
-    },
-    {
-      "identity" : "whatsnewkit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SvenTiigi/WhatsNewKit.git",
-      "state" : {
-        "revision" : "6157c77e8be9b3d2310bc680681b61a8d9e290ac",
-        "version" : "2.2.1"
-      }
-    },
-    {
-      "identity" : "wishkit-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/wishkit/wishkit-ios.git",
-      "state" : {
-        "revision" : "951b17b6b683c72d36627de77e8e26afcfbde6ae",
-        "version" : "4.7.0"
-      }
-    },
-    {
-      "identity" : "wishkit-ios-shared",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/wishkit/wishkit-ios-shared.git",
-      "state" : {
-        "revision" : "cd184932bcdbdc8766137ef8ecac63c424be93a7",
-        "version" : "1.5.0"
-      }
-    },
-    {
-      "identity" : "xctest-dynamic-overlay",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
-      "state" : {
-        "revision" : "b2ed9eabefe56202ee4939dd9fc46b6241c88317",
-        "version" : "1.6.1"
-      }
-    },
-    {
-      "identity" : "zipfoundation",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/weichsel/ZIPFoundation.git",
-      "state" : {
-        "revision" : "02b6abe5f6eef7e3cbd5f247c5cc24e246efcfe0",
-        "version" : "0.9.19"
       }
     }
   ],

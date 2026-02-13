@@ -182,23 +182,23 @@ struct LocationSelectionView: View {
             isPresented: $showingAddLocationSheet,
             onDismiss: {
                 handleAddLocationSheetDismissed()
+            },
+            content: {
+                NavigationStack {
+                    EditLocationView(
+                        location: nil,
+                        isEditing: true,
+                        presentedInSheet: true,
+                        home: pickedHome
+                    )
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
-        ) {
-            NavigationStack {
-                EditLocationView(
-                    location: nil,
-                    isEditing: true,
-                    presentedInSheet: true,
-                    home: pickedHome
-                )
-            }
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
-        }
+        )
     }
 
     private func handleAddLocationSheetDismissed() {
-        guard !locationIDsBeforeAddSheet.isEmpty else { return }
         defer { locationIDsBeforeAddSheet.removeAll() }
 
         let addedLocations = allLocations.filter { !locationIDsBeforeAddSheet.contains($0.id) }
