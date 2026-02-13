@@ -1,4 +1,5 @@
 import Dependencies
+import MovingBoxAIAnalysis
 import SQLiteData
 import SwiftUI
 
@@ -92,12 +93,15 @@ struct ItemAnalysisDetailView: View {
             throw AnalysisError.itemNotFound
         }
 
-        let openAi = OpenAIServiceFactory.create()
+        let aiService = AIAnalysisServiceFactory.create()
 
-        let imageDetails = try await openAi.getImageDetails(
+        // Build AIAnalysisContext from database
+        let context = await AIAnalysisContext.from(database: database, settings: settings)
+
+        let imageDetails = try await aiService.getImageDetails(
             from: [image],
             settings: settings,
-            database: database
+            context: context
         )
 
         let labels =

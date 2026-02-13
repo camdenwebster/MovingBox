@@ -1,5 +1,6 @@
 import AVFoundation
 import Dependencies
+import MovingBoxAIAnalysis
 import SQLiteData
 import StoreKit
 import SwiftUI
@@ -303,16 +304,19 @@ struct ItemCreationFlowView: View {
 
         do {
             guard await OptimizedImageManager.shared.prepareImageForAI(from: image) != nil else {
-                throw OpenAIError.invalidData
+                throw AIAnalysisError.invalidData
             }
 
-            let openAi = OpenAIServiceFactory.create()
+            let aiService = AIAnalysisServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            let imageDetails = try await openAi.getImageDetails(
+            // Build AIAnalysisContext from database
+            let context = await AIAnalysisContext.from(database: database, settings: settings)
+
+            let imageDetails = try await aiService.getImageDetails(
                 from: [capturedImage].compactMap { $0 },
                 settings: settings,
-                database: database
+                context: context
             )
 
             // Fetch labels and locations from SQLite
@@ -358,9 +362,9 @@ struct ItemCreationFlowView: View {
                     print("Error saving analysis results: \(error)")
                 }
             }
-        } catch let openAIError as OpenAIError {
+        } catch let aiError as AIAnalysisError {
             await MainActor.run {
-                errorMessage = openAIErrorMessage(openAIError)
+                errorMessage = aiError.userFriendlyMessage
                 processingImage = false
             }
         } catch {
@@ -382,16 +386,19 @@ struct ItemCreationFlowView: View {
                 from: images)
 
             guard !imageBase64Array.isEmpty else {
-                throw OpenAIError.invalidData
+                throw AIAnalysisError.invalidData
             }
 
-            let openAi = OpenAIServiceFactory.create()
+            let aiService = AIAnalysisServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            let imageDetails = try await openAi.getImageDetails(
+            // Build AIAnalysisContext from database
+            let context = await AIAnalysisContext.from(database: database, settings: settings)
+
+            let imageDetails = try await aiService.getImageDetails(
                 from: capturedImages,
                 settings: settings,
-                database: database
+                context: context
             )
 
             // Fetch labels and locations from SQLite
@@ -443,9 +450,9 @@ struct ItemCreationFlowView: View {
                     print("Error saving analysis results: \(error)")
                 }
             }
-        } catch let openAIError as OpenAIError {
+        } catch let aiError as AIAnalysisError {
             await MainActor.run {
-                errorMessage = openAIErrorMessage(openAIError)
+                errorMessage = aiError.userFriendlyMessage
                 processingImage = false
             }
         } catch {
@@ -550,20 +557,6 @@ struct ItemCreationFlowView: View {
 
         currentItem.hasUsedAI = true
         item = currentItem
-    }
-
-    private func openAIErrorMessage(_ error: OpenAIError) -> String {
-        switch error {
-        case .invalidURL: return "Invalid URL configuration"
-        case .invalidResponse: return "Error communicating with AI service"
-        case .invalidData: return "Unable to process AI response"
-        case .rateLimitExceeded: return "Rate limit exceeded, please try again later"
-        case .serverError(_): return "Server error: \(error.localizedDescription)"
-        case .networkCancelled: return "Request was cancelled. Please try again."
-        case .networkTimeout: return "Request timed out. Please check your connection and try again."
-        case .networkUnavailable: return "Network unavailable. Please check your internet connection."
-        @unknown default: return "Unknown AI service error"
-        }
     }
 }
 

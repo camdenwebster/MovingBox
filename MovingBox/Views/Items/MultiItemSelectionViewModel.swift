@@ -7,6 +7,7 @@
 
 import Dependencies
 import Foundation
+import MovingBoxAIAnalysis
 import SQLiteData
 import SwiftUI
 

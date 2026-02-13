@@ -1,6 +1,11 @@
+//
+//  AIAnalysisError.swift
+//  MovingBoxAIAnalysis
+//
+
 import Foundation
 
-public enum OpenAIError: Error, Sendable {
+public enum AIAnalysisError: Error {
     case invalidURL
     case invalidResponse(statusCode: Int, responseData: String)
     case invalidData
@@ -15,7 +20,7 @@ public enum OpenAIError: Error, Sendable {
         case .invalidURL:
             return "Invalid server configuration"
         case .invalidResponse(let statusCode, let responseData):
-            if let errorData = responseData.data(using: .utf8),
+            if let errorData = responseData.data(using: String.Encoding.utf8),
                 let errorDict = try? JSONSerialization.jsonObject(with: errorData) as? [String: Any],
                 let errorMessage = errorDict["error"] as? String
             {
@@ -39,7 +44,9 @@ public enum OpenAIError: Error, Sendable {
 
     public var isRetryable: Bool {
         switch self {
-        case .networkCancelled, .networkTimeout, .networkUnavailable, .rateLimitExceeded, .serverError:
+        case .networkCancelled, .networkTimeout, .networkUnavailable, .rateLimitExceeded:
+            return true
+        case .serverError:
             return true
         case .invalidURL, .invalidResponse, .invalidData:
             return false

@@ -6,6 +6,7 @@
 //
 
 import Dependencies
+import MovingBoxAIAnalysis
 import PDFKit
 import PhotosUI
 import QuickLook
@@ -1341,16 +1342,8 @@ struct InventoryDetailView: View {
                 await saveItemToSQLite()
 
                 isLoadingOpenAiResults = false
-            } catch OpenAIError.invalidURL {
-                errorMessage = "Invalid URL configuration"
-                showingErrorAlert = true
-                isLoadingOpenAiResults = false
-            } catch OpenAIError.invalidResponse {
-                errorMessage = "Error communicating with AI service"
-                showingErrorAlert = true
-                isLoadingOpenAiResults = false
-            } catch OpenAIError.invalidData {
-                errorMessage = "Unable to process AI response"
+            } catch let aiError as AIAnalysisError {
+                errorMessage = aiError.userFriendlyMessage
                 showingErrorAlert = true
                 isLoadingOpenAiResults = false
             } catch {
@@ -1364,7 +1357,7 @@ struct InventoryDetailView: View {
     private func callOpenAI() async throws -> ImageDetails {
         // Use all loaded images for AI analysis
         guard !loadedImages.isEmpty else {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         // Prepare all images for AI analysis
@@ -1376,17 +1369,20 @@ struct InventoryDetailView: View {
         }
 
         guard !imageBase64Array.isEmpty else {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
-        let openAi = OpenAIServiceFactory.create()
+        let aiService = AIAnalysisServiceFactory.create()
 
         TelemetryManager.shared.trackCameraAnalysisUsed()
 
-        return try await openAi.getImageDetails(
+        // Build AIAnalysisContext from database
+        let context = await AIAnalysisContext.from(database: database, settings: settings)
+
+        return try await aiService.getImageDetails(
             from: loadedImages,
             settings: settings,
-            database: database
+            context: context
         )
     }
 

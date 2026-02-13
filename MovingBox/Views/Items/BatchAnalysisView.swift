@@ -6,6 +6,7 @@
 //
 
 import Dependencies
+import MovingBoxAIAnalysis
 import SQLiteData
 import SwiftUI
 
@@ -220,11 +221,15 @@ struct BatchAnalysisView: View {
                 userInfo: [NSLocalizedDescriptionKey: "No images could be loaded"])
         }
 
-        let openAI = OpenAIServiceFactory.create()
-        let imageDetails = try await openAI.getImageDetails(
+        let aiService = AIAnalysisServiceFactory.create()
+
+        // Build AIAnalysisContext from database
+        let context = await AIAnalysisContext.from(database: database, settings: settings)
+
+        let imageDetails = try await aiService.getImageDetails(
             from: images,
             settings: settings,
-            database: database
+            context: context
         )
 
         try await database.write { db in

@@ -52,7 +52,7 @@ class MockOpenAIService: OpenAIServiceProtocol {
         from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter
     ) async throws -> ImageDetails {
         if shouldFail {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         // Simulate network delay
@@ -65,7 +65,7 @@ class MockOpenAIService: OpenAIServiceProtocol {
         from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter
     ) async throws -> MultiItemAnalysisResponse {
         if shouldFailMultiItem {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
         // Simulate network delay

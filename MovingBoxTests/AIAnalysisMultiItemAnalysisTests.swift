@@ -217,9 +217,9 @@ import UIKit
 
         let mockService = MockMultiItemOpenAIService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.rateLimitExceeded
+        mockService.multiItemError = AIAnalysisError.rateLimitExceeded
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -236,9 +236,9 @@ import UIKit
 
         let mockService = MockMultiItemOpenAIService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.invalidData
+        mockService.multiItemError = AIAnalysisError.invalidData
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -255,9 +255,9 @@ import UIKit
 
         let mockService = MockMultiItemOpenAIService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.networkUnavailable
+        mockService.multiItemError = AIAnalysisError.networkUnavailable
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -341,9 +341,9 @@ import UIKit
 
         let mockService = MockMultiItemOpenAIService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.networkTimeout
+        mockService.multiItemError = AIAnalysisError.networkTimeout
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -538,7 +538,7 @@ import UIKit
 @MainActor
 class MockMultiItemOpenAIService {
     var shouldFailMultiItem = false
-    var multiItemError: Error = OpenAIError.invalidData
+    var multiItemError: Error = AIAnalysisError.invalidData
     var simulatedDelay: TimeInterval = 0.5
 
     var mockMultiItemResponse = MultiItemAnalysisResponse(

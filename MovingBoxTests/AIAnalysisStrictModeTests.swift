@@ -88,8 +88,8 @@ struct OpenAIStrictModeTests {
             print("❌ OpenAI Service Error: \(error)")
 
             // Log specific error details
-            if let openAIError = error as? OpenAIError {
-                print("   OpenAI Error Type: \(openAIError)")
+            if let aiError = error as? AIAnalysisError {
+                print("   AI Analysis Error Type: \(aiError)")
             }
 
             // Don't fail the test for API errors - this is about testing behavior
@@ -111,7 +111,7 @@ struct OpenAIStrictModeTests {
         let openAIService = OpenAIService()
 
         // Should throw appropriate error for missing API key
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await openAIService.getMultiItemDetails(
                 from: [testImage],
                 settings: settings,
