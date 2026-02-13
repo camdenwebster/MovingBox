@@ -181,4 +181,45 @@ import Testing
         #expect(OnboardingManager.hasLaunchedKey == "hasLaunched")
         #expect(OnboardingManager.hasCompletedUsageSurveyKey == "hasCompletedUsageSurvey")
     }
+
+    @Test("Share invite existing-data detection requires homes and items")
+    func testShareInviteExistingDataDetection() async throws {
+        let database = try makeInMemoryDatabase()
+        let homeID = UUID()
+
+        let emptyState = await SceneDelegate.hasExistingDataForShareAcceptance(database: database)
+        #expect(!emptyState)
+
+        try await database.write { db in
+            try SQLiteHome.insert {
+                SQLiteHome(id: homeID, name: "Home")
+            }.execute(db)
+        }
+
+        let homeOnlyState = await SceneDelegate.hasExistingDataForShareAcceptance(database: database)
+        #expect(!homeOnlyState)
+
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Item", homeID: homeID)
+            }.execute(db)
+        }
+
+        let homeAndItemState = await SceneDelegate.hasExistingDataForShareAcceptance(database: database)
+        #expect(homeAndItemState)
+    }
+
+    @Test("Share invite existing-data detection ignores orphaned items without homes")
+    func testShareInviteExistingDataDetectionIgnoresOrphanedItems() async throws {
+        let database = try makeInMemoryDatabase()
+
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Orphaned Item")
+            }.execute(db)
+        }
+
+        let result = await SceneDelegate.hasExistingDataForShareAcceptance(database: database)
+        #expect(!result)
+    }
 }

@@ -40,6 +40,7 @@ struct MovingBoxApp: App {
         case splash
         case onboarding
         case joiningShare(CKShare.Metadata)
+        case acceptingShareExistingUser(CKShare.Metadata)
         case main
     }
 
@@ -205,6 +206,12 @@ struct MovingBoxApp: App {
                     .environment(\.disableAnimations, disableAnimations)
                 case .joiningShare(let metadata):
                     JoiningShareView(
+                        shareMetadata: metadata,
+                        onComplete: { appState = .main }
+                    )
+                    .environment(\.disableAnimations, disableAnimations)
+                case .acceptingShareExistingUser(let metadata):
+                    ExistingUserShareAcceptanceView(
                         shareMetadata: metadata,
                         onComplete: { appState = .main }
                     )
@@ -380,6 +387,12 @@ struct MovingBoxApp: App {
                     return
                 }
 
+                if let shareMetadata = ShareMetadataStore.shared.consumeExistingUserMetadata() {
+                    appState = .acceptingShareExistingUser(shareMetadata)
+                    TelemetryDeck.signal("appLaunched.acceptingShareExistingUser")
+                    return
+                }
+
                 appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
 
                 // Record that we've launched
@@ -468,6 +481,18 @@ struct MovingBoxApp: App {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(migrationErrorMessage ?? "")
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: ShareMetadataStore.existingUserShareMetadataDidChange
+                )
+            ) { _ in
+                guard !OnboardingManager.shouldShowWelcome(),
+                    let shareMetadata = ShareMetadataStore.shared.consumeExistingUserMetadata()
+                else { return }
+
+                appState = .acceptingShareExistingUser(shareMetadata)
+                TelemetryDeck.signal("shareInvite.acceptingShareExistingUser")
             }
             .environment(\.featureFlags, FeatureFlags(distribution: .current))
             .environment(\.whatsNew, .forMovingBox())

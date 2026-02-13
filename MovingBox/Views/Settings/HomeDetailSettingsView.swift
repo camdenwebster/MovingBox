@@ -5,6 +5,7 @@
 //  Created by Claude on 12/20/25.
 //
 
+import CloudKit
 import Dependencies
 import SQLiteData
 import SwiftUI
@@ -26,6 +27,10 @@ struct HomeDetailSettingsView: View {
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var photoIsLoading = false
+    @State private var sharingViewModel: FamilySharingViewModel?
+    @State private var showSharingSheet = false
+    @State private var showStopSharingConfirmation = false
+    @State private var showLeaveSharingConfirmation = false
 
     private let availableColors: [(name: String, color: Color)] = [
         ("green", .green),
@@ -105,14 +110,80 @@ struct HomeDetailSettingsView: View {
                 vm.setDatabase(database)
                 viewModel = vm
             }
+            if sharingViewModel == nil, let homeID {
+                sharingViewModel = FamilySharingViewModel(homeID: homeID)
+            }
         }
         .task(id: homeID) {
             if let vm = viewModel {
                 await vm.loadHomeData()
             }
+            if let sharingViewModel {
+                await sharingViewModel.fetchSharingState()
+            }
         }
         .onChange(of: allHomes) { _, newHomes in
             viewModel?.updateAllHomesProvider { newHomes }
+        }
+        .sheet(
+            isPresented: $showSharingSheet,
+            onDismiss: {
+                Task {
+                    await sharingViewModel?.fetchSharingState()
+                }
+            }
+        ) {
+            if let sharingViewModel {
+                CloudSharingPrepareView(
+                    viewModel: sharingViewModel,
+                    isPresented: $showSharingSheet
+                )
+            }
+        }
+        .confirmationDialog(
+            "Stop Sharing",
+            isPresented: $showStopSharingConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Stop Sharing", role: .destructive) {
+                Task {
+                    await sharingViewModel?.stopSharing()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All participants will lose access to this home.")
+        }
+        .confirmationDialog(
+            "Leave This Home",
+            isPresented: $showLeaveSharingConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Leave Home", role: .destructive) {
+                Task {
+                    await sharingViewModel?.leaveSharedHome()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You will lose access to this shared home.")
+        }
+        .alert(
+            "Sharing Error",
+            isPresented: Binding(
+                get: { sharingViewModel?.error != nil },
+                set: { newValue in
+                    if !newValue {
+                        sharingViewModel?.error = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK") {
+                sharingViewModel?.error = nil
+            }
+        } message: {
+            Text(sharingViewModel?.error ?? "")
         }
         .onDisappear {
             tempUIImage = nil
@@ -152,6 +223,7 @@ struct HomeDetailSettingsView: View {
             homeDetailsSection(viewModel: viewModel)
             addressSection(viewModel: viewModel)
             organizationSection(viewModel: viewModel)
+            sharingSection(viewModel: viewModel)
             deleteSection(viewModel: viewModel)
         }
     }
@@ -326,6 +398,86 @@ struct HomeDetailSettingsView: View {
                     LocationSettingsView(homeID: viewModel.originalHomeID)
                 } label: {
                     Label("Locations", systemImage: "map")
+                }
+            }
+        }
+    }
+
+    // MARK: - Sharing Section
+
+    @ViewBuilder
+    private func sharingSection(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if !viewModel.isNewHome, !viewModel.isEditing, let sharingViewModel {
+            Section {
+                HStack {
+                    Label {
+                        Text("Status")
+                    } icon: {
+                        Image(systemName: sharingViewModel.isSharing ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(sharingViewModel.isSharing ? .green : .secondary)
+                    }
+                    Spacer()
+                    if sharingViewModel.isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else if sharingViewModel.isSharing {
+                        Text("Shared with \(sharingViewModel.participantCount) people")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Not Shared")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if sharingViewModel.isSharing && !sharingViewModel.isOwner {
+                    HStack {
+                        Label("Shared by", systemImage: "person.fill")
+                        Spacer()
+                        Text(sharingViewModel.ownerName)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if sharingViewModel.isSharing && !sharingViewModel.participants.isEmpty {
+                    ForEach(sharingViewModel.participants, id: \.userIdentity) { participant in
+                        homeParticipantRow(participant: participant)
+                    }
+                }
+
+                if sharingViewModel.isSharing {
+                    Button("Manage Sharing", systemImage: "person.2.badge.gearshape") {
+                        showSharingSheet = true
+                    }
+
+                    if sharingViewModel.isOwner {
+                        Button("Stop Sharing", systemImage: "xmark.circle", role: .destructive) {
+                            showStopSharingConfirmation = true
+                        }
+                    } else {
+                        Button(
+                            "Leave This Home",
+                            systemImage: "rectangle.portrait.and.arrow.right",
+                            role: .destructive
+                        ) {
+                            showLeaveSharingConfirmation = true
+                        }
+                    }
+                } else if settings.isPro {
+                    Button("Share This Home", systemImage: "person.badge.plus") {
+                        showSharingSheet = true
+                    }
+                } else {
+                    Button("Share This Home (Pro)", systemImage: "person.badge.plus") {
+                        router.navigate(to: .subscriptionSettingsView)
+                    }
+                }
+            } header: {
+                Text("Sharing")
+            } footer: {
+                if !settings.isPro && !sharingViewModel.isSharing {
+                    Text("A Pro subscription is required to start sharing.")
+                } else {
+                    Text("Sharing is managed per home.")
                 }
             }
         }
@@ -509,6 +661,25 @@ struct HomeDetailSettingsView: View {
             lines.append(cityStateParts.joined(separator: ", "))
         }
         return lines.joined(separator: "\n")
+    }
+
+    @ViewBuilder
+    private func homeParticipantRow(participant: CKShare.Participant) -> some View {
+        HStack {
+            Image(systemName: participant.role == .owner ? "crown.fill" : "person.fill")
+                .foregroundStyle(participant.role == .owner ? .yellow : .blue)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(participant.userIdentity.nameComponents?.formatted() ?? "Unknown")
+                    .font(.body)
+                Text(participant.role == .owner ? "Owner" : "Member")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
     }
 }
 

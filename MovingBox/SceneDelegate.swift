@@ -7,11 +7,15 @@
 
 import CloudKit
 import Dependencies
+import OSLog
 import SQLiteData
 import UIKit
 
+private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "SceneDelegate")
+
 class SceneDelegate: NSObject, UIWindowSceneDelegate {
     @Dependency(\.defaultSyncEngine) var syncEngine
+    @Dependency(\.defaultDatabase) var database
 
     func scene(
         _ scene: UIScene,
@@ -20,17 +24,7 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate {
     ) {
         // Handle share acceptance when app launches from share invitation
         if let shareMetadata = connectionOptions.cloudKitShareMetadata {
-            if OnboardingManager.shouldShowWelcome() {
-                // First launch from share link — defer to joining flow
-                MainActor.assumeIsolated {
-                    ShareMetadataStore.shared.pendingShareMetadata = shareMetadata
-                }
-            } else {
-                // Already onboarded — accept immediately
-                Task {
-                    try? await syncEngine.acceptShare(metadata: shareMetadata)
-                }
-            }
+            handleShareMetadata(shareMetadata)
         }
     }
 
@@ -39,8 +33,49 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate {
         userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
     ) {
         // Handle share acceptance when app is already running
+        handleShareMetadata(cloudKitShareMetadata)
+    }
+
+    private func handleShareMetadata(_ shareMetadata: CKShare.Metadata) {
+        if OnboardingManager.shouldShowWelcome() {
+            // First launch from share link — defer to joining flow.
+            MainActor.assumeIsolated {
+                ShareMetadataStore.shared.pendingShareMetadata = shareMetadata
+            }
+            return
+        }
+
         Task {
-            try? await syncEngine.acceptShare(metadata: cloudKitShareMetadata)
+            let hasExistingData = await Self.hasExistingDataForShareAcceptance(database: database)
+            if hasExistingData {
+                await MainActor.run {
+                    ShareMetadataStore.shared.queueExistingUserMetadata(shareMetadata)
+                }
+            } else {
+                do {
+                    try await syncEngine.acceptShare(metadata: shareMetadata)
+                } catch {
+                    logger.error("Failed to silently accept empty-state share: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Existing-user acceptance flow should appear only when the user has
+    /// actual local inventory data to reconcile.
+    static func hasExistingDataForShareAcceptance(database: any DatabaseReader) async -> Bool {
+        do {
+            let counts = try await database.read { db in
+                (
+                    homes: try SQLiteHome.count().fetchOne(db) ?? 0,
+                    items: try SQLiteInventoryItem.count().fetchOne(db) ?? 0
+                )
+            }
+            return counts.homes > 0 && counts.items > 0
+        } catch {
+            logger.error("Failed to inspect local data before share acceptance: \(error.localizedDescription)")
+            // Be conservative: prefer showing explicit flow over silent accept.
+            return true
         }
     }
 }

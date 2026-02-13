@@ -75,8 +75,8 @@ struct DataManagerTests {
 
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
-            // Photo export from BLOBs will be added in Phase 8
             #expect(archive.contains { $0.path == "inventory.csv" })
+            #expect(archive.contains { $0.path.hasPrefix("photos/item-") })
         } catch {
             Issue.record("Unable to open archive: \(error)")
         }
@@ -93,6 +93,14 @@ struct DataManagerTests {
                 SQLiteInventoryLocation(
                     id: locationID, name: "Test Location", desc: "Test Notes")
             }.execute(db)
+            let locationPhoto = UIImage(systemName: "shippingbox.fill")!.pngData()!
+            try SQLiteInventoryLocationPhoto.insert {
+                SQLiteInventoryLocationPhoto(
+                    id: UUID(),
+                    inventoryLocationID: locationID,
+                    data: locationPhoto
+                )
+            }.execute(db)
             try SQLiteInventoryItem.insert {
                 SQLiteInventoryItem(id: UUID(), title: "Test Item", locationID: locationID)
             }.execute(db)
@@ -106,7 +114,7 @@ struct DataManagerTests {
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "locations.csv" })
-            #expect(archive.contains { $0.path.hasPrefix("photos/") })
+            #expect(archive.contains { $0.path.hasPrefix("photos/location-") })
         } catch {
             Issue.record("Unable to open archive: \(error)")
         }
@@ -142,6 +150,16 @@ struct DataManagerTests {
             try SQLiteInventoryItem.fetchAll(db)
         }
         #expect(items.count == 2)
+
+        let itemPhotos = try await database.read { db in
+            try SQLiteInventoryItemPhoto.fetchAll(db)
+        }
+        #expect(itemPhotos.count == 2)
+
+        let locationPhotos = try await database.read { db in
+            try SQLiteInventoryLocationPhoto.fetchAll(db)
+        }
+        #expect(locationPhotos.count == 2)
 
         try? FileManager.default.removeItem(at: zipURL)
     }

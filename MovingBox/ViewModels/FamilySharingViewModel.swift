@@ -20,6 +20,7 @@ final class FamilySharingViewModel {
     var error: String?
     var existingShare: CKShare?
     var shareRecord: SharedRecord?
+    var homeName: String = "Home"
 
     // MARK: - Computed Properties
 
@@ -43,6 +44,17 @@ final class FamilySharingViewModel {
         return owner.userIdentity.nameComponents?.formatted() ?? "Owner"
     }
 
+    var participantCount: Int {
+        existingShare?.participants.filter { $0.role != .owner }.count ?? 0
+    }
+
+    var sharingTitle: String {
+        if homeName.isEmpty {
+            return "MovingBox Home"
+        }
+        return homeName
+    }
+
     // MARK: - Dependencies
 
     @ObservationIgnored
@@ -53,32 +65,33 @@ final class FamilySharingViewModel {
 
     // MARK: - Initialization
 
-    init() {}
+    private let scopedHomeID: UUID?
+
+    init(homeID: UUID? = nil) {
+        self.scopedHomeID = homeID
+    }
 
     // MARK: - Public Methods
 
-    /// Fetches the current sharing state for the first home (used as the share root)
+    /// Fetches the current sharing state for the scoped home.
+    /// If no home ID is scoped, falls back to primary home (or first home) for backward compatibility.
     func fetchSharingState() async {
         isLoading = true
         error = nil
 
         do {
-            // Get the first home to use as the share root
-            guard
-                let home = try await database.read({ db in
-                    try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)
-                        ?? SQLiteHome.fetchAll(db).first
-                })
-            else {
+            guard let home = try await loadTargetHome() else {
                 isLoading = false
                 return
             }
+            homeName = resolvedHomeName(from: home)
 
-            // Check if this home has an existing share
             if let metadata = try await database.read({ db in
                 try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
             }) {
                 existingShare = metadata.share
+            } else {
+                existingShare = nil
             }
         } catch {
             self.error = "Failed to fetch sharing state: \(error.localizedDescription)"
@@ -87,27 +100,22 @@ final class FamilySharingViewModel {
         isLoading = false
     }
 
-    /// Creates a share for all data by sharing the primary home
+    /// Creates a share for the scoped home.
     func createShare() async -> SharedRecord? {
         isLoading = true
         error = nil
 
         do {
-            // Get the primary home (or first home) to share
-            guard
-                let home = try await database.read({ db in
-                    try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)
-                        ?? SQLiteHome.fetchAll(db).first
-                })
-            else {
+            guard let home = try await loadTargetHome() else {
                 error = "No home found to share"
                 isLoading = false
                 return nil
             }
+            homeName = resolvedHomeName(from: home)
+            let title = sharingTitle
 
-            // Create the share
             let sharedRecord = try await syncEngine.share(record: home) { share in
-                share[CKShare.SystemFieldKey.title] = "MovingBox Data"
+                share[CKShare.SystemFieldKey.title] = title
             }
 
             self.shareRecord = sharedRecord
@@ -125,14 +133,10 @@ final class FamilySharingViewModel {
     /// Gets an existing share record for presenting the sharing UI
     func getShareRecord() async -> SharedRecord? {
         do {
-            guard
-                let home = try await database.read({ db in
-                    try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)
-                        ?? SQLiteHome.fetchAll(db).first
-                })
-            else {
+            guard let home = try await loadTargetHome() else {
                 return nil
             }
+            homeName = resolvedHomeName(from: home)
 
             // If we already have a share, return it
             if let existingRecord = shareRecord {
@@ -162,12 +166,7 @@ final class FamilySharingViewModel {
         error = nil
 
         do {
-            guard
-                let home = try await database.read({ db in
-                    try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)
-                        ?? SQLiteHome.fetchAll(db).first
-                })
-            else {
+            guard let home = try await loadTargetHome() else {
                 isLoading = false
                 return
             }
@@ -180,5 +179,42 @@ final class FamilySharingViewModel {
         }
 
         isLoading = false
+    }
+
+    /// Leaves an existing share for the scoped home as the current participant.
+    func leaveSharedHome() async {
+        isLoading = true
+        error = nil
+
+        do {
+            guard let home = try await loadTargetHome() else {
+                isLoading = false
+                return
+            }
+
+            try await syncEngine.unshare(record: home)
+            existingShare = nil
+            shareRecord = nil
+        } catch {
+            self.error = "Failed to leave shared home: \(error.localizedDescription)"
+        }
+
+        isLoading = false
+    }
+
+    private func loadTargetHome() async throws -> SQLiteHome? {
+        try await database.read { db in
+            if let scopedHomeID {
+                return try SQLiteHome.find(scopedHomeID).fetchOne(db)
+            }
+            return try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)
+                ?? SQLiteHome.fetchAll(db).first
+        }
+    }
+
+    private func resolvedHomeName(from home: SQLiteHome) -> String {
+        if !home.name.isEmpty { return home.name }
+        if !home.address1.isEmpty { return home.address1 }
+        return "Home"
     }
 }

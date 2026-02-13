@@ -178,7 +178,7 @@ actor DataManager {
                     var itemData: [ItemData] = []
                     var locationData: [LocationData] = []
                     var labelData: [LabelData] = []
-                    var allPhotoURLs: [URL] = []
+                    var allPhotoFiles: [ExportPhotoFile] = []
 
                     var totalSteps = 0
                     var completedSteps = 0
@@ -194,7 +194,7 @@ actor DataManager {
                         let result = try await self.fetchItemsForExport(database: database)
                         guard !result.items.isEmpty else { throw DataError.nothingToExport }
                         itemData = result.items
-                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        allPhotoFiles.append(contentsOf: result.photos)
 
                         completedSteps += 1
                         continuation.yield(
@@ -213,7 +213,7 @@ actor DataManager {
                             .fetchingData(phase: "locations", progress: Double(completedSteps) / Double(totalSteps)))
                         let result = try await self.fetchLocationsForExport(database: database)
                         locationData = result.locations
-                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        allPhotoFiles.append(contentsOf: result.photos)
 
                         completedSteps += 1
                         continuation.yield(
@@ -272,9 +272,9 @@ actor DataManager {
                     continuation.yield(.writingCSV(progress: Double(completedSteps) / Double(totalSteps)))
 
                     // Copy photos with progress
-                    if !allPhotoURLs.isEmpty {
-                        try await self.copyPhotosToDirectoryWithProgress(
-                            photoURLs: allPhotoURLs,
+                    if !allPhotoFiles.isEmpty {
+                        try await self.writePhotosToDirectoryWithProgress(
+                            photos: allPhotoFiles,
                             destinationDir: photosDir,
                             progressHandler: { current, total in
                                 continuation.yield(.copyingPhotos(current: current, total: total))
@@ -317,7 +317,7 @@ actor DataManager {
                         itemCount: itemData.count,
                         locationCount: locationData.count,
                         labelCount: labelData.count,
-                        photoCount: allPhotoURLs.count
+                        photoCount: allPhotoFiles.count
                     )
 
                     continuation.yield(.completed(result))
@@ -342,14 +342,14 @@ actor DataManager {
         var itemData: [ItemData] = []
         var locationData: [LocationData] = []
         var labelData: [LabelData] = []
-        var allPhotoURLs: [URL] = []
+        var allPhotoFiles: [ExportPhotoFile] = []
 
         // Fetch data — sqlite-data structs are value types, no MainActor needed
         if config.includeItems {
             let result = try await fetchItemsForExport(database: database)
             guard !result.items.isEmpty else { throw DataError.nothingToExport }
             itemData = result.items
-            allPhotoURLs.append(contentsOf: result.photoURLs)
+            allPhotoFiles.append(contentsOf: result.photos)
 
             let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824.0
             TelemetryManager.shared.trackExportBatchSize(
@@ -362,7 +362,7 @@ actor DataManager {
         if config.includeLocations {
             let result = try await fetchLocationsForExport(database: database)
             locationData = result.locations
-            allPhotoURLs.append(contentsOf: result.photoURLs)
+            allPhotoFiles.append(contentsOf: result.photos)
         }
 
         if config.includeLabels {
@@ -406,9 +406,8 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos in background to avoid blocking main thread
-        // Photo URLs were already collected during fetching
-        try await copyPhotosToDirectory(photoURLs: allPhotoURLs, destinationDir: photosDir)
+        // Write photo BLOB payloads into the ZIP staging directory.
+        try await writePhotosToDirectory(photos: allPhotoFiles, destinationDir: photosDir)
 
         // Create ZIP archive using unified helper
         let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)
@@ -513,15 +512,20 @@ actor DataManager {
         price: Decimal,
         insured: Bool,
         notes: String,
-        imageURL: URL?,
+        photoFilename: String?,
         hasUsedAI: Bool
     )
 
     private typealias LocationData = (
         name: String,
         desc: String,
-        imageURL: URL?
+        photoFilename: String?
     )
+
+    private struct ExportPhotoFile: Sendable, Hashable {
+        let filename: String
+        let data: Data
+    }
 
     private typealias LabelData = (
         name: String,
@@ -726,14 +730,13 @@ actor DataManager {
                         labelCache[label.name] = label.id
                     }
 
-                    // Collect image copy tasks for concurrent processing
-                    struct ImageCopyTask: Sendable {
+                    // Collect image import tasks for concurrent processing.
+                    struct ImageImportTask: Sendable {
                         let sourceURL: URL
-                        let destinationFilename: String
                         let targetID: UUID
                         let isLocation: Bool
                     }
-                    var imageCopyTasks: [ImageCopyTask] = []
+                    var imageImportTasks: [ImageImportTask] = []
 
                     // Import locations if enabled
                     if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
@@ -746,7 +749,6 @@ actor DataManager {
                             struct LocationParseData {
                                 let name: String
                                 let desc: String
-                                let photoFilename: String
                                 let photoURL: URL?
                             }
 
@@ -769,7 +771,6 @@ actor DataManager {
                                     LocationParseData(
                                         name: values[0],
                                         desc: values[1],
-                                        photoFilename: values[2],
                                         photoURL: photoURL
                                     ))
 
@@ -792,10 +793,9 @@ actor DataManager {
                                             ).execute(db)
 
                                             if let photoURL = data.photoURL {
-                                                imageCopyTasks.append(
-                                                    ImageCopyTask(
+                                                imageImportTasks.append(
+                                                    ImageImportTask(
                                                         sourceURL: photoURL,
-                                                        destinationFilename: data.photoFilename,
                                                         targetID: locationID,
                                                         isLocation: true
                                                     ))
@@ -829,10 +829,9 @@ actor DataManager {
                                         ).execute(db)
 
                                         if let photoURL = data.photoURL {
-                                            imageCopyTasks.append(
-                                                ImageCopyTask(
+                                            imageImportTasks.append(
+                                                ImageImportTask(
                                                     sourceURL: photoURL,
-                                                    destinationFilename: data.photoFilename,
                                                     targetID: locationID,
                                                     isLocation: true
                                                 ))
@@ -949,7 +948,6 @@ actor DataManager {
                                 let desc: String
                                 let locationName: String
                                 let labelName: String
-                                let photoFilename: String
                                 let photoURL: URL?
                             }
 
@@ -975,7 +973,6 @@ actor DataManager {
                                         desc: values[1],
                                         locationName: values[2],
                                         labelName: values[3],
-                                        photoFilename: photoFilename,
                                         photoURL: photoURL
                                     ))
 
@@ -1063,10 +1060,9 @@ actor DataManager {
                                             }
 
                                             if let photoURL = data.photoURL {
-                                                imageCopyTasks.append(
-                                                    ImageCopyTask(
+                                                imageImportTasks.append(
+                                                    ImageImportTask(
                                                         sourceURL: photoURL,
-                                                        destinationFilename: data.photoFilename,
                                                         targetID: itemID,
                                                         isLocation: false
                                                     ))
@@ -1160,10 +1156,9 @@ actor DataManager {
                                         }
 
                                         if let photoURL = data.photoURL {
-                                            imageCopyTasks.append(
-                                                ImageCopyTask(
+                                            imageImportTasks.append(
+                                                ImageImportTask(
                                                     sourceURL: photoURL,
-                                                    destinationFilename: data.photoFilename,
                                                     targetID: itemID,
                                                     isLocation: false
                                                 ))
@@ -1176,43 +1171,41 @@ actor DataManager {
                         }
                     }
 
-                    // Copy images sequentially in small batches to avoid memory issues with large imports
-                    if !imageCopyTasks.isEmpty {
-                        print("Copying \(imageCopyTasks.count) images...")
+                    // Read and insert photo blobs in batches to keep peak memory bounded.
+                    if !imageImportTasks.isEmpty {
+                        print("Importing \(imageImportTasks.count) photos...")
 
                         let imageBatchSize = 20
-                        for batchStart in stride(from: 0, to: imageCopyTasks.count, by: imageBatchSize) {
-                            let batchEnd = min(batchStart + imageBatchSize, imageCopyTasks.count)
-                            let batch = Array(imageCopyTasks[batchStart..<batchEnd])
+                        for batchStart in stride(from: 0, to: imageImportTasks.count, by: imageBatchSize) {
+                            let batchEnd = min(batchStart + imageBatchSize, imageImportTasks.count)
+                            let batch = Array(imageImportTasks[batchStart..<batchEnd])
 
-                            let copyResults = try await withThrowingTaskGroup(of: (Int, URL?, URL?).self) { group in
+                            let readResults = try await withThrowingTaskGroup(
+                                of: (Int, Data?).self
+                            ) { group in
                                 for (index, task) in batch.enumerated() {
                                     group.addTask {
                                         do {
-                                            let copiedURL = try self.copyImageToDocuments(
-                                                task.sourceURL, filename: task.destinationFilename)
-                                            return (batchStart + index, task.sourceURL, copiedURL)
+                                            try self.validateImageFile(task.sourceURL)
+                                            return (batchStart + index, try Data(contentsOf: task.sourceURL))
                                         } catch {
-                                            return (batchStart + index, task.sourceURL, nil)
+                                            return (batchStart + index, nil)
                                         }
                                     }
                                 }
 
-                                var results: [(Int, URL?, URL?)] = []
+                                var results: [(Int, Data?)] = []
                                 for try await result in group {
                                     results.append(result)
                                 }
                                 return results
                             }
 
-                            // Insert photo BLOBs from copied image files
                             try await database.write { db in
-                                for (originalIndex, _, copiedURL) in copyResults {
-                                    guard let copiedURL = copiedURL,
-                                        let imageData = try? Data(contentsOf: copiedURL)
-                                    else { continue }
+                                for (originalIndex, imageData) in readResults {
+                                    guard let imageData else { continue }
 
-                                    let task = imageCopyTasks[originalIndex]
+                                    let task = imageImportTasks[originalIndex]
 
                                     if task.isLocation {
                                         try SQLiteInventoryLocationPhoto.insert {
@@ -1289,11 +1282,11 @@ actor DataManager {
     /// using foreign key IDs.
     ///
     /// - Parameter database: DatabaseReader to read from
-    /// - Returns: Tuple of (item data array, photo URLs array)
+    /// - Returns: Tuple of (item data array, photo blobs to embed in ZIP)
     /// - Throws: DataError if fetch fails
     private func fetchItemsForExport(
         database: any DatabaseReader
-    ) async throws -> (items: [ItemData], photoURLs: [URL]) {
+    ) async throws -> (items: [ItemData], photos: [ExportPhotoFile]) {
         try await database.read { db in
             let items =
                 try SQLiteInventoryItem
@@ -1313,8 +1306,17 @@ actor DataManager {
             let allLabels = try SQLiteInventoryLabel.fetchAll(db)
             let labelsByID = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
 
+            let allItemPhotos =
+                try SQLiteInventoryItemPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let primaryItemPhotoByItemID = Dictionary(
+                grouping: allItemPhotos,
+                by: \.inventoryItemID
+            ).compactMapValues(\.first)
+
             var allItemData: [ItemData] = []
-            var allPhotoURLs: [URL] = []
+            var allPhotoFiles: [ExportPhotoFile] = []
 
             for item in items {
                 var locationName = ""
@@ -1335,6 +1337,15 @@ actor DataManager {
                     labelName = label.name
                 }
 
+                var photoFilename: String?
+                if let primaryPhoto = primaryItemPhotoByItemID[item.id] {
+                    let ext = self.photoFileExtension(for: primaryPhoto.data)
+                    let fileName =
+                        "item-\(item.id.uuidString.lowercased())-\(primaryPhoto.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = fileName
+                    allPhotoFiles.append(.init(filename: fileName, data: primaryPhoto.data))
+                }
+
                 allItemData.append(
                     (
                         title: item.title,
@@ -1349,45 +1360,60 @@ actor DataManager {
                         price: item.price,
                         insured: item.insured,
                         notes: item.notes,
-                        imageURL: nil,
+                        photoFilename: photoFilename,
                         hasUsedAI: item.hasUsedAI
                     ))
-
-                // TODO: Export photo BLOBs from inventoryItemPhotos table
             }
 
-            return (allItemData, allPhotoURLs)
+            return (allItemData, allPhotoFiles)
         }
     }
 
     /// Fetches all location data for export.
     ///
     /// - Parameter database: DatabaseReader to read from
-    /// - Returns: Tuple of (location data array, photo URLs array)
+    /// - Returns: Tuple of (location data array, photo blobs to embed in ZIP)
     /// - Throws: DataError if fetch fails
     private func fetchLocationsForExport(
         database: any DatabaseReader
-    ) async throws -> (locations: [LocationData], photoURLs: [URL]) {
+    ) async throws -> (locations: [LocationData], photos: [ExportPhotoFile]) {
         try await database.read { db in
             let locations =
                 try SQLiteInventoryLocation
                 .order(by: \.name)
                 .fetchAll(db)
 
+            let allLocationPhotos =
+                try SQLiteInventoryLocationPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let primaryLocationPhotoByLocationID = Dictionary(
+                grouping: allLocationPhotos,
+                by: \.inventoryLocationID
+            ).compactMapValues(\.first)
+
             var allLocationData: [LocationData] = []
-            let allPhotoURLs: [URL] = []
+            var allPhotoFiles: [ExportPhotoFile] = []
 
             for location in locations {
+                var photoFilename: String?
+                if let primaryPhoto = primaryLocationPhotoByLocationID[location.id] {
+                    let ext = self.photoFileExtension(for: primaryPhoto.data)
+                    let fileName =
+                        "location-\(location.id.uuidString.lowercased())-\(primaryPhoto.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = fileName
+                    allPhotoFiles.append(.init(filename: fileName, data: primaryPhoto.data))
+                }
+
                 allLocationData.append(
                     (
                         name: location.name,
                         desc: location.desc,
-                        imageURL: nil
+                        photoFilename: photoFilename
                     ))
-                // TODO: Export photo BLOBs from inventoryLocationPhotos table
             }
 
-            return (allLocationData, allPhotoURLs)
+            return (allLocationData, allPhotoFiles)
         }
     }
 
@@ -1494,37 +1520,34 @@ actor DataManager {
         }.value
     }
 
-    // MARK: - Photo Copy Helpers
+    // MARK: - Photo Export Helpers
 
-    private nonisolated func copyPhotosToDirectoryWithProgress(
-        photoURLs: [URL],
+    private nonisolated func writePhotosToDirectoryWithProgress(
+        photos: [ExportPhotoFile],
         destinationDir: URL,
         progressHandler: @escaping (Int, Int) -> Void
     ) async throws {
-        let maxConcurrentCopies = 5
-        var failedCopies: [(url: URL, error: Error)] = []
+        let maxConcurrentWrites = 5
+        var failedWrites: [(filename: String, error: Error)] = []
         var activeTasks = 0
         var completedCount = 0
-        let totalCount = photoURLs.count
+        let totalCount = photos.count
 
-        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
-            var pendingURLs = photoURLs[...]
+        try await withThrowingTaskGroup(of: (String, Error?).self) { group in
+            var pendingPhotos = photos[...]
 
-            while !pendingURLs.isEmpty || activeTasks > 0 {
-                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
+            while !pendingPhotos.isEmpty || activeTasks > 0 {
+                while activeTasks < maxConcurrentWrites, let photo = pendingPhotos.popFirst() {
                     activeTasks += 1
                     group.addTask {
                         do {
-                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
-                                return (photoURL, DataError.photoNotFound)
-                            }
-
-                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
+                            let fileName = self.sanitizeFilename(photo.filename)
+                            let dest = destinationDir.appendingPathComponent(fileName)
                             try? FileManager.default.removeItem(at: dest)
-                            try FileManager.default.copyItem(at: photoURL, to: dest)
-                            return (photoURL, nil)
+                            try photo.data.write(to: dest, options: .atomic)
+                            return (fileName, nil)
                         } catch {
-                            return (photoURL, error)
+                            return (photo.filename, error)
                         }
                     }
                 }
@@ -1534,7 +1557,7 @@ actor DataManager {
                     completedCount += 1
 
                     if let error = result.1 {
-                        failedCopies.append((url: result.0, error: error))
+                        failedWrites.append((filename: result.0, error: error))
                     }
 
                     // Report progress based on total photo count for optimal UX
@@ -1546,94 +1569,31 @@ actor DataManager {
             }
         }
 
-        if !failedCopies.isEmpty {
-            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
+        if !failedWrites.isEmpty {
+            let failureRate = Double(failedWrites.count) / Double(max(photos.count, 1))
             TelemetryManager.shared.trackPhotoCopyFailures(
-                failureCount: failedCopies.count,
-                totalPhotos: photoURLs.count,
+                failureCount: failedWrites.count,
+                totalPhotos: photos.count,
                 failureRate: failureRate
             )
 
-            // Log summary instead of individual failures to reduce console noise
-            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
-            let otherErrors = failedCopies.count - notFoundCount
-
-            print("Photo copy completed with \(failedCopies.count) failures:")
-            if notFoundCount > 0 {
-                print("   \(notFoundCount) photos not found (may have been deleted)")
-            }
-            if otherErrors > 0 {
-                print("   \(otherErrors) photos failed due to other errors")
-                // Log first few other errors for debugging
-                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
-                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
-                }
+            print("Photo export completed with \(failedWrites.count) write failures:")
+            for failure in failedWrites.prefix(3) {
+                print("   - \(failure.filename): \(failure.error.localizedDescription)")
             }
             print("   Export will continue without missing photos.")
         }
     }
 
-    private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
-        let maxConcurrentCopies = 5
-        var failedCopies: [(url: URL, error: Error)] = []
-        var activeTasks = 0
-
-        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
-            var pendingURLs = photoURLs[...]
-
-            while !pendingURLs.isEmpty || activeTasks > 0 {
-                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
-                    activeTasks += 1
-                    group.addTask {
-                        do {
-                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
-                                return (photoURL, DataError.photoNotFound)
-                            }
-
-                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
-                            try? FileManager.default.removeItem(at: dest)
-                            try FileManager.default.copyItem(at: photoURL, to: dest)
-                            return (photoURL, nil)
-                        } catch {
-                            return (photoURL, error)
-                        }
-                    }
-                }
-
-                if let result = try await group.next() {
-                    activeTasks -= 1
-                    if let error = result.1 {
-                        failedCopies.append((url: result.0, error: error))
-                    }
-                }
-            }
-        }
-
-        if !failedCopies.isEmpty {
-            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
-            TelemetryManager.shared.trackPhotoCopyFailures(
-                failureCount: failedCopies.count,
-                totalPhotos: photoURLs.count,
-                failureRate: failureRate
-            )
-
-            // Log summary instead of individual failures to reduce console noise
-            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
-            let otherErrors = failedCopies.count - notFoundCount
-
-            print("Photo copy completed with \(failedCopies.count) failures:")
-            if notFoundCount > 0 {
-                print("   \(notFoundCount) photos not found (may have been deleted)")
-            }
-            if otherErrors > 0 {
-                print("   \(otherErrors) photos failed due to other errors")
-                // Log first few other errors for debugging
-                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
-                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
-                }
-            }
-            print("   Export will continue without missing photos.")
-        }
+    private nonisolated func writePhotosToDirectory(
+        photos: [ExportPhotoFile],
+        destinationDir: URL
+    ) async throws {
+        try await writePhotosToDirectoryWithProgress(
+            photos: photos,
+            destinationDir: destinationDir,
+            progressHandler: { _, _ in }
+        )
     }
 
     // MARK: - Security Helpers
@@ -1651,7 +1611,37 @@ actor DataManager {
         return sanitized.isEmpty ? "unknown" : sanitized
     }
 
-    // MARK: - Image Copy Helpers
+    private nonisolated func photoFileExtension(for data: Data) -> String {
+        let bytes = [UInt8](data.prefix(12))
+        guard !bytes.isEmpty else { return "jpg" }
+
+        // JPEG magic number.
+        if bytes.count >= 3, bytes[0] == 0xFF, bytes[1] == 0xD8, bytes[2] == 0xFF {
+            return "jpg"
+        }
+
+        // PNG magic number.
+        if bytes.count >= 8,
+            bytes[0] == 0x89, bytes[1] == 0x50, bytes[2] == 0x4E, bytes[3] == 0x47,
+            bytes[4] == 0x0D, bytes[5] == 0x0A, bytes[6] == 0x1A, bytes[7] == 0x0A
+        {
+            return "png"
+        }
+
+        // HEIF/HEIC signature lives in ISO BMFF ftyp box.
+        if bytes.count >= 12 {
+            let brandData = Data(bytes[8..<12])
+            if let brand = String(data: brandData, encoding: .ascii),
+                ["heic", "heix", "hevc", "heif", "mif1"].contains(brand)
+            {
+                return "heic"
+            }
+        }
+
+        return "jpg"
+    }
+
+    // MARK: - Image Import Helpers
     private nonisolated func validateImageFile(_ url: URL) throws {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         let fileSize = attributes[.size] as? Int64 ?? 0
@@ -1668,22 +1658,6 @@ actor DataManager {
         guard allowedExtensions.contains(fileExtension) else {
             throw DataError.invalidFileType
         }
-    }
-
-    private nonisolated func copyImageToDocuments(_ sourceURL: URL, filename: String) throws -> URL {
-        try validateImageFile(sourceURL)
-
-        let sanitizedFilename = sanitizeFilename(filename)
-        let destURL = try FileManager.default.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ).appendingPathComponent(sanitizedFilename)
-
-        try? FileManager.default.removeItem(at: destURL)
-        try FileManager.default.copyItem(at: sourceURL, to: destURL)
-        return destURL
     }
 
     // MARK: - CSV Writing Helpers
@@ -1710,7 +1684,7 @@ actor DataManager {
                     item.price.description,
                     item.insured ? "true" : "false",
                     item.notes,
-                    item.imageURL?.lastPathComponent ?? "",
+                    item.photoFilename ?? "",
                     item.hasUsedAI ? "true" : "false",
                 ]
                 lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
@@ -1761,7 +1735,7 @@ actor DataManager {
                 let row: [String] = [
                     location.name,
                     location.desc,
-                    location.imageURL?.lastPathComponent ?? "",
+                    location.photoFilename ?? "",
                 ]
                 lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
             }
@@ -1818,11 +1792,20 @@ actor DataManager {
         let locationResult = try await fetchLocationsForExport(database: database)
         let labelData = try await fetchLabelsForExport(database: database)
 
-        // Extract item data and collect photo URLs
+        // Extract item data and collect photo blobs
         // SQLiteInventoryItem is a value type — no MainActor needed
-        let (itemData, itemPhotoURLs): ([ItemData], [URL]) = try await database.read { db in
+        let (itemData, itemPhotos): ([ItemData], [ExportPhotoFile]) = try await database.read { db in
             var itemData: [ItemData] = []
-            var photoURLs: [URL] = []
+            var photoFiles: [ExportPhotoFile] = []
+            let itemIDSet = Set(items.map(\.id))
+            let allItemPhotos =
+                try SQLiteInventoryItemPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let primaryPhotoByItemID = Dictionary(
+                grouping: allItemPhotos.filter { itemIDSet.contains($0.inventoryItemID) },
+                by: \.inventoryItemID
+            ).compactMapValues(\.first)
 
             for item in items {
                 // Get location name and home name via foreign keys
@@ -1851,6 +1834,15 @@ actor DataManager {
                     }
                 }
 
+                var photoFilename: String?
+                if let primaryPhoto = primaryPhotoByItemID[item.id] {
+                    let ext = self.photoFileExtension(for: primaryPhoto.data)
+                    let fileName =
+                        "item-\(item.id.uuidString.lowercased())-\(primaryPhoto.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = fileName
+                    photoFiles.append(.init(filename: fileName, data: primaryPhoto.data))
+                }
+
                 let data: ItemData = (
                     title: item.title,
                     desc: item.desc,
@@ -1864,18 +1856,18 @@ actor DataManager {
                     price: item.price,
                     insured: item.insured,
                     notes: item.notes,
-                    imageURL: nil,
+                    photoFilename: photoFilename,
                     hasUsedAI: item.hasUsedAI
                 )
                 itemData.append(data)
             }
 
-            return (itemData, photoURLs)
+            return (itemData, photoFiles)
         }
 
         let locationData = locationResult.locations
-        var allPhotoURLs = itemPhotoURLs
-        allPhotoURLs.append(contentsOf: locationResult.photoURLs)
+        var allPhotoFiles = itemPhotos
+        allPhotoFiles.append(contentsOf: locationResult.photos)
 
         let archiveName =
             fileName ?? "Selected-Items-export-\(DateFormatter.exportDateFormatter.string(from: .init()))"
@@ -1909,9 +1901,9 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos in background - deduplicate URLs
-        let uniquePhotoURLs = Array(Set(allPhotoURLs))
-        try await copyPhotosToDirectory(photoURLs: uniquePhotoURLs, destinationDir: photosDir)
+        // Write photos from BLOB payloads into the ZIP staging directory.
+        let uniquePhotoFiles = Array(Set(allPhotoFiles))
+        try await writePhotosToDirectory(photos: uniquePhotoFiles, destinationDir: photosDir)
 
         // Create ZIP archive using unified helper
         let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)

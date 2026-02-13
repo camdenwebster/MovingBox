@@ -13,6 +13,7 @@ import UIKit
 /// A SwiftUI wrapper for UICloudSharingController to present CloudKit sharing UI
 struct CloudSharingView: UIViewControllerRepresentable {
     let shareRecord: SharedRecord
+    let itemTitle: String
     let onDismiss: () -> Void
 
     func makeUIViewController(context: Context) -> UICloudSharingController {
@@ -25,13 +26,15 @@ struct CloudSharingView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UICloudSharingController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onDismiss: onDismiss)
+        Coordinator(itemTitle: itemTitle, onDismiss: onDismiss)
     }
 
     class Coordinator: NSObject, UICloudSharingControllerDelegate {
+        let itemTitle: String
         let onDismiss: () -> Void
 
-        init(onDismiss: @escaping () -> Void) {
+        init(itemTitle: String, onDismiss: @escaping () -> Void) {
+            self.itemTitle = itemTitle
             self.onDismiss = onDismiss
         }
 
@@ -43,7 +46,7 @@ struct CloudSharingView: UIViewControllerRepresentable {
         }
 
         func itemTitle(for csc: UICloudSharingController) -> String? {
-            "MovingBox Data"
+            itemTitle
         }
 
         func itemThumbnailData(for csc: UICloudSharingController) -> Data? {
@@ -95,7 +98,7 @@ struct CloudSharingPrepareView: View {
                 }
                 .padding()
             } else if let record = shareRecord {
-                CloudSharingView(shareRecord: record) {
+                CloudSharingView(shareRecord: record, itemTitle: viewModel.sharingTitle) {
                     isPresented = false
                 }
             }

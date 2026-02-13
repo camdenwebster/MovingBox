@@ -5,260 +5,131 @@
 //  Created by Camden Webster on 2/4/26.
 //
 
-import CloudKit
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct FamilySharingSettingsView: View {
-    @State private var viewModel = FamilySharingViewModel()
-    @State private var showSharingSheet = false
-    @State private var showStopSharingConfirmation = false
+    @FetchAll(SQLiteHome.order(by: \.name), animation: .default)
+    private var homes: [SQLiteHome]
 
     var body: some View {
         List {
-            if viewModel.isLoading {
-                Section {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                }
-            } else if let error = viewModel.error {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Error", systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                sharingStatusSection
-                participantsSection
-                actionsSection
-            }
-
+            homesSection
             infoSection
         }
         .navigationTitle("Family Sharing")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await viewModel.fetchSharingState()
-        }
-        .sheet(isPresented: $showSharingSheet) {
-            CloudSharingPrepareView(
-                viewModel: viewModel,
-                isPresented: $showSharingSheet
-            )
-        }
-        .confirmationDialog(
-            "Stop Sharing",
-            isPresented: $showStopSharingConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Stop Sharing", role: .destructive) {
-                Task {
-                    await viewModel.stopSharing()
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                "Other people will no longer have access to your MovingBox data. This cannot be undone."
-            )
-        }
     }
 
-    // MARK: - Sections
-
     @ViewBuilder
-    private var sharingStatusSection: some View {
+    private var homesSection: some View {
         Section {
-            HStack {
-                Label {
-                    Text("Status")
-                } icon: {
-                    Image(systemName: viewModel.isSharing ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(viewModel.isSharing ? .green : .secondary)
-                }
-
-                Spacer()
-
-                Text(viewModel.isSharing ? "Sharing Active" : "Not Sharing")
+            if homes.isEmpty {
+                Text("Create a home to start sharing.")
                     .foregroundStyle(.secondary)
-            }
-
-            if viewModel.isSharing {
-                HStack {
-                    Label("Owner", systemImage: "person.fill")
-                    Spacer()
-                    Text(viewModel.ownerName)
-                        .foregroundStyle(.secondary)
+            } else {
+                ForEach(homes) { home in
+                    NavigationLink {
+                        HomeDetailSettingsView(homeID: home.id, presentedInSheet: false)
+                    } label: {
+                        HomeSharingSummaryRow(home: home)
+                    }
                 }
             }
         } header: {
-            Text("Sharing Status")
-        }
-    }
-
-    @ViewBuilder
-    private var participantsSection: some View {
-        if viewModel.isSharing && !viewModel.participants.isEmpty {
-            Section {
-                ForEach(viewModel.participants, id: \.userIdentity) { participant in
-                    ParticipantRow(participant: participant)
-                }
-            } header: {
-                Text("Participants")
-            } footer: {
-                Text("People with access to your MovingBox data.")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var actionsSection: some View {
-        Section {
-            Button {
-                showSharingSheet = true
-            } label: {
-                Label(
-                    viewModel.isSharing ? "Manage Sharing" : "Start Sharing",
-                    systemImage: viewModel.isSharing ? "person.2.badge.gearshape" : "person.badge.plus"
-                )
-            }
-
-            if viewModel.isSharing && viewModel.isOwner {
-                Button(role: .destructive) {
-                    showStopSharingConfirmation = true
-                } label: {
-                    Label("Stop Sharing", systemImage: "xmark.circle")
-                }
-            }
+            Text("Homes")
+        } footer: {
+            Text("Sharing is managed inside each home's settings.")
         }
     }
 
     @ViewBuilder
     private var infoSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
-                InfoRow(
-                    icon: "person.2.fill",
-                    title: "Share Everything",
-                    description: "All your homes, rooms, items, labels, and policies are shared."
-                )
-
-                InfoRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    title: "Real-time Sync",
-                    description: "Changes sync automatically between all participants."
-                )
-
-                InfoRow(
-                    icon: "lock.shield",
-                    title: "Secure",
-                    description: "Data is encrypted and only shared with people you invite."
-                )
-            }
-            .padding(.vertical, 8)
+            InfoRow(
+                icon: "house",
+                title: "Per-Home Sharing",
+                description: "Invite people to specific homes while keeping others private."
+            )
+            InfoRow(
+                icon: "arrow.triangle.2.circlepath",
+                title: "Real-time Sync",
+                description: "Changes sync automatically between all participants."
+            )
+            InfoRow(
+                icon: "lock.shield",
+                title: "Secure",
+                description: "Data is encrypted and only shared with people you invite."
+            )
         } header: {
             Text("About Family Sharing")
         }
     }
 }
 
-// MARK: - Supporting Views
+private struct HomeSharingSummaryRow: View {
+    @Dependency(\.defaultDatabase) private var database
 
-private struct ParticipantRow: View {
-    let participant: CKShare.Participant
+    let home: SQLiteHome
+
+    @State private var isLoading = true
+    @State private var isShared = false
+    @State private var participantCount = 0
+
+    private var homeDisplayName: String {
+        if !home.name.isEmpty { return home.name }
+        if !home.address1.isEmpty { return home.address1 }
+        return "Unnamed Home"
+    }
 
     var body: some View {
-        HStack {
-            Image(systemName: participantIcon)
-                .foregroundStyle(participantColor)
-                .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(homeDisplayName)
+                .foregroundStyle(.primary)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(participantName)
-                    .font(.body)
+            HStack(spacing: 8) {
+                Image(systemName: isShared ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isShared ? .green : .secondary)
 
-                HStack(spacing: 4) {
-                    Text(roleText)
+                if isLoading {
+                    Text("Checking status...")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    if participant.acceptanceStatus == .pending {
-                        Text("(Pending)")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
+                } else if isShared {
+                    Text("Shared with \(participantCount) people")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Not Shared")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-
-            Spacer()
-
-            Text(permissionText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        }
+        .task(id: home.syncMetadataID) {
+            await loadSharingStatus()
         }
     }
 
-    private var participantName: String {
-        participant.userIdentity.nameComponents?.formatted() ?? "Unknown"
-    }
+    private func loadSharingStatus() async {
+        isLoading = true
+        defer { isLoading = false }
 
-    private var participantIcon: String {
-        switch participant.role {
-        case .owner:
-            return "crown.fill"
-        case .privateUser:
-            return "person.fill"
-        case .publicUser:
-            return "person"
-        @unknown default:
-            return "person"
-        }
-    }
-
-    private var participantColor: Color {
-        switch participant.role {
-        case .owner:
-            return .yellow
-        case .privateUser:
-            return .blue
-        case .publicUser:
-            return .secondary
-        @unknown default:
-            return .secondary
-        }
-    }
-
-    private var roleText: String {
-        switch participant.role {
-        case .owner:
-            return "Owner"
-        case .privateUser:
-            return "Member"
-        case .publicUser:
-            return "Public"
-        @unknown default:
-            return "Unknown"
-        }
-    }
-
-    private var permissionText: String {
-        switch participant.permission {
-        case .readOnly:
-            return "View Only"
-        case .readWrite:
-            return "Can Edit"
-        case .none:
-            return "No Access"
-        case .unknown:
-            return ""
-        @unknown default:
-            return ""
+        do {
+            let metadata = try await database.read { db in
+                try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+            }
+            if let share = metadata?.share {
+                isShared = true
+                participantCount = share.participants.filter { $0.role != .owner }.count
+            } else {
+                isShared = false
+                participantCount = 0
+            }
+        } catch {
+            isShared = false
+            participantCount = 0
         }
     }
 }
@@ -284,6 +155,7 @@ private struct InfoRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .padding(.vertical, 2)
     }
 }
 
