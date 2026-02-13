@@ -144,6 +144,29 @@ final class OptimizedImageManager {
         cache.removeAllObjects()
     }
 
+    // MARK: - Video Management
+
+    func saveVideo(_ url: URL) async throws -> URL {
+        let videosDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Videos", isDirectory: true)
+
+        if !FileManager.default.fileExists(atPath: videosDirectory.path) {
+            try FileManager.default.createDirectory(at: videosDirectory, withIntermediateDirectories: true)
+        }
+
+        let fileName = "\(UUID().uuidString).\(url.pathExtension)"
+        let destinationURL = videosDirectory.appendingPathComponent(fileName)
+
+        if url.startAccessingSecurityScopedResource() {
+            defer { url.stopAccessingSecurityScopedResource() }
+            try FileManager.default.copyItem(at: url, to: destinationURL)
+        } else {
+            try FileManager.default.copyItem(at: url, to: destinationURL)
+        }
+
+        return destinationURL
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
