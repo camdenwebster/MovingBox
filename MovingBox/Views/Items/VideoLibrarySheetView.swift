@@ -88,10 +88,11 @@ struct VideoLibrarySheetView: View {
             .navigationTitle("Videos")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", systemImage: "checkmark") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("video-sheet-done")
                 }
             }
             .overlay {
@@ -144,8 +145,8 @@ struct VideoLibrarySheetView: View {
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity)
             .background(Color.accentColor)
         }
         .buttonStyle(.plain)

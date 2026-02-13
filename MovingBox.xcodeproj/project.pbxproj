@@ -37,7 +37,6 @@
 		197D67CD2EAA7B1500A53A02 /* SentrySwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */; };
 		198958AD2BF8FAC700C52CAE /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AC2BF8FAC700C52CAE /* TestData.swift */; };
 		198958AF2BF99F5600C52CAE /* Previewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198958AE2BF99F5600C52CAE /* Previewer.swift */; };
-		19A6B2982E74721C006A6EF6 /* AIProxy in Frameworks */ = {isa = PBXBuildFile; productRef = 19A6B2972E74721C006A6EF6 /* AIProxy */; };
 		19A9AB102DB274C7001CEDA2 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		19A9AB112DB274C7001CEDA2 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		19BA29932DC464A70064C5A9 /* DataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19BA29922DC464A70064C5A9 /* DataManager.swift */; };
@@ -197,7 +196,6 @@
 				1920B0D62D88B13000CFA1E9 /* TelemetryDeck in Frameworks */,
 				1961C6EB2D9DDC56004CF387 /* RevenueCatUI in Frameworks */,
 				1979BBBA2EF5E07300CB8A01 /* WishKit in Frameworks */,
-				19A6B2982E74721C006A6EF6 /* AIProxy in Frameworks */,
 				1961C6EE2D9DDCA8004CF387 /* StoreKit.framework in Frameworks */,
 				4A01539D070041769323F9C9 /* Sentry in Frameworks */,
 				1979BE542EF6E18700CB8A01 /* WhatsNewKit in Frameworks */,
@@ -240,7 +238,6 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
-				19EC18002F36453200F8E28D /* .codex */,
 				19EC57ED2F3A77CA00F8E28D /* Packages */,
 				19EC18002F36453200F8E28D /* .codex */,
 				191881AD2EC61EB9009FB4F4 /* opencode.json */,
@@ -400,7 +397,6 @@
 				D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */,
 				19BA299B2DC465170064C5A9 /* ZIPFoundation */,
 				196450532E4D6DC300918795 /* SwiftUIBackports */,
-				19A6B2972E74721C006A6EF6 /* AIProxy */,
 				197D67CC2EAA7B1500A53A02 /* SentrySwiftUI */,
 				1979BBB92EF5E07300CB8A01 /* WishKit */,
 				1979BBBC2EF5E08400CB8A01 /* AcknowList */,
@@ -544,7 +540,6 @@
 				AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				196450522E4D6DC300918795 /* XCRemoteSwiftPackageReference "iOS-Backports" */,
-				19A6B2962E74721C006A6EF6 /* XCRemoteSwiftPackageReference "AIProxySwift" */,
 				1979BBB82EF5E07300CB8A01 /* XCRemoteSwiftPackageReference "wishkit-ios" */,
 				1979BBBB2EF5E08400CB8A01 /* XCRemoteSwiftPackageReference "AcknowList" */,
 				1979BE522EF6E18700CB8A01 /* XCRemoteSwiftPackageReference "WhatsNewKit" */,
@@ -1466,14 +1461,6 @@
 				minimumVersion = 2.2.1;
 			};
 		};
-		19A6B2962E74721C006A6EF6 /* XCRemoteSwiftPackageReference "AIProxySwift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/lzell/AIProxySwift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.127.0;
-			};
-		};
 		19BA299A2DC465170064C5A9 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
@@ -1537,11 +1524,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AB7359BF54434E2EA3F78728 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
 			productName = SentrySwiftUI;
-		};
-		19A6B2972E74721C006A6EF6 /* AIProxy */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 19A6B2962E74721C006A6EF6 /* XCRemoteSwiftPackageReference "AIProxySwift" */;
-			productName = AIProxy;
 		};
 		19BA299B2DC465170064C5A9 /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;

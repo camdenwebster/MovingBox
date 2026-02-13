@@ -29,8 +29,10 @@ class ItemCreationFlowViewModel {
     /// SwiftData context for saving items
     var modelContext: ModelContext?
 
-    /// AI analysis service for image analysis (injected for testing)
-    private let aiAnalysisService: AIAnalysisServiceProtocol?
+    /// Shared AI analysis service for this flow instance.
+    /// Initialized once to avoid repeated service creation during SwiftUI view updates.
+    @ObservationIgnored
+    private let sharedAIAnalysisService: AIAnalysisServiceProtocol
 
     /// Settings manager for AI configuration
     var settingsManager: SettingsManager?
@@ -115,6 +117,7 @@ class ItemCreationFlowViewModel {
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var analysisInterruptedForBackground: Bool = false
     private var shouldRestartAnalysisOnForeground: Bool = false
+    @ObservationIgnored
     private var activeAIService: AIAnalysisServiceProtocol?
     private let videoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol
 
@@ -182,7 +185,7 @@ class ItemCreationFlowViewModel {
         self.captureMode = captureMode
         self.location = location
         self.modelContext = modelContext
-        self.aiAnalysisService = aiAnalysisService
+        self.sharedAIAnalysisService = aiAnalysisService ?? AIAnalysisServiceFactory.create()
         self.videoAnalysisCoordinator = videoAnalysisCoordinator
     }
 
@@ -204,9 +207,9 @@ class ItemCreationFlowViewModel {
         print("📋 ItemCreationFlowViewModel - Navigation flow: \(navigationFlow.map { $0.displayName })")
     }
 
-    /// Create AI analysis service with mock support for UI testing
-    private func createAIAnalysisService() -> AIAnalysisServiceProtocol {
-        return AIAnalysisServiceFactory.create()
+    /// Expose the flow-scoped AI service for child selection views.
+    var selectionAIAnalysisService: AIAnalysisServiceProtocol {
+        sharedAIAnalysisService
     }
 
     // MARK: - Navigation Methods
@@ -368,7 +371,7 @@ class ItemCreationFlowViewModel {
                 videoAsset: asset,
                 settings: settings,
                 modelContext: context,
-                aiService: aiAnalysisService ?? createAIAnalysisService(),
+                aiService: sharedAIAnalysisService,
                 onProgress: { [weak self] progress in
                     guard let self else { return }
                     Task { @MainActor in
@@ -520,7 +523,7 @@ class ItemCreationFlowViewModel {
                 return
             }
 
-            let aiService = aiAnalysisService ?? createAIAnalysisService()
+            let aiService = sharedAIAnalysisService
             activeAIService = aiService
             print("🔍 ItemCreationFlowViewModel: Using AI service: \(type(of: aiService))")
             let aiContext = AIAnalysisContext.from(modelContext: context, settings: settings)
@@ -634,7 +637,7 @@ class ItemCreationFlowViewModel {
                 settings.isHighDetail = originalHighDetail
             }
 
-            let aiService = aiAnalysisService ?? createAIAnalysisService()
+            let aiService = sharedAIAnalysisService
             activeAIService = aiService
             print("🔍 ItemCreationFlowViewModel (Multi-Item): Using AI service: \(type(of: aiService))")
             let response: MultiItemAnalysisResponse
