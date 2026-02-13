@@ -35,9 +35,11 @@ enum LabelAutoAssignment {
 
         var labels: [InventoryLabel] = []
         var seen = Set<String>()
-        let labelLookup = Dictionary(
-            uniqueKeysWithValues: existingLabels.map { ($0.name.lowercased(), $0) }
-        )
+        let labelLookup = existingLabels.reduce(into: [String: InventoryLabel]()) { lookup, label in
+            let key = label.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !key.isEmpty, lookup[key] == nil else { return }
+            lookup[key] = label
+        }
 
         for category in cleanedCategories {
             guard labels.count < maxLabelsPerItem else { break }

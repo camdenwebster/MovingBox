@@ -695,7 +695,7 @@ final class MultiItemSelectionViewModel {
 
         do {
             // Only save cropped images - discard original source photos
-            let primaryImage = croppedPrimaryImages[detectedItem.id]
+            let primaryImage = croppedPrimaryImages[detectedItem.id] ?? fallbackPrimaryImage(for: detectedItem)
             let secondaryImages = croppedSecondaryImages[detectedItem.id] ?? []
 
             async let primaryImageURL: URL? = {
@@ -730,6 +730,21 @@ final class MultiItemSelectionViewModel {
             print("❌ Failed to save images for item: \(error.localizedDescription)")
             throw error
         }
+    }
+
+    private func fallbackPrimaryImage(for detectedItem: DetectedInventoryItem) -> UIImage? {
+        if images.count == 1 {
+            return images.first
+        }
+
+        guard
+            let sourceImageIndex = detectedItem.detections?.first?.sourceImageIndex,
+            images.indices.contains(sourceImageIndex)
+        else {
+            return nil
+        }
+
+        return images[sourceImageIndex]
     }
 
     private func resolveFallbackHome() -> Home? {

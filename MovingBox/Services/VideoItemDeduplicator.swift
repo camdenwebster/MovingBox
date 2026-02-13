@@ -131,7 +131,7 @@ enum VideoItemDeduplicator {
                 make: newItem.make,
                 model: newItem.model,
                 estimatedPrice: merged.item.estimatedPrice,
-                confidence: merged.item.confidence,
+                confidence: newItem.confidence,
                 detections: merged.item.detections
             )
             merged.normalizedTitle = normalizedTitle
