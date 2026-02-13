@@ -11,34 +11,46 @@ import Testing
     func testCaptureModeEnum() {
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.displayName == "Single")
         #expect(multiMode.displayName == "Multi")
+        #expect(videoMode.displayName == "Video")
         #expect(singleMode.description == "Multiple photos of one item")
-        #expect(multiMode.description == "One photo with multiple items")
+        #expect(multiMode.description == "Multiple photos with multiple items")
+        #expect(videoMode.description == "Analyze items from a video")
     }
 
     @Test("CaptureMode max photos logic")
     func testCaptureModeLimits() {
+        let expectedMax = CaptureMode.maxPhotosPerAnalysis
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.maxPhotosAllowed(isPro: false) == 1)
-        #expect(singleMode.maxPhotosAllowed(isPro: true) == 5)
-        #expect(multiMode.maxPhotosAllowed(isPro: false) == 1)
-        #expect(multiMode.maxPhotosAllowed(isPro: true) == 1)
+        #expect(singleMode.maxPhotosAllowed(isPro: true) == expectedMax)
+        #expect(multiMode.maxPhotosAllowed(isPro: false) == expectedMax)
+        #expect(multiMode.maxPhotosAllowed(isPro: true) == expectedMax)
+        #expect(videoMode.maxPhotosAllowed(isPro: false) == 0)
+        #expect(videoMode.maxPhotosAllowed(isPro: true) == 0)
     }
 
     @Test("CaptureMode validation")
     func testCaptureModeValidation() {
+        let expectedMax = CaptureMode.maxPhotosPerAnalysis
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.isValidPhotoCount(1) == true)
-        #expect(singleMode.isValidPhotoCount(5) == true)
-        #expect(singleMode.isValidPhotoCount(6) == false)
+        #expect(singleMode.isValidPhotoCount(expectedMax) == true)
+        #expect(singleMode.isValidPhotoCount(expectedMax + 1) == false)
         #expect(multiMode.isValidPhotoCount(1) == true)
-        #expect(multiMode.isValidPhotoCount(2) == false)
+        #expect(multiMode.isValidPhotoCount(2) == true)
+        #expect(multiMode.isValidPhotoCount(expectedMax + 1) == false)
+        #expect(videoMode.isValidPhotoCount(0) == false)
+        #expect(videoMode.isValidPhotoCount(1) == false)
     }
 
     @Test("MultiPhotoCameraView single item mode initializer")
@@ -77,6 +89,30 @@ import Testing
         #expect(viewType == MultiPhotoCameraView.self)
     }
 
+    @Test("MultiPhotoCameraView video mode initializer")
+    func testVideoModeInitializer() async throws {
+        let capturedImages: [UIImage] = []
+        var completionResult: ([UIImage], CaptureMode)? = nil
+        var selectedVideoURL: URL? = nil
+
+        let view = MultiPhotoCameraView(
+            capturedImages: .constant(capturedImages),
+            captureMode: .video,
+            onPermissionCheck: { _ in },
+            onComplete: { images, mode in
+                completionResult = (images, mode)
+            },
+            onVideoSelected: { url in
+                selectedVideoURL = url
+            }
+        )
+
+        let viewType = type(of: view)
+        #expect(viewType == MultiPhotoCameraView.self)
+        #expect(completionResult == nil)
+        #expect(selectedVideoURL == nil)
+    }
+
     @Test("MultiPhotoCameraView backward compatibility")
     func testBackwardCompatibility() async throws {
         let capturedImages: [UIImage] = []
@@ -95,13 +131,17 @@ import Testing
     func testCaptureModeBehavior() {
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.showsPhotoPickerButton == true)
         #expect(multiMode.showsPhotoPickerButton == true)
+        #expect(videoMode.showsPhotoPickerButton == false)
         #expect(singleMode.showsThumbnailScrollView == true)
-        #expect(multiMode.showsThumbnailScrollView == false)
+        #expect(multiMode.showsThumbnailScrollView == true)
+        #expect(videoMode.showsThumbnailScrollView == false)
         #expect(singleMode.allowsMultipleCaptures == true)
-        #expect(multiMode.allowsMultipleCaptures == false)
+        #expect(multiMode.allowsMultipleCaptures == true)
+        #expect(videoMode.allowsMultipleCaptures == false)
     }
 
     // MARK: - Helper Methods

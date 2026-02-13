@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import Testing
@@ -235,6 +236,121 @@ import UIKit
         for item in viewModel.detectedItems {
             #expect(!viewModel.isItemSelected(item))
         }
+    }
+
+    @Test("ViewModel handles duplicate detected item IDs when selecting all")
+    func testSelectAllWithDuplicateItemIDs() throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let duplicateItems = [
+            DetectedInventoryItem(
+                id: "duplicate-id",
+                title: "Item A",
+                description: "A",
+                category: "Electronics",
+                make: "Brand A",
+                model: "Model A",
+                estimatedPrice: "$10.00",
+                confidence: 0.9
+            ),
+            DetectedInventoryItem(
+                id: "duplicate-id",
+                title: "Item B",
+                description: "B",
+                category: "Electronics",
+                make: "Brand B",
+                model: "Model B",
+                estimatedPrice: "$20.00",
+                confidence: 0.88
+            ),
+            DetectedInventoryItem(
+                id: "duplicate-id",
+                title: "Item C",
+                description: "C",
+                category: "Electronics",
+                make: "Brand C",
+                model: "Model C",
+                estimatedPrice: "$30.00",
+                confidence: 0.86
+            ),
+        ]
+        let analysisResponse = MultiItemAnalysisResponse(
+            items: duplicateItems,
+            detectedCount: duplicateItems.count,
+            analysisType: "multi_item",
+            confidence: 0.88
+        )
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: analysisResponse,
+            images: createTestImages(),
+            location: nil,
+            modelContext: context
+        )
+
+        #expect(viewModel.detectedItems.count == 3)
+        #expect(Set(viewModel.detectedItems.map(\.id)).count == 3)
+
+        viewModel.selectAllItems()
+        #expect(viewModel.selectedItemsCount == 3)
+    }
+
+    @Test("ViewModel groups likely duplicates for display")
+    func testPotentialDuplicateGrouping() throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let groupedItems = [
+            DetectedInventoryItem(
+                id: "guitar-1",
+                title: "Fender Stratocaster Guitar",
+                description: "",
+                category: "Music",
+                make: "Fender",
+                model: "Stratocaster",
+                estimatedPrice: "$1200",
+                confidence: 0.9
+            ),
+            DetectedInventoryItem(
+                id: "guitar-2",
+                title: "Fender Stratocaster",
+                description: "",
+                category: "Music",
+                make: "Fender",
+                model: "Stratocaster",
+                estimatedPrice: "$1200",
+                confidence: 0.88
+            ),
+            DetectedInventoryItem(
+                id: "amp-1",
+                title: "Tube Amplifier",
+                description: "",
+                category: "Music",
+                make: "Marshall",
+                model: "JCM",
+                estimatedPrice: "$900",
+                confidence: 0.87
+            ),
+        ]
+
+        let response = MultiItemAnalysisResponse(
+            items: groupedItems,
+            detectedCount: groupedItems.count,
+            analysisType: "multi_item",
+            confidence: 0.9
+        )
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: response,
+            images: createTestImages(),
+            location: nil,
+            modelContext: context
+        )
+
+        let duplicateGroups = viewModel.detectedItemGroups.filter { $0.isPotentialDuplicateGroup }
+        #expect(duplicateGroups.count == 1)
+        #expect(duplicateGroups.first?.items.count == 2)
     }
 
     @Test("ViewModel creates inventory items correctly")
@@ -492,7 +608,7 @@ import UIKit
             modelContext: context
         )
 
-        #expect(viewModel.detectedItems.count == 2)
+        #expect(viewModel.detectedItems.count == 1)
 
         // High confidence item should have good data
         let highConfidenceItem = viewModel.detectedItems[0]
@@ -500,9 +616,7 @@ import UIKit
         #expect(!highConfidenceItem.title.isEmpty)
 
         // Low confidence item should have lower quality data
-        let lowConfidenceItem = viewModel.detectedItems[1]
-        #expect(lowConfidenceItem.confidence < 0.5)
-        #expect(lowConfidenceItem.description.isEmpty)
+        #expect(viewModel.filteredOutCount == 1)
     }
 
     // MARK: - Helper Methods Tests

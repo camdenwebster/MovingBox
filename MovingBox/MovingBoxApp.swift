@@ -10,12 +10,52 @@ import Sentry
 import SwiftData
 import SwiftUI
 import TelemetryDeck
+import TipKit
 import UIKit
+import UserNotifications
 import WhatsNewKit
 import WishKit
 
+enum AnalysisNotificationConstants {
+    static let multiItemAnalysisReadyIdentifier = "multiItemAnalysisReady"
+    static let multiItemAnalysisTappedNotificationName = "multiItemAnalysisReadyNotificationTapped"
+}
+
+extension Notification.Name {
+    static let multiItemAnalysisReadyNotificationTapped = Notification.Name(
+        AnalysisNotificationConstants.multiItemAnalysisTappedNotificationName
+    )
+}
+
+final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let identifier = response.notification.request.identifier
+        if identifier == AnalysisNotificationConstants.multiItemAnalysisReadyIdentifier {
+            NotificationCenter.default.post(
+                name: .multiItemAnalysisReadyNotificationTapped,
+                object: nil,
+                userInfo: response.notification.request.content.userInfo
+            )
+        }
+        completionHandler()
+    }
+}
+
 @main
 struct MovingBoxApp: App {
+    @UIApplicationDelegateAdaptor(NotificationDelegate.self) private var notificationDelegate
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
@@ -52,6 +92,10 @@ struct MovingBoxApp: App {
 
         // Configure WishKit
         WishKit.configure(with: AppConfig.wishKitAPIKey)
+
+        if #available(iOS 17.0, *) {
+            try? Tips.configure()
+        }
 
         let dsn = "https://\(AppConfig.sentryDsn)"
         guard dsn != "https://missing-sentry-dsn" else {
@@ -124,7 +168,7 @@ struct MovingBoxApp: App {
                 options.enableAppHangTracking = !isRunningTests
             }
 
-            // Network Tracking - limit to OpenAI API only for privacy (all configs)
+            // Network Tracking - limit to AIProxy API only for privacy (all configs)
             options.tracePropagationTargets = ["api.aiproxy.com"]
 
             #if DEBUG

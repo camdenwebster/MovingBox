@@ -26,7 +26,7 @@ final class FastlaneSnapshots: XCTestCase {
             "Skip-Onboarding",
             "Disable-Persistence",
             "UI-Testing-Mock-Camera",
-            "Mock-OpenAI",
+            "Mock-AI",
         ]
 
         // Initialize screen objects

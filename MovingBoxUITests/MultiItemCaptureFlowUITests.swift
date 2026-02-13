@@ -16,7 +16,7 @@ final class MultiItemCaptureFlowUITests: XCTestCase {
             "Disable-Persistence",
             "UI-Testing-Mock-Camera",
             "Disable-Animations",
-            "Mock-OpenAI",
+            "Mock-AI",
         ]
 
         // Initialize screen objects

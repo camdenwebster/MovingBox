@@ -10,7 +10,6 @@ import SwiftUI
 
 struct LocationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var settingsManager: SettingsManager
     @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var allLocations: [InventoryLocation]
     @Query(sort: \Home.purchaseDate) private var homes: [Home]
@@ -18,7 +17,11 @@ struct LocationSelectionView: View {
     @Binding var selectedLocation: InventoryLocation?
     @Binding var selectedHome: Home?
     @State private var pickedHome: Home?
+    @State private var draftSelectedLocation: InventoryLocation?
+    @State private var draftSelectedHome: Home?
     @State private var searchText = ""
+    @State private var showingAddLocationSheet = false
+    @State private var locationIDsBeforeAddSheet: Set<UUID> = []
 
     init(selectedLocation: Binding<InventoryLocation?>, selectedHome: Binding<Home?>) {
         self._selectedLocation = selectedLocation
@@ -67,15 +70,14 @@ struct LocationSelectionView: View {
 
                 // None option
                 Button(action: {
-                    selectedHome = pickedHome
-                    selectedLocation = nil
-                    dismiss()
+                    draftSelectedHome = pickedHome
+                    draftSelectedLocation = nil
                 }) {
                     HStack {
                         Text("No Location")
                             .foregroundStyle(.primary)
                         Spacer()
-                        if selectedLocation == nil {
+                        if draftSelectedLocation == nil {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(Color.accentColor)
                         }
@@ -89,9 +91,8 @@ struct LocationSelectionView: View {
                     Section {
                         ForEach(filteredLocations) { location in
                             Button(action: {
-                                selectedHome = pickedHome
-                                selectedLocation = location
-                                dismiss()
+                                draftSelectedHome = pickedHome
+                                draftSelectedLocation = location
                             }) {
                                 HStack {
                                     if let symbolName = location.sfSymbolName {
@@ -110,7 +111,7 @@ struct LocationSelectionView: View {
                                         }
                                     }
                                     Spacer()
-                                    if selectedLocation?.id == location.id {
+                                    if draftSelectedLocation?.id == location.id {
                                         Image(systemName: "checkmark")
                                             .foregroundStyle(Color.accentColor)
                                     }
@@ -136,34 +137,92 @@ struct LocationSelectionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("Cancel", systemImage: "xmark") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem {
                     Button(action: {
-                        addNewLocation()
+                        locationIDsBeforeAddSheet = Set(allLocations.map(\.id))
+                        showingAddLocationSheet = true
                     }) {
                         Image(systemName: "plus")
                     }
+                    .accessibilityIdentifier("locationSelection-add")
                 }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", systemImage: "checkmark") {
+                        selectedHome = draftSelectedHome ?? pickedHome
+                        selectedLocation = draftSelectedLocation
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("locationSelection-done")
+
+                }
+
             }
             .onAppear {
                 if pickedHome == nil {
                     pickedHome = selectedHome ?? activeHome ?? homes.first
                 }
+                draftSelectedHome = selectedHome ?? pickedHome
+                draftSelectedLocation = selectedLocation
+            }
+            .onChange(of: pickedHome) { _, newHome in
+                draftSelectedHome = newHome
+                guard let newHome else { return }
+                if draftSelectedLocation?.home?.id != newHome.id {
+                    draftSelectedLocation = nil
+                }
             }
         }
+        .sheet(
+            isPresented: $showingAddLocationSheet,
+            onDismiss: {
+                handleAddLocationSheetDismissed()
+            },
+            content: {
+                NavigationStack {
+                    EditLocationView(
+                        location: nil,
+                        isEditing: true,
+                        presentedInSheet: true,
+                        home: pickedHome
+                    )
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
+        )
     }
 
-    private func addNewLocation() {
-        let newLocation = InventoryLocation(name: "New Location", desc: "")
-        newLocation.home = pickedHome
-        modelContext.insert(newLocation)
-        selectedHome = pickedHome
-        selectedLocation = newLocation
-        dismiss()
+    private func handleAddLocationSheetDismissed() {
+        defer { locationIDsBeforeAddSheet.removeAll() }
+
+        let addedLocations = allLocations.filter { !locationIDsBeforeAddSheet.contains($0.id) }
+        guard !addedLocations.isEmpty else { return }
+
+        let newlyAddedLocation: InventoryLocation?
+        if let pickedHome {
+            newlyAddedLocation =
+                addedLocations.first(where: { $0.home?.id == pickedHome.id }) ?? addedLocations.first
+        } else {
+            newlyAddedLocation = addedLocations.first
+        }
+
+        guard let newlyAddedLocation else { return }
+
+        if let locationHome = newlyAddedLocation.home {
+            pickedHome = locationHome
+            draftSelectedHome = locationHome
+        } else {
+            draftSelectedHome = pickedHome
+        }
+
+        draftSelectedLocation = newlyAddedLocation
+        searchText = ""
     }
 }
 

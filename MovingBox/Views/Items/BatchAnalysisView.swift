@@ -5,6 +5,7 @@
 //  Created by Claude on 8/8/25.
 //
 
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 
@@ -287,11 +288,12 @@ struct BatchAnalysisView: View {
         }
 
         // Perform AI analysis
-        let openAI = OpenAIServiceFactory.create()
-        let imageDetails = try await openAI.getImageDetails(
+        let aiService = AIAnalysisServiceFactory.create()
+        let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
+        let imageDetails = try await aiService.getImageDetails(
             from: images,
             settings: settings,
-            modelContext: modelContext
+            context: context
         )
 
         // Update the item with analysis results

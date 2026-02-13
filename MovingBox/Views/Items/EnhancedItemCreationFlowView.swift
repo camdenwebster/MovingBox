@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 
@@ -13,17 +14,20 @@ struct EnhancedItemCreationFlowView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
 
-    @StateObject private var viewModel: ItemCreationFlowViewModel
+    @State private var viewModel: ItemCreationFlowViewModel
     @State private var showingPermissionDenied = false
+    @State private var hasBootstrappedInitialVideo = false
 
     // Animation properties
     private let transitionAnimation = Animation.easeInOut(duration: 0.3)
 
     let captureMode: CaptureMode
     let location: InventoryLocation?
+    let initialVideoURL: URL?
     let onComplete: (() -> Void)?
 
     // MARK: - Initialization
@@ -31,15 +35,16 @@ struct EnhancedItemCreationFlowView: View {
     init(
         captureMode: CaptureMode,
         location: InventoryLocation?,
+        initialVideoURL: URL? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
         self.location = location
+        self.initialVideoURL = initialVideoURL
         self.onComplete = onComplete
 
-        // Initialize StateObject with nil context - will be set in onAppear
-        self._viewModel = StateObject(
-            wrappedValue: ItemCreationFlowViewModel(
+        self._viewModel = State(
+            initialValue: ItemCreationFlowViewModel(
                 captureMode: captureMode,
                 location: location
             ))
@@ -47,18 +52,26 @@ struct EnhancedItemCreationFlowView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Main content based on current step
-                mainContentView
+            ZStack {
+                Color(.systemBackground)
+                    .ignoresSafeArea()
 
-                // Progress indicator at bottom (except on camera view)
-                if viewModel.currentStep != .camera {
-                    bottomProgressIndicator
+                VStack(spacing: 0) {
+                    // Main content based on current step
+                    mainContentView
+
+                    // Progress indicator at bottom except when child views provide their own chrome.
+                    if viewModel.currentStep != .camera && viewModel.currentStep != .multiItemSelection {
+                        bottomProgressIndicator
+                    }
                 }
             }
             .navigationTitle(viewModel.currentStepTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarHidden(viewModel.currentStep == .camera)
+            .navigationBarHidden(
+                viewModel.currentStep == .camera
+                    || (viewModel.currentStep == .multiItemSelection && viewModel.captureMode != .video)
+            )
             .interactiveDismissDisabled(viewModel.processingImage)
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)
@@ -82,11 +95,25 @@ struct EnhancedItemCreationFlowView: View {
             // Update viewModel with actual modelContext and settingsManager
             viewModel.updateModelContext(modelContext)
             viewModel.updateSettingsManager(settings)
+            viewModel.updateScenePhase(scenePhase)
 
-            // Verify Pro status for multi-item mode
-            if captureMode == .multiItem && !settings.isPro {
+            // Verify Pro status for multi-item/video mode
+            if (captureMode == .multiItem || captureMode == .video) && !settings.isPro {
                 dismiss()
             }
+
+            if !hasBootstrappedInitialVideo, let initialVideoURL {
+                hasBootstrappedInitialVideo = true
+                viewModel.handleSavedVideo(initialVideoURL)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            viewModel.updateScenePhase(phase)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .multiItemAnalysisReadyNotificationTapped)
+        ) { _ in
+            viewModel.handleAnalysisNotificationTapped()
         }
     }
 
@@ -96,7 +123,14 @@ struct EnhancedItemCreationFlowView: View {
     private var mainContentView: some View {
         switch viewModel.currentStep {
         case .camera:
-            cameraView
+            if initialVideoURL != nil {
+                videoBootstrapView
+            } else {
+                cameraView
+            }
+
+        case .videoProcessing:
+            videoProcessingView
 
         case .analyzing:
             analysisView
@@ -124,8 +158,17 @@ struct EnhancedItemCreationFlowView: View {
                     viewModel.updateCaptureMode(selectedMode)
 
                     // Track capture mode selection
+                    let modeLabel: String
+                    switch selectedMode {
+                    case .singleItem:
+                        modeLabel = "single_item"
+                    case .multiItem:
+                        modeLabel = "multi_item"
+                    case .video:
+                        modeLabel = "video"
+                    }
                     TelemetryManager.shared.trackCaptureModeSelected(
-                        mode: selectedMode == .singleItem ? "single_item" : "multi_item",
+                        mode: modeLabel,
                         imageCount: images.count,
                         isProUser: settings.isPro
                     )
@@ -134,6 +177,17 @@ struct EnhancedItemCreationFlowView: View {
                     await MainActor.run {
                         viewModel.goToNextStep()
                     }
+                }
+            },
+            onVideoSelected: { url in
+                Task {
+                    viewModel.updateCaptureMode(.video)
+                    TelemetryManager.shared.trackCaptureModeSelected(
+                        mode: "video",
+                        imageCount: 0,
+                        isProUser: settings.isPro
+                    )
+                    await viewModel.handleSelectedVideo(url)
                 }
             },
             onCancel: {
@@ -149,6 +203,17 @@ struct EnhancedItemCreationFlowView: View {
         .id("camera-\(viewModel.transitionId)")
     }
 
+    private var videoBootstrapView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Preparing video...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+
     private var analysisView: some View {
         ZStack {
             ImageAnalysisView(images: viewModel.capturedImages) {
@@ -160,7 +225,9 @@ struct EnhancedItemCreationFlowView: View {
         }
         .task {
             // Perform analysis based on capture mode (use viewModel's mode, not initial mode)
-            if viewModel.captureMode == .multiItem {
+            if viewModel.captureMode == .video {
+                return
+            } else if viewModel.captureMode == .multiItem {
                 await viewModel.performMultiItemAnalysis()
             } else {
                 await viewModel.performAnalysis()
@@ -196,26 +263,75 @@ struct EnhancedItemCreationFlowView: View {
         .id("analysis-\(viewModel.transitionId)")
     }
 
+    private var videoProcessingView: some View {
+        VideoProcessingView(
+            thumbnail: viewModel.capturedImages.first,
+            progress: viewModel.videoProcessingProgress,
+            onComplete: {
+                if viewModel.currentStep == .videoProcessing {
+                    viewModel.goToStep(.multiItemSelection)
+                }
+            }
+        )
+        .task {
+            if !viewModel.processingImage && viewModel.multiItemAnalysisResponse == nil {
+                await viewModel.performVideoProcessing()
+            }
+        }
+        .transition(
+            .asymmetric(
+                insertion: .move(edge: .trailing),
+                removal: .move(edge: .leading)
+            )
+        )
+        .id("videoProcessing-\(viewModel.transitionId)")
+    }
+
     @ViewBuilder
     private var multiItemSelectionView: some View {
         if let analysisResponse = viewModel.multiItemAnalysisResponse {
-            MultiItemSelectionView(
-                analysisResponse: analysisResponse,
-                images: viewModel.capturedImages,
-                location: location,
-                modelContext: modelContext,
-                onItemsSelected: { items in
-                    viewModel.handleMultiItemSelection(items)
-                },
-                onCancel: {
-                    dismiss()
-                },
-                onReanalyze: {
-                    // Go back to analyzing step to re-analyze the images
-                    viewModel.resetAnalysisState()
-                    viewModel.goToStep(.analyzing)
+            Group {
+                if viewModel.captureMode == .video {
+                    VideoItemSelectionListView(
+                        analysisResponse: analysisResponse,
+                        images: viewModel.capturedImages,
+                        location: location,
+                        modelContext: modelContext,
+                        aiAnalysisService: viewModel.selectionAIAnalysisService,
+                        isStreamingResults: viewModel.isVideoAnalysisStreaming,
+                        streamingStatusText: viewModel.videoStreamingStatusText,
+                        onItemsSelected: { items in
+                            viewModel.handleMultiItemSelection(items)
+                        },
+                        onCancel: {
+                            dismiss()
+                        },
+                        onReanalyze: {
+                            viewModel.resetAnalysisState()
+                            viewModel.goToStep(.videoProcessing)
+                        }
+                    )
+                } else {
+                    MultiItemSelectionView(
+                        analysisResponse: analysisResponse,
+                        images: viewModel.capturedImages,
+                        location: location,
+                        modelContext: modelContext,
+                        aiAnalysisService: viewModel.selectionAIAnalysisService,
+                        onItemsSelected: { items in
+                            viewModel.handleMultiItemSelection(items)
+                        },
+                        onCancel: {
+                            dismiss()
+                        },
+                        onReanalyze: {
+                            // Go back to analyzing step to re-analyze the images
+                            viewModel.resetAnalysisState()
+                            viewModel.goToStep(.analyzing)
+                        }
+                    )
                 }
-            )
+            }
             .transition(
                 .asymmetric(
                     insertion: .move(edge: .trailing),
@@ -227,8 +343,8 @@ struct EnhancedItemCreationFlowView: View {
             // Fallback if no analysis response
             VStack(spacing: 24) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 64))
-                    .foregroundColor(.orange)
+                    .font(.largeTitle)
+                    .foregroundStyle(.orange)
 
                 Text("No Items Found")
                     .font(.headline)
@@ -367,8 +483,8 @@ struct EnhancedItemCreationFlowView: View {
         viewModel.errorMessage = nil
 
         // Move to next step based on current step and mode
-        if viewModel.currentStep == .analyzing {
-            if viewModel.captureMode == .multiItem {
+        if viewModel.currentStep == .analyzing || viewModel.currentStep == .videoProcessing {
+            if viewModel.captureMode == .multiItem || viewModel.captureMode == .video {
                 // Create empty multi-item response to allow progression
                 viewModel.multiItemAnalysisResponse = MultiItemAnalysisResponse(
                     items: [],
@@ -403,8 +519,8 @@ struct MultiItemSummaryView: View {
                 // Header
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundColor(.green)
+                        .font(.largeTitle)
+                        .foregroundStyle(.green)
                         .scaleEffect(showConfetti ? 1.0 : 0.5)
                         .opacity(showConfetti ? 1.0 : 0.0)
 
@@ -552,12 +668,6 @@ struct ItemSummaryCard: View {
                         .foregroundColor(.primary)
                 }
             }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
         .padding()
         .background(Color(.systemBackground))

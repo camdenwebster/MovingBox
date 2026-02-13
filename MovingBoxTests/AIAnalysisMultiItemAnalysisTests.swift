@@ -1,3 +1,4 @@
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 import Testing
@@ -6,7 +7,7 @@ import UIKit
 @testable import MovingBox
 
 @MainActor
-@Suite struct OpenAIMultiItemAnalysisTests {
+@Suite struct AIAnalysisMultiItemAnalysisTests {
 
     // MARK: - Test Setup
 
@@ -113,16 +114,16 @@ import UIKit
         #expect(!invalidResponse2.isValid)
     }
 
-    // MARK: - OpenAI Service Multi-Item Analysis Tests
+    // MARK: - AIAnalysis Service Multi-Item Analysis Tests
 
-    @Test("OpenAI service handles multi-item analysis request")
+    @Test("AIAnalysis service handles multi-item analysis request")
     func testMultiItemAnalysisRequest() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.mockMultiItemResponse = MultiItemAnalysisResponse(
             items: [
                 createMockDetectedItem(title: "Laptop"),
@@ -145,14 +146,14 @@ import UIKit
         #expect(response.safeItems[1].title == "Mouse")
     }
 
-    @Test("OpenAI service handles no items detected scenario")
+    @Test("AIAnalysis service handles no items detected scenario")
     func testNoItemsDetectedScenario() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.mockMultiItemResponse = MultiItemAnalysisResponse(
             items: [],
             detectedCount: 0,
@@ -171,14 +172,14 @@ import UIKit
         #expect(!response.isValid)  // Should be invalid due to no items
     }
 
-    @Test("OpenAI service handles single item in multi-item mode")
+    @Test("AIAnalysis service handles single item in multi-item mode")
     func testSingleItemInMultiItemMode() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.mockMultiItemResponse = MultiItemAnalysisResponse(
             items: [createMockDetectedItem(title: "Single Item")],
             detectedCount: 1,
@@ -197,14 +198,14 @@ import UIKit
         #expect(response.safeItems[0].title == "Single Item")
     }
 
-    @Test("OpenAI service handles maximum items limit")
+    @Test("AIAnalysis service handles maximum items limit")
     func testMaximumItemsLimit() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         // Create more than maximum allowed items (assume max is 10)
         let manyItems = (1...15).map { i in
             createMockDetectedItem(title: "Item \(i)")
@@ -230,18 +231,18 @@ import UIKit
 
     // MARK: - Error Handling Tests
 
-    @Test("OpenAI service handles API errors gracefully")
+    @Test("AIAnalysis service handles API errors gracefully")
     func testAPIErrorHandling() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.rateLimitExceeded
+        mockService.multiItemError = AIAnalysisError.rateLimitExceeded
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -250,18 +251,18 @@ import UIKit
         }
     }
 
-    @Test("OpenAI service handles invalid response format")
+    @Test("AIAnalysis service handles invalid response format")
     func testInvalidResponseFormat() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.invalidData
+        mockService.multiItemError = AIAnalysisError.invalidData
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -270,18 +271,18 @@ import UIKit
         }
     }
 
-    @Test("OpenAI service handles network errors")
+    @Test("AIAnalysis service handles network errors")
     func testNetworkErrorHandling() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.networkUnavailable
+        mockService.multiItemError = AIAnalysisError.networkUnavailable
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -299,7 +300,7 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
 
         let response = try await mockService.getMultiItemDetails(
             from: images,
@@ -319,21 +320,21 @@ import UIKit
         let images = createTestImages(count: 1)
 
         // Create separate mock services for each test to avoid state contamination
-        let proMockService = MockMultiItemOpenAIService()
-        let freeMockService = MockMultiItemOpenAIService()
+        let proMockService = MockMultiItemAIAnalysisService()
+        let freeMockService = MockMultiItemAIAnalysisService()
 
         // Test with Pro settings (isPro=true, highQualityAnalysisEnabled=true)
         let proSettings = createTestSettings(isPro: true)
         try await proMockService.getMultiItemDetails(
             from: images, settings: proSettings, modelContext: context)
-        #expect(proMockService.lastUsedModel == "gpt-5-mini")
+        #expect(proMockService.lastUsedModel == "google/gemini-3-flash-preview")
         #expect(proMockService.lastUsedImageResolution > 1000)
 
         // Test with Free settings (isPro=false, highQualityAnalysisEnabled=false)
         let freeSettings = createTestSettings(isPro: false)
         try await freeMockService.getMultiItemDetails(
             from: images, settings: freeSettings, modelContext: context)
-        #expect(freeMockService.lastUsedModel == "gpt-4o")
+        #expect(freeMockService.lastUsedModel == "google/gemini-3-flash-preview")
         #expect(freeMockService.lastUsedImageResolution <= 512)
     }
 
@@ -346,7 +347,7 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.simulatedDelay = 0.5  // 0.5 seconds (reduced for faster test)
 
         let startTime = Date()
@@ -371,11 +372,11 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.shouldFailMultiItem = true
-        mockService.multiItemError = OpenAIError.networkTimeout
+        mockService.multiItemError = AIAnalysisError.networkTimeout
 
-        await #expect(throws: OpenAIError.self) {
+        await #expect(throws: AIAnalysisError.self) {
             try await mockService.getMultiItemDetails(
                 from: images,
                 settings: settings,
@@ -386,14 +387,14 @@ import UIKit
 
     // MARK: - Function Schema Validation Tests
 
-    @Test("OpenAI function schema includes required items property for arrays")
+    @Test("AIAnalysis function schema includes required items property for arrays")
     func testFunctionSchemaArrayValidation() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
 
         // Test that the schema generation includes proper items schema for arrays
         let response = try await mockService.getMultiItemDetails(
@@ -417,7 +418,7 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
 
         // Test multi-item mode uses correct function name
         let response = try await mockService.getMultiItemDetails(
@@ -439,7 +440,7 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
 
         // Test that multi-item service uses the correct function
         let response = try await mockService.getMultiItemDetails(
@@ -462,7 +463,7 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
 
         // This test specifically verifies that array properties have proper items schema
         // which was the root cause of the "array schema missing 'items'" error
@@ -485,7 +486,7 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.mockMultiItemResponse = MultiItemAnalysisResponse(
             items: [
                 DetectedInventoryItem(
@@ -525,7 +526,7 @@ import UIKit
         let settings = createTestSettings()
         let images = createTestImages(count: 1)
 
-        let mockService = MockMultiItemOpenAIService()
+        let mockService = MockMultiItemAIAnalysisService()
         mockService.mockMultiItemResponse = MultiItemAnalysisResponse(
             items: [
                 DetectedInventoryItem(
@@ -581,14 +582,14 @@ import UIKit
 }
 
 // MARK: - Supporting Types for Testing
-// Note: MultiItemAnalysisResponse and DetectedInventoryItem are now defined in OpenAIService.swift
+// Note: MultiItemAnalysisResponse and DetectedInventoryItem are now defined in AIAnalysisService.swift
 
-// MARK: - Mock Multi-Item OpenAI Service
+// MARK: - Mock Multi-Item AIAnalysis Service
 
 @MainActor
-class MockMultiItemOpenAIService {
+class MockMultiItemAIAnalysisService {
     var shouldFailMultiItem = false
-    var multiItemError: Error = OpenAIError.invalidData
+    var multiItemError: Error = AIAnalysisError.invalidData
     var simulatedDelay: TimeInterval = 0.5
 
     var mockMultiItemResponse = MultiItemAnalysisResponse(

@@ -1,10 +1,12 @@
 import AVFoundation
+import MovingBoxAIAnalysis
 import StoreKit
 import SwiftData
 import SwiftUI
 
 enum ItemCreationStep: CaseIterable {
     case camera
+    case videoProcessing
     case analyzing
     case multiItemSelection
     case details
@@ -12,6 +14,7 @@ enum ItemCreationStep: CaseIterable {
     var displayName: String {
         switch self {
         case .camera: return "Camera"
+        case .videoProcessing: return "Video Processing"
         case .analyzing: return "Analyzing"
         case .multiItemSelection: return "Select Items"
         case .details: return "Details"
@@ -24,6 +27,8 @@ enum ItemCreationStep: CaseIterable {
             return [.camera, .analyzing, .details]
         case .multiItem:
             return [.camera, .analyzing, .multiItemSelection, .details]
+        case .video:
+            return [.camera, .videoProcessing, .multiItemSelection, .details]
         }
     }
 }
@@ -140,6 +145,12 @@ struct ItemCreationFlowView: View {
                         )
                         .id("analysis-\(transitionId)")
                     }
+
+                case .videoProcessing:
+                    Text("Video processing not supported in this view")
+                        .onAppear {
+                            currentStep = .details
+                        }
 
                 case .multiItemSelection:
                     // This view doesn't support multi-item selection, fall back to details
@@ -317,20 +328,21 @@ struct ItemCreationFlowView: View {
         do {
             // Prepare image for AI
             guard await OptimizedImageManager.shared.prepareImageForAI(from: image) != nil else {
-                throw OpenAIError.invalidData
+                throw AIAnalysisError.invalidData
             }
 
-            // Create OpenAI service and get image details
-            let openAi = OpenAIServiceFactory.create()
+            // Create AI analysis service and get image details
+            let aiService = AIAnalysisServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            print("Calling OpenAI for image analysis...")
-            let imageDetails = try await openAi.getImageDetails(
+            print("Calling AI service for image analysis...")
+            let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
+            let imageDetails = try await aiService.getImageDetails(
                 from: [capturedImage].compactMap { $0 },
                 settings: settings,
-                modelContext: modelContext
+                context: context
             )
-            print("OpenAI analysis complete, updating item...")
+            print("AI analysis complete, updating item...")
 
             // Update the item with the results
             await MainActor.run {
@@ -338,7 +350,12 @@ struct ItemCreationFlowView: View {
                 let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
 
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
+                item.updateFromImageDetails(
+                    imageDetails,
+                    labels: labels,
+                    locations: locations,
+                    modelContext: modelContext
+                )
                 try? modelContext.save()
 
                 // Set processing flag to false
@@ -348,9 +365,9 @@ struct ItemCreationFlowView: View {
                 analysisComplete = true
                 print("Analysis complete, item updated")
             }
-        } catch let openAIError as OpenAIError {
+        } catch let aiAnalysisError as AIAnalysisError {
             await MainActor.run {
-                switch openAIError {
+                switch aiAnalysisError {
                 case .invalidURL:
                     errorMessage = "Invalid URL configuration"
                 case .invalidResponse:
@@ -360,7 +377,7 @@ struct ItemCreationFlowView: View {
                 case .rateLimitExceeded:
                     errorMessage = "Rate limit exceeded, please try again later"
                 case .serverError(_):
-                    errorMessage = "Server error: \(openAIError.localizedDescription)"
+                    errorMessage = "Server error: \(aiAnalysisError.localizedDescription)"
                 case .networkCancelled:
                     errorMessage = "Request was cancelled. Please try again."
                 case .networkTimeout:
@@ -397,20 +414,21 @@ struct ItemCreationFlowView: View {
                 from: images)
 
             guard !imageBase64Array.isEmpty else {
-                throw OpenAIError.invalidData
+                throw AIAnalysisError.invalidData
             }
 
-            // Create OpenAI service with multiple images and get image details
-            let openAi = OpenAIServiceFactory.create()
+            // Create AI analysis service with multiple images and get image details
+            let aiService = AIAnalysisServiceFactory.create()
             TelemetryManager.shared.trackCameraAnalysisUsed()
 
-            print("Calling OpenAI for multi-image analysis...")
-            let imageDetails = try await openAi.getImageDetails(
+            print("Calling AI service for multi-image analysis...")
+            let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
+            let imageDetails = try await aiService.getImageDetails(
                 from: capturedImages,
                 settings: settings,
-                modelContext: modelContext
+                context: context
             )
-            print("OpenAI multi-image analysis complete, updating item...")
+            print("AI multi-image analysis complete, updating item...")
 
             // Update the item with the results
             await MainActor.run {
@@ -418,7 +436,12 @@ struct ItemCreationFlowView: View {
                 let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
                 let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
 
-                item.updateFromImageDetails(imageDetails, labels: labels, locations: locations)
+                item.updateFromImageDetails(
+                    imageDetails,
+                    labels: labels,
+                    locations: locations,
+                    modelContext: modelContext
+                )
                 try? modelContext.save()
 
                 // Increment successful AI analysis count and check for review request
@@ -434,9 +457,9 @@ struct ItemCreationFlowView: View {
                 analysisComplete = true
                 print("Multi-image analysis complete, item updated")
             }
-        } catch let openAIError as OpenAIError {
+        } catch let aiAnalysisError as AIAnalysisError {
             await MainActor.run {
-                switch openAIError {
+                switch aiAnalysisError {
                 case .invalidURL:
                     errorMessage = "Invalid URL configuration"
                 case .invalidResponse:
@@ -446,7 +469,7 @@ struct ItemCreationFlowView: View {
                 case .rateLimitExceeded:
                     errorMessage = "Rate limit exceeded, please try again later"
                 case .serverError(_):
-                    errorMessage = "Server error: \(openAIError.localizedDescription)"
+                    errorMessage = "Server error: \(aiAnalysisError.localizedDescription)"
                 case .networkCancelled:
                     errorMessage = "Request was cancelled. Please try again."
                 case .networkTimeout:

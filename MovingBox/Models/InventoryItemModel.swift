@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MovingBoxAIAnalysis
 import SwiftData
 import SwiftUI
 
@@ -558,8 +559,13 @@ extension InventoryItem {
 // MARK: - AI Image Analysis Update Helper
 extension InventoryItem {
     @MainActor
-    func updateFromImageDetails(_ imageDetails: ImageDetails, labels: [InventoryLabel], locations: [InventoryLocation])
-    {
+    func updateFromImageDetails(
+        _ imageDetails: ImageDetails,
+        labels: [InventoryLabel],
+        locations: [InventoryLocation],
+        modelContext: ModelContext?,
+        preserveExistingLabels: Bool = false
+    ) {
         // Core properties (always update)
         self.title = imageDetails.title
         self.quantityString = imageDetails.quantity
@@ -583,13 +589,33 @@ extension InventoryItem {
             self.location = locations.first { $0.name == imageDetails.location }
         }
 
-        // Label handling - match categories to labels (case-insensitive)
-        // Supports multiple categories from AI (up to 3, limited to 5 labels total)
+        // Label handling - match categories to labels and create new ones if needed.
+        // If AI does not provide a usable category, keep existing labels intact.
         let categoriesToMatch = imageDetails.categories.isEmpty ? [imageDetails.category] : imageDetails.categories
-        let matchedLabels = categoriesToMatch.compactMap { categoryName in
-            labels.first { $0.name.lowercased() == categoryName.lowercased() }
+        let assignedLabels = LabelAutoAssignment.labels(
+            for: categoriesToMatch,
+            existingLabels: labels,
+            modelContext: modelContext
+        )
+        if assignedLabels.isEmpty {
+            // Keep existing labels if AI didn't provide a usable category.
+        } else if preserveExistingLabels, !self.labels.isEmpty {
+            var combined: [InventoryLabel] = []
+            var seen = Set<UUID>()
+
+            for label in self.labels where !seen.contains(label.id) {
+                combined.append(label)
+                seen.insert(label.id)
+            }
+            for label in assignedLabels where !seen.contains(label.id) {
+                combined.append(label)
+                seen.insert(label.id)
+            }
+
+            self.labels = Array(combined.prefix(LabelAutoAssignment.maxLabelsPerItem))
+        } else {
+            self.labels = assignedLabels
         }
-        self.labels = Array(matchedLabels.prefix(5))
 
         // Extended properties - only update if provided by AI
         if let condition = imageDetails.condition, !condition.isEmpty {

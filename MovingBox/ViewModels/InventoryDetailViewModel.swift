@@ -8,6 +8,7 @@
 // NOTE: THIS IS NOT IN USE YET - ALL BUSINESS LOGIC IS IN InventoryDetailView.swift
 
 import Foundation
+import MovingBoxAIAnalysis
 import PhotosUI
 import StoreKit
 import SwiftData
@@ -19,14 +20,14 @@ final class InventoryDetailViewModel {
 
     // MARK: - Dependencies
 
-    private let openAIService: OpenAIServiceProtocol
+    private let aiAnalysisService: AIAnalysisServiceProtocol
     private let imageManager: ImageManagerProtocol
     private let settings: SettingsManager
     private let modelContext: ModelContext
 
     // MARK: - Published Properties
 
-    var isLoadingOpenAiResults = false
+    var isLoadingAIResults = false
     var errorMessage = ""
     var showingErrorAlert = false
     var showAIButton = false
@@ -49,12 +50,12 @@ final class InventoryDetailViewModel {
         inventoryItem: InventoryItem,
         settings: SettingsManager,
         modelContext: ModelContext,
-        openAIService: OpenAIServiceProtocol,
+        aiAnalysisService: AIAnalysisServiceProtocol,
         imageManager: ImageManagerProtocol = OptimizedImageManagerWrapper()
     ) {
         self.settings = settings
         self.modelContext = modelContext
-        self.openAIService = openAIService
+        self.aiAnalysisService = aiAnalysisService
         self.imageManager = imageManager
 
         Task { @MainActor in
@@ -66,14 +67,14 @@ final class InventoryDetailViewModel {
 
     func performAIAnalysis(for item: InventoryItem, allItems: [InventoryItem]) async {
         await MainActor.run {
-            isLoadingOpenAiResults = true
+            isLoadingAIResults = true
         }
 
         do {
-            let imageDetails = try await callOpenAI(for: item)
+            let imageDetails = try await callAIAnalysis(for: item)
             await MainActor.run { @MainActor in
                 updateUIWithImageDetails(imageDetails, for: item)
-                isLoadingOpenAiResults = false
+                isLoadingAIResults = false
 
                 // Increment successful AI analysis count and check for review request
                 settings.incrementSuccessfulAIAnalysis()
@@ -85,20 +86,21 @@ final class InventoryDetailViewModel {
             let capturedError = error
             await MainActor.run { @MainActor in
                 handleAIError(capturedError)
-                isLoadingOpenAiResults = false
+                isLoadingAIResults = false
             }
         }
     }
 
-    private func callOpenAI(for item: InventoryItem) async throws -> ImageDetails {
+    private func callAIAnalysis(for item: InventoryItem) async throws -> ImageDetails {
         guard !loadedImages.isEmpty else {
-            throw OpenAIError.invalidData
+            throw AIAnalysisError.invalidData
         }
 
-        let imageDetails = try await openAIService.getImageDetails(
+        let context = await MainActor.run { AIAnalysisContext.from(modelContext: modelContext, settings: settings) }
+        let imageDetails = try await aiAnalysisService.getImageDetails(
             from: loadedImages,
             settings: settings,
-            modelContext: modelContext
+            context: context
         )
 
         TelemetryManager.shared.trackCameraAnalysisUsed()
@@ -177,8 +179,8 @@ final class InventoryDetailViewModel {
 
     @MainActor
     private func handleAIError(_ error: Error) {
-        if let openAIError = error as? OpenAIError {
-            switch openAIError {
+        if let aiAnalysisError = error as? AIAnalysisError {
+            switch aiAnalysisError {
             case .invalidURL:
                 errorMessage = "Invalid URL configuration"
             case .invalidResponse:
@@ -186,7 +188,7 @@ final class InventoryDetailViewModel {
             case .invalidData:
                 errorMessage = "Unable to process AI response"
             default:
-                errorMessage = openAIError.userFriendlyMessage
+                errorMessage = aiAnalysisError.userFriendlyMessage
             }
         } else {
             errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
