@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import MovingBoxAIAnalysis
 import SQLiteData
 import SwiftUI
 import Testing
@@ -309,7 +310,7 @@ import UIKit
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .singleItem,
             locationID: nil,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockOpenAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 
@@ -347,7 +348,7 @@ import UIKit
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
             locationID: nil,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockOpenAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 
@@ -378,7 +379,7 @@ import UIKit
         let viewModel = ItemCreationFlowViewModel(
             captureMode: .multiItem,
             locationID: nil,
-            openAIService: mockOpenAIService
+            aiAnalysisService: mockOpenAIService
         )
         viewModel.updateSettingsManager(mockSettings)
 

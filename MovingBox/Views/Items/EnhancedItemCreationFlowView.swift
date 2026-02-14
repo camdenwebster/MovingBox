@@ -12,19 +12,23 @@ import SQLiteData
 import SwiftUI
 
 struct EnhancedItemCreationFlowView: View {
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
 
     @StateObject private var viewModel: ItemCreationFlowViewModel
     @State private var showingPermissionDenied = false
+    @State private var hasBootstrappedInitialVideo = false
 
     // Animation properties
     private let transitionAnimation = Animation.easeInOut(duration: 0.3)
 
     let captureMode: CaptureMode
     let locationID: UUID?
+    let initialVideoURL: URL?
     let onComplete: (() -> Void)?
 
     // MARK: - Initialization
@@ -32,10 +36,12 @@ struct EnhancedItemCreationFlowView: View {
     init(
         captureMode: CaptureMode,
         location: SQLiteInventoryLocation?,
+        initialVideoURL: URL? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
         self.locationID = location?.id
+        self.initialVideoURL = initialVideoURL
         self.onComplete = onComplete
 
         self._viewModel = StateObject(
@@ -48,10 +54,12 @@ struct EnhancedItemCreationFlowView: View {
     init(
         captureMode: CaptureMode,
         locationID: UUID?,
+        initialVideoURL: URL? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
         self.locationID = locationID
+        self.initialVideoURL = initialVideoURL
         self.onComplete = onComplete
 
         self._viewModel = StateObject(
@@ -74,7 +82,10 @@ struct EnhancedItemCreationFlowView: View {
             }
             .navigationTitle(viewModel.currentStepTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarHidden(viewModel.currentStep == .camera)
+            .navigationBarHidden(
+                viewModel.currentStep == .camera
+                    || (viewModel.currentStep == .multiItemSelection && viewModel.captureMode != .video)
+            )
             .interactiveDismissDisabled(viewModel.processingImage)
             .alert("Camera Access Required", isPresented: $showingPermissionDenied) {
                 Button("Go to Settings", action: openSettings)
@@ -97,10 +108,23 @@ struct EnhancedItemCreationFlowView: View {
         .onAppear {
             viewModel.updateSettingsManager(settings)
 
-            // Verify Pro status for multi-item mode
-            if captureMode == .multiItem && !settings.isPro {
+            // Verify Pro status for multi-item/video mode
+            if (captureMode == .multiItem || captureMode == .video) && !settings.isPro {
                 dismiss()
             }
+
+            if !hasBootstrappedInitialVideo, let initialVideoURL {
+                hasBootstrappedInitialVideo = true
+                viewModel.handleSavedVideo(initialVideoURL)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            viewModel.updateScenePhase(phase)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .multiItemAnalysisReadyNotificationTapped)
+        ) { _ in
+            viewModel.handleAnalysisNotificationTapped()
         }
     }
 
@@ -110,7 +134,14 @@ struct EnhancedItemCreationFlowView: View {
     private var mainContentView: some View {
         switch viewModel.currentStep {
         case .camera:
-            cameraView
+            if initialVideoURL != nil {
+                videoBootstrapView
+            } else {
+                cameraView
+            }
+
+        case .videoProcessing:
+            videoProcessingView
 
         case .analyzing:
             analysisView
@@ -150,6 +181,17 @@ struct EnhancedItemCreationFlowView: View {
                     }
                 }
             },
+            onVideoSelected: { url in
+                Task {
+                    viewModel.updateCaptureMode(.video)
+                    TelemetryManager.shared.trackCaptureModeSelected(
+                        mode: "video",
+                        imageCount: 0,
+                        isProUser: settings.isPro
+                    )
+                    await viewModel.handleSelectedVideo(url)
+                }
+            },
             onCancel: {
                 dismiss()
             }
@@ -163,6 +205,17 @@ struct EnhancedItemCreationFlowView: View {
         .id("camera-\(viewModel.transitionId)")
     }
 
+    private var videoBootstrapView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Preparing video...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+
     private var analysisView: some View {
         ZStack {
             ImageAnalysisView(images: viewModel.capturedImages) {
@@ -174,7 +227,9 @@ struct EnhancedItemCreationFlowView: View {
         }
         .task {
             // Perform analysis based on capture mode (use viewModel's mode, not initial mode)
-            if viewModel.captureMode == .multiItem {
+            if viewModel.captureMode == .video {
+                return
+            } else if viewModel.captureMode == .multiItem {
                 await viewModel.performMultiItemAnalysis()
             } else {
                 await viewModel.performAnalysis()
@@ -210,25 +265,73 @@ struct EnhancedItemCreationFlowView: View {
         .id("analysis-\(viewModel.transitionId)")
     }
 
+    private var videoProcessingView: some View {
+        VideoProcessingView(
+            thumbnail: viewModel.capturedImages.first,
+            progress: viewModel.videoProcessingProgress,
+            onComplete: {
+                if viewModel.currentStep == .videoProcessing {
+                    viewModel.goToStep(.multiItemSelection)
+                }
+            }
+        )
+        .task {
+            if !viewModel.processingImage && viewModel.multiItemAnalysisResponse == nil {
+                await viewModel.performVideoProcessing()
+            }
+        }
+        .transition(
+            .asymmetric(
+                insertion: .move(edge: .trailing),
+                removal: .move(edge: .leading)
+            )
+        )
+        .id("videoProcessing-\(viewModel.transitionId)")
+    }
+
     @ViewBuilder
     private var multiItemSelectionView: some View {
         if let analysisResponse = viewModel.multiItemAnalysisResponse {
-            MultiItemSelectionView(
-                analysisResponse: analysisResponse,
-                images: viewModel.capturedImages,
-                locationID: locationID,
-                onItemsSelected: { items in
-                    viewModel.handleMultiItemSelection(items)
-                },
-                onCancel: {
-                    dismiss()
-                },
-                onReanalyze: {
-                    // Go back to analyzing step to re-analyze the images
-                    viewModel.resetAnalysisState()
-                    viewModel.goToStep(.analyzing)
+            Group {
+                if viewModel.captureMode == .video {
+                    VideoItemSelectionListView(
+                        analysisResponse: analysisResponse,
+                        images: viewModel.capturedImages,
+                        location: resolvedLocation,
+                        database: database,
+                        aiAnalysisService: viewModel.selectionAIAnalysisService,
+                        isStreamingResults: viewModel.isVideoAnalysisStreaming,
+                        streamingStatusText: viewModel.videoStreamingStatusText,
+                        onItemsSelected: { items in
+                            viewModel.handleMultiItemSelection(items)
+                        },
+                        onCancel: {
+                            dismiss()
+                        },
+                        onReanalyze: {
+                            viewModel.resetAnalysisState()
+                            viewModel.goToStep(.videoProcessing)
+                        }
+                    )
+                } else {
+                    MultiItemSelectionView(
+                        analysisResponse: analysisResponse,
+                        images: viewModel.capturedImages,
+                        locationID: locationID,
+                        onItemsSelected: { items in
+                            viewModel.handleMultiItemSelection(items)
+                        },
+                        onCancel: {
+                            dismiss()
+                        },
+                        onReanalyze: {
+                            // Go back to analyzing step to re-analyze the images
+                            viewModel.resetAnalysisState()
+                            viewModel.goToStep(.analyzing)
+                        }
+                    )
                 }
-            )
+            }
             .transition(
                 .asymmetric(
                     insertion: .move(edge: .trailing),
@@ -380,8 +483,8 @@ struct EnhancedItemCreationFlowView: View {
         viewModel.errorMessage = nil
 
         // Move to next step based on current step and mode
-        if viewModel.currentStep == .analyzing {
-            if viewModel.captureMode == .multiItem {
+        if viewModel.currentStep == .analyzing || viewModel.currentStep == .videoProcessing {
+            if viewModel.captureMode == .multiItem || viewModel.captureMode == .video {
                 // Create empty multi-item response to allow progression
                 viewModel.multiItemAnalysisResponse = MultiItemAnalysisResponse(
                     items: [],
@@ -397,6 +500,13 @@ struct EnhancedItemCreationFlowView: View {
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
+        }
+    }
+
+    private var resolvedLocation: SQLiteInventoryLocation? {
+        guard let locationID else { return nil }
+        return try? database.read { db in
+            try SQLiteInventoryLocation.find(locationID).fetchOne(db)
         }
     }
 }

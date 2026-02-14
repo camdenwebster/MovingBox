@@ -131,9 +131,7 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
             )
 
             let completedBatchResults = batchResults
-            let aiContext = await MainActor.run {
-                AIAnalysisContext.from(database: database, settings: settings)
-            }
+            let aiContext = await AIAnalysisContext.from(database: database, settings: settings)
             let response = try await aiService.getMultiItemDetails(
                 from: batchImages,
                 settings: settings,

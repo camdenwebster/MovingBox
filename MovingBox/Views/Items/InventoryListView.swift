@@ -11,9 +11,15 @@ import SQLiteData
 import SentrySwiftUI
 import SwiftUI
 import SwiftUIBackports
+import TipKit
 
 enum Options: Hashable {
     case destination(String)
+}
+
+private struct VideoAnalysisSelection: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 struct InventoryListView: View {
@@ -60,6 +66,9 @@ struct InventoryListView: View {
     @State private var selectedItemIDs: Set<UUID> = []
     @State private var isSearchPresented = false
     @State private var showingDeleteConfirmation = false
+    @State private var showingVideoLibrary = false
+    @State private var pendingVideoAnalysis: VideoAnalysisSelection?
+    @State private var hasTrackedVideoLibraryTipVisit = false
 
     // State for batch operations
     @State private var showingLocationPicker = false
@@ -143,6 +152,11 @@ struct InventoryListView: View {
         return allLocations.filter { $0.homeID == activeHome.id }
     }
 
+    private var selectedLocation: SQLiteInventoryLocation? {
+        guard let locationID else { return nil }
+        return allLocations.first(where: { $0.id == locationID })
+    }
+
     private var inventoryListContent: some View {
         InventoryListSubView(
             locationID: locationID,
@@ -168,12 +182,32 @@ struct InventoryListView: View {
             .toolbar(content: bottomToolbarContent)
             .sheet(isPresented: $showingPaywall, content: paywallSheet)
             .fullScreenCover(isPresented: $showingImageAnalysis, content: imageAnalysisSheet)
+            .sheet(isPresented: $showingVideoLibrary) {
+                VideoLibrarySheetView(
+                    location: selectedLocation,
+                    onAnalyzeVideo: { url in
+                        startVideoAnalysis(for: url)
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
             .fullScreenCover(isPresented: $showItemCreationFlow) {
                 EnhancedItemCreationFlowView(
                     captureMode: .singleItem,
                     locationID: locationID
                 ) {
                     // Optional callback when item creation is complete
+                }
+                .tint(.green)
+            }
+            .fullScreenCover(item: $pendingVideoAnalysis) { selection in
+                EnhancedItemCreationFlowView(
+                    captureMode: .video,
+                    locationID: locationID,
+                    initialVideoURL: selection.url
+                ) {
+                    pendingVideoAnalysis = nil
                 }
                 .tint(.green)
             }
@@ -268,6 +302,14 @@ struct InventoryListView: View {
             } message: {
                 Text(exportCoordinator.exportError?.localizedDescription ?? "An error occurred while exporting items.")
             }
+            .onAppear {
+                if filterLabelID == nil {
+                    trackVideoLibraryTipVisitIfNeeded()
+                }
+            }
+            .onDisappear {
+                hasTrackedVideoLibraryTipVisit = false
+            }
             .sentryTrace("InventoryListView")
     }
 
@@ -296,6 +338,12 @@ struct InventoryListView: View {
                 }
             }
         } else {
+            if filterLabelID == nil {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    videoToolbarButton
+                }
+            }
+
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu("Options", systemImage: menuIcon) {
                     Button(action: createManualItem) {
@@ -346,6 +394,26 @@ struct InventoryListView: View {
                 }
                 .accessibilityIdentifier("toolbarMenu")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var videoToolbarButton: some View {
+        if #available(iOS 17.0, *) {
+            Button {
+                openVideoLibrary()
+            } label: {
+                Image(systemName: "video")
+            }
+            .popoverTip(InventoryVideoLibraryTip(), arrowEdge: .top)
+            .accessibilityIdentifier("inventoryVideoLibraryButton")
+        } else {
+            Button {
+                openVideoLibrary()
+            } label: {
+                Image(systemName: "video")
+            }
+            .accessibilityIdentifier("inventoryVideoLibraryButton")
         }
     }
 
@@ -499,6 +567,28 @@ struct InventoryListView: View {
         } else {
             print("📱 Launching Camera")
             showItemCreationFlow = true
+        }
+    }
+
+    private func openVideoLibrary() {
+        if #available(iOS 17.0, *) {
+            InventoryVideoLibraryTip.hasOpenedVideoLibrary = true
+        }
+        showingVideoLibrary = true
+    }
+
+    private func startVideoAnalysis(for url: URL) {
+        showingVideoLibrary = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            pendingVideoAnalysis = VideoAnalysisSelection(url: url)
+        }
+    }
+
+    private func trackVideoLibraryTipVisitIfNeeded() {
+        guard !hasTrackedVideoLibraryTipVisit else { return }
+        hasTrackedVideoLibraryTipVisit = true
+        if #available(iOS 17.0, *) {
+            InventoryVideoLibraryTip.inventoryListVisitCount += 1
         }
     }
 

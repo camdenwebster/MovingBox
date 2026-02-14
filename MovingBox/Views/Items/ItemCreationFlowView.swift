@@ -7,6 +7,7 @@ import SwiftUI
 
 enum ItemCreationStep: CaseIterable {
     case camera
+    case videoProcessing
     case analyzing
     case multiItemSelection
     case details
@@ -14,6 +15,7 @@ enum ItemCreationStep: CaseIterable {
     var displayName: String {
         switch self {
         case .camera: return "Camera"
+        case .videoProcessing: return "Video Processing"
         case .analyzing: return "Analyzing"
         case .multiItemSelection: return "Select Items"
         case .details: return "Details"
@@ -26,6 +28,8 @@ enum ItemCreationStep: CaseIterable {
             return [.camera, .analyzing, .details]
         case .multiItem:
             return [.camera, .analyzing, .multiItemSelection, .details]
+        case .video:
+            return [.camera, .videoProcessing, .multiItemSelection, .details]
         }
     }
 }
@@ -142,6 +146,12 @@ struct ItemCreationFlowView: View {
                         )
                         .id("analysis-\(transitionId)")
                     }
+
+                case .videoProcessing:
+                    Text("Video processing not supported in this view")
+                        .onAppear {
+                            currentStep = .details
+                        }
 
                 case .multiItemSelection:
                     // This view doesn't support multi-item selection, fall back to details

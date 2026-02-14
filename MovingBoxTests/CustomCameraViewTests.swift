@@ -11,34 +11,42 @@ import Testing
     func testCaptureModeEnum() {
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.displayName == "Single")
         #expect(multiMode.displayName == "Multi")
+        #expect(videoMode.displayName == "Video")
         #expect(singleMode.description == "Multiple photos of one item")
-        #expect(multiMode.description == "One photo with multiple items")
+        #expect(multiMode.description == "Multiple photos with multiple items")
+        #expect(videoMode.description == "Analyze items from a video")
     }
 
     @Test("CaptureMode max photos logic")
     func testCaptureModeLimits() {
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.maxPhotosAllowed(isPro: false) == 1)
-        #expect(singleMode.maxPhotosAllowed(isPro: true) == 5)
-        #expect(multiMode.maxPhotosAllowed(isPro: false) == 1)
-        #expect(multiMode.maxPhotosAllowed(isPro: true) == 1)
+        #expect(singleMode.maxPhotosAllowed(isPro: true) == CaptureMode.maxPhotosPerAnalysis)
+        #expect(multiMode.maxPhotosAllowed(isPro: false) == CaptureMode.maxPhotosPerAnalysis)
+        #expect(multiMode.maxPhotosAllowed(isPro: true) == CaptureMode.maxPhotosPerAnalysis)
+        #expect(videoMode.maxPhotosAllowed(isPro: true) == 0)
     }
 
     @Test("CaptureMode validation")
     func testCaptureModeValidation() {
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.isValidPhotoCount(1) == true)
-        #expect(singleMode.isValidPhotoCount(5) == true)
-        #expect(singleMode.isValidPhotoCount(6) == false)
+        #expect(singleMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis) == true)
+        #expect(singleMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis + 1) == false)
         #expect(multiMode.isValidPhotoCount(1) == true)
-        #expect(multiMode.isValidPhotoCount(2) == false)
+        #expect(multiMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis) == true)
+        #expect(multiMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis + 1) == false)
+        #expect(videoMode.isValidPhotoCount(1) == false)
     }
 
     @Test("MultiPhotoCameraView single item mode initializer")
@@ -95,13 +103,17 @@ import Testing
     func testCaptureModeBehavior() {
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
+        let videoMode = CaptureMode.video
 
         #expect(singleMode.showsPhotoPickerButton == true)
         #expect(multiMode.showsPhotoPickerButton == true)
+        #expect(videoMode.showsPhotoPickerButton == false)
         #expect(singleMode.showsThumbnailScrollView == true)
-        #expect(multiMode.showsThumbnailScrollView == false)
+        #expect(multiMode.showsThumbnailScrollView == true)
+        #expect(videoMode.showsThumbnailScrollView == false)
         #expect(singleMode.allowsMultipleCaptures == true)
-        #expect(multiMode.allowsMultipleCaptures == false)
+        #expect(multiMode.allowsMultipleCaptures == true)
+        #expect(videoMode.allowsMultipleCaptures == false)
     }
 
     // MARK: - Helper Methods

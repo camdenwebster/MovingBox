@@ -7,7 +7,7 @@
 
 import Foundation
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import Testing
 import UIKit
 
@@ -18,16 +18,8 @@ struct BoundingBoxCropperTests {
 
     // MARK: - Helpers
 
-    private func createTestContainer() throws -> ModelContainer {
-        let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-            Home.self,
-            InsurancePolicy.self,
-        ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [configuration])
+    private func createTestDatabase() throws -> DatabaseQueue {
+        try makeInMemoryDatabase()
     }
 
     // MARK: - ItemDetection Codable Tests
@@ -234,8 +226,7 @@ struct BoundingBoxCropperTests {
     @Test("ViewModel primaryImage falls back to source image when no detections")
     @MainActor
     func testViewModelPrimaryImageFallback() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let testImage = createTestImage(width: 100, height: 100)
 
         let response = MultiItemAnalysisResponse(
@@ -260,22 +251,21 @@ struct BoundingBoxCropperTests {
             analysisResponse: response,
             images: [testImage],
             location: nil,
-            modelContext: context
+            database: database
         )
 
         await viewModel.computeCroppedImages()
 
-        // With no detections, primaryImage should fall back to first source image
+        // With no detections, rowThumbnail should fall back to source image.
         let item = viewModel.detectedItems[0]
-        let result = viewModel.primaryImage(for: item)
+        let result = viewModel.rowThumbnail(for: item)
         #expect(result != nil)
     }
 
     @Test("ViewModel computes cropped images from detections")
     @MainActor
     func testViewModelComputesCroppedImages() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let testImage = createTestImage(width: 1000, height: 1000)
 
         let response = MultiItemAnalysisResponse(
@@ -302,7 +292,7 @@ struct BoundingBoxCropperTests {
             analysisResponse: response,
             images: [testImage],
             location: nil,
-            modelContext: context
+            database: database
         )
 
         await viewModel.computeCroppedImages()
@@ -315,8 +305,7 @@ struct BoundingBoxCropperTests {
     @Test("ViewModel computeCroppedImages is idempotent")
     @MainActor
     func testViewModelCroppingIdempotent() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let testImage = createTestImage(width: 1000, height: 1000)
 
         let response = MultiItemAnalysisResponse(
@@ -343,7 +332,7 @@ struct BoundingBoxCropperTests {
             analysisResponse: response,
             images: [testImage],
             location: nil,
-            modelContext: context
+            database: database
         )
 
         await viewModel.computeCroppedImages()

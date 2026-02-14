@@ -842,22 +842,12 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         print("🔄 handleCaptureModeChange: \(oldMode) → \(newMode)")
         isHandlingModeChange = true
 
-        // Check if switching to multi-item requires pro
-        if newMode == .multiItem && !isPro {
-            print("🔒 Multi-item mode requires pro, showing paywall")
+        // Check if switching to multi-item or video requires pro
+        if (newMode == .multiItem || newMode == .video) && !isPro {
+            print("🔒 Capture mode requires pro, showing paywall")
             selectedCaptureMode = oldMode
             isHandlingModeChange = false
             showingPaywall = true
-            return false
-        }
-
-        // Check if we have captured images that would be lost
-        if !capturedImages.isEmpty {
-            print("📸 Photos exist (\(capturedImages.count)), requesting confirmation")
-            pendingCaptureMode = newMode
-            selectedCaptureMode = oldMode
-            isHandlingModeChange = false
-            showingModeSwitchConfirmation = true
             return false
         }
 
@@ -868,7 +858,6 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     }
 
     func performModeSwitch(to newMode: CaptureMode) {
-        capturedImages.removeAll()
         selectedCaptureMode = newMode
         pendingCaptureMode = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -893,7 +882,14 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
     }
 
     func saveCaptureMode(to settings: SettingsManager) {
-        settings.preferredCaptureMode = selectedCaptureMode == .singleItem ? 0 : 1
+        switch selectedCaptureMode {
+        case .singleItem:
+            settings.preferredCaptureMode = 0
+        case .multiItem:
+            settings.preferredCaptureMode = 1
+        case .video:
+            settings.preferredCaptureMode = 0
+        }
     }
 
     func canCaptureMorePhotos(captureMode: CaptureMode, isPro: Bool) -> Bool {

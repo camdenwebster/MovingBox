@@ -6,8 +6,28 @@
 //
 
 import UIKit
+import UserNotifications
 
-class AppDelegate: NSObject, UIApplicationDelegate {
+enum AnalysisNotificationConstants {
+    static let multiItemAnalysisReadyIdentifier = "multiItemAnalysisReady"
+    static let multiItemAnalysisTappedNotificationName = "multiItemAnalysisReadyNotificationTapped"
+}
+
+extension Notification.Name {
+    static let multiItemAnalysisReadyNotificationTapped = Notification.Name(
+        AnalysisNotificationConstants.multiItemAnalysisTappedNotificationName
+    )
+}
+
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
@@ -16,5 +36,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
         return config
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let identifier = response.notification.request.identifier
+        if identifier == AnalysisNotificationConstants.multiItemAnalysisReadyIdentifier {
+            NotificationCenter.default.post(
+                name: .multiItemAnalysisReadyNotificationTapped,
+                object: nil,
+                userInfo: response.notification.request.content.userInfo
+            )
+        }
+        completionHandler()
     }
 }

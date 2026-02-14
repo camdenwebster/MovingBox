@@ -1,6 +1,8 @@
 import AVFoundation
 import AVKit
 import Combine
+import Foundation
+import MovingBoxAIAnalysis
 import PhotosUI
 import SQLiteData
 import SwiftUI
@@ -21,10 +23,12 @@ extension EnvironmentValues {
 
 /// Represents the capture mode for the MultiPhotoCameraView
 enum CaptureMode: CaseIterable {
-    case singleItem
     /// Multiple photos of one item (existing functionality)
+    case singleItem
+    /// Multiple photos with multiple items (new functionality)
     case multiItem
-    /// One photo with multiple items (new functionality)
+    /// Analyze items from a video
+    case video
 
     // MARK: - Display Properties
 
@@ -32,13 +36,15 @@ enum CaptureMode: CaseIterable {
         switch self {
         case .singleItem: return "Single"
         case .multiItem: return "Multi"
+        case .video: return "Video"
         }
     }
 
     var description: String {
         switch self {
         case .singleItem: return "Multiple photos of one item"
-        case .multiItem: return "One photo with multiple items"
+        case .multiItem: return "Multiple photos with multiple items"
+        case .video: return "Analyze items from a video"
         }
     }
 
@@ -46,27 +52,32 @@ enum CaptureMode: CaseIterable {
         switch self {
         case .singleItem: return "photo"
         case .multiItem: return "photo.stack"
+        case .video: return "video"
         }
     }
 
     // MARK: - Photo Limits
 
+    static let maxPhotosPerAnalysis = AnalysisPhotoLimits.maxPhotos
+
     func maxPhotosAllowed(isPro: Bool) -> Int {
         switch self {
         case .singleItem:
-            return isPro ? 5 : 1
+            return isPro ? Self.maxPhotosPerAnalysis : 1
         case .multiItem:
-            return 1  // Always 1 for multi-item mode
+            return Self.maxPhotosPerAnalysis
+        case .video:
+            return 0
         }
     }
 
     func photoCounterText(currentCount: Int, isPro: Bool) -> String {
         switch self {
-        case .singleItem:
+        case .video:
+            return "Video"
+        default:
             let maxPhotos = maxPhotosAllowed(isPro: isPro)
             return "\(currentCount) of \(maxPhotos)"
-        case .multiItem:
-            return ""  // No counter text for multi-item mode
         }
     }
 
@@ -75,22 +86,26 @@ enum CaptureMode: CaseIterable {
     func isValidPhotoCount(_ count: Int) -> Bool {
         switch self {
         case .singleItem:
-            return count >= 1 && count <= 5
+            return count >= 1 && count <= Self.maxPhotosPerAnalysis
         case .multiItem:
-            return count == 1
+            return count >= 1 && count <= Self.maxPhotosPerAnalysis
+        case .video:
+            return false
         }
     }
 
     func errorMessage(for error: CaptureModeError) -> String {
         switch (self, error) {
         case (.singleItem, .tooManyPhotos):
-            return "You can take up to 5 photos in single-item mode."
+            return "You can take up to \(Self.maxPhotosPerAnalysis) photos in single-item mode."
         case (.multiItem, .tooManyPhotos):
-            return "You can only take one photo in multi-item mode."
+            return "You can take up to \(Self.maxPhotosPerAnalysis) photos in multi-item mode."
         case (.singleItem, .noPhotos):
             return "Please take at least one photo."
         case (.multiItem, .noPhotos):
-            return "Please take exactly one photo for multi-item analysis."
+            return "Please take at least one photo for multi-item analysis."
+        case (.video, _):
+            return "Please select a video to analyze."
         }
     }
 
@@ -100,20 +115,23 @@ enum CaptureMode: CaseIterable {
         switch self {
         case .singleItem: return true
         case .multiItem: return true  // Enable photo picker for multi-item mode
+        case .video: return false
         }
     }
 
     var showsThumbnailScrollView: Bool {
         switch self {
         case .singleItem: return true
-        case .multiItem: return false
+        case .multiItem: return true
+        case .video: return false
         }
     }
 
     var allowsMultipleCaptures: Bool {
         switch self {
         case .singleItem: return true
-        case .multiItem: return false
+        case .multiItem: return true
+        case .video: return false
         }
     }
 
@@ -126,6 +144,8 @@ enum CaptureMode: CaseIterable {
         case .singleItem:
             return .itemCreationFlow(images: images, location: location)
         case .multiItem:
+            return .multiItemSelection(images: images, location: location)
+        case .video:
             return .multiItemSelection(images: images, location: location)
         }
     }
@@ -151,6 +171,7 @@ struct MultiPhotoCameraView: View {
     let captureMode: CaptureMode
     let onPermissionCheck: (Bool) -> Void
     let onComplete: ([UIImage], CaptureMode) -> Void
+    let onVideoSelected: ((URL) -> Void)?
     let onCancel: (() -> Void)?
 
     @Environment(\.isPreview) private var isPreview
@@ -160,26 +181,30 @@ struct MultiPhotoCameraView: View {
     }
 
     @State private var selectedItems: [PhotosPickerItem] = []
+    @State private var selectedVideoItem: PhotosPickerItem?
     @State private var showingPhotoPicker = false
+    @State private var showingVideoPicker = false
     @State private var animatingImage: UIImage?
     @State private var showingCaptureAnimation = false
     @State private var focusPoint: CGPoint?
     @State private var showingFocusIndicator = false
     @State private var orientation = UIDeviceOrientation.portrait
     @State private var localZoomIndex: Int = 0
-    @State private var showMultiItemPreview = false
+    @State private var showingGallery = false
 
     init(
         capturedImages: Binding<[UIImage]>,
         captureMode: CaptureMode = .singleItem,
         onPermissionCheck: @escaping (Bool) -> Void,
         onComplete: @escaping ([UIImage], CaptureMode) -> Void,
+        onVideoSelected: ((URL) -> Void)? = nil,
         onCancel: (() -> Void)? = nil
     ) {
         self._capturedImages = capturedImages
         self.captureMode = captureMode
         self.onPermissionCheck = onPermissionCheck
         self.onComplete = onComplete
+        self.onVideoSelected = onVideoSelected
         self.onCancel = onCancel
     }
 
@@ -187,12 +212,14 @@ struct MultiPhotoCameraView: View {
         capturedImages: Binding<[UIImage]>,
         onPermissionCheck: @escaping (Bool) -> Void,
         onComplete: @escaping ([UIImage], CaptureMode) -> Void,
+        onVideoSelected: ((URL) -> Void)? = nil,
         onCancel: (() -> Void)? = nil
     ) {
         self._capturedImages = capturedImages
         self.captureMode = .singleItem
         self.onPermissionCheck = onPermissionCheck
         self.onComplete = onComplete
+        self.onVideoSelected = onVideoSelected
         self.onCancel = onCancel
     }
 
@@ -206,24 +233,6 @@ struct MultiPhotoCameraView: View {
 
                 cameraPreview(geometry: geometry)
 
-                if showMultiItemPreview,
-                    let capturedImage = model.capturedImages.first
-                {
-                    MultiItemPreviewOverlay(
-                        capturedImage: capturedImage,
-                        squareSize: squareSize,
-                        onRetake: {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                showMultiItemPreview = false
-                            }
-                            model.capturedImages.removeAll()
-                        },
-                        onAnalyze: { onComplete(model.capturedImages, model.selectedCaptureMode) },
-                        isSyncingData: false
-                    )
-                    .transition(.scale.combined(with: .opacity))
-                }
-
                 cameraControls(geometry: geometry, cameraRect: cameraRect)
             }
         }
@@ -231,7 +240,7 @@ struct MultiPhotoCameraView: View {
             handleCameraCaptureEvent(event)
         }
         .alert("Photo Limit Reached", isPresented: $model.showPhotoLimitAlert) {
-            if settings.isPro || model.selectedCaptureMode == .multiItem {
+            if settings.isPro || model.selectedCaptureMode == .multiItem || model.selectedCaptureMode == .video {
                 Button("OK") {}
             } else {
                 Button("Close") {}
@@ -242,6 +251,8 @@ struct MultiPhotoCameraView: View {
         } message: {
             if model.selectedCaptureMode == .multiItem {
                 Text(model.selectedCaptureMode.errorMessage(for: .tooManyPhotos))
+            } else if model.selectedCaptureMode == .video {
+                Text("Video mode does not support photo capture.")
             } else if settings.isPro {
                 Text(model.selectedCaptureMode.errorMessage(for: .tooManyPhotos))
             } else {
@@ -257,44 +268,27 @@ struct MultiPhotoCameraView: View {
                     - model.capturedImages.count),
             matching: .images
         )
-        .alert("Switch Camera Mode?", isPresented: $model.showingModeSwitchConfirmation) {
-            Button("Cancel", role: .cancel) {
-                model.cancelModeSwitch()
-            }
-            Button("Switch Mode", role: .destructive) {
-                model.confirmModeSwitch()
-            }
-        } message: {
-            Text("Switching modes will clear your current photos. Are you sure?")
-        }
+        .photosPicker(
+            isPresented: $showingVideoPicker,
+            selection: $selectedVideoItem,
+            matching: .videos
+        )
         .onChange(of: selectedItems) { _, newItems in
             Task {
                 await processSelectedPhotos(newItems)
             }
         }
+        .onChange(of: selectedVideoItem) { _, newItem in
+            guard let newItem else { return }
+            Task {
+                await processSelectedVideo(newItem)
+            }
+        }
         .onChange(of: model.capturedImages) { oldImages, newImages in
             capturedImages = newImages
 
-            if model.selectedCaptureMode == .multiItem {
-                if !newImages.isEmpty && oldImages.isEmpty {
-                    // Animate in when first image is captured
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                        showMultiItemPreview = true
-                    }
-                } else if newImages.isEmpty && !oldImages.isEmpty {
-                    // Animate out when images are cleared (if not already animated by onRetake)
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        showMultiItemPreview = false
-                    }
-                }
-            } else {
-                // Ensure preview is hidden in single item mode
-                showMultiItemPreview = false
-                if model.selectedCaptureMode == .singleItem {
-                    if newImages.count > oldImages.count, let newImage = newImages.last {
-                        triggerCaptureAnimation(with: newImage)
-                    }
-                }
+            if newImages.count > oldImages.count, let newImage = newImages.last {
+                triggerCaptureAnimation(with: newImage)
             }
         }
         .onChange(of: model.currentZoomIndex) { _, newIndex in
@@ -307,9 +301,31 @@ struct MultiPhotoCameraView: View {
                 onDismiss: nil
             )
         }
+        .sheet(isPresented: $showingGallery) {
+            PhotoGallerySheet(
+                images: model.capturedImages,
+                maxPhotos: model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro),
+                onDelete: { index in
+                    model.removeImage(at: index)
+                }
+            )
+        }
         .onAppear {
             model.loadInitialCaptureMode(
                 preferredCaptureMode: settings.preferredCaptureMode, isPro: settings.isPro)
+            if model.selectedCaptureMode == .video && onVideoSelected == nil {
+                model.selectedCaptureMode = .singleItem
+            }
+            if model.selectedCaptureMode != captureMode {
+                if captureMode == .video && onVideoSelected == nil {
+                    return
+                }
+                if model.handleCaptureModeChange(
+                    from: model.selectedCaptureMode, to: captureMode, isPro: settings.isPro)
+                {
+                    model.saveCaptureMode(to: settings)
+                }
+            }
             if isPreview && !capturedImages.isEmpty {
                 model.capturedImages = capturedImages
             }
@@ -326,7 +342,9 @@ struct MultiPhotoCameraView: View {
     @ViewBuilder
     private func cameraPreview(geometry: GeometryProxy) -> some View {
         Group {
-            if isUITesting {
+            if model.selectedCaptureMode == .video {
+                videoSelectionView
+            } else if isUITesting {
                 Image("desk-chair", bundle: .main)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -355,65 +373,114 @@ struct MultiPhotoCameraView: View {
         .clipped()
     }
 
+    private var videoSelectionView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "video")
+                .font(.system(size: 48, weight: .semibold))
+                .foregroundColor(.white.opacity(0.9))
+
+            Text("Choose a video to analyze")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text("Up to 3 minutes")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+
+            Button {
+                showingVideoPicker = true
+            } label: {
+                Text("Choose Video")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(
+                        Capsule()
+                            .fill(Color.blue.opacity(0.9))
+                    )
+            }
+            .accessibilityIdentifier("chooseVideoButton")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+    }
+
     @ViewBuilder
     private func cameraControls(geometry: GeometryProxy, cameraRect: CGRect) -> some View {
-        let isMultiItemPreview = model.shouldShowMultiItemPreview(
-            captureMode: model.selectedCaptureMode)
-
-        VStack(spacing: 0) {
-            CameraTopControls(
-                model: model,
-                onClose: {
-                    if let onCancel = onCancel {
-                        onCancel()
-                    }
-                },
-                onDone: {
-                    onComplete(model.capturedImages, model.selectedCaptureMode)
-                },
-                isMultiItemPreviewShowing: isMultiItemPreview,
-                hasPhotoCaptured: !model.capturedImages.isEmpty,
-                isSyncingData: false
-            )
-
-            if model.selectedCaptureMode.showsThumbnailScrollView && !model.capturedImages.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(model.capturedImages.enumerated()), id: \.offset) { index, image in
-                            PhotoThumbnailView(
-                                image: image,
-                                index: index,
-                                onDelete: { index in
-                                    model.removeImage(at: index)
-                                }
-                            )
-                            .frame(width: 60, height: 70)
-                            .transition(.opacity)
+        if model.selectedCaptureMode == .video {
+            VStack(spacing: 0) {
+                CameraTopControls(
+                    model: model,
+                    onClose: {
+                        if let onCancel = onCancel {
+                            onCancel()
                         }
-                    }
-                    .padding(.horizontal, 20)
-                }
-                .frame(height: 70)
-                .animation(.easeIn(duration: 0.3), value: model.capturedImages.count)
-            }
-
-            Spacer()
-
-            if showingFocusIndicator, let focusPoint = focusPoint {
-                FocusIndicatorView()
-                    .position(focusPoint)
-            }
-
-            if showingCaptureAnimation, let animatingImage = animatingImage {
-                CaptureAnimationView(
-                    image: animatingImage,
-                    startRect: cameraRect,
-                    endRect: calculateThumbnailDestination(geometry: geometry),
-                    isVisible: $showingCaptureAnimation
+                    },
+                    onDone: {},
+                    isMultiItemPreviewShowing: true,
+                    hasPhotoCaptured: false,
+                    isSyncingData: false
                 )
-            }
 
-            if !isMultiItemPreview {
+                Spacer()
+
+                HStack {
+                    Spacer()
+
+                    CaptureModePicker(
+                        selectedMode: Binding(
+                            get: { model.selectedCaptureMode },
+                            set: { newMode in
+                                let oldMode = model.selectedCaptureMode
+                                if newMode == .video && onVideoSelected == nil {
+                                    return
+                                }
+                                if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
+                                    model.saveCaptureMode(to: settings)
+                                }
+                            }
+                        )
+                    )
+                    .frame(width: 150)
+
+                    Spacer()
+                }
+                .padding(.bottom, 24)
+            }
+        } else {
+            VStack(spacing: 0) {
+                CameraTopControls(
+                    model: model,
+                    onClose: {
+                        if let onCancel = onCancel {
+                            onCancel()
+                        }
+                    },
+                    onDone: {
+                        onComplete(model.capturedImages, model.selectedCaptureMode)
+                    },
+                    isMultiItemPreviewShowing: false,
+                    hasPhotoCaptured: !model.capturedImages.isEmpty,
+                    isSyncingData: false
+                )
+
+                Spacer()
+
+                if showingFocusIndicator, let focusPoint = focusPoint {
+                    FocusIndicatorView()
+                        .position(focusPoint)
+                }
+
+                if showingCaptureAnimation, let animatingImage = animatingImage {
+                    CaptureAnimationView(
+                        image: animatingImage,
+                        startRect: cameraRect,
+                        endRect: calculateThumbnailDestination(geometry: geometry),
+                        isVisible: $showingCaptureAnimation
+                    )
+                }
+
                 VStack(spacing: 0) {
                     Spacer()
 
@@ -429,16 +496,22 @@ struct MultiPhotoCameraView: View {
                     CameraBottomControls(
                         captureMode: model.selectedCaptureMode,
                         photoCount: model.capturedImages.count,
+                        maxPhotoCount: model.selectedCaptureMode.maxPhotosAllowed(isPro: settings.isPro),
+                        galleryThumbnail: model.capturedImages.last,
                         photoCounterText: model.selectedCaptureMode.photoCounterText(
                             currentCount: model.capturedImages.count, isPro: settings.isPro),
                         hasPhotoCaptured: !model.capturedImages.isEmpty,
                         onShutterTap: { handleShutterTap() },
                         onRetakeTap: { model.capturedImages.removeAll() },
                         onPhotoPickerTap: { handlePhotoPickerTap() },
+                        onGalleryTap: { showingGallery = true },
                         selectedCaptureMode: Binding(
                             get: { model.selectedCaptureMode },
                             set: { newMode in
                                 let oldMode = model.selectedCaptureMode
+                                if newMode == .video && onVideoSelected == nil {
+                                    return
+                                }
                                 if model.handleCaptureModeChange(from: oldMode, to: newMode, isPro: settings.isPro) {
                                     model.saveCaptureMode(to: settings)
                                 }
@@ -495,6 +568,9 @@ struct MultiPhotoCameraView: View {
     }
 
     private func handleShutterTap() {
+        if model.selectedCaptureMode == .video {
+            return
+        }
         if !model.canCaptureMorePhotos(captureMode: model.selectedCaptureMode, isPro: settings.isPro) {
             model.showPhotoLimitAlert = true
         } else {
@@ -507,6 +583,9 @@ struct MultiPhotoCameraView: View {
     }
 
     private func handlePhotoPickerTap() {
+        if model.selectedCaptureMode == .video {
+            return
+        }
         if !model.canCaptureMorePhotos(captureMode: model.selectedCaptureMode, isPro: settings.isPro) {
             model.showPhotoLimitAlert = true
         } else {
@@ -515,9 +594,10 @@ struct MultiPhotoCameraView: View {
     }
 
     private func calculateThumbnailDestination(geometry: GeometryProxy) -> CGRect {
-        let thumbnailAreaY: CGFloat = geometry.size.height * -0.095
-        let thumbnailX = 20 + CGFloat(model.capturedImages.count - 1) * 68
-        return CGRect(x: thumbnailX, y: thumbnailAreaY, width: 60, height: 60)
+        let thumbnailSize: CGFloat = 54
+        let x = 24.0
+        let y = geometry.size.height - 130.0 - geometry.safeAreaInsets.bottom
+        return CGRect(x: x, y: y, width: thumbnailSize, height: thumbnailSize)
     }
 
     private func triggerCaptureAnimation(with image: UIImage) {
@@ -550,6 +630,36 @@ struct MultiPhotoCameraView: View {
 
         await MainActor.run {
             selectedItems = []
+        }
+    }
+
+    private func processSelectedVideo(_ item: PhotosPickerItem) async {
+        defer {
+            Task { @MainActor in
+                selectedVideoItem = nil
+                showingVideoPicker = false
+            }
+        }
+
+        if let url = try? await item.loadTransferable(type: URL.self) {
+            await MainActor.run {
+                onVideoSelected?(url)
+            }
+            return
+        }
+
+        if let data = try? await item.loadTransferable(type: Data.self) {
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("mov")
+            do {
+                try data.write(to: tempURL)
+                await MainActor.run {
+                    onVideoSelected?(tempURL)
+                }
+            } catch {
+                print("❌ Failed to write video data to temp file: \(error)")
+            }
         }
     }
 

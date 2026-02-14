@@ -5,6 +5,7 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import MovingBoxAIAnalysis
 import SQLiteData
 import SwiftUI
 import Testing
@@ -493,17 +494,14 @@ import UIKit
             locationID: nil
         )
 
-        #expect(viewModel.detectedItems.count == 2)
+        // Low-confidence unknown items are now filtered out by quality gates.
+        #expect(viewModel.detectedItems.count == 1)
+        #expect(viewModel.filteredOutCount == 1)
 
-        // High confidence item should have good data
-        let highConfidenceItem = viewModel.detectedItems[0]
+        let highConfidenceItem = try #require(viewModel.detectedItems.first)
+        #expect(highConfidenceItem.id == "high-confidence")
         #expect(highConfidenceItem.confidence > 0.9)
         #expect(!highConfidenceItem.title.isEmpty)
-
-        // Low confidence item should have lower quality data
-        let lowConfidenceItem = viewModel.detectedItems[1]
-        #expect(lowConfidenceItem.confidence < 0.5)
-        #expect(lowConfidenceItem.description.isEmpty)
     }
 
     // MARK: - Helper Methods Tests

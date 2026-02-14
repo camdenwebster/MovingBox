@@ -1,3 +1,4 @@
+import MovingBoxAIAnalysis
 import SQLiteData
 import SwiftUI
 import Testing

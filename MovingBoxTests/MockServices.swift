@@ -15,69 +15,7 @@ import UIKit
 // MARK: - Mock OpenAI Service
 
 @MainActor
-class MockOpenAIService: OpenAIServiceProtocol {
-    var shouldFail = false
-    var shouldFailMultiItem = false
-
-    var mockResponse = ImageDetails(
-        title: "Test Item",
-        quantity: "1",
-        description: "A test item for mocking",
-        make: "Test Make",
-        model: "Test Model",
-        category: "Electronics",
-        location: "Test Location",
-        price: "100.00",
-        serialNumber: "TEST123"
-    )
-
-    var mockMultiItemResponse = MultiItemAnalysisResponse(
-        items: [
-            DetectedInventoryItem(
-                title: "Mock Item 1",
-                description: "First mock item",
-                category: "Electronics",
-                make: "Mock",
-                model: "Test",
-                estimatedPrice: "$99.99",
-                confidence: 0.85
-            )
-        ],
-        detectedCount: 1,
-        analysisType: "multi_item",
-        confidence: 0.85
-    )
-
-    func getImageDetails(
-        from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter
-    ) async throws -> ImageDetails {
-        if shouldFail {
-            throw AIAnalysisError.invalidData
-        }
-
-        // Simulate network delay
-        try await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
-
-        return mockResponse
-    }
-
-    func getMultiItemDetails(
-        from images: [UIImage], settings: SettingsManager, database: any DatabaseWriter
-    ) async throws -> MultiItemAnalysisResponse {
-        if shouldFailMultiItem {
-            throw AIAnalysisError.invalidData
-        }
-
-        // Simulate network delay
-        try await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
-
-        return mockMultiItemResponse
-    }
-
-    func cancelCurrentRequest() {
-        // Mock implementation - no-op
-    }
-}
+class MockOpenAIService: MockAIAnalysisService {}
 
 // MARK: - Mock Image Manager
 
