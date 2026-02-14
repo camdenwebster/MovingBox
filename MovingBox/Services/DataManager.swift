@@ -6,55 +6,55 @@
 //
 
 import Foundation
-import SwiftData
+import SQLiteData
 import SwiftUI
 import ZIPFoundation
 
 /// # DataManager: Swift Concurrency-Safe Import/Export Actor
 ///
-/// Handles bulk import and export of inventory data with proper Swift Concurrency patterns
-/// and SwiftData best practices as outlined in Paul Hudson's "SwiftData by Example".
+/// Handles bulk import and export of inventory data using sqlite-data (StructuredQueries + GRDB).
 ///
 /// ## Architecture Overview
 ///
-/// This actor implements a **ModelContainer → ModelContext** pattern where:
-/// - Views pass `ModelContainer` (Sendable) to export/import functions
-/// - Functions create local `ModelContext` instances for SwiftData operations
-/// - This approach is ~10x faster than accessing actor properties (per Hudson, p.218)
+/// This actor implements a **DatabaseReader/DatabaseWriter** pattern where:
+/// - Views pass `any DatabaseWriter` (Sendable) to export/import functions
+/// - Functions use `database.read {}` and `database.write {}` for all SQL operations
+/// - sqlite-data value types (`SQLiteInventoryItem`, etc.) are `Sendable` structs,
+///   eliminating the MainActor dance required by SwiftData's `@Model` classes
 ///
 /// ## Key Design Decisions
 ///
 /// ### 1. Actor Isolation
 /// All export/import functions are marked `nonisolated` to allow returning `AsyncStream`
-/// without actor hopping. However, all SwiftData operations happen on `@MainActor` per
-/// Apple's requirements.
+/// without actor hopping. Since sqlite-data models are value-type structs, no MainActor
+/// isolation is required for property access.
 ///
 /// ### 2. Swift Concurrency Safety
-/// - `ModelContainer` and `PersistentIdentifier` are Sendable and safe to pass across actors
-/// - `ModelContext` and model objects are NOT Sendable and must stay on MainActor
-/// - Plain data (tuples, structs) is extracted on MainActor then passed between actors
+/// - `DatabaseReader`/`DatabaseWriter` are Sendable (GRDB protocol requirement)
+/// - `SQLiteInventoryItem` and friends are `nonisolated struct` — fully Sendable
+/// - No MainActor wrappers needed for data extraction
 ///
 /// ### 3. Batch Processing Strategy
 /// - Dynamic batch sizes based on device memory (50-300 items per batch)
-/// - Explicit `save()` calls after each batch to control memory usage
-/// - Background parsing with MainActor for SwiftData operations
+/// - sqlite-data handles transaction management internally via `database.write {}`
+/// - Background file operations for photo copying and archive creation
 /// - Progress reporting via AsyncStream for responsive UI
 ///
 /// ### 4. Performance Optimizations
-/// - Local ModelContext creation (10x faster than actor property)
-/// - Pre-fetching and caching for relationship lookups
+/// - Direct SQL reads without MainActor overhead
+/// - Pre-fetching and caching for relationship lookups during import
 /// - Streaming data processing to minimize memory peaks
-/// - Background file operations with MainActor for database access
+/// - Background file operations with concurrent photo copying
 ///
 /// ## Usage Example
 ///
 /// ```swift
 /// // In a SwiftUI view:
-/// @EnvironmentObject private var containerManager: ModelContainerManager
+/// @Dependency(\.defaultDatabase) var database
 ///
 /// func exportData() async {
 ///     for await progress in DataManager.shared.exportInventoryWithProgress(
-///         modelContainer: containerManager.container,
+///         database: database,
 ///         fileName: "export.zip",
 ///         config: .init(includeItems: true, includeLocations: true, includeLabels: true)
 ///     ) {
@@ -68,19 +68,6 @@ import ZIPFoundation
 ///     }
 /// }
 /// ```
-///
-/// ## Swift 6 Concurrency Notes
-///
-/// Remaining warnings about `ModelContainer` being passed to nonisolated functions are
-/// expected and safe. The architecture ensures:
-/// 1. Only Sendable types cross actor boundaries
-/// 2. Non-Sendable types stay isolated on MainActor
-/// 3. All SwiftData operations run on MainActor per Apple's requirements
-///
-/// ## References
-/// - Paul Hudson, "SwiftData by Example" (2023), Architecture chapter
-/// - Apple Swift Concurrency Documentation
-/// - SWIFT6_CONCURRENCY_FIXES.md in Services directory
 ///
 actor DataManager {
     enum DataError: LocalizedError, Sendable {
@@ -96,8 +83,6 @@ actor DataManager {
     }
 
     // MARK: - Properties
-
-    private let modelContainer: ModelContainer?
 
     /// Sendable wrapper for arbitrary errors that cross actor boundaries via AsyncStream
     struct SendableError: Sendable {
@@ -168,52 +153,32 @@ actor DataManager {
 
     // MARK: - Initialization
 
-    private init() {
-        self.modelContainer = nil
-    }
-
-    /// Creates a DataManager with a specific ModelContainer for dependency injection.
-    /// Used primarily for testing or when you need a non-shared instance.
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-    }
-
-    /// Helper to safely get the ModelContainer, throwing if not configured.
-    /// In production, views should pass the container explicitly via parameters.
-    private func getContainer() throws -> ModelContainer {
-        guard let container = modelContainer else {
-            throw DataError.containerNotConfigured
-        }
-        return container
-    }
+    private init() {}
 
     /// Exports inventory with progress reporting via AsyncStream.
     ///
-    /// Creates a local ModelContext from the container for optimal performance.
-    /// Per Paul Hudson: Creating context inside method is 10x faster than actor property access.
+    /// Uses `database.read {}` to fetch all data as value-type structs.
+    /// Since sqlite-data models are Sendable structs, no MainActor isolation is needed.
     ///
     /// - Parameters:
-    ///   - modelContainer: The app's ModelContainer (Sendable, safe to pass across actors)
+    ///   - database: A DatabaseWriter (Sendable, safe to pass across actors)
     ///   - fileName: Optional custom filename (defaults to timestamped name)
     ///   - config: What data types to include (items, locations, labels)
     /// - Returns: AsyncStream yielding ExportProgress updates
     nonisolated func exportInventoryWithProgress(
-        modelContainer: ModelContainer,
+        database: any DatabaseWriter,
         fileName: String? = nil,
         config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)
     ) -> AsyncStream<ExportProgress> {
         AsyncStream { continuation in
-            Task { @MainActor in
+            Task {
                 do {
                     continuation.yield(.preparing)
-
-                    // Create local ModelContext for optimal performance (10x faster per Hudson)
-                    let modelContext = ModelContext(modelContainer)
 
                     var itemData: [ItemData] = []
                     var locationData: [LocationData] = []
                     var labelData: [LabelData] = []
-                    var allPhotoURLs: [URL] = []
+                    var allPhotoFiles: [ExportPhotoFile] = []
 
                     var totalSteps = 0
                     var completedSteps = 0
@@ -223,13 +188,13 @@ actor DataManager {
                     if config.includeLabels { totalSteps += 1 }
                     totalSteps += 3  // CSV writing, photo copying, archiving
 
-                    // Fetch data in batches with progress
+                    // Fetch data with progress
                     if config.includeItems {
                         continuation.yield(.fetchingData(phase: "items", progress: 0.0))
-                        let result = try await fetchItemsInBatches(modelContext: modelContext)
+                        let result = try await self.fetchItemsForExport(database: database)
                         guard !result.items.isEmpty else { throw DataError.nothingToExport }
                         itemData = result.items
-                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        allPhotoFiles.append(contentsOf: result.photos)
 
                         completedSteps += 1
                         continuation.yield(
@@ -246,9 +211,9 @@ actor DataManager {
                     if config.includeLocations {
                         continuation.yield(
                             .fetchingData(phase: "locations", progress: Double(completedSteps) / Double(totalSteps)))
-                        let result = try await fetchLocationsInBatches(modelContext: modelContext)
+                        let result = try await self.fetchLocationsForExport(database: database)
                         locationData = result.locations
-                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        allPhotoFiles.append(contentsOf: result.photos)
 
                         completedSteps += 1
                         continuation.yield(
@@ -258,7 +223,7 @@ actor DataManager {
                     if config.includeLabels {
                         continuation.yield(
                             .fetchingData(phase: "labels", progress: Double(completedSteps) / Double(totalSteps)))
-                        labelData = try await fetchLabelsInBatches(modelContext: modelContext)
+                        labelData = try await self.fetchLabelsForExport(database: database)
 
                         completedSteps += 1
                         continuation.yield(
@@ -290,26 +255,26 @@ actor DataManager {
 
                     if config.includeItems {
                         let itemsCSVURL = workingRoot.appendingPathComponent("inventory.csv")
-                        try await writeCSV(items: itemData, to: itemsCSVURL)
+                        try await self.writeCSV(items: itemData, to: itemsCSVURL)
                     }
 
                     if config.includeLocations {
                         let locationsCSVURL = workingRoot.appendingPathComponent("locations.csv")
-                        try await writeLocationsCSV(locations: locationData, to: locationsCSVURL)
+                        try await self.writeLocationsCSV(locations: locationData, to: locationsCSVURL)
                     }
 
                     if config.includeLabels {
                         let labelsCSVURL = workingRoot.appendingPathComponent("labels.csv")
-                        try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
+                        try await self.writeLabelsCSV(labels: labelData, to: labelsCSVURL)
                     }
 
                     completedSteps += 1
                     continuation.yield(.writingCSV(progress: Double(completedSteps) / Double(totalSteps)))
 
                     // Copy photos with progress
-                    if !allPhotoURLs.isEmpty {
-                        try await copyPhotosToDirectoryWithProgress(
-                            photoURLs: allPhotoURLs,
+                    if !allPhotoFiles.isEmpty {
+                        try await self.writePhotosToDirectoryWithProgress(
+                            photos: allPhotoFiles,
                             destinationDir: photosDir,
                             progressHandler: { current, total in
                                 continuation.yield(.copyingPhotos(current: current, total: total))
@@ -322,7 +287,7 @@ actor DataManager {
                     // Create archive using unified helper with progress reporting
                     continuation.yield(.creatingArchive(progress: Double(completedSteps) / Double(totalSteps)))
 
-                    let archiveURL = try await createArchive(
+                    let archiveURL = try await self.createArchive(
                         from: workingRoot,
                         archiveName: archiveName,
                         progressHandler: { filesProcessed, totalFiles in
@@ -352,7 +317,7 @@ actor DataManager {
                         itemCount: itemData.count,
                         locationCount: locationData.count,
                         labelCount: labelData.count,
-                        photoCount: allPhotoURLs.count
+                        photoCount: allPhotoFiles.count
                     )
 
                     continuation.yield(.completed(result))
@@ -366,31 +331,25 @@ actor DataManager {
         }
     }
 
-    /// Exports all `InventoryItem`s (and their photos) into a single **zip** file that also
+    /// Exports all inventory items (and their photos) into a single **zip** file that also
     /// contains `inventory.csv`.  The returned `URL` points to the finished archive
-    /// inside the temporary directory – caller is expected to share / move / delete.
+    /// inside the temporary directory -- caller is expected to share / move / delete.
     /// For progress reporting, use `exportInventoryWithProgress` instead.
-    ///
-    /// Creates a local ModelContext from the container for optimal performance.
     func exportInventory(
-        modelContainer: ModelContainer, fileName: String? = nil,
+        database: any DatabaseWriter, fileName: String? = nil,
         config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)
     ) async throws -> URL {
-        // Create local ModelContext for optimal performance (10x faster per Hudson)
-        let modelContext = await MainActor.run { ModelContext(modelContainer) }
-
         var itemData: [ItemData] = []
         var locationData: [LocationData] = []
         var labelData: [LabelData] = []
-        var allPhotoURLs: [URL] = []
+        var allPhotoFiles: [ExportPhotoFile] = []
 
-        // Fetch data in batches to reduce memory pressure
-        // SwiftData operations run on MainActor
+        // Fetch data — sqlite-data structs are value types, no MainActor needed
         if config.includeItems {
-            let result = try await fetchItemsInBatches(modelContext: modelContext)
+            let result = try await fetchItemsForExport(database: database)
             guard !result.items.isEmpty else { throw DataError.nothingToExport }
             itemData = result.items
-            allPhotoURLs.append(contentsOf: result.photoURLs)
+            allPhotoFiles.append(contentsOf: result.photos)
 
             let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824.0
             TelemetryManager.shared.trackExportBatchSize(
@@ -401,13 +360,13 @@ actor DataManager {
         }
 
         if config.includeLocations {
-            let result = try await fetchLocationsInBatches(modelContext: modelContext)
+            let result = try await fetchLocationsForExport(database: database)
             locationData = result.locations
-            allPhotoURLs.append(contentsOf: result.photoURLs)
+            allPhotoFiles.append(contentsOf: result.photos)
         }
 
         if config.includeLabels {
-            labelData = try await fetchLabelsInBatches(modelContext: modelContext)
+            labelData = try await fetchLabelsForExport(database: database)
         }
 
         // Don't export if nothing is selected
@@ -447,9 +406,8 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos in background to avoid blocking main thread
-        // Photo URLs were already collected during batched fetching
-        try await copyPhotosToDirectory(photoURLs: allPhotoURLs, destinationDir: photosDir)
+        // Write photo BLOB payloads into the ZIP staging directory.
+        try await writePhotosToDirectory(photos: allPhotoFiles, destinationDir: photosDir)
 
         // Create ZIP archive using unified helper
         let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)
@@ -497,7 +455,7 @@ actor DataManager {
     ///
     /// Progress phases and their typical duration:
     /// - **preparing**: Instant - setting up export directory
-    /// - **fetchingData**: 0-30% - Batched fetching from SwiftData (scales with item count)
+    /// - **fetchingData**: 0-30% - Fetching from sqlite-data (scales with item count)
     /// - **writingCSV**: 30-50% - Fast, typically <1s for most exports
     /// - **copyingPhotos**: 50-80% - Longest phase, scales with photo count and sizes
     /// - **creatingArchive**: 80-100% - Scales with total data size (compression)
@@ -554,15 +512,20 @@ actor DataManager {
         price: Decimal,
         insured: Bool,
         notes: String,
-        imageURL: URL?,
+        photoFilename: String?,
         hasUsedAI: Bool
     )
 
     private typealias LocationData = (
         name: String,
         desc: String,
-        imageURL: URL?
+        photoFilename: String?
     )
+
+    private struct ExportPhotoFile: Sendable, Hashable {
+        let filename: String
+        let data: Data
+    }
 
     private typealias LabelData = (
         name: String,
@@ -645,17 +608,17 @@ actor DataManager {
 
     /// Imports inventory from a zip file and reports progress through an async sequence.
     ///
-    /// Creates a local ModelContext from the container for optimal performance.
-    /// Per Paul Hudson: Creating context inside method is 10x faster than actor property access.
+    /// Uses `database.write {}` for all insert operations. Since sqlite-data models are
+    /// value-type structs, no MainActor isolation is needed for property access.
     ///
     /// - Parameters:
     ///   - zipURL: URL to the zip file containing exported data
-    ///   - modelContainer: The app's ModelContainer (Sendable, safe to pass across actors)
+    ///   - database: A DatabaseWriter (Sendable, safe to pass across actors)
     ///   - config: What data types to import (items, locations, labels)
     /// - Returns: AsyncStream yielding ImportProgress updates
     func importInventory(
         from zipURL: URL,
-        modelContainer: ModelContainer,
+        database: any DatabaseWriter,
         config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
     ) -> AsyncStream<ImportProgress> {
         AsyncStream { continuation in
@@ -742,39 +705,38 @@ actor DataManager {
 
                     let batchSize = 50
 
-                    // Create local ModelContext for optimal performance (10x faster per Hudson)
-                    let modelContext = await MainActor.run { ModelContext(modelContainer) }
+                    // Pre-fetch existing locations and labels for caching
+                    // UUID-based caches since sqlite-data uses value types
+                    var locationCache: [String: UUID] = [:]
+                    var labelCache: [String: UUID] = [:]
 
-                    // Pre-fetch existing locations and labels for caching (MainActor required for SwiftData)
-                    var locationCache: [String: InventoryLocation] = [:]
-                    var labelCache: [String: InventoryLabel] = [:]
+                    // Also cache locationID -> homeID for setting item homeID
+                    var locationHomeCache: [UUID: UUID] = [:]
 
-                    await MainActor.run {
-                        if config.includeLocations {
-                            if let existingLocations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>()) {
-                                for location in existingLocations {
-                                    locationCache[location.name] = location
-                                }
-                            }
-                        }
-
-                        if config.includeLabels {
-                            if let existingLabels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>()) {
-                                for label in existingLabels {
-                                    labelCache[label.name] = label
-                                }
-                            }
+                    let existingLocations = try await database.read { db in
+                        try SQLiteInventoryLocation.all.fetchAll(db)
+                    }
+                    for location in existingLocations {
+                        locationCache[location.name] = location.id
+                        if let homeID = location.homeID {
+                            locationHomeCache[location.id] = homeID
                         }
                     }
 
-                    // Collect image copy tasks for concurrent processing
-                    struct ImageCopyTask: Sendable {
+                    let existingLabels = try await database.read { db in
+                        try SQLiteInventoryLabel.all.fetchAll(db)
+                    }
+                    for label in existingLabels {
+                        labelCache[label.name] = label.id
+                    }
+
+                    // Collect image import tasks for concurrent processing.
+                    struct ImageImportTask: Sendable {
                         let sourceURL: URL
-                        let destinationFilename: String
-                        let targetName: String
+                        let targetID: UUID
                         let isLocation: Bool
                     }
-                    var imageCopyTasks: [ImageCopyTask] = []
+                    var imageImportTasks: [ImageImportTask] = []
 
                     // Import locations if enabled
                     if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
@@ -784,17 +746,16 @@ actor DataManager {
 
                         if rows.count > 1 {
                             // Parse CSV off main thread
-                            struct LocationData {
+                            struct LocationParseData {
                                 let name: String
                                 let desc: String
-                                let photoFilename: String
                                 let photoURL: URL?
                             }
 
-                            var locationDataBatch: [LocationData] = []
+                            var locationDataBatch: [LocationParseData] = []
 
                             for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
+                                let values = self.parseCSVRow(row)
                                 guard values.count >= 3 else { continue }
 
                                 var photoURL: URL? = nil
@@ -807,45 +768,42 @@ actor DataManager {
                                 }
 
                                 locationDataBatch.append(
-                                    LocationData(
+                                    LocationParseData(
                                         name: values[0],
                                         desc: values[1],
-                                        photoFilename: values[2],
                                         photoURL: photoURL
                                     ))
 
                                 processedRows += 1
 
-                                // Process batch on MainActor when full
+                                // Process batch when full
                                 if locationDataBatch.count >= batchSize {
                                     let batchToProcess = locationDataBatch
                                     locationDataBatch.removeAll()
 
-                                    for data in batchToProcess {
-                                        let location = await self.createAndConfigureLocation(
-                                            name: data.name, desc: data.desc)
+                                    try await database.write { db in
+                                        for data in batchToProcess {
+                                            let locationID = UUID()
+                                            try SQLiteInventoryLocation.insert(
+                                                SQLiteInventoryLocation(
+                                                    id: locationID,
+                                                    name: data.name,
+                                                    desc: data.desc
+                                                )
+                                            ).execute(db)
 
-                                        if let photoURL = data.photoURL {
-                                            await MainActor.run {
-                                                imageCopyTasks.append(
-                                                    ImageCopyTask(
+                                            if let photoURL = data.photoURL {
+                                                imageImportTasks.append(
+                                                    ImageImportTask(
                                                         sourceURL: photoURL,
-                                                        destinationFilename: data.photoFilename,
-                                                        targetName: location.name,
+                                                        targetID: locationID,
                                                         isLocation: true
                                                     ))
                                             }
-                                        }
 
-                                        await MainActor.run {
-                                            locationCache[location.name] = location
-                                            modelContext.insert(location)
+                                            locationCache[data.name] = locationID
                                             locationCount += 1
                                         }
-                                    }
-
-                                    await MainActor.run {
-                                        try? modelContext.save()
                                     }
                                 }
 
@@ -859,26 +817,29 @@ actor DataManager {
                             if !locationDataBatch.isEmpty {
                                 let batchToProcess = locationDataBatch
 
-                                await Task { @MainActor in
+                                try await database.write { db in
                                     for data in batchToProcess {
-                                        let location = await self.createAndConfigureLocation(
-                                            name: data.name, desc: data.desc)
+                                        let locationID = UUID()
+                                        try SQLiteInventoryLocation.insert(
+                                            SQLiteInventoryLocation(
+                                                id: locationID,
+                                                name: data.name,
+                                                desc: data.desc
+                                            )
+                                        ).execute(db)
 
                                         if let photoURL = data.photoURL {
-                                            imageCopyTasks.append(
-                                                ImageCopyTask(
+                                            imageImportTasks.append(
+                                                ImageImportTask(
                                                     sourceURL: photoURL,
-                                                    destinationFilename: data.photoFilename,
-                                                    targetName: location.name,
+                                                    targetID: locationID,
                                                     isLocation: true
                                                 ))
                                         }
 
-                                        locationCache[location.name] = location
-                                        modelContext.insert(location)
+                                        locationCache[data.name] = locationID
                                         locationCount += 1
                                     }
-                                    try? modelContext.save()
                                 }
                             }
                         }
@@ -892,21 +853,21 @@ actor DataManager {
 
                         if rows.count > 1 {
                             // Parse CSV off main thread
-                            struct LabelData {
+                            struct LabelParseData {
                                 let name: String
                                 let desc: String
                                 let colorHex: String
                                 let emoji: String
                             }
 
-                            var labelDataBatch: [LabelData] = []
+                            var labelDataBatch: [LabelParseData] = []
 
                             for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
+                                let values = self.parseCSVRow(row)
                                 guard values.count >= 4 else { continue }
 
                                 labelDataBatch.append(
-                                    LabelData(
+                                    LabelParseData(
                                         name: values[0],
                                         desc: values[1],
                                         colorHex: values[2],
@@ -915,25 +876,29 @@ actor DataManager {
 
                                 processedRows += 1
 
-                                // Process batch on MainActor when full
+                                // Process batch when full
                                 if labelDataBatch.count >= batchSize {
                                     let batchToProcess = labelDataBatch
                                     labelDataBatch.removeAll()
 
-                                    await MainActor.run {
+                                    try await database.write { db in
                                         for data in batchToProcess {
-                                            let label = self.createAndConfigureLabel(
-                                                name: data.name,
-                                                desc: data.desc,
-                                                colorHex: data.colorHex,
-                                                emoji: data.emoji
-                                            )
+                                            let labelID = UUID()
+                                            let labelColor = Self.parseHexColor(data.colorHex)
 
-                                            labelCache[label.name] = label
-                                            modelContext.insert(label)
+                                            try SQLiteInventoryLabel.insert(
+                                                SQLiteInventoryLabel(
+                                                    id: labelID,
+                                                    name: data.name,
+                                                    desc: data.desc,
+                                                    color: labelColor,
+                                                    emoji: data.emoji
+                                                )
+                                            ).execute(db)
+
+                                            labelCache[data.name] = labelID
                                             labelCount += 1
                                         }
-                                        try? modelContext.save()
                                     }
                                 }
 
@@ -947,20 +912,24 @@ actor DataManager {
                             if !labelDataBatch.isEmpty {
                                 let batchToProcess = labelDataBatch
 
-                                await MainActor.run {
+                                try await database.write { db in
                                     for data in batchToProcess {
-                                        let label = self.createAndConfigureLabel(
-                                            name: data.name,
-                                            desc: data.desc,
-                                            colorHex: data.colorHex,
-                                            emoji: data.emoji
-                                        )
+                                        let labelID = UUID()
+                                        let labelColor = Self.parseHexColor(data.colorHex)
 
-                                        labelCache[label.name] = label
-                                        modelContext.insert(label)
+                                        try SQLiteInventoryLabel.insert(
+                                            SQLiteInventoryLabel(
+                                                id: labelID,
+                                                name: data.name,
+                                                desc: data.desc,
+                                                color: labelColor,
+                                                emoji: data.emoji
+                                            )
+                                        ).execute(db)
+
+                                        labelCache[data.name] = labelID
                                         labelCount += 1
                                     }
-                                    try? modelContext.save()
                                 }
                             }
                         }
@@ -974,19 +943,18 @@ actor DataManager {
 
                         if rows.count > 1 {
                             // Parse CSV data off main thread
-                            struct ItemData {
+                            struct ItemParseData {
                                 let title: String
                                 let desc: String
                                 let locationName: String
                                 let labelName: String
-                                let photoFilename: String
                                 let photoURL: URL?
                             }
 
-                            var itemDataBatch: [ItemData] = []
+                            var itemDataBatch: [ItemParseData] = []
 
                             for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
+                                let values = self.parseCSVRow(row)
                                 guard values.count >= 13 else { continue }
 
                                 let photoFilename = values[11]
@@ -1000,72 +968,108 @@ actor DataManager {
                                 }
 
                                 itemDataBatch.append(
-                                    ItemData(
+                                    ItemParseData(
                                         title: values[0],
                                         desc: values[1],
                                         locationName: values[2],
                                         labelName: values[3],
-                                        photoFilename: photoFilename,
                                         photoURL: photoURL
                                     ))
 
                                 processedRows += 1
 
-                                // Process batch on MainActor when full
+                                // Process batch when full
                                 if itemDataBatch.count >= batchSize {
                                     let batchToProcess = itemDataBatch
                                     itemDataBatch.removeAll()
 
-                                    await MainActor.run {
+                                    try await database.write { db in
                                         for data in batchToProcess {
-                                            let item = self.createAndConfigureItem(title: data.title, desc: data.desc)
+                                            let itemID = UUID()
+
+                                            // Resolve location
+                                            var locationID: UUID? = nil
+                                            var homeID: UUID? = nil
 
                                             if config.includeLocations && !data.locationName.isEmpty {
-                                                if let cachedLocation = locationCache[data.locationName] {
-                                                    item.location = cachedLocation
+                                                if let cachedLocationID = locationCache[data.locationName] {
+                                                    locationID = cachedLocationID
+                                                    homeID = locationHomeCache[cachedLocationID]
                                                 } else {
-                                                    let location = self.createAndConfigureLocation(
-                                                        name: data.locationName, desc: "")
-                                                    modelContext.insert(location)
-                                                    locationCache[data.locationName] = location
-                                                    item.location = location
+                                                    // Create new location on the fly
+                                                    let newLocationID = UUID()
+                                                    try SQLiteInventoryLocation.insert(
+                                                        SQLiteInventoryLocation(
+                                                            id: newLocationID,
+                                                            name: data.locationName,
+                                                            desc: ""
+                                                        )
+                                                    ).execute(db)
+                                                    locationCache[data.locationName] = newLocationID
+                                                    locationID = newLocationID
                                                 }
                                             }
 
+                                            try SQLiteInventoryItem.insert(
+                                                SQLiteInventoryItem(
+                                                    id: itemID,
+                                                    title: data.title,
+                                                    desc: data.desc,
+                                                    locationID: locationID,
+                                                    homeID: homeID
+                                                )
+                                            ).execute(db)
+
+                                            // Resolve labels and create join table entries
                                             if config.includeLabels && !data.labelName.isEmpty {
                                                 // Support comma-separated label names
                                                 let labelNames = data.labelName.split(separator: ",").map {
                                                     $0.trimmingCharacters(in: .whitespaces)
                                                 }
+                                                var addedLabelIDs: Set<UUID> = []
                                                 for labelName in labelNames.prefix(5) {
-                                                    if let cachedLabel = labelCache[labelName] {
-                                                        if !item.labels.contains(where: { $0.id == cachedLabel.id }) {
-                                                            item.labels.append(cachedLabel)
-                                                        }
+                                                    var labelID: UUID
+                                                    if let cachedLabelID = labelCache[labelName] {
+                                                        labelID = cachedLabelID
                                                     } else {
-                                                        let label = self.createAndConfigureLabel(
-                                                            name: labelName, desc: "", colorHex: "", emoji: "")
-                                                        modelContext.insert(label)
-                                                        labelCache[labelName] = label
-                                                        item.labels.append(label)
+                                                        // Create new label on the fly
+                                                        labelID = UUID()
+                                                        try SQLiteInventoryLabel.insert(
+                                                            SQLiteInventoryLabel(
+                                                                id: labelID,
+                                                                name: labelName,
+                                                                desc: "",
+                                                                emoji: ""
+                                                            )
+                                                        ).execute(db)
+                                                        labelCache[labelName] = labelID
+                                                    }
+
+                                                    // Avoid duplicate join entries
+                                                    if !addedLabelIDs.contains(labelID) {
+                                                        addedLabelIDs.insert(labelID)
+                                                        try SQLiteInventoryItemLabel.insert(
+                                                            SQLiteInventoryItemLabel(
+                                                                id: UUID(),
+                                                                inventoryItemID: itemID,
+                                                                inventoryLabelID: labelID
+                                                            )
+                                                        ).execute(db)
                                                     }
                                                 }
                                             }
 
                                             if let photoURL = data.photoURL {
-                                                imageCopyTasks.append(
-                                                    ImageCopyTask(
+                                                imageImportTasks.append(
+                                                    ImageImportTask(
                                                         sourceURL: photoURL,
-                                                        destinationFilename: data.photoFilename,
-                                                        targetName: item.title,
+                                                        targetID: itemID,
                                                         isLocation: false
                                                     ))
                                             }
 
-                                            modelContext.insert(item)
                                             itemCount += 1
                                         }
-                                        try? modelContext.save()
                                     }
                                 }
 
@@ -1079,115 +1083,150 @@ actor DataManager {
                             if !itemDataBatch.isEmpty {
                                 let batchToProcess = itemDataBatch
 
-                                await MainActor.run {
+                                try await database.write { db in
                                     for data in batchToProcess {
-                                        let item = self.createAndConfigureItem(title: data.title, desc: data.desc)
+                                        let itemID = UUID()
+
+                                        // Resolve location
+                                        var locationID: UUID? = nil
+                                        var homeID: UUID? = nil
 
                                         if config.includeLocations && !data.locationName.isEmpty {
-                                            if let cachedLocation = locationCache[data.locationName] {
-                                                item.location = cachedLocation
+                                            if let cachedLocationID = locationCache[data.locationName] {
+                                                locationID = cachedLocationID
+                                                homeID = locationHomeCache[cachedLocationID]
                                             } else {
-                                                let location = self.createAndConfigureLocation(
-                                                    name: data.locationName, desc: "")
-                                                modelContext.insert(location)
-                                                locationCache[data.locationName] = location
-                                                item.location = location
+                                                let newLocationID = UUID()
+                                                try SQLiteInventoryLocation.insert(
+                                                    SQLiteInventoryLocation(
+                                                        id: newLocationID,
+                                                        name: data.locationName,
+                                                        desc: ""
+                                                    )
+                                                ).execute(db)
+                                                locationCache[data.locationName] = newLocationID
+                                                locationID = newLocationID
                                             }
                                         }
 
+                                        try SQLiteInventoryItem.insert(
+                                            SQLiteInventoryItem(
+                                                id: itemID,
+                                                title: data.title,
+                                                desc: data.desc,
+                                                locationID: locationID,
+                                                homeID: homeID
+                                            )
+                                        ).execute(db)
+
+                                        // Resolve labels and create join table entries
                                         if config.includeLabels && !data.labelName.isEmpty {
-                                            // Support comma-separated label names
                                             let labelNames = data.labelName.split(separator: ",").map {
                                                 $0.trimmingCharacters(in: .whitespaces)
                                             }
+                                            var addedLabelIDs: Set<UUID> = []
                                             for labelName in labelNames.prefix(5) {
-                                                if let cachedLabel = labelCache[labelName] {
-                                                    if !item.labels.contains(where: { $0.id == cachedLabel.id }) {
-                                                        item.labels.append(cachedLabel)
-                                                    }
+                                                var labelID: UUID
+                                                if let cachedLabelID = labelCache[labelName] {
+                                                    labelID = cachedLabelID
                                                 } else {
-                                                    let label = self.createAndConfigureLabel(
-                                                        name: labelName, desc: "", colorHex: "", emoji: "")
-                                                    modelContext.insert(label)
-                                                    labelCache[labelName] = label
-                                                    item.labels.append(label)
+                                                    labelID = UUID()
+                                                    try SQLiteInventoryLabel.insert(
+                                                        SQLiteInventoryLabel(
+                                                            id: labelID,
+                                                            name: labelName,
+                                                            desc: "",
+                                                            emoji: ""
+                                                        )
+                                                    ).execute(db)
+                                                    labelCache[labelName] = labelID
+                                                }
+
+                                                if !addedLabelIDs.contains(labelID) {
+                                                    addedLabelIDs.insert(labelID)
+                                                    try SQLiteInventoryItemLabel.insert(
+                                                        SQLiteInventoryItemLabel(
+                                                            id: UUID(),
+                                                            inventoryItemID: itemID,
+                                                            inventoryLabelID: labelID
+                                                        )
+                                                    ).execute(db)
                                                 }
                                             }
                                         }
 
                                         if let photoURL = data.photoURL {
-                                            imageCopyTasks.append(
-                                                ImageCopyTask(
+                                            imageImportTasks.append(
+                                                ImageImportTask(
                                                     sourceURL: photoURL,
-                                                    destinationFilename: data.photoFilename,
-                                                    targetName: item.title,
+                                                    targetID: itemID,
                                                     isLocation: false
                                                 ))
                                         }
 
-                                        modelContext.insert(item)
                                         itemCount += 1
                                     }
-                                    try? modelContext.save()
                                 }
                             }
                         }
                     }
 
-                    // Copy images sequentially in small batches to avoid memory issues with large imports
-                    if !imageCopyTasks.isEmpty {
-                        print("📸 Copying \(imageCopyTasks.count) images...")
+                    // Read and insert photo blobs in batches to keep peak memory bounded.
+                    if !imageImportTasks.isEmpty {
+                        print("Importing \(imageImportTasks.count) photos...")
 
                         let imageBatchSize = 20
-                        for batchStart in stride(from: 0, to: imageCopyTasks.count, by: imageBatchSize) {
-                            let batchEnd = min(batchStart + imageBatchSize, imageCopyTasks.count)
-                            let batch = Array(imageCopyTasks[batchStart..<batchEnd])
+                        for batchStart in stride(from: 0, to: imageImportTasks.count, by: imageBatchSize) {
+                            let batchEnd = min(batchStart + imageBatchSize, imageImportTasks.count)
+                            let batch = Array(imageImportTasks[batchStart..<batchEnd])
 
-                            let copyResults = try await withThrowingTaskGroup(of: (Int, URL?, URL?).self) { group in
+                            let readResults = try await withThrowingTaskGroup(
+                                of: (Int, Data?).self
+                            ) { group in
                                 for (index, task) in batch.enumerated() {
                                     group.addTask {
                                         do {
-                                            let copiedURL = try self.copyImageToDocuments(
-                                                task.sourceURL, filename: task.destinationFilename)
-                                            return (batchStart + index, task.sourceURL, copiedURL)
+                                            try self.validateImageFile(task.sourceURL)
+                                            return (batchStart + index, try Data(contentsOf: task.sourceURL))
                                         } catch {
-                                            return (batchStart + index, task.sourceURL, nil)
+                                            return (batchStart + index, nil)
                                         }
                                     }
                                 }
 
-                                var results: [(Int, URL?, URL?)] = []
+                                var results: [(Int, Data?)] = []
                                 for try await result in group {
                                     results.append(result)
                                 }
                                 return results
                             }
 
-                            // Update image URLs on objects (MainActor required for model updates)
-                            await MainActor.run {
-                                for (originalIndex, _, copiedURL) in copyResults {
-                                    guard let copiedURL = copiedURL else { continue }
+                            try await database.write { db in
+                                for (originalIndex, imageData) in readResults {
+                                    guard let imageData else { continue }
 
-                                    let task = imageCopyTasks[originalIndex]
-                                    let targetName = task.targetName
+                                    let task = imageImportTasks[originalIndex]
 
                                     if task.isLocation {
-                                        var descriptor = FetchDescriptor<InventoryLocation>()
-                                        descriptor.predicate = #Predicate { $0.name == targetName }
-                                        if let location = try? modelContext.fetch(descriptor).first {
-                                            location.imageURL = copiedURL
-                                        }
+                                        try SQLiteInventoryLocationPhoto.insert {
+                                            SQLiteInventoryLocationPhoto(
+                                                id: UUID(),
+                                                inventoryLocationID: task.targetID,
+                                                data: imageData,
+                                                sortOrder: 0
+                                            )
+                                        }.execute(db)
                                     } else {
-                                        var descriptor = FetchDescriptor<InventoryItem>()
-                                        descriptor.predicate = #Predicate { $0.title == targetName }
-                                        if let item = try? modelContext.fetch(descriptor).first {
-                                            item.imageURL = copiedURL
-                                        }
+                                        try SQLiteInventoryItemPhoto.insert {
+                                            SQLiteInventoryItemPhoto(
+                                                id: UUID(),
+                                                inventoryItemID: task.targetID,
+                                                data: imageData,
+                                                sortOrder: 0
+                                            )
+                                        }.execute(db)
                                     }
                                 }
-
-                                // Save image URL updates for this batch
-                                try? modelContext.save()
                             }
                         }
                     }
@@ -1211,142 +1250,109 @@ actor DataManager {
 
     // MARK: - Helper Functions
 
-    /// Creates and configures a new InventoryLocation with the given properties.
-    /// - Note: Must be called on MainActor since it creates SwiftData model objects
-    @MainActor
-    private func createAndConfigureLocation(name: String, desc: String) -> InventoryLocation {
-        let location = InventoryLocation(name: name)
-        location.desc = desc
-        return location
-    }
+    /// Parses a hex color string into a UIColor.
+    /// Supports formats: "#RRGGBB" or "RRGGBB"
+    private static func parseHexColor(_ colorHex: String) -> UIColor? {
+        guard !colorHex.isEmpty else { return nil }
 
-    /// Creates and configures a new InventoryItem with the given properties.
-    /// - Note: Must be called on MainActor since it creates SwiftData model objects
-    @MainActor
-    private func createAndConfigureItem(title: String, desc: String) -> InventoryItem {
-        let item = InventoryItem()
-        item.title = title
-        item.desc = desc
-        return item
-    }
-
-    /// Creates and configures a new InventoryLabel with the given properties.
-    /// Converts hex color string to UIColor if provided.
-    /// - Note: Must be called on MainActor since it creates SwiftData model objects
-    @MainActor
-    private func createAndConfigureLabel(name: String, desc: String, colorHex: String, emoji: String) -> InventoryLabel
-    {
-        let label = InventoryLabel(name: name, desc: desc)
-        label.emoji = emoji
-
-        // Convert hex to UIColor if provided
-        if !colorHex.isEmpty {
-            var hexString = colorHex.trimmingCharacters(in: .whitespacesAndNewlines)
-            if hexString.hasPrefix("#") {
-                hexString.remove(at: hexString.startIndex)
-            }
-
-            if hexString.count == 6 {
-                var rgbValue: UInt64 = 0
-                Scanner(string: hexString).scanHexInt64(&rgbValue)
-
-                label.color = UIColor(
-                    red: CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0,
-                    green: CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0,
-                    blue: CGFloat(rgbValue & 0x0000FF) / 255.0,
-                    alpha: 1.0
-                )
-            }
+        var hexString = colorHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hexString.hasPrefix("#") {
+            hexString.remove(at: hexString.startIndex)
         }
 
-        return label
+        guard hexString.count == 6 else { return nil }
+
+        var rgbValue: UInt64 = 0
+        Scanner(string: hexString).scanHexInt64(&rgbValue)
+
+        return UIColor(
+            red: CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0,
+            green: CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0,
+            blue: CGFloat(rgbValue & 0x0000FF) / 255.0,
+            alpha: 1.0
+        )
     }
 
-    /// Finds an existing location by name or creates a new one if not found.
-    /// - Note: Must be called on MainActor since it accesses SwiftData model context
-    @MainActor
-    private func findOrCreateLocation(name: String, modelContext: ModelContext) -> InventoryLocation {
-        if let existing = try? modelContext.fetch(
-            FetchDescriptor<InventoryLocation>(
-                predicate: #Predicate<InventoryLocation> { $0.name == name }
-            )
-        ).first {
-            return existing
-        } else {
-            let location = InventoryLocation(name: name)
-            modelContext.insert(location)
-            return location
-        }
-    }
+    // MARK: - Fetch Helpers (Export)
 
-    /// Finds an existing label by name or creates a new one if not found.
-    /// - Note: Must be called on MainActor since it accesses SwiftData model context
-    @MainActor
-    private func findOrCreateLabel(name: String, modelContext: ModelContext) -> InventoryLabel {
-        if let existing = try? modelContext.fetch(
-            FetchDescriptor<InventoryLabel>(
-                predicate: #Predicate<InventoryLabel> { $0.name == name }
-            )
-        ).first {
-            return existing
-        } else {
-            let label = InventoryLabel(name: name)
-            modelContext.insert(label)
-            return label
-        }
-    }
-
-    // MARK: - Batch Fetching Helpers
-
-    /// Fetches inventory items in batches to minimize memory pressure.
+    /// Fetches all inventory items with their related location/label/home names for export.
     ///
-    /// Uses dynamic batch sizing based on device memory (50-300 items per batch).
-    /// Explicitly saves after each batch per Paul Hudson's recommendations (p. 217).
+    /// Since sqlite-data models are value-type structs, no MainActor isolation is needed.
+    /// Related data (location name, label name, home name) is fetched via separate queries
+    /// using foreign key IDs.
     ///
-    /// **Performance Note:** Must be called with locally-created ModelContext, not actor property.
-    /// Creating context locally is ~10x faster than accessing actor properties.
-    ///
-    /// - Parameter modelContext: Local context created by caller for optimal performance
-    /// - Returns: Tuple of (item data array, photo URLs array)
+    /// - Parameter database: DatabaseReader to read from
+    /// - Returns: Tuple of (item data array, photo blobs to embed in ZIP)
     /// - Throws: DataError if fetch fails
-    ///
-    /// - Note: All SwiftData operations run on MainActor per Apple's requirements.
-    ///         Item property access must happen on MainActor where model objects are bound.
-    private func fetchItemsInBatches(
-        modelContext: ModelContext
-    ) async throws -> (items: [ItemData], photoURLs: [URL]) {
-        var allItemData: [ItemData] = []
-        var allPhotoURLs: [URL] = []
-        var offset = 0
+    private func fetchItemsForExport(
+        database: any DatabaseReader
+    ) async throws -> (items: [ItemData], photos: [ExportPhotoFile]) {
+        try await database.read { db in
+            let items =
+                try SQLiteInventoryItem
+                .order(by: \.title)
+                .fetchAll(db)
 
-        while true {
-            // SwiftData fetch must run on MainActor
-            let batch = try await MainActor.run {
-                var descriptor = FetchDescriptor<InventoryItem>(
-                    sortBy: [SortDescriptor(\.title)]
-                )
-                descriptor.fetchLimit = Self.batchSize
-                descriptor.fetchOffset = offset
+            // Pre-fetch all related data into lookup dictionaries
+            let allLocations = try SQLiteInventoryLocation.fetchAll(db)
+            let locationsByID = Dictionary(uniqueKeysWithValues: allLocations.map { ($0.id, $0) })
 
-                return try modelContext.fetch(descriptor)
-            }
+            let allHomes = try SQLiteHome.fetchAll(db)
+            let homesByID = Dictionary(uniqueKeysWithValues: allHomes.map { ($0.id, $0) })
 
-            if batch.isEmpty {
-                break
-            }
+            let allItemLabels = try SQLiteInventoryItemLabel.fetchAll(db)
+            let itemLabelsByItemID = Dictionary(grouping: allItemLabels, by: \.inventoryItemID)
 
-            // Process batch data on MainActor since we're accessing model properties
-            let batchResult = await MainActor.run {
-                var batchData: [ItemData] = []
-                var batchPhotoURLs: [URL] = []
+            let allLabels = try SQLiteInventoryLabel.fetchAll(db)
+            let labelsByID = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
 
-                for item in batch {
-                    let itemData = (
+            let allItemPhotos =
+                try SQLiteInventoryItemPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let primaryItemPhotoByItemID = Dictionary(
+                grouping: allItemPhotos,
+                by: \.inventoryItemID
+            ).compactMapValues(\.first)
+
+            var allItemData: [ItemData] = []
+            var allPhotoFiles: [ExportPhotoFile] = []
+
+            for item in items {
+                var locationName = ""
+                var homeName = ""
+                if let locationID = item.locationID,
+                    let location = locationsByID[locationID]
+                {
+                    locationName = location.name
+                    if let homeID = location.homeID, let home = homesByID[homeID] {
+                        homeName = home.name
+                    }
+                }
+
+                var labelName = ""
+                if let firstItemLabel = itemLabelsByItemID[item.id]?.first,
+                    let label = labelsByID[firstItemLabel.inventoryLabelID]
+                {
+                    labelName = label.name
+                }
+
+                var photoFilename: String?
+                if let primaryPhoto = primaryItemPhotoByItemID[item.id] {
+                    let ext = self.photoFileExtension(for: primaryPhoto.data)
+                    let fileName =
+                        "item-\(item.id.uuidString.lowercased())-\(primaryPhoto.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = fileName
+                    allPhotoFiles.append(.init(filename: fileName, data: primaryPhoto.data))
+                }
+
+                allItemData.append(
+                    (
                         title: item.title,
                         desc: item.desc,
-                        locationName: item.location?.name ?? "",
-                        labelName: item.labels.first?.name ?? "",
-                        homeName: item.location?.home?.name ?? "",
+                        locationName: locationName,
+                        labelName: labelName,
+                        homeName: homeName,
                         quantity: item.quantityInt,
                         serial: item.serial,
                         model: item.model,
@@ -1354,143 +1360,86 @@ actor DataManager {
                         price: item.price,
                         insured: item.insured,
                         notes: item.notes,
-                        imageURL: item.imageURL,
+                        photoFilename: photoFilename,
                         hasUsedAI: item.hasUsedAI
-                    )
-                    batchData.append(itemData)
-
-                    if let imageURL = item.imageURL {
-                        batchPhotoURLs.append(imageURL)
-                    }
-                }
-
-                return (batchData, batchPhotoURLs)
+                    ))
             }
 
-            allItemData.append(contentsOf: batchResult.0)
-            allPhotoURLs.append(contentsOf: batchResult.1)
-
-            offset += batch.count
-
-            if batch.count < Self.batchSize {
-                break
-            }
+            return (allItemData, allPhotoFiles)
         }
-
-        return (allItemData, allPhotoURLs)
     }
 
-    /// Fetches location data in batches with the same performance optimizations as items.
+    /// Fetches all location data for export.
     ///
-    /// - Parameter modelContext: Local context created by caller
-    /// - Returns: Tuple of (location data array, photo URLs array)
+    /// - Parameter database: DatabaseReader to read from
+    /// - Returns: Tuple of (location data array, photo blobs to embed in ZIP)
     /// - Throws: DataError if fetch fails
-    private func fetchLocationsInBatches(
-        modelContext: ModelContext
-    ) async throws -> (locations: [LocationData], photoURLs: [URL]) {
-        var allLocationData: [LocationData] = []
-        var allPhotoURLs: [URL] = []
-        var offset = 0
+    private func fetchLocationsForExport(
+        database: any DatabaseReader
+    ) async throws -> (locations: [LocationData], photos: [ExportPhotoFile]) {
+        try await database.read { db in
+            let locations =
+                try SQLiteInventoryLocation
+                .order(by: \.name)
+                .fetchAll(db)
 
-        while true {
-            // SwiftData fetch must run on MainActor
-            let batch = try await MainActor.run {
-                var descriptor = FetchDescriptor<InventoryLocation>(
-                    sortBy: [SortDescriptor(\.name)]
-                )
-                descriptor.fetchLimit = Self.batchSize
-                descriptor.fetchOffset = offset
+            let allLocationPhotos =
+                try SQLiteInventoryLocationPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let primaryLocationPhotoByLocationID = Dictionary(
+                grouping: allLocationPhotos,
+                by: \.inventoryLocationID
+            ).compactMapValues(\.first)
 
-                return try modelContext.fetch(descriptor)
-            }
+            var allLocationData: [LocationData] = []
+            var allPhotoFiles: [ExportPhotoFile] = []
 
-            if batch.isEmpty {
-                break
-            }
+            for location in locations {
+                var photoFilename: String?
+                if let primaryPhoto = primaryLocationPhotoByLocationID[location.id] {
+                    let ext = self.photoFileExtension(for: primaryPhoto.data)
+                    let fileName =
+                        "location-\(location.id.uuidString.lowercased())-\(primaryPhoto.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = fileName
+                    allPhotoFiles.append(.init(filename: fileName, data: primaryPhoto.data))
+                }
 
-            // Process batch data on MainActor since we're accessing model properties
-            let batchResult = await MainActor.run {
-                var batchData: [LocationData] = []
-                var batchPhotoURLs: [URL] = []
-
-                for location in batch {
-                    let locationData = (
+                allLocationData.append(
+                    (
                         name: location.name,
                         desc: location.desc,
-                        imageURL: location.imageURL
-                    )
-                    batchData.append(locationData)
-
-                    if let imageURL = location.imageURL {
-                        batchPhotoURLs.append(imageURL)
-                    }
-                }
-
-                return (batchData, batchPhotoURLs)
+                        photoFilename: photoFilename
+                    ))
             }
 
-            allLocationData.append(contentsOf: batchResult.0)
-            allPhotoURLs.append(contentsOf: batchResult.1)
-
-            offset += batch.count
-
-            if batch.count < Self.batchSize {
-                break
-            }
+            return (allLocationData, allPhotoFiles)
         }
-
-        return (allLocationData, allPhotoURLs)
     }
 
-    /// Fetches label data in batches with color and emoji information.
+    /// Fetches all label data for export.
     ///
-    /// - Parameter modelContext: Local context created by caller
+    /// - Parameter database: DatabaseReader to read from
     /// - Returns: Array of label data
     /// - Throws: DataError if fetch fails
-    private func fetchLabelsInBatches(
-        modelContext: ModelContext
+    private func fetchLabelsForExport(
+        database: any DatabaseReader
     ) async throws -> [LabelData] {
-        var allLabelData: [LabelData] = []
-        var offset = 0
+        try await database.read { db in
+            let labels =
+                try SQLiteInventoryLabel
+                .order(by: \.name)
+                .fetchAll(db)
 
-        while true {
-            // SwiftData fetch must run on MainActor
-            let batch = try await MainActor.run {
-                var descriptor = FetchDescriptor<InventoryLabel>(
-                    sortBy: [SortDescriptor(\.name)]
+            return labels.map { label in
+                (
+                    name: label.name,
+                    desc: label.desc,
+                    color: label.color,
+                    emoji: label.emoji
                 )
-                descriptor.fetchLimit = Self.batchSize
-                descriptor.fetchOffset = offset
-
-                return try modelContext.fetch(descriptor)
-            }
-
-            if batch.isEmpty {
-                break
-            }
-
-            // Process batch data on MainActor since we're accessing model properties
-            let batchData = await MainActor.run {
-                batch.map { label in
-                    (
-                        name: label.name,
-                        desc: label.desc,
-                        color: label.color,
-                        emoji: label.emoji
-                    )
-                }
-            }
-
-            allLabelData.append(contentsOf: batchData)
-
-            offset += batch.count
-
-            if batch.count < Self.batchSize {
-                break
             }
         }
-
-        return allLabelData
     }
 
     // MARK: - Archive Creation Helpers
@@ -1571,37 +1520,34 @@ actor DataManager {
         }.value
     }
 
-    // MARK: - Photo Copy Helpers
+    // MARK: - Photo Export Helpers
 
-    private nonisolated func copyPhotosToDirectoryWithProgress(
-        photoURLs: [URL],
+    private nonisolated func writePhotosToDirectoryWithProgress(
+        photos: [ExportPhotoFile],
         destinationDir: URL,
         progressHandler: @escaping (Int, Int) -> Void
     ) async throws {
-        let maxConcurrentCopies = 5
-        var failedCopies: [(url: URL, error: Error)] = []
+        let maxConcurrentWrites = 5
+        var failedWrites: [(filename: String, error: Error)] = []
         var activeTasks = 0
         var completedCount = 0
-        let totalCount = photoURLs.count
+        let totalCount = photos.count
 
-        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
-            var pendingURLs = photoURLs[...]
+        try await withThrowingTaskGroup(of: (String, Error?).self) { group in
+            var pendingPhotos = photos[...]
 
-            while !pendingURLs.isEmpty || activeTasks > 0 {
-                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
+            while !pendingPhotos.isEmpty || activeTasks > 0 {
+                while activeTasks < maxConcurrentWrites, let photo = pendingPhotos.popFirst() {
                     activeTasks += 1
                     group.addTask {
                         do {
-                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
-                                return (photoURL, DataError.photoNotFound)
-                            }
-
-                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
+                            let fileName = self.sanitizeFilename(photo.filename)
+                            let dest = destinationDir.appendingPathComponent(fileName)
                             try? FileManager.default.removeItem(at: dest)
-                            try FileManager.default.copyItem(at: photoURL, to: dest)
-                            return (photoURL, nil)
+                            try photo.data.write(to: dest, options: .atomic)
+                            return (fileName, nil)
                         } catch {
-                            return (photoURL, error)
+                            return (photo.filename, error)
                         }
                     }
                 }
@@ -1611,7 +1557,7 @@ actor DataManager {
                     completedCount += 1
 
                     if let error = result.1 {
-                        failedCopies.append((url: result.0, error: error))
+                        failedWrites.append((filename: result.0, error: error))
                     }
 
                     // Report progress based on total photo count for optimal UX
@@ -1623,94 +1569,31 @@ actor DataManager {
             }
         }
 
-        if !failedCopies.isEmpty {
-            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
+        if !failedWrites.isEmpty {
+            let failureRate = Double(failedWrites.count) / Double(max(photos.count, 1))
             TelemetryManager.shared.trackPhotoCopyFailures(
-                failureCount: failedCopies.count,
-                totalPhotos: photoURLs.count,
+                failureCount: failedWrites.count,
+                totalPhotos: photos.count,
                 failureRate: failureRate
             )
 
-            // Log summary instead of individual failures to reduce console noise
-            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
-            let otherErrors = failedCopies.count - notFoundCount
-
-            print("⚠️ Photo copy completed with \(failedCopies.count) failures:")
-            if notFoundCount > 0 {
-                print("   • \(notFoundCount) photos not found (may have been deleted)")
-            }
-            if otherErrors > 0 {
-                print("   • \(otherErrors) photos failed due to other errors")
-                // Log first few other errors for debugging
-                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
-                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
-                }
+            print("Photo export completed with \(failedWrites.count) write failures:")
+            for failure in failedWrites.prefix(3) {
+                print("   - \(failure.filename): \(failure.error.localizedDescription)")
             }
             print("   Export will continue without missing photos.")
         }
     }
 
-    private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
-        let maxConcurrentCopies = 5
-        var failedCopies: [(url: URL, error: Error)] = []
-        var activeTasks = 0
-
-        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
-            var pendingURLs = photoURLs[...]
-
-            while !pendingURLs.isEmpty || activeTasks > 0 {
-                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
-                    activeTasks += 1
-                    group.addTask {
-                        do {
-                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
-                                return (photoURL, DataError.photoNotFound)
-                            }
-
-                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
-                            try? FileManager.default.removeItem(at: dest)
-                            try FileManager.default.copyItem(at: photoURL, to: dest)
-                            return (photoURL, nil)
-                        } catch {
-                            return (photoURL, error)
-                        }
-                    }
-                }
-
-                if let result = try await group.next() {
-                    activeTasks -= 1
-                    if let error = result.1 {
-                        failedCopies.append((url: result.0, error: error))
-                    }
-                }
-            }
-        }
-
-        if !failedCopies.isEmpty {
-            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
-            TelemetryManager.shared.trackPhotoCopyFailures(
-                failureCount: failedCopies.count,
-                totalPhotos: photoURLs.count,
-                failureRate: failureRate
-            )
-
-            // Log summary instead of individual failures to reduce console noise
-            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
-            let otherErrors = failedCopies.count - notFoundCount
-
-            print("⚠️ Photo copy completed with \(failedCopies.count) failures:")
-            if notFoundCount > 0 {
-                print("   • \(notFoundCount) photos not found (may have been deleted)")
-            }
-            if otherErrors > 0 {
-                print("   • \(otherErrors) photos failed due to other errors")
-                // Log first few other errors for debugging
-                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
-                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
-                }
-            }
-            print("   Export will continue without missing photos.")
-        }
+    private nonisolated func writePhotosToDirectory(
+        photos: [ExportPhotoFile],
+        destinationDir: URL
+    ) async throws {
+        try await writePhotosToDirectoryWithProgress(
+            photos: photos,
+            destinationDir: destinationDir,
+            progressHandler: { _, _ in }
+        )
     }
 
     // MARK: - Security Helpers
@@ -1728,7 +1611,37 @@ actor DataManager {
         return sanitized.isEmpty ? "unknown" : sanitized
     }
 
-    // MARK: - Image Copy Helpers
+    private nonisolated func photoFileExtension(for data: Data) -> String {
+        let bytes = [UInt8](data.prefix(12))
+        guard !bytes.isEmpty else { return "jpg" }
+
+        // JPEG magic number.
+        if bytes.count >= 3, bytes[0] == 0xFF, bytes[1] == 0xD8, bytes[2] == 0xFF {
+            return "jpg"
+        }
+
+        // PNG magic number.
+        if bytes.count >= 8,
+            bytes[0] == 0x89, bytes[1] == 0x50, bytes[2] == 0x4E, bytes[3] == 0x47,
+            bytes[4] == 0x0D, bytes[5] == 0x0A, bytes[6] == 0x1A, bytes[7] == 0x0A
+        {
+            return "png"
+        }
+
+        // HEIF/HEIC signature lives in ISO BMFF ftyp box.
+        if bytes.count >= 12 {
+            let brandData = Data(bytes[8..<12])
+            if let brand = String(data: brandData, encoding: .ascii),
+                ["heic", "heix", "hevc", "heif", "mif1"].contains(brand)
+            {
+                return "heic"
+            }
+        }
+
+        return "jpg"
+    }
+
+    // MARK: - Image Import Helpers
     private nonisolated func validateImageFile(_ url: URL) throws {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         let fileSize = attributes[.size] as? Int64 ?? 0
@@ -1745,22 +1658,6 @@ actor DataManager {
         guard allowedExtensions.contains(fileExtension) else {
             throw DataError.invalidFileType
         }
-    }
-
-    private nonisolated func copyImageToDocuments(_ sourceURL: URL, filename: String) throws -> URL {
-        try validateImageFile(sourceURL)
-
-        let sanitizedFilename = sanitizeFilename(filename)
-        let destURL = try FileManager.default.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ).appendingPathComponent(sanitizedFilename)
-
-        try? FileManager.default.removeItem(at: destURL)
-        try FileManager.default.copyItem(at: sourceURL, to: destURL)
-        return destURL
     }
 
     // MARK: - CSV Writing Helpers
@@ -1787,7 +1684,7 @@ actor DataManager {
                     item.price.description,
                     item.insured ? "true" : "false",
                     item.notes,
-                    item.imageURL?.lastPathComponent ?? "",
+                    item.photoFilename ?? "",
                     item.hasUsedAI ? "true" : "false",
                 ]
                 lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
@@ -1808,7 +1705,7 @@ actor DataManager {
         }
     }
 
-    private func parseCSVRow(_ row: String) async -> [String] {
+    private nonisolated func parseCSVRow(_ row: String) -> [String] {
         var values: [String] = []
         var currentValue = ""
         var insideQuotes = false
@@ -1838,7 +1735,7 @@ actor DataManager {
                 let row: [String] = [
                     location.name,
                     location.desc,
-                    location.imageURL?.lastPathComponent ?? "",
+                    location.photoFilename ?? "",
                 ]
                 lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
             }
@@ -1885,32 +1782,73 @@ actor DataManager {
         try csvString.data(using: .utf8)?.write(to: url)
     }
 
-    /// Exports specific InventoryItems (and their photos) along with all locations and labels into a zip file
-    func exportSpecificItems(items: [InventoryItem], modelContainer: ModelContainer, fileName: String? = nil)
+    /// Exports specific SQLiteInventoryItems (and their photos) along with all locations and labels into a zip file
+    func exportSpecificItems(items: [SQLiteInventoryItem], database: any DatabaseWriter, fileName: String? = nil)
         async throws -> URL
     {
-        // Create local ModelContext for optimal performance
-        let modelContext = await MainActor.run { ModelContext(modelContainer) }
         guard !items.isEmpty else { throw DataError.nothingToExport }
 
-        // Get all locations and labels using batched fetching for efficiency
-        // SwiftData operations run on MainActor
-        let locationResult = try await fetchLocationsInBatches(modelContext: modelContext)
-        let labelData = try await fetchLabelsInBatches(modelContext: modelContext)
+        // Get all locations and labels
+        let locationResult = try await fetchLocationsForExport(database: database)
+        let labelData = try await fetchLabelsForExport(database: database)
 
-        // Extract item data and collect photo URLs
-        // Item property access must be on MainActor
-        let (itemData, itemPhotoURLs) = await MainActor.run {
+        // Extract item data and collect photo blobs
+        // SQLiteInventoryItem is a value type — no MainActor needed
+        let (itemData, itemPhotos): ([ItemData], [ExportPhotoFile]) = try await database.read { db in
             var itemData: [ItemData] = []
-            var photoURLs: [URL] = []
+            var photoFiles: [ExportPhotoFile] = []
+            let itemIDSet = Set(items.map(\.id))
+            let allItemPhotos =
+                try SQLiteInventoryItemPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let primaryPhotoByItemID = Dictionary(
+                grouping: allItemPhotos.filter { itemIDSet.contains($0.inventoryItemID) },
+                by: \.inventoryItemID
+            ).compactMapValues(\.first)
 
             for item in items {
+                // Get location name and home name via foreign keys
+                var locationName = ""
+                var homeName = ""
+                if let locationID = item.locationID {
+                    if let location = try SQLiteInventoryLocation.find(locationID).fetchOne(db) {
+                        locationName = location.name
+                        if let homeID = location.homeID {
+                            if let home = try SQLiteHome.find(homeID).fetchOne(db) {
+                                homeName = home.name
+                            }
+                        }
+                    }
+                }
+
+                // Get first label name via join table
+                var labelName = ""
+                let itemLabels =
+                    try SQLiteInventoryItemLabel
+                    .where { itemLabel in itemLabel.inventoryItemID == item.id }
+                    .fetchAll(db)
+                if let firstItemLabel = itemLabels.first {
+                    if let label = try SQLiteInventoryLabel.find(firstItemLabel.inventoryLabelID).fetchOne(db) {
+                        labelName = label.name
+                    }
+                }
+
+                var photoFilename: String?
+                if let primaryPhoto = primaryPhotoByItemID[item.id] {
+                    let ext = self.photoFileExtension(for: primaryPhoto.data)
+                    let fileName =
+                        "item-\(item.id.uuidString.lowercased())-\(primaryPhoto.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = fileName
+                    photoFiles.append(.init(filename: fileName, data: primaryPhoto.data))
+                }
+
                 let data: ItemData = (
                     title: item.title,
                     desc: item.desc,
-                    locationName: item.location?.name ?? "",
-                    labelName: item.labels.first?.name ?? "",
-                    homeName: item.location?.home?.name ?? "",
+                    locationName: locationName,
+                    labelName: labelName,
+                    homeName: homeName,
                     quantity: item.quantityInt,
                     serial: item.serial,
                     model: item.model,
@@ -1918,22 +1856,18 @@ actor DataManager {
                     price: item.price,
                     insured: item.insured,
                     notes: item.notes,
-                    imageURL: item.imageURL,
+                    photoFilename: photoFilename,
                     hasUsedAI: item.hasUsedAI
                 )
                 itemData.append(data)
-
-                if let imageURL = item.imageURL {
-                    photoURLs.append(imageURL)
-                }
             }
 
-            return (itemData, photoURLs)
+            return (itemData, photoFiles)
         }
 
         let locationData = locationResult.locations
-        var allPhotoURLs = itemPhotoURLs
-        allPhotoURLs.append(contentsOf: locationResult.photoURLs)
+        var allPhotoFiles = itemPhotos
+        allPhotoFiles.append(contentsOf: locationResult.photos)
 
         let archiveName =
             fileName ?? "Selected-Items-export-\(DateFormatter.exportDateFormatter.string(from: .init()))"
@@ -1967,9 +1901,9 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos in background - deduplicate URLs
-        let uniquePhotoURLs = Array(Set(allPhotoURLs))
-        try await copyPhotosToDirectory(photoURLs: uniquePhotoURLs, destinationDir: photosDir)
+        // Write photos from BLOB payloads into the ZIP staging directory.
+        let uniquePhotoFiles = Array(Set(allPhotoFiles))
+        try await writePhotosToDirectory(photos: uniquePhotoFiles, destinationDir: photosDir)
 
         // Create ZIP archive using unified helper
         let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)

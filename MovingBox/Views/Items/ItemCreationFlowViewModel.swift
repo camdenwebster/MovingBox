@@ -6,39 +6,40 @@
 //
 
 import AVFoundation
+import Dependencies
 import Foundation
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import SwiftUI
 import UIKit
 import UserNotifications
 
 @MainActor
-@Observable
-class ItemCreationFlowViewModel {
+class ItemCreationFlowViewModel: ObservableObject {
 
     // MARK: - Properties
 
     /// The capture mode (single item or multi-item)
     /// Can be updated if user switches modes during camera capture
-    var captureMode: CaptureMode
+    @Published var captureMode: CaptureMode
 
-    /// Location to assign to created items
-    let location: InventoryLocation?
+    /// Location ID to assign to created items
+    let locationID: UUID?
 
-    /// SwiftData context for saving items
-    var modelContext: ModelContext?
+    /// Home ID to assign to created items (resolved from location or active home)
+    var homeID: UUID?
 
-    /// Shared AI analysis service for this flow instance.
-    /// Initialized once to avoid repeated service creation during SwiftUI view updates.
-    @ObservationIgnored
+    /// Database writer for sqlite-data operations
+    @Dependency(\.defaultDatabase) var database
+
+    /// Shared AI analysis service for this flow instance
     private let sharedAIAnalysisService: AIAnalysisServiceProtocol
 
-    /// Settings manager for AI configuration
+    /// Settings manager for OpenAI configuration
     var settingsManager: SettingsManager?
 
     /// Current step in the creation flow
-    var currentStep: ItemCreationStep = .camera
+    @Published var currentStep: ItemCreationStep = .camera
 
     /// Navigation flow based on capture mode and detected items
     var navigationFlow: [ItemCreationStep] {
@@ -66,7 +67,7 @@ class ItemCreationFlowViewModel {
     }
 
     /// Captured images from camera
-    var capturedImages: [UIImage] = []
+    @Published var capturedImages: [UIImage] = []
 
     /// Selected video asset for video analysis
     var videoAsset: AVAsset?
@@ -75,37 +76,37 @@ class ItemCreationFlowViewModel {
     var videoURL: URL?
 
     /// Video processing progress updates
-    var videoProcessingProgress: VideoAnalysisProgress?
+    @Published var videoProcessingProgress: VideoAnalysisProgress?
 
     /// True while video batches are still being analyzed and merged.
-    var isVideoAnalysisStreaming: Bool = false
+    @Published var isVideoAnalysisStreaming: Bool = false
 
     /// Number of analyzed batches with results merged into the current streamed response.
-    var streamedBatchCount: Int = 0
+    @Published var streamedBatchCount: Int = 0
 
     /// Total number of batches expected for the current video.
-    var totalBatchCount: Int = 0
+    @Published var totalBatchCount: Int = 0
 
     /// Whether image processing is in progress
-    var processingImage: Bool = false
+    @Published var processingImage: Bool = false
 
     /// Whether analysis is complete
-    var analysisComplete: Bool = false
+    @Published var analysisComplete: Bool = false
 
     /// Error message if analysis fails
-    var errorMessage: String?
+    @Published var errorMessage: String?
 
     /// Multi-item analysis response (for multi-item mode)
-    var multiItemAnalysisResponse: MultiItemAnalysisResponse?
+    @Published var multiItemAnalysisResponse: MultiItemAnalysisResponse?
 
     /// Selected items from multi-item analysis
-    var selectedMultiItems: [DetectedInventoryItem] = []
+    @Published var selectedMultiItems: [DetectedInventoryItem] = []
 
-    /// Created inventory items
-    var createdItems: [InventoryItem] = []
+    /// Created inventory items (saved to SQLite)
+    @Published var createdItems: [SQLiteInventoryItem] = []
 
     /// Unique transition ID for animations
-    var transitionId = UUID()
+    @Published var transitionId = UUID()
 
     /// Whether the app is currently in background
     var isAppInBackground: Bool = false
@@ -117,7 +118,6 @@ class ItemCreationFlowViewModel {
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var analysisInterruptedForBackground: Bool = false
     private var shouldRestartAnalysisOnForeground: Bool = false
-    @ObservationIgnored
     private var activeAIService: AIAnalysisServiceProtocol?
     private let videoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol
 
@@ -177,21 +177,16 @@ class ItemCreationFlowViewModel {
 
     init(
         captureMode: CaptureMode,
-        location: InventoryLocation?,
-        modelContext: ModelContext? = nil,
+        locationID: UUID?,
+        homeID: UUID? = nil,
         aiAnalysisService: AIAnalysisServiceProtocol? = nil,
         videoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol = VideoAnalysisCoordinator()
     ) {
         self.captureMode = captureMode
-        self.location = location
-        self.modelContext = modelContext
+        self.locationID = locationID
+        self.homeID = homeID
         self.sharedAIAnalysisService = aiAnalysisService ?? AIAnalysisServiceFactory.create()
         self.videoAnalysisCoordinator = videoAnalysisCoordinator
-    }
-
-    /// Update the model context (called after view initialization)
-    func updateModelContext(_ context: ModelContext) {
-        self.modelContext = context
     }
 
     /// Update the settings manager (called after view initialization)
@@ -205,6 +200,11 @@ class ItemCreationFlowViewModel {
         self.captureMode = mode
         print("✅ ItemCreationFlowViewModel - Capture mode updated. Current mode: \(captureMode)")
         print("📋 ItemCreationFlowViewModel - Navigation flow: \(navigationFlow.map { $0.displayName })")
+    }
+
+    /// Create AI Analysis service with mock support for UI testing
+    private func createAIAnalysisService() -> AIAnalysisServiceProtocol {
+        return sharedAIAnalysisService
     }
 
     /// Expose the flow-scoped AI service for child selection views.
@@ -252,39 +252,39 @@ class ItemCreationFlowViewModel {
 
     // MARK: - Home Assignment
 
-    /// Assigns the appropriate home to an item if it doesn't already have one through its location.
-    /// Uses active home from settings, with fallback to primary home.
-    /// - Parameters:
-    ///   - item: The item to assign a home to
-    ///   - context: The model context for fetching homes
-    private func assignHomeToItemIfNeeded(_ item: InventoryItem, context: ModelContext) {
-        // Skip if item already has an effective home through its location
-        guard item.location == nil || item.location?.home == nil else {
-            return
+    /// Resolves the homeID for a new item: uses location's home, then active home, then primary home.
+    private func resolveHomeID() async -> UUID? {
+        // If homeID is already set (e.g., from the calling view), use it
+        if let homeID { return homeID }
+
+        // If location has a home, use it
+        if let locationID {
+            if let location = try? await database.read({ db in
+                try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+            }), let locationHomeID = location.homeID {
+                return locationHomeID
+            }
         }
 
-        // Try active home from settings first
+        // Try active home from settings
         if let activeHomeIdString = settingsManager?.activeHomeId,
             let activeHomeId = UUID(uuidString: activeHomeIdString)
         {
-            let homeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
-            if let activeHome = try? context.fetch(homeDescriptor).first {
-                item.home = activeHome
-                return
+            if (try? await database.read({ db in
+                try SQLiteHome.find(activeHomeId).fetchOne(db)
+            })) != nil {
+                return activeHomeId
             }
         }
 
         // Fallback to primary home
-        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-        if let primaryHome = try? context.fetch(primaryHomeDescriptor).first {
-            item.home = primaryHome
-            return
+        if let primaryHome = try? await database.read({ db in
+            try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)
+        }) {
+            return primaryHome.id
         }
 
-        // Log warning if no home could be assigned
-        print(
-            "⚠️ ItemCreationFlowViewModel - Could not assign home to item '\(item.title)'. No active or primary home found."
-        )
+        return nil
     }
 
     // MARK: - Image Processing
@@ -309,8 +309,8 @@ class ItemCreationFlowViewModel {
                 }
             } catch {
                 print("❌ ItemCreationFlowViewModel: Analysis error: \(error)")
-                if let aiAnalysisError = error as? AIAnalysisError {
-                    print("   AI Analysis Error Details: \(aiAnalysisError)")
+                if let aiError = error as? AIAnalysisError {
+                    print("   AI Analysis Error Details: \(aiError)")
                 }
                 await MainActor.run {
                     let detailedError =
@@ -348,13 +348,301 @@ class ItemCreationFlowViewModel {
         goToStep(.videoProcessing)
     }
 
+    /// Create a single inventory item (for single item mode)
+    func createSingleInventoryItem() async throws -> SQLiteInventoryItem? {
+        guard !capturedImages.isEmpty else {
+            throw InventoryItemCreationError.noImagesProvided
+        }
+
+        let newID = UUID()
+        let itemId = newID.uuidString
+        let resolvedHomeID = await resolveHomeID()
+
+        var newItem = SQLiteInventoryItem(
+            id: newID,
+            assetId: itemId,
+            locationID: locationID,
+            homeID: resolvedHomeID
+        )
+
+        do {
+            // Process images to JPEG data before DB write
+            var photoDataList: [(Data, Int)] = []
+            for (sortOrder, image) in capturedImages.enumerated() {
+                if let imageData = await OptimizedImageManager.shared.processImage(image) {
+                    photoDataList.append((imageData, sortOrder))
+                }
+            }
+
+            // Insert into SQLite
+            let itemToInsert = newItem
+            try await database.write { db in
+                try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
+
+                for (imageData, sortOrder) in photoDataList {
+                    try SQLiteInventoryItemPhoto.insert {
+                        SQLiteInventoryItemPhoto(
+                            id: UUID(),
+                            inventoryItemID: newItem.id,
+                            data: imageData,
+                            sortOrder: sortOrder
+                        )
+                    }.execute(db)
+                }
+            }
+
+            TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
+            return newItem
+
+        } catch {
+            throw InventoryItemCreationError.imageProcessingFailed
+        }
+    }
+
+    // MARK: - Analysis Methods
+
+    /// Perform image analysis (single item mode)
+    func performAnalysis() async {
+        guard var item = createdItems.first else { return }
+
+        await MainActor.run {
+            analysisComplete = false
+            errorMessage = nil
+            processingImage = true
+        }
+
+        analysisInterruptedForBackground = false
+        beginBackgroundTaskIfNeeded()
+        defer {
+            endBackgroundTaskIfNeeded()
+            activeAIService = nil
+        }
+
+        do {
+            guard let settings = settingsManager else {
+                await MainActor.run {
+                    errorMessage = "Settings manager not available"
+                    processingImage = false
+                }
+                return
+            }
+
+            let aiService = sharedAIAnalysisService
+            activeAIService = aiService
+            print("🔍 ItemCreationFlowViewModel: Using AI Analysis service: \(type(of: aiService))")
+
+            // Build AIAnalysisContext from database
+            let context = await AIAnalysisContext.from(database: database, settings: settings)
+
+            let imageDetails = try await aiService.getImageDetails(
+                from: capturedImages,
+                settings: settings,
+                context: context
+            )
+
+            // Load labels and locations from SQLite
+            let labels =
+                (try? await database.read { db in
+                    try SQLiteInventoryLabel.all.fetchAll(db)
+                }) ?? []
+            let locations =
+                (try? await database.read { db in
+                    try SQLiteInventoryLocation.all.fetchAll(db)
+                }) ?? []
+
+            // Update item from AI results
+            updateItemFromImageDetails(&item, imageDetails: imageDetails, labels: labels, locations: locations)
+
+            // Save updated item to SQLite
+            let updatedItem = item
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryItem.find(updatedItem.id).update {
+                        $0.title = updatedItem.title
+                        $0.quantityString = updatedItem.quantityString
+                        $0.quantityInt = updatedItem.quantityInt
+                        $0.desc = updatedItem.desc
+                        $0.serial = updatedItem.serial
+                        $0.model = updatedItem.model
+                        $0.make = updatedItem.make
+                        $0.price = updatedItem.price
+                        $0.condition = updatedItem.condition
+                        $0.color = updatedItem.color
+                        $0.purchaseLocation = updatedItem.purchaseLocation
+                        $0.replacementCost = updatedItem.replacementCost
+                        $0.depreciationRate = updatedItem.depreciationRate
+                        $0.storageRequirements = updatedItem.storageRequirements
+                        $0.isFragile = updatedItem.isFragile
+                        $0.dimensionLength = updatedItem.dimensionLength
+                        $0.dimensionWidth = updatedItem.dimensionWidth
+                        $0.dimensionHeight = updatedItem.dimensionHeight
+                        $0.dimensionUnit = updatedItem.dimensionUnit
+                        $0.weightValue = updatedItem.weightValue
+                        $0.weightUnit = updatedItem.weightUnit
+                        $0.hasUsedAI = updatedItem.hasUsedAI
+                        $0.locationID = updatedItem.locationID
+                    }.execute(db)
+
+                    // Save matched labels
+                    let categoriesToMatch =
+                        imageDetails.categories.isEmpty
+                        ? [imageDetails.category] : imageDetails.categories
+                    for categoryName in categoriesToMatch {
+                        if let matchedLabel = labels.first(where: {
+                            $0.name.lowercased() == categoryName.lowercased()
+                        }) {
+                            try SQLiteInventoryItemLabel.insert {
+                                SQLiteInventoryItemLabel(
+                                    id: UUID(),
+                                    inventoryItemID: updatedItem.id,
+                                    inventoryLabelID: matchedLabel.id
+                                )
+                            }.execute(db)
+                        }
+                    }
+                }
+            } catch {
+                print("Error saving analysis results: \(error)")
+            }
+
+            await MainActor.run {
+                createdItems = [item]
+
+                let detectedItem = DetectedInventoryItem(
+                    id: UUID().uuidString,
+                    title: imageDetails.title,
+                    description: imageDetails.description,
+                    category: imageDetails.category,
+                    make: imageDetails.make,
+                    model: imageDetails.model,
+                    estimatedPrice: imageDetails.price,
+                    confidence: 0.95
+                )
+
+                multiItemAnalysisResponse = MultiItemAnalysisResponse(
+                    items: [detectedItem],
+                    detectedCount: 1,
+                    analysisType: "single_item_as_multi",
+                    confidence: 0.95
+                )
+
+                analysisComplete = true
+                processingImage = false
+                analysisInterruptedForBackground = false
+                shouldRestartAnalysisOnForeground = false
+            }
+
+        } catch {
+            let isCancellation = error is CancellationError
+            let isBackgrounded =
+                isAppInBackground || UIApplication.shared.applicationState == .background
+            if analysisInterruptedForBackground || isCancellation || isBackgrounded {
+                await MainActor.run {
+                    if analysisInterruptedForBackground || isBackgrounded {
+                        shouldRestartAnalysisOnForeground = true
+                    }
+                    processingImage = false
+                }
+                return
+            }
+            print("❌ ItemCreationFlowViewModel (Single): Analysis error: \(error)")
+            if let aiError = error as? AIAnalysisError {
+                print("   AI Analysis Error Details: \(aiError)")
+            }
+            await MainActor.run {
+                let detailedError =
+                    "Analysis failed: \(error.localizedDescription)\n\nError type: \(type(of: error))"
+                errorMessage = detailedError
+                processingImage = false
+            }
+        }
+    }
+
+    /// Perform multi-item analysis
+    func performMultiItemAnalysis() async {
+        await MainActor.run {
+            analysisComplete = false
+            errorMessage = nil
+            processingImage = true
+        }
+
+        analysisInterruptedForBackground = false
+        beginBackgroundTaskIfNeeded()
+        defer {
+            endBackgroundTaskIfNeeded()
+            activeAIService = nil
+        }
+
+        do {
+            guard let settings = settingsManager else {
+                await MainActor.run {
+                    errorMessage = "Settings manager not available"
+                    processingImage = false
+                }
+                return
+            }
+
+            // Force high quality for multi-item analysis
+            let originalHighDetail = settings.isHighDetail
+            settings.isHighDetail = true
+
+            let aiService = sharedAIAnalysisService
+            activeAIService = aiService
+            print("🔍 ItemCreationFlowViewModel (Multi-Item): Using AI Analysis service: \(type(of: aiService))")
+
+            // Build AIAnalysisContext from database
+            let context = await AIAnalysisContext.from(database: database, settings: settings)
+
+            let response = try await aiService.getMultiItemDetails(
+                from: capturedImages,
+                settings: settings,
+                context: context,
+                narrationContext: nil
+            )
+
+            // Restore original setting
+            await MainActor.run {
+                settings.isHighDetail = originalHighDetail
+            }
+
+            await MainActor.run {
+                multiItemAnalysisResponse = response
+                analysisComplete = true
+                processingImage = false
+                analysisInterruptedForBackground = false
+                shouldRestartAnalysisOnForeground = false
+                handleMultiItemAnalysisReady()
+            }
+
+        } catch {
+            let isCancellation = error is CancellationError
+            let isBackgrounded =
+                isAppInBackground || UIApplication.shared.applicationState == .background
+            if analysisInterruptedForBackground || isCancellation || isBackgrounded {
+                await MainActor.run {
+                    if analysisInterruptedForBackground || isBackgrounded {
+                        shouldRestartAnalysisOnForeground = true
+                    }
+                    processingImage = false
+                }
+                return
+            }
+            print("❌ ItemCreationFlowViewModel (Multi-Item): Analysis error: \(error)")
+            if let aiError = error as? AIAnalysisError {
+                print("   AI Analysis Error Details: \(aiError)")
+            }
+            await MainActor.run {
+                let detailedError =
+                    "Multi-item analysis failed: \(error.localizedDescription)\n\nError type: \(type(of: error))"
+                errorMessage = detailedError
+                processingImage = false
+            }
+        }
+    }
+
     /// Perform video processing: frame extraction, transcription, AI analysis, and deduplication
     func performVideoProcessing() async {
         guard let asset = videoAsset else { return }
-        guard let context = modelContext else {
-            errorMessage = "Model context not available"
-            return
-        }
         guard let settings = settingsManager else {
             errorMessage = "Settings manager not available"
             return
@@ -376,7 +664,7 @@ class ItemCreationFlowViewModel {
             let response = try await videoAnalysisCoordinator.analyze(
                 videoAsset: asset,
                 settings: settings,
-                modelContext: context,
+                database: database,
                 aiService: aiService,
                 onProgress: { [weak self] progress in
                     guard let self else { return }
@@ -435,391 +723,97 @@ class ItemCreationFlowViewModel {
         }
     }
 
-    /// Create a single inventory item (for single item mode)
-    func createSingleInventoryItem() async throws -> InventoryItem? {
-        guard !capturedImages.isEmpty else {
-            throw InventoryItemCreationError.noImagesProvided
-        }
-
-        let newItem = InventoryItem(
-            title: "",
-            quantityString: "1",
-            quantityInt: 1,
-            desc: "",
-            serial: "",
-            model: "",
-            make: "",
-            location: location,
-            labels: [],
-            price: Decimal.zero,
-            insured: false,
-            assetId: "",
-            notes: "",
-            showInvalidQuantityAlert: false
-        )
-
-        // Generate unique ID for this item
-        let itemId = UUID().uuidString
-
-        do {
-            if let primaryImage = capturedImages.first {
-                // Save the primary image
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    primaryImage, id: itemId)
-                newItem.imageURL = primaryImageURL
-
-                // Save secondary images if there are more than one
-                if capturedImages.count > 1 {
-                    let secondaryImages = Array(capturedImages.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                        secondaryImages, itemId: itemId)
-                    newItem.secondaryPhotoURLs = secondaryURLs
-                }
-            }
-
-            guard let context = modelContext else {
-                throw InventoryItemCreationError.imageProcessingFailed
-            }
-
-            assignHomeToItemIfNeeded(newItem, context: context)
-            context.insert(newItem)
-            try context.save()
-            TelemetryManager.shared.trackInventoryItemAdded(name: newItem.title)
-
-            return newItem
-
-        } catch {
-            throw InventoryItemCreationError.imageProcessingFailed
-        }
-    }
-
-    // MARK: - Analysis Methods
-
-    /// Perform image analysis (single item mode)
-    func performAnalysis() async {
-        guard let item = createdItems.first else { return }
-
-        await MainActor.run {
-            analysisComplete = false
-            errorMessage = nil
-            processingImage = true
-        }
-
-        analysisInterruptedForBackground = false
-        beginBackgroundTaskIfNeeded()
-        defer {
-            endBackgroundTaskIfNeeded()
-            activeAIService = nil
-        }
-
-        do {
-            guard let context = modelContext else {
-                await MainActor.run {
-                    errorMessage = "Model context not available"
-                    processingImage = false
-                }
-                return
-            }
-
-            guard let settings = settingsManager else {
-                await MainActor.run {
-                    errorMessage = "Settings manager not available"
-                    processingImage = false
-                }
-                return
-            }
-
-            let aiService = sharedAIAnalysisService
-            activeAIService = aiService
-            print("🔍 ItemCreationFlowViewModel: Using AI service: \(type(of: aiService))")
-            let aiContext = AIAnalysisContext.from(modelContext: context, settings: settings)
-            let imageDetails = try await aiService.getImageDetails(
-                from: capturedImages,
-                settings: settings,
-                context: aiContext
-            )
-
-            try await MainActor.run {
-                // Get all labels and locations for the unified update
-                let labels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-                let locations = (try? context.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-
-                item.updateFromImageDetails(
-                    imageDetails,
-                    labels: labels,
-                    locations: locations,
-                    modelContext: context
-                )
-                try context.save()
-
-                // For single-item mode, also create a MultiItemAnalysisResponse
-                // This allows routing through multi-item selection view for consistency
-                let detectedItem = DetectedInventoryItem(
-                    id: UUID().uuidString,
-                    title: imageDetails.title,
-                    description: imageDetails.description,
-                    category: imageDetails.category,
-                    make: imageDetails.make,
-                    model: imageDetails.model,
-                    estimatedPrice: imageDetails.price,
-                    confidence: 0.95  // Single item AI analysis is highly confident
-                )
-
-                multiItemAnalysisResponse = MultiItemAnalysisResponse(
-                    items: [detectedItem],
-                    detectedCount: 1,
-                    analysisType: "single_item_as_multi",
-                    confidence: 0.95
-                )
-
-                analysisComplete = true
-                processingImage = false
-                analysisInterruptedForBackground = false
-                shouldRestartAnalysisOnForeground = false
-            }
-
-        } catch {
-            let isCancellation = error is CancellationError
-            let isBackgrounded =
-                isAppInBackground || UIApplication.shared.applicationState == .background
-            if analysisInterruptedForBackground || isCancellation || isBackgrounded {
-                await MainActor.run {
-                    if analysisInterruptedForBackground || isBackgrounded {
-                        shouldRestartAnalysisOnForeground = true
-                    }
-                    processingImage = false
-                }
-                return
-            }
-            print("❌ ItemCreationFlowViewModel (Single): Analysis error: \(error)")
-            if let aiAnalysisError = error as? AIAnalysisError {
-                print("   AI Analysis Error Details: \(aiAnalysisError)")
-            }
-            await MainActor.run {
-                let detailedError =
-                    "Analysis failed: \(error.localizedDescription)\n\nError type: \(type(of: error))"
-                errorMessage = detailedError
-                processingImage = false
-            }
-        }
-    }
-
-    /// Perform multi-item analysis
-    func performMultiItemAnalysis() async {
-        await MainActor.run {
-            analysisComplete = false
-            errorMessage = nil
-            processingImage = true
-        }
-
-        analysisInterruptedForBackground = false
-        beginBackgroundTaskIfNeeded()
-        defer {
-            endBackgroundTaskIfNeeded()
-            activeAIService = nil
-        }
-
-        do {
-            guard let context = modelContext else {
-                await MainActor.run {
-                    errorMessage = "Model context not available"
-                    processingImage = false
-                }
-                return
-            }
-
-            guard let settings = settingsManager else {
-                await MainActor.run {
-                    errorMessage = "Settings manager not available"
-                    processingImage = false
-                }
-                return
-            }
-
-            // Force high quality for multi-item analysis
-            let originalHighDetail = settings.isHighDetail
-            settings.isHighDetail = true
-            defer {
-                settings.isHighDetail = originalHighDetail
-            }
-
-            let aiService = sharedAIAnalysisService
-            activeAIService = aiService
-            print("🔍 ItemCreationFlowViewModel (Multi-Item): Using AI service: \(type(of: aiService))")
-            let response: MultiItemAnalysisResponse
-            let batchSize = 5
-            let multiContext = AIAnalysisContext.from(modelContext: context, settings: settings)
-            if capturedImages.count > batchSize {
-                response = try await performBatchedMultiItemAnalysis(
-                    images: capturedImages,
-                    batchSize: batchSize,
-                    settings: settings,
-                    context: multiContext,
-                    aiService: aiService
-                )
-            } else {
-                response = try await aiService.getMultiItemDetails(
-                    from: capturedImages,
-                    settings: settings,
-                    context: multiContext,
-                    narrationContext: nil
-                )
-            }
-
-            await MainActor.run {
-                multiItemAnalysisResponse = response
-                analysisComplete = true
-                processingImage = false
-                analysisInterruptedForBackground = false
-                shouldRestartAnalysisOnForeground = false
-                handleMultiItemAnalysisReady()
-            }
-
-        } catch {
-            let isCancellation = error is CancellationError
-            let isBackgrounded =
-                isAppInBackground || UIApplication.shared.applicationState == .background
-            if analysisInterruptedForBackground || isCancellation || isBackgrounded {
-                await MainActor.run {
-                    if analysisInterruptedForBackground || isBackgrounded {
-                        shouldRestartAnalysisOnForeground = true
-                    }
-                    processingImage = false
-                }
-                return
-            }
-            print("❌ ItemCreationFlowViewModel (Multi-Item): Analysis error: \(error)")
-            if let aiAnalysisError = error as? AIAnalysisError {
-                print("   AI Analysis Error Details: \(aiAnalysisError)")
-            }
-            await MainActor.run {
-                let detailedError =
-                    "Multi-item analysis failed: \(error.localizedDescription)\n\nError type: \(type(of: error))"
-                errorMessage = detailedError
-                processingImage = false
-            }
-        }
-    }
-
-    private func performBatchedMultiItemAnalysis(
-        images: [UIImage],
-        batchSize: Int,
-        settings: AIAnalysisSettings,
-        context: AIAnalysisContext,
-        aiService: AIAnalysisServiceProtocol
-    ) async throws -> MultiItemAnalysisResponse {
-        guard !images.isEmpty else {
-            return MultiItemAnalysisResponse(items: [], detectedCount: 0, analysisType: "multi_item", confidence: 0.0)
-        }
-
-        let totalBatches = Int(ceil(Double(images.count) / Double(max(batchSize, 1))))
-        var batchResults: [(response: MultiItemAnalysisResponse, batchOffset: Int)] = []
-        batchResults.reserveCapacity(totalBatches)
-
-        for batchIndex in 0..<totalBatches {
-            let start = batchIndex * batchSize
-            let end = min(start + batchSize, images.count)
-            let batchImages = Array(images[start..<end])
-
-            let response = try await aiService.getMultiItemDetails(
-                from: batchImages,
-                settings: settings,
-                context: context,
-                narrationContext: nil
-            )
-
-            batchResults.append((response: response, batchOffset: start))
-        }
-
-        return VideoItemDeduplicator.deduplicate(batchResults: batchResults)
-    }
-
     // MARK: - Multi-Item Processing
 
     /// Process selected multi-items and create inventory items
-    func processSelectedMultiItems() async throws -> [InventoryItem] {
+    func processSelectedMultiItems() async throws -> [SQLiteInventoryItem] {
         guard !selectedMultiItems.isEmpty else { return [] }
         guard !capturedImages.isEmpty else {
             throw InventoryItemCreationError.noImagesProvided
         }
 
-        // Note: Primary image is saved per-item to ensure unique URLs
-        // No pre-processing needed as OptimizedImageManager handles this efficiently
+        let resolvedHomeID = await resolveHomeID()
+        let existingLabels =
+            (try? await database.read { db in
+                try SQLiteInventoryLabel.all.fetchAll(db)
+            }) ?? []
 
-        var items: [InventoryItem] = []
+        var items: [SQLiteInventoryItem] = []
+        var photoDataByItem: [UUID: [(Data, Int)]] = [:]
 
         for detectedItem in selectedMultiItems {
-            let inventoryItem = InventoryItem(
+            let newID = UUID()
+            let itemId = newID.uuidString
+
+            var inventoryItem = SQLiteInventoryItem(
+                id: newID,
                 title: detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title,
-                quantityString: "1",
-                quantityInt: 1,
                 desc: detectedItem.description,
-                serial: "",
                 model: detectedItem.model,
                 make: detectedItem.make,
-                location: location,
-                labels: [],
                 price: parsePrice(from: detectedItem.estimatedPrice),
-                insured: false,
-                assetId: "",
+                assetId: itemId,
                 notes:
                     "AI-detected \(detectedItem.category) with \(Int(detectedItem.confidence * 100))% confidence",
-                showInvalidQuantityAlert: false
+                hasUsedAI: true,
+                locationID: locationID,
+                homeID: resolvedHomeID
             )
 
-            // Generate unique ID for this item
-            let itemId = UUID().uuidString
-
             do {
-                // Save primary image
-                if let primaryImage = capturedImages.first {
-                    let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                        primaryImage, id: itemId)
-                    inventoryItem.imageURL = primaryImageURL
-                }
-
                 items.append(inventoryItem)
 
+                // Process primary image for this item
+                if let primaryImage = capturedImages.first,
+                    let imageData = await OptimizedImageManager.shared.processImage(primaryImage)
+                {
+                    photoDataByItem[inventoryItem.id] = [(imageData, 0)]
+                }
             } catch {
                 throw InventoryItemCreationError.imageProcessingFailed
             }
         }
 
-        // Batch insert all items and save once for better performance
-        guard let context = modelContext else {
-            throw InventoryItemCreationError.imageProcessingFailed
-        }
+        // Batch insert all items into SQLite
+        do {
+            try await database.write { [selectedMultiItems] db in
+                for (index, item) in items.enumerated() {
+                    try SQLiteInventoryItem.insert { item }.execute(db)
 
-        // Auto-create labels based on AI categories and assign to items
-        await MainActor.run {
-            var existingLabels = (try? context.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+                    // Insert photo BLOBs
+                    if let photoEntries = photoDataByItem[item.id] {
+                        for (imageData, sortOrder) in photoEntries {
+                            try SQLiteInventoryItemPhoto.insert {
+                                SQLiteInventoryItemPhoto(
+                                    id: UUID(),
+                                    inventoryItemID: item.id,
+                                    data: imageData,
+                                    sortOrder: sortOrder
+                                )
+                            }.execute(db)
+                        }
+                    }
 
-            for (index, item) in items.enumerated() {
-                let detectedCategory = selectedMultiItems[index].category
-                let matchedLabels = LabelAutoAssignment.labels(
-                    for: [detectedCategory],
-                    existingLabels: existingLabels,
-                    modelContext: context
-                )
-                item.labels = matchedLabels
+                    // Match label for this item's category
+                    let detectedCategory = selectedMultiItems[index].category
+                    if let existingLabel = existingLabels.first(where: {
+                        $0.name.lowercased() == detectedCategory.lowercased()
+                    }) {
+                        try SQLiteInventoryItemLabel.insert {
+                            SQLiteInventoryItemLabel(
+                                id: UUID(),
+                                inventoryItemID: item.id,
+                                inventoryLabelID: existingLabel.id
+                            )
+                        }.execute(db)
+                    }
 
-                for label in matchedLabels
-                where !existingLabels.contains(where: { $0.id == label.id }) {
-                    existingLabels.append(label)
+                    TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
                 }
             }
+        } catch {
+            throw InventoryItemCreationError.contextSaveFailure
         }
-
-        // Insert all items in batch
-        for item in items {
-            assignHomeToItemIfNeeded(item, context: context)
-            context.insert(item)
-            // Track telemetry for each item
-            TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
-        }
-
-        // Single save operation for all items
-        try context.save()
 
         await MainActor.run {
             createdItems = items
@@ -875,7 +869,7 @@ class ItemCreationFlowViewModel {
     }
 
     /// Handle multi-item selection completion
-    func handleMultiItemSelection(_ items: [InventoryItem]) {
+    func handleMultiItemSelection(_ items: [SQLiteInventoryItem]) {
         createdItems = items
         goToNextStep()  // Move to details step
     }
@@ -1023,6 +1017,36 @@ class ItemCreationFlowViewModel {
         return Decimal(string: cleanedString) ?? Decimal.zero
     }
 
+    /// Assign appropriate color for category labels
+    private func assignColorForCategory(_ category: String) -> String {
+        // Predefined color mapping for common categories
+        let categoryColors: [String: String] = [
+            "electronics": "#007AFF",  // Blue
+            "furniture": "#8E4EC6",  // Purple
+            "clothing": "#FF69B4",  // Pink
+            "kitchen": "#FF9500",  // Orange
+            "books": "#34C759",  // Green
+            "tools": "#FF3B30",  // Red
+            "toys": "#FFCC02",  // Yellow
+            "jewelry": "#AF52DE",  // Violet
+            "sports": "#32D74B",  // Light Green
+            "automotive": "#64D2FF",  // Light Blue
+            "appliances": "#BF5AF2",  // Light Purple
+            "art": "#FF6482",  // Light Red
+        ]
+
+        // Return predefined color or generate based on category hash
+        let lowercaseCategory = category.lowercased()
+        if let predefinedColor = categoryColors[lowercaseCategory] {
+            return predefinedColor
+        }
+
+        // Generate consistent color based on category string hash
+        let colors = ["#007AFF", "#8E4EC6", "#FF9500", "#34C759", "#FF3B30", "#FFCC02"]
+        let colorIndex = abs(category.hashValue) % colors.count
+        return colors[colorIndex]
+    }
+
     /// Get current step title for UI
     var currentStepTitle: String {
         currentStep.displayName
@@ -1043,5 +1067,84 @@ class ItemCreationFlowViewModel {
             // Don't allow back navigation from details in multi-item mode (success state)
             return captureMode == .singleItem
         }
+    }
+
+    // MARK: - AI Update Helper
+
+    private func updateItemFromImageDetails(
+        _ item: inout SQLiteInventoryItem,
+        imageDetails: ImageDetails,
+        labels: [SQLiteInventoryLabel],
+        locations: [SQLiteInventoryLocation]
+    ) {
+        item.title = imageDetails.title
+        item.quantityString = imageDetails.quantity
+        if let quantity = Int(imageDetails.quantity) {
+            item.quantityInt = quantity
+        }
+        item.desc = imageDetails.description
+        item.make = imageDetails.make
+        item.model = imageDetails.model
+        item.serial = imageDetails.serialNumber
+
+        let priceString = imageDetails.price
+            .replacingOccurrences(of: "$", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if let price = Decimal(string: priceString) {
+            item.price = price
+        }
+
+        // Location handling - NEVER overwrite existing location
+        if item.locationID == nil {
+            if let matchedLocation = locations.first(where: { $0.name == imageDetails.location }) {
+                item.locationID = matchedLocation.id
+            }
+        }
+
+        if let condition = imageDetails.condition, !condition.isEmpty {
+            item.condition = condition
+        }
+        if let color = imageDetails.color, !color.isEmpty {
+            item.color = color
+        }
+        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
+            item.purchaseLocation = purchaseLocation
+        }
+        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
+            let cleaned =
+                replacementCostString
+                .replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+            if let val = Decimal(string: cleaned) { item.replacementCost = val }
+        }
+        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
+            let cleaned =
+                depreciationRateString
+                .replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces)
+            if let val = Double(cleaned) { item.depreciationRate = val / 100.0 }
+        }
+        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
+            item.storageRequirements = storageRequirements
+        }
+        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
+            item.isFragile = isFragileString.lowercased() == "true"
+        }
+        if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
+            item.dimensionLength = dimensionLength
+        }
+        if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
+            item.dimensionWidth = dimensionWidth
+        }
+        if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
+            item.dimensionHeight = dimensionHeight
+        }
+        if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
+            item.dimensionUnit = dimensionUnit
+        }
+        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
+            item.weightValue = weightValue
+            item.weightUnit = imageDetails.weightUnit ?? "lbs"
+        }
+
+        item.hasUsedAI = true
     }
 }

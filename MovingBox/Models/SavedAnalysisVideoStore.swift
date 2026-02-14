@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SQLiteData
 
 struct SavedAnalysisVideo: Codable, Identifiable, Hashable {
     let id: UUID
@@ -50,7 +51,7 @@ enum SavedAnalysisVideoStore {
     }
 
     @discardableResult
-    static func addVideo(_ url: URL, location: InventoryLocation?) -> SavedAnalysisVideo {
+    static func addVideo(_ url: URL, location: SQLiteInventoryLocation?) -> SavedAnalysisVideo {
         var videos = allVideos()
         let entry = SavedAnalysisVideo(
             url: url,

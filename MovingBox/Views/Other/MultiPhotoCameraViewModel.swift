@@ -896,4 +896,8 @@ final class MultiPhotoCameraViewModel: NSObject, ObservableObject, AVCapturePhot
         let maxPhotos = captureMode.maxPhotosAllowed(isPro: isPro)
         return capturedImages.count < maxPhotos
     }
+
+    func shouldShowMultiItemPreview(captureMode: CaptureMode) -> Bool {
+        return captureMode == .multiItem && !capturedImages.isEmpty
+    }
 }

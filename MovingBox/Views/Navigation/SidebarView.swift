@@ -5,15 +5,17 @@
 //  Created by Claude Code
 //
 
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct SidebarView: View {
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var settingsManager: SettingsManager
-    @Query(sort: \InventoryLabel.name) private var allLabels: [InventoryLabel]
-    @Query(sort: \InventoryLocation.name) private var allLocations: [InventoryLocation]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    private var allLocations: [SQLiteInventoryLocation]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
     @Binding var selection: Router.SidebarDestination?
 
     // State to force re-render when active home changes
@@ -21,15 +23,15 @@ struct SidebarView: View {
 
     // MARK: - Computed Properties
 
-    private var primaryHome: Home? {
+    private var primaryHome: SQLiteHome? {
         homes.first { $0.isPrimary }
     }
 
-    private var secondaryHomes: [Home] {
+    private var secondaryHomes: [SQLiteHome] {
         homes.filter { !$0.isPrimary }.sorted { $0.name < $1.name }
     }
 
-    private var activeHome: Home? {
+    private var activeHome: SQLiteHome? {
         // Use activeHomeIdTrigger to ensure SwiftUI tracks this dependency
         let activeIdString = activeHomeIdTrigger ?? settingsManager.activeHomeId
         guard let idString = activeIdString,
@@ -40,11 +42,11 @@ struct SidebarView: View {
         return homes.first { $0.id == activeId } ?? primaryHome
     }
 
-    private var filteredLocations: [InventoryLocation] {
+    private var filteredLocations: [SQLiteInventoryLocation] {
         guard let activeHome = activeHome else {
             return []
         }
-        return allLocations.filter { $0.home?.id == activeHome.id }
+        return allLocations.filter { $0.homeID == activeHome.id }
     }
 
     // MARK: - Body
@@ -60,8 +62,8 @@ struct SidebarView: View {
 
             // Homes Section
             Section("Homes") {
-                ForEach(homes, id: \.persistentModelID) { home in
-                    NavigationLink(value: Router.SidebarDestination.home(home.persistentModelID)) {
+                ForEach(homes) { home in
+                    NavigationLink(value: Router.SidebarDestination.home(home.id)) {
                         SidebarHomeRow(home: home, isActive: home.id == activeHome?.id)
                     }
                 }
@@ -74,8 +76,8 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(filteredLocations, id: \.persistentModelID) { location in
-                        NavigationLink(value: Router.SidebarDestination.location(location.persistentModelID)) {
+                    ForEach(filteredLocations) { location in
+                        NavigationLink(value: Router.SidebarDestination.location(location.id)) {
                             Label {
                                 Text(location.name)
                             } icon: {
@@ -97,10 +99,10 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {
-                    ForEach(allLabels, id: \.persistentModelID) { label in
+                    ForEach(allLabels) { label in
                         NavigationLink(
                             value:
-                                Router.SidebarDestination.label(label.persistentModelID)
+                                Router.SidebarDestination.label(label.id)
                         ) {
                             LabelCapsuleView(label: label)
                         }
@@ -140,9 +142,7 @@ struct SidebarView: View {
 
         case .home(let homeId):
             // Set active home to selected home
-            if let home = homes.first(where: { $0.persistentModelID == homeId }) {
-                settingsManager.activeHomeId = home.id.uuidString
-            }
+            settingsManager.activeHomeId = homeId.uuidString
 
         default:
             // For other destinations (labels, locations, all inventory), don't change active home
@@ -154,7 +154,7 @@ struct SidebarView: View {
 // MARK: - Sidebar Row Views
 
 struct SidebarHomeRow: View {
-    let home: Home
+    let home: SQLiteHome
     let isActive: Bool
 
     var body: some View {
@@ -165,11 +165,11 @@ struct SidebarHomeRow: View {
                 Text("PRIMARY")
                     .font(.caption2)
                     .fontWeight(.bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(.green)
-                    .cornerRadius(4)
+                    .clipShape(.rect(cornerRadius: 4))
             }
 
             Spacer()
@@ -182,15 +182,12 @@ struct SidebarHomeRow: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return NavigationSplitView {
-            SidebarView(selection: .constant(.dashboard))
-                .modelContainer(previewer.container)
-        } detail: {
-            Text("Select an item")
-        }
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    NavigationSplitView {
+        SidebarView(selection: .constant(.dashboard))
+    } detail: {
+        Text("Select an item")
     }
 }

@@ -1,9 +1,10 @@
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 
 struct ImportPreviewView: View {
-    @Environment(ModelContainerManager.self) private var containerManager
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
 
     let previewData: DataManager.ImportResult
@@ -74,7 +75,7 @@ struct ImportPreviewView: View {
 
                 for try await progress in await DataManager.shared.importInventory(
                     from: importURL,
-                    modelContainer: containerManager.container,
+                    database: database,
                     config: config
                 ) {
                     if Task.isCancelled {

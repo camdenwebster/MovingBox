@@ -1,20 +1,22 @@
+import Dependencies
 import PhotosUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
 struct OnboardingHomeView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var settings: SettingsManager
-    @Query(sort: [SortDescriptor(\Home.purchaseDate)]) private var homes: [Home]
+
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
     @State private var homeName = ""
     @State private var loadedImage: UIImage?
-    @State private var loadingError: Error?
     @State private var isLoading = false
-    @State private var tempHome = Home()
 
-    private var activeHome: Home? {
+    private var activeHome: SQLiteHome? {
         homes.last
     }
 
@@ -22,11 +24,12 @@ struct OnboardingHomeView: View {
     private func loadExistingData() async {
         if let existingHome = activeHome {
             homeName = existingHome.name
-            do {
-                loadedImage = try await existingHome.photo
-            } catch {
-                loadingError = error
-                print("Failed to load home photo: \(error)")
+
+            // Load photo from BLOB
+            if let photo = try? await database.read({ db in
+                try SQLiteHomePhoto.primaryPhoto(for: existingHome.id, in: db)
+            }) {
+                loadedImage = UIImage(data: photo.data)
             }
         }
     }
@@ -52,12 +55,6 @@ struct OnboardingHomeView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: UIConstants.cornerRadius))
                                         .overlay(alignment: .bottomTrailing) {
                                             PhotoPickerView(
-                                                model: Binding(
-                                                    get: { activeHome ?? tempHome },
-                                                    set: { newValue in
-                                                        tempHome = newValue
-                                                    }
-                                                ),
                                                 loadedImage: $loadedImage,
                                                 isLoading: $isLoading
                                             )
@@ -68,12 +65,6 @@ struct OnboardingHomeView: View {
                                         .frame(height: UIScreen.main.bounds.height / 3)
                                 } else {
                                     PhotoPickerView(
-                                        model: Binding(
-                                            get: { activeHome ?? tempHome },
-                                            set: { newValue in
-                                                tempHome = newValue
-                                            }
-                                        ),
                                         loadedImage: $loadedImage,
                                         isLoading: $isLoading
                                     ) { isPresented in
@@ -113,7 +104,6 @@ struct OnboardingHomeView: View {
                                 do {
                                     try await handleContinueButton()
                                 } catch {
-                                    loadingError = error
                                     manager.showError(message: "Failed to save home: \(error.localizedDescription)")
                                 }
                             }
@@ -138,26 +128,83 @@ struct OnboardingHomeView: View {
 
     @MainActor
     private func saveHomeAndContinue() async throws {
+        let saveName = homeName
+        let image = loadedImage
+
+        // Process photo before DB write
+        var photoData: Data?
+        if let image {
+            photoData = await OptimizedImageManager.shared.processImage(image)
+        }
+
         if let existingHome = activeHome {
-            existingHome.name = homeName
-            try modelContext.save()
+            try await database.write { db in
+                try SQLiteHome.find(existingHome.id).update {
+                    $0.name = saveName
+                }.execute(db)
+
+                // Replace photo
+                try SQLiteHomePhoto
+                    .where { $0.homeID == existingHome.id }
+                    .delete()
+                    .execute(db)
+
+                if let photoData {
+                    try SQLiteHomePhoto.insert {
+                        SQLiteHomePhoto(
+                            id: UUID(),
+                            homeID: existingHome.id,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
+            }
         } else {
-            let home = Home()
-            home.name = homeName
-            modelContext.insert(home)
-            try modelContext.save()
+            let newHomeID = DefaultSeedID.home
+            try await database.write { db in
+                try SQLiteHome.insert {
+                    SQLiteHome(
+                        id: newHomeID,
+                        name: saveName,
+                        isPrimary: true,
+                        colorName: "green"
+                    )
+                }.execute(db)
+
+                if let photoData {
+                    try SQLiteHomePhoto.insert {
+                        SQLiteHomePhoto(
+                            id: UUID(),
+                            homeID: newHomeID,
+                            data: photoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
+
+                for (index, roomData) in TestData.defaultRooms.enumerated() {
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(
+                            id: DefaultSeedID.roomIDs[index],
+                            name: roomData.name,
+                            desc: roomData.desc,
+                            sfSymbolName: roomData.sfSymbol,
+                            homeID: newHomeID
+                        )
+                    }.execute(db)
+                }
+            }
+            settings.activeHomeId = newHomeID.uuidString
         }
     }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-
-        return OnboardingHomeView()
-            .environmentObject(OnboardingManager())
-            .modelContainer(previewer.container)
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    OnboardingHomeView()
+        .environmentObject(OnboardingManager())
+        .environmentObject(SettingsManager())
 }

@@ -363,6 +363,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Is-Pro",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -702,6 +703,9 @@ final class MultiHomeNavigationUITests: XCTestCase {
 
         // Wait for home detail view
         sleep(1)
+
+        // Tap "Edit" button
+        homeManagementScreen.tapEdit()
 
         // Verify Delete Home button exists (we won't actually delete to keep tests stable)
         XCTAssertTrue(

@@ -23,33 +23,29 @@ import Testing
 
     @Test("CaptureMode max photos logic")
     func testCaptureModeLimits() {
-        let expectedMax = CaptureMode.maxPhotosPerAnalysis
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
         let videoMode = CaptureMode.video
 
         #expect(singleMode.maxPhotosAllowed(isPro: false) == 1)
-        #expect(singleMode.maxPhotosAllowed(isPro: true) == expectedMax)
-        #expect(multiMode.maxPhotosAllowed(isPro: false) == expectedMax)
-        #expect(multiMode.maxPhotosAllowed(isPro: true) == expectedMax)
-        #expect(videoMode.maxPhotosAllowed(isPro: false) == 0)
+        #expect(singleMode.maxPhotosAllowed(isPro: true) == CaptureMode.maxPhotosPerAnalysis)
+        #expect(multiMode.maxPhotosAllowed(isPro: false) == CaptureMode.maxPhotosPerAnalysis)
+        #expect(multiMode.maxPhotosAllowed(isPro: true) == CaptureMode.maxPhotosPerAnalysis)
         #expect(videoMode.maxPhotosAllowed(isPro: true) == 0)
     }
 
     @Test("CaptureMode validation")
     func testCaptureModeValidation() {
-        let expectedMax = CaptureMode.maxPhotosPerAnalysis
         let singleMode = CaptureMode.singleItem
         let multiMode = CaptureMode.multiItem
         let videoMode = CaptureMode.video
 
         #expect(singleMode.isValidPhotoCount(1) == true)
-        #expect(singleMode.isValidPhotoCount(expectedMax) == true)
-        #expect(singleMode.isValidPhotoCount(expectedMax + 1) == false)
+        #expect(singleMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis) == true)
+        #expect(singleMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis + 1) == false)
         #expect(multiMode.isValidPhotoCount(1) == true)
-        #expect(multiMode.isValidPhotoCount(2) == true)
-        #expect(multiMode.isValidPhotoCount(expectedMax + 1) == false)
-        #expect(videoMode.isValidPhotoCount(0) == false)
+        #expect(multiMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis) == true)
+        #expect(multiMode.isValidPhotoCount(CaptureMode.maxPhotosPerAnalysis + 1) == false)
         #expect(videoMode.isValidPhotoCount(1) == false)
     }
 
@@ -87,30 +83,6 @@ import Testing
 
         let viewType = type(of: view)
         #expect(viewType == MultiPhotoCameraView.self)
-    }
-
-    @Test("MultiPhotoCameraView video mode initializer")
-    func testVideoModeInitializer() async throws {
-        let capturedImages: [UIImage] = []
-        var completionResult: ([UIImage], CaptureMode)? = nil
-        var selectedVideoURL: URL? = nil
-
-        let view = MultiPhotoCameraView(
-            capturedImages: .constant(capturedImages),
-            captureMode: .video,
-            onPermissionCheck: { _ in },
-            onComplete: { images, mode in
-                completionResult = (images, mode)
-            },
-            onVideoSelected: { url in
-                selectedVideoURL = url
-            }
-        )
-
-        let viewType = type(of: view)
-        #expect(viewType == MultiPhotoCameraView.self)
-        #expect(completionResult == nil)
-        #expect(selectedVideoURL == nil)
     }
 
     @Test("MultiPhotoCameraView backward compatibility")

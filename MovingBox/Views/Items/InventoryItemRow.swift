@@ -5,84 +5,69 @@
 //  Created by Camden Webster on 6/6/24.
 //
 
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct InventoryItemRow: View {
-    var item: InventoryItem
+    @Dependency(\.defaultDatabase) var database
+    var item: SQLiteInventoryItem
+    var homeName: String?
+    var labels: [SQLiteInventoryLabel] = []
     var showHomeBadge: Bool = false
-    @State private var imageLoadTrigger = 0
-    @State private var hasRetried = false
+    @State private var thumbnail: UIImage?
 
     var body: some View {
         HStack {
-            AsyncImage(url: item.thumbnailURL) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        Color(.systemGray6)
-                        Image(systemName: "photo")
-                            .foregroundColor(.gray)
-                    }
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                case .success(let image):
-                    image
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 60, height: 60)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                case .failure:
-                    ZStack {
-                        Color(.systemGray6)
-                        Image(systemName: "photo.trianglebadge.exclamationmark")
-                            .foregroundColor(.gray)
-                    }
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                    .onAppear {
-                        // Retry loading once after a brief delay to handle race conditions
-                        // where thumbnail file isn't quite ready yet
-                        guard !hasRetried else { return }
-                        hasRetried = true
-                        Task {
-                            try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
-                            imageLoadTrigger += 1
-                        }
-                    }
-                @unknown default:
+                        .clipShape(.rect(cornerRadius: 12))
+                } else {
                     ZStack {
                         Color(.systemGray6)
                         Image(systemName: "photo")
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.gray)
                     }
                     .frame(width: 60, height: 60)
-                    .cornerRadius(8)
+                    .clipShape(.rect(cornerRadius: 8))
                 }
             }
-            .id(imageLoadTrigger)
+            .task(id: item.id) {
+                thumbnail = await loadThumbnail()
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                if showHomeBadge, let home = item.effectiveHome {
-                    Label(home.displayName, systemImage: "house.circle")
-                        .detailLabelStyle()
+                if showHomeBadge, let homeName {
+                    HStack {
+                        Image(systemName: "house.circle")
+                        Text(homeName)
+                    }
+                    .detailLabelStyle()
                 }
 
                 if !item.make.isEmpty {
-                    Label("\(item.make) \(item.model)", systemImage: "info.circle")
-                        .detailLabelStyle()
+                    HStack {
+                        Image(systemName: "info.circle")
+                        Text("\(item.make) \(item.model)")
+                    }
+                    .detailLabelStyle()
                 }
             }
 
             Spacer()
 
             // Display all label emojis in a horizontal stack (max 5)
-            if !item.labels.isEmpty {
+            if !labels.isEmpty {
                 HStack(spacing: 4) {
-                    ForEach(item.labels.prefix(5)) { label in
+                    ForEach(labels.prefix(5)) { label in
                         Text(label.emoji)
                             .font(.caption)
                             .padding(5)
@@ -93,14 +78,25 @@ struct InventoryItemRow: View {
             }
         }
     }
+
+    private func loadThumbnail() async -> UIImage? {
+        guard
+            let photo = try? await database.read({ db in
+                try SQLiteInventoryItemPhoto.primaryPhoto(for: item.id, in: db)
+            })
+        else { return nil }
+        return await OptimizedImageManager.shared.thumbnailImage(from: photo.data, photoID: photo.id.uuidString)
+    }
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return InventoryItemRow(item: previewer.inventoryItem, showHomeBadge: true)
-            .modelContainer(previewer.container)
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    InventoryItemRow(
+        item: SQLiteInventoryItem(id: UUID(), title: "MacBook Pro", model: "M4 Pro", make: "Apple"),
+        homeName: "Main House",
+        labels: [SQLiteInventoryLabel(id: UUID(), name: "Electronics", color: .blue, emoji: "💻")],
+        showHomeBadge: true
+    )
 }

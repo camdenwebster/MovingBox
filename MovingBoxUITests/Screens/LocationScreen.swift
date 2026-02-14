@@ -98,7 +98,7 @@ class LocationScreen {
 
     func tapLocationToDelete(named name: String) {
         let deleteButton = app.buttons["location-delete-\(name)"]
-        deleteButton.tap()
+        deleteButton.firstMatch.tap()
     }
 
     func confirmDelete() {

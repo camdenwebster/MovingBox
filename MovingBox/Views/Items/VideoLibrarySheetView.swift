@@ -6,12 +6,13 @@
 //
 
 import PhotosUI
+import SQLiteData
 import SwiftUI
 
 struct VideoLibrarySheetView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let location: InventoryLocation?
+    let location: SQLiteInventoryLocation?
     let onAnalyzeVideo: (URL) -> Void
 
     @State private var savedVideos: [SavedAnalysisVideo] = []

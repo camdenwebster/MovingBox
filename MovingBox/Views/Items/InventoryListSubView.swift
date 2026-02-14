@@ -5,71 +5,80 @@
 //  Created by Camden Webster on 4/9/24.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct InventoryListSubView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var router: Router
 
-    let location: InventoryLocation?
-    let filterLabel: InventoryLabel?
+    let locationID: UUID?
+    let filterLabelID: UUID?
     let searchString: String
-    let sortOrder: [SortDescriptor<InventoryItem>]
     let showOnlyUnassigned: Bool
     let showAllHomes: Bool
-    let activeHome: Home?
-    @Binding var selectedItemIDs: Set<PersistentIdentifier>
+    let activeHomeID: UUID?
+    let sortField: InventoryListView.SortField
+    let sortAscending: Bool
+    @Binding var selectedItemIDs: Set<UUID>
 
-    // Use @Query for lazy loading with dynamic predicate and sort
-    @Query private var items: [InventoryItem]
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
 
+    @FetchAll(SQLiteInventoryItemLabel.all, animation: .default)
+    private var allItemLabels: [SQLiteInventoryItemLabel]
+
+    @FetchAll(SQLiteInventoryLabel.all, animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
+    @Environment(\.editMode) private var editMode
     @State private var showItemCreationFlow = false
 
-    var body: some View {
-        listContent
-            .fullScreenCover(isPresented: $showItemCreationFlow) {
-                EnhancedItemCreationFlowView(
-                    captureMode: .singleItem,
-                    location: location
-                ) {
-                    // Optional callback when item creation is complete
-                }
-                .tint(.green)
+    // Lookup for labels by item
+    private var labelsByItemID: [UUID: [SQLiteInventoryLabel]] {
+        let labelsById = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
+        var result: [UUID: [SQLiteInventoryLabel]] = [:]
+        for itemLabel in allItemLabels {
+            if let label = labelsById[itemLabel.inventoryLabelID] {
+                result[itemLabel.inventoryItemID, default: []].append(label)
             }
+        }
+        return result
     }
 
-    @ViewBuilder
-    private var listContent: some View {
-        List(selection: $selectedItemIDs) {
-            if filteredItems.isEmpty {
-                emptyStateView
-            } else {
-                itemsSection
-            }
-        }
+    // Lookup for home names by ID
+    private var homeNameByID: [UUID: String] {
+        Dictionary(uniqueKeysWithValues: homes.map { ($0.id, $0.displayName) })
     }
 
-    // Computed property for filtered items - performs filtering in-memory only on fetched items
-    private var filteredItems: [InventoryItem] {
-        var result = items
+    // Filtered and sorted items
+    private var filteredItems: [SQLiteInventoryItem] {
+        var result = allItems
 
-        // Apply home filtering if needed (can't do this in predicate due to computed property)
-        // Skip home filtering for unassigned items — they may lack a direct home reference
-        if !showAllHomes, !showOnlyUnassigned, let activeHome = activeHome {
-            result = result.filter { item in
-                item.effectiveHome?.id == activeHome.id
-            }
+        // Filter by location
+        if showOnlyUnassigned {
+            result = result.filter { $0.locationID == nil }
+        } else if let locationID = locationID {
+            result = result.filter { $0.locationID == locationID }
         }
 
-        // Apply label filtering if needed (can't do in predicate with array.contains)
-        if let filterLabel = filterLabel {
-            result = result.filter { item in
-                item.labels.contains { $0.id == filterLabel.id }
-            }
+        // Filter by home
+        if !showAllHomes, !showOnlyUnassigned, let activeHomeID = activeHomeID {
+            result = result.filter { $0.homeID == activeHomeID }
         }
 
-        // Apply search filtering if needed
+        // Filter by label
+        if let filterLabelID = filterLabelID {
+            let itemIDsWithLabel = Set(
+                allItemLabels.filter { $0.inventoryLabelID == filterLabelID }.map { $0.inventoryItemID })
+            result = result.filter { itemIDsWithLabel.contains($0.id) }
+        }
+
+        // Search filter
         if !searchString.isEmpty {
             let lowercasedTerm = searchString.lowercased()
             result = result.filter { item in
@@ -82,7 +91,49 @@ struct InventoryListSubView: View {
             }
         }
 
+        // Sort
+        switch sortField {
+        case .title:
+            result.sort {
+                sortAscending
+                    ? $0.title.localizedCompare($1.title) == .orderedAscending
+                    : $0.title.localizedCompare($1.title) == .orderedDescending
+            }
+        case .date:
+            result.sort { sortAscending ? $0.createdAt < $1.createdAt : $0.createdAt > $1.createdAt }
+        case .value:
+            result.sort { sortAscending ? $0.price < $1.price : $0.price > $1.price }
+        }
+
         return result
+    }
+
+    var body: some View {
+        listContent
+            .fullScreenCover(isPresented: $showItemCreationFlow) {
+                EnhancedItemCreationFlowView(
+                    captureMode: .singleItem,
+                    locationID: locationID
+                ) {
+                    // Optional callback when item creation is complete
+                }
+                .tint(.green)
+            }
+    }
+
+    private var selectionBinding: Binding<Set<UUID>>? {
+        editMode?.wrappedValue == .active ? $selectedItemIDs : nil
+    }
+
+    @ViewBuilder
+    private var listContent: some View {
+        List(selection: selectionBinding) {
+            if filteredItems.isEmpty {
+                emptyStateView
+            } else {
+                itemsSection
+            }
+        }
     }
 
     @ViewBuilder
@@ -102,64 +153,36 @@ struct InventoryListSubView: View {
 
     @ViewBuilder
     private var itemsSection: some View {
-        ForEach(filteredItems) { inventoryItem in
-            itemRowView(for: inventoryItem)
-                .tag(inventoryItem.persistentModelID)
+        ForEach(filteredItems) { item in
+            itemRowView(for: item)
+                .tag(item.id)
+        }
+        .onDelete(perform: deleteItems)
+    }
+
+    private func deleteItems(at offsets: IndexSet) {
+        let itemsToDelete = offsets.map { filteredItems[$0] }
+        do {
+            try database.write { db in
+                for item in itemsToDelete {
+                    try SQLiteInventoryItem.find(item.id).delete().execute(db)
+                }
+            }
+        } catch {
+            print("Failed to delete items: \(error)")
         }
     }
 
     @ViewBuilder
-    private func itemRowView(for inventoryItem: InventoryItem) -> some View {
-        NavigationLink(value: inventoryItem) {
-            InventoryItemRow(item: inventoryItem, showHomeBadge: showAllHomes)
-                .listRowInsets(EdgeInsets())
+    private func itemRowView(for item: SQLiteInventoryItem) -> some View {
+        NavigationLink(value: Router.Destination.inventoryDetailView(itemID: item.id, showSparklesButton: true)) {
+            InventoryItemRow(
+                item: item,
+                homeName: item.homeID.flatMap { homeNameByID[$0] },
+                labels: labelsByItemID[item.id] ?? [],
+                showHomeBadge: showAllHomes
+            )
+            .listRowInsets(EdgeInsets())
         }
     }
-
-    init(
-        location: InventoryLocation?, filterLabel: InventoryLabel? = nil, searchString: String = "",
-        sortOrder: [SortDescriptor<InventoryItem>] = [], showOnlyUnassigned: Bool = false, showAllHomes: Bool = false,
-        activeHome: Home? = nil, selectedItemIDs: Binding<Set<PersistentIdentifier>> = .constant([])
-    ) {
-        self.location = location
-        self.filterLabel = filterLabel
-        self.searchString = searchString
-        self.sortOrder = sortOrder
-        self.showOnlyUnassigned = showOnlyUnassigned
-        self.showAllHomes = showAllHomes
-        self.activeHome = activeHome
-        self._selectedItemIDs = selectedItemIDs
-
-        // Build predicate based on location, label, or unassigned filter
-        // Note: Home filtering is done in-memory in filteredItems computed property
-        // because SwiftData predicates can't handle the effectiveHome computed property
-        let predicate: Predicate<InventoryItem>?
-        if showOnlyUnassigned {
-            // Show only items without a location
-            predicate = #Predicate<InventoryItem> { item in
-                item.location == nil
-            }
-        } else if let location = location {
-            // Show items for specific location
-            let locationID = location.persistentModelID
-            predicate = #Predicate<InventoryItem> { item in
-                item.location?.persistentModelID == locationID
-            }
-        } else if let filterLabel = filterLabel {
-            // Show items with specific label
-            // Note: SwiftData predicates don't support array.contains well with persistentModelID,
-            // so we filter in-memory via filteredItems computed property instead
-            let labelID = filterLabel.id
-            predicate = nil
-        } else {
-            // No predicate-level filtering needed
-            // Home filtering happens in-memory via filteredItems
-            predicate = nil
-        }
-
-        // Initialize @Query with predicate and sort descriptors
-        let finalSortOrder = sortOrder.isEmpty ? [SortDescriptor(\InventoryItem.title)] : sortOrder
-        _items = Query(filter: predicate, sort: finalSortOrder)
-    }
-
 }

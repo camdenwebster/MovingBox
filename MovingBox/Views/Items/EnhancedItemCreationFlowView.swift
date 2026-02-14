@@ -6,19 +6,20 @@
 //
 
 import AVFoundation
+import Dependencies
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct EnhancedItemCreationFlowView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @Environment(\.isOnboarding) private var isOnboarding
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
 
-    @State private var viewModel: ItemCreationFlowViewModel
+    @StateObject private var viewModel: ItemCreationFlowViewModel
     @State private var showingPermissionDenied = false
     @State private var hasBootstrappedInitialVideo = false
 
@@ -26,7 +27,7 @@ struct EnhancedItemCreationFlowView: View {
     private let transitionAnimation = Animation.easeInOut(duration: 0.3)
 
     let captureMode: CaptureMode
-    let location: InventoryLocation?
+    let locationID: UUID?
     let initialVideoURL: URL?
     let onComplete: (() -> Void)?
 
@@ -34,36 +35,49 @@ struct EnhancedItemCreationFlowView: View {
 
     init(
         captureMode: CaptureMode,
-        location: InventoryLocation?,
+        location: SQLiteInventoryLocation?,
         initialVideoURL: URL? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
-        self.location = location
+        self.locationID = location?.id
         self.initialVideoURL = initialVideoURL
         self.onComplete = onComplete
 
-        self._viewModel = State(
-            initialValue: ItemCreationFlowViewModel(
+        self._viewModel = StateObject(
+            wrappedValue: ItemCreationFlowViewModel(
                 captureMode: captureMode,
-                location: location
+                locationID: location?.id
+            ))
+    }
+
+    init(
+        captureMode: CaptureMode,
+        locationID: UUID?,
+        initialVideoURL: URL? = nil,
+        onComplete: (() -> Void)? = nil
+    ) {
+        self.captureMode = captureMode
+        self.locationID = locationID
+        self.initialVideoURL = initialVideoURL
+        self.onComplete = onComplete
+
+        self._viewModel = StateObject(
+            wrappedValue: ItemCreationFlowViewModel(
+                captureMode: captureMode,
+                locationID: locationID
             ))
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(.systemBackground)
-                    .ignoresSafeArea()
+            VStack(spacing: 0) {
+                // Main content based on current step
+                mainContentView
 
-                VStack(spacing: 0) {
-                    // Main content based on current step
-                    mainContentView
-
-                    // Progress indicator at bottom except when child views provide their own chrome.
-                    if viewModel.currentStep != .camera && viewModel.currentStep != .multiItemSelection {
-                        bottomProgressIndicator
-                    }
+                // Progress indicator at bottom (except on camera view)
+                if viewModel.currentStep != .camera {
+                    bottomProgressIndicator
                 }
             }
             .navigationTitle(viewModel.currentStepTitle)
@@ -92,10 +106,7 @@ struct EnhancedItemCreationFlowView: View {
             }
         }
         .onAppear {
-            // Update viewModel with actual modelContext and settingsManager
-            viewModel.updateModelContext(modelContext)
             viewModel.updateSettingsManager(settings)
-            viewModel.updateScenePhase(scenePhase)
 
             // Verify Pro status for multi-item/video mode
             if (captureMode == .multiItem || captureMode == .video) && !settings.isPro {
@@ -158,17 +169,8 @@ struct EnhancedItemCreationFlowView: View {
                     viewModel.updateCaptureMode(selectedMode)
 
                     // Track capture mode selection
-                    let modeLabel: String
-                    switch selectedMode {
-                    case .singleItem:
-                        modeLabel = "single_item"
-                    case .multiItem:
-                        modeLabel = "multi_item"
-                    case .video:
-                        modeLabel = "video"
-                    }
                     TelemetryManager.shared.trackCaptureModeSelected(
-                        mode: modeLabel,
+                        mode: selectedMode == .singleItem ? "single_item" : "multi_item",
                         imageCount: images.count,
                         isProUser: settings.isPro
                     )
@@ -295,8 +297,8 @@ struct EnhancedItemCreationFlowView: View {
                     VideoItemSelectionListView(
                         analysisResponse: analysisResponse,
                         images: viewModel.capturedImages,
-                        location: location,
-                        modelContext: modelContext,
+                        location: resolvedLocation,
+                        database: database,
                         aiAnalysisService: viewModel.selectionAIAnalysisService,
                         isStreamingResults: viewModel.isVideoAnalysisStreaming,
                         streamingStatusText: viewModel.videoStreamingStatusText,
@@ -315,9 +317,7 @@ struct EnhancedItemCreationFlowView: View {
                     MultiItemSelectionView(
                         analysisResponse: analysisResponse,
                         images: viewModel.capturedImages,
-                        location: location,
-                        modelContext: modelContext,
-                        aiAnalysisService: viewModel.selectionAIAnalysisService,
+                        locationID: locationID,
                         onItemsSelected: { items in
                             viewModel.handleMultiItemSelection(items)
                         },
@@ -343,8 +343,8 @@ struct EnhancedItemCreationFlowView: View {
             // Fallback if no analysis response
             VStack(spacing: 24) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.largeTitle)
-                    .foregroundStyle(.orange)
+                    .font(.system(size: 64))
+                    .foregroundColor(.orange)
 
                 Text("No Items Found")
                     .font(.headline)
@@ -388,7 +388,7 @@ struct EnhancedItemCreationFlowView: View {
         } else if let item = viewModel.createdItems.first {
             // Single item details
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                itemID: item.id,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: true,
                 onSave: {
@@ -502,14 +502,21 @@ struct EnhancedItemCreationFlowView: View {
             UIApplication.shared.open(url)
         }
     }
+
+    private var resolvedLocation: SQLiteInventoryLocation? {
+        guard let locationID else { return nil }
+        return try? database.read { db in
+            try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+        }
+    }
 }
 
 // MARK: - Supporting Views
 
 struct MultiItemSummaryView: View {
-    let items: [InventoryItem]
+    let items: [SQLiteInventoryItem]
     let onComplete: () -> Void
-    let onEditItem: (InventoryItem) -> Void
+    let onEditItem: (SQLiteInventoryItem) -> Void
 
     @State private var showConfetti = false
 
@@ -519,8 +526,8 @@ struct MultiItemSummaryView: View {
                 // Header
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.largeTitle)
-                        .foregroundStyle(.green)
+                        .font(.system(size: 64))
+                        .foregroundColor(.green)
                         .scaleEffect(showConfetti ? 1.0 : 0.5)
                         .opacity(showConfetti ? 1.0 : 0.0)
 
@@ -628,26 +635,31 @@ private struct SummaryConfettiPiece: Identifiable {
 // MARK: - Item Summary Card
 
 struct ItemSummaryCard: View {
-    let item: InventoryItem
+    let item: SQLiteInventoryItem
     let onTap: () -> Void
+
+    @Dependency(\.defaultDatabase) private var database
+    @State private var thumbnail: UIImage?
 
     var body: some View {
         HStack {
             // Image thumbnail
-            AsyncImage(url: item.imageURL) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.2))
-                    .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                    )
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.2))
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                        )
+                }
             }
             .frame(width: 60, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(.rect(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title.isEmpty ? "Untitled Item" : item.title)
@@ -668,6 +680,12 @@ struct ItemSummaryCard: View {
                         .foregroundColor(.primary)
                 }
             }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
         .padding()
         .background(Color(.systemBackground))
@@ -679,26 +697,26 @@ struct ItemSummaryCard: View {
         .onTapGesture {
             onTap()
         }
+        .task {
+            thumbnail = try? await database.read { db in
+                try SQLiteInventoryItemPhoto.primaryImage(for: item.id, in: db)
+            }
+        }
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    let schema = Schema([
-        InventoryItem.self,
-        InventoryLocation.self,
-        InventoryLabel.self,
-        Home.self,
-    ])
-    let container = try! ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
 
-    return EnhancedItemCreationFlowView(
+    EnhancedItemCreationFlowView(
         captureMode: .multiItem,
-        location: nil,
+        locationID: nil,
         onComplete: nil
     )
-    .modelContainer(container)
     .environmentObject(Router())
     .environmentObject(SettingsManager())
 }

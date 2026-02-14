@@ -5,8 +5,9 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import Dependencies
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 
@@ -18,38 +19,29 @@ struct MultiItemSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var settingsManager: SettingsManager
 
-    let images: [UIImage]
-    let onItemsSelected: ([InventoryItem]) -> Void
+    let onItemsSelected: ([SQLiteInventoryItem]) -> Void
     let onCancel: () -> Void
     let onReanalyze: (() -> Void)?
 
     // MARK: - State Properties
 
-    @State private var selectedLocation: InventoryLocation?
-    @State private var selectedHome: Home?
+    @State private var selectedLocation: SQLiteInventoryLocation?
+    @State private var selectedHome: SQLiteHome?
     @State private var showingLocationPicker = false
-    @State private var isPreparingPreviews = true
-
-    // MARK: - Scroll Tracking
-
-    @State private var scrolledID: Int?
 
     // MARK: - Animation Properties
 
     private let cardTransition = Animation.easeInOut(duration: 0.3)
-    private let imageTransition = Animation.easeInOut(duration: 0.25)
     private let selectionHaptic = UIImpactFeedbackGenerator(style: .medium)
-    private let cardHeight: CGFloat = 200
 
     // MARK: - Initialization
 
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
-        location: InventoryLocation?,
-        modelContext: ModelContext,
-        aiAnalysisService: AIAnalysisServiceProtocol? = nil,
-        onItemsSelected: @escaping ([InventoryItem]) -> Void,
+        location: SQLiteInventoryLocation? = nil,
+        homeID: UUID? = nil,
+        onItemsSelected: @escaping ([SQLiteInventoryItem]) -> Void,
         onCancel: @escaping () -> Void,
         onReanalyze: (() -> Void)? = nil
     ) {
@@ -57,16 +49,33 @@ struct MultiItemSelectionView: View {
             analysisResponse: analysisResponse,
             images: images,
             location: location,
-            modelContext: modelContext,
-            aiAnalysisService: aiAnalysisService
+            homeID: homeID
         )
         self._viewModel = State(initialValue: viewModel)
-        self.images = images
         self.onItemsSelected = onItemsSelected
         self.onCancel = onCancel
         self.onReanalyze = onReanalyze
-        // Use passed location as default
-        self._selectedLocation = State(initialValue: location)
+    }
+
+    init(
+        analysisResponse: MultiItemAnalysisResponse,
+        images: [UIImage],
+        locationID: UUID? = nil,
+        homeID: UUID? = nil,
+        onItemsSelected: @escaping ([SQLiteInventoryItem]) -> Void,
+        onCancel: @escaping () -> Void,
+        onReanalyze: (() -> Void)? = nil
+    ) {
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: analysisResponse,
+            images: images,
+            locationID: locationID,
+            homeID: homeID
+        )
+        self._viewModel = State(initialValue: viewModel)
+        self.onItemsSelected = onItemsSelected
+        self.onCancel = onCancel
+        self.onReanalyze = onReanalyze
     }
 
     // MARK: - Body
@@ -78,6 +87,7 @@ struct MultiItemSelectionView: View {
                     noItemsView
                 } else {
                     mainContentView
+                        .ignoresSafeArea(edges: .top)
                 }
 
             }
@@ -118,40 +128,30 @@ struct MultiItemSelectionView: View {
 
     // MARK: - View Components
     private var mainContentView: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                // Background image with gradient
+                imageView
+                    .frame(height: geometry.size.height * 0.5)
 
-            cardCarouselView
-                .padding(.bottom, 20)
+                // Card content overlay
+                VStack(spacing: 0) {
+                    // Spacer to push content down
+                    Spacer()
+                        .frame(height: geometry.size.height * 0.35)
 
-            selectionSummaryView
-                .padding(.horizontal, 16)
+                    // Card and controls section
+                    cardCarouselView
 
-            continueButton
-                .backport.glassProminentButtonStyle()
-                .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection)
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-        }
-        .background(alignment: .top) {
-            imageView
-        }
-        .task {
-            await preparePreviews()
-        }
-        .onChange(of: images.count) {
-            Task {
-                await viewModel.updateImages(images)
-                await preparePreviews()
-            }
-        }
-        .onDisappear {
-            viewModel.cancelEnrichment()
-        }
-        .onChange(of: scrolledID) {
-            if let scrolledID {
-                withAnimation(imageTransition) {
-                    viewModel.currentCardIndex = scrolledID
+                    VStack {
+                        selectionSummaryView
+                            .padding(.horizontal, 16)
+                        continueButton
+                            .backport.glassProminentButtonStyle()
+                            .disabled(viewModel.selectedItemsCount == 0 || viewModel.isProcessingSelection)
+                            .padding(.horizontal)
+                            .padding(.bottom, 10)
+                    }
                 }
             }
         }
@@ -160,8 +160,8 @@ struct MultiItemSelectionView: View {
     private var noItemsView: some View {
         VStack(spacing: 24) {
             Image(systemName: "photo.stack")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 64))
+                .foregroundColor(.secondary)
 
             VStack(spacing: 8) {
                 Text("No Items Detected")
@@ -171,7 +171,7 @@ struct MultiItemSelectionView: View {
                     "We weren't able to identify any items in this photo. You can try taking another photo or add an item manually."
                 )
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
             }
 
@@ -185,43 +185,17 @@ struct MultiItemSelectionView: View {
 
     private var imageView: some View {
         ZStack(alignment: .bottom) {
-            // Square aspect ratio container ensures consistent sizing
-            Color.clear
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    ZStack {
-                        if isPreparingPreviews {
-                            ZStack {
-                                Color.gray.opacity(0.2)
-                                ProgressView("Preparing preview…")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else if let currentItem = viewModel.currentItem,
-                            let primaryImage = viewModel.primaryImage(for: currentItem)
-                        {
-                            Image(uiImage: primaryImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .id(currentItem.id)
-                                .transition(.opacity)
-                        } else if viewModel.images.count == 1, let image = viewModel.images.first {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .transition(.opacity)
-                        } else {
-                            ZStack {
-                                Color.gray.opacity(0.2)
-                                ProgressView("Preparing preview…")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-                .clipped()
-                .animation(imageTransition, value: viewModel.currentCardIndex)
+            // Photo image - extends to edges
+            if let image = viewModel.images.first {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+            } else {
+                // Fallback placeholder
+                Color.gray.opacity(0.3)
+            }
 
             // Gradient overlay for smooth transition
             LinearGradient(
@@ -242,41 +216,37 @@ struct MultiItemSelectionView: View {
     }
 
     private var cardCarouselView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .bottom, spacing: 20) {
-                ForEach(0..<viewModel.detectedItems.count, id: \.self) { index in
-                    let item = viewModel.detectedItems[index]
-                    DetectedItemCard(
-                        item: item,
-                        isSelected: viewModel.isItemSelected(item),
-                        matchedLabel: viewModel.getMatchingLabel(for: item),
-                        croppedImage: viewModel.croppedPrimaryImages[item.id],
-                        onToggleSelection: {
-                            selectionHaptic.impactOccurred()
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                viewModel.toggleItemSelection(item)
+        GeometryReader { geometry in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 20) {
+                    ForEach(0..<viewModel.detectedItems.count, id: \.self) { index in
+                        let item = viewModel.detectedItems[index]
+                        DetectedItemCard(
+                            item: item,
+                            isSelected: viewModel.isItemSelected(item),
+                            matchedLabel: viewModel.getMatchingLabel(for: item),
+                            onToggleSelection: {
+                                selectionHaptic.impactOccurred()
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    viewModel.toggleItemSelection(item)
+                                }
                             }
+                        )
+                        .frame(width: geometry.size.width * 0.85, height: 200)
+                        .accessibilityIdentifier("multiItemSelectionCard-\(index)")
+                        .scrollTransition { content, phase in
+                            content
+                                .opacity(phase.isIdentity ? 1.0 : 0.8)
+                                .scaleEffect(phase.isIdentity ? 1.0 : 0.95)
                         }
-                    )
-                    .containerRelativeFrame(.horizontal) { length, _ in
-                        length * 0.85
-                    }
-                    .frame(height: cardHeight)
-                    .accessibilityIdentifier("multiItemSelectionCard-\(index)")
-                    .scrollTransition { content, phase in
-                        content
-                            .opacity(phase.isIdentity ? 1.0 : 0.8)
-                            .scaleEffect(phase.isIdentity ? 1.0 : 0.95)
                     }
                 }
+                .scrollTargetLayout()
+                .padding(.horizontal, geometry.size.width * 0.05)
             }
-            .scrollTargetLayout()
+            .scrollTargetBehavior(.viewAligned)
+            .scrollClipDisabled()
         }
-        .frame(height: cardHeight)
-        .contentMargins(.horizontal, 20)
-        .scrollPosition(id: $scrolledID)
-        .scrollTargetBehavior(.viewAligned)
-        .scrollClipDisabled()
     }
 
     private var navigationControlsView: some View {
@@ -285,7 +255,7 @@ struct MultiItemSelectionView: View {
             Button(action: viewModel.goToPreviousCard) {
                 Image(systemName: "chevron.left")
                     .font(.title2)
-                    .foregroundStyle(viewModel.canGoToPreviousCard ? .primary : .secondary)
+                    .foregroundColor(viewModel.canGoToPreviousCard ? .primary : .secondary)
             }
             .disabled(!viewModel.canGoToPreviousCard)
 
@@ -306,7 +276,7 @@ struct MultiItemSelectionView: View {
             Button(action: viewModel.goToNextCard) {
                 Image(systemName: "chevron.right")
                     .font(.title2)
-                    .foregroundStyle(viewModel.canGoToNextCard ? .primary : .secondary)
+                    .foregroundColor(viewModel.canGoToNextCard ? .primary : .secondary)
             }
             .disabled(!viewModel.canGoToNextCard)
         }
@@ -325,23 +295,7 @@ struct MultiItemSelectionView: View {
                     if viewModel.selectedItemsCount > 0 {
                         Text("Ready to add to inventory")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if viewModel.filteredOutCount > 0 {
-                        Text("Filtered \(viewModel.filteredOutCount) low-quality item(s)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if viewModel.isEnriching {
-                        HStack(spacing: 4) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                            Text("Enhancing details...")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
+                            .foregroundColor(.secondary)
                     }
                 }
 
@@ -408,9 +362,7 @@ struct MultiItemSelectionView: View {
             )
         }
         .onAppear {
-            if selectedHome == nil {
-                selectedHome = selectedLocation?.home
-            }
+            // selectedHome will be set by LocationSelectionView when user picks a location
         }
     }
 
@@ -435,29 +387,13 @@ struct MultiItemSelectionView: View {
 
     // MARK: - Actions
 
-    @MainActor
-    private func preparePreviews() async {
-        guard !viewModel.detectedItems.isEmpty else {
-            isPreparingPreviews = false
-            return
-        }
-
-        isPreparingPreviews = true
-        let previewCount = min(3, viewModel.detectedItems.count)
-        await viewModel.computeCroppedImages(limit: previewCount)
-        isPreparingPreviews = false
-
-        await viewModel.computeCroppedImages()
-        viewModel.startEnrichment(settings: settingsManager)
-    }
-
     private func handleContinue() {
         guard viewModel.selectedItemsCount > 0 else { return }
 
         Task {
             do {
                 // Update the location in view model before creating items
-                viewModel.updateSelectedLocation(selectedLocation)
+                viewModel.updateSelectedLocationID(selectedLocation?.id)
                 let createdItems = try await viewModel.createSelectedInventoryItems()
                 onItemsSelected(createdItems)
             } catch {
@@ -473,8 +409,7 @@ struct MultiItemSelectionView: View {
 struct DetectedItemCard: View {
     let item: DetectedInventoryItem
     let isSelected: Bool
-    let matchedLabel: InventoryLabel?
-    let croppedImage: UIImage?
+    let matchedLabel: SQLiteInventoryLabel?
     let onToggleSelection: () -> Void
 
     var body: some View {
@@ -487,8 +422,8 @@ struct DetectedItemCard: View {
                         .font(.title3)
                         .fontWeight(.semibold)
                         .multilineTextAlignment(.leading)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
                     Spacer()
                     confidenceBadge
                 }
@@ -503,14 +438,14 @@ struct DetectedItemCard: View {
                             HStack(spacing: 4) {
                                 Label(label.name, systemImage: "tag")
                                     .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundColor(.secondary)
                             }
                         }
 
                         if !item.make.isEmpty && !item.model.isEmpty {
                             Label("\(item.make) \(item.model)", systemImage: "info.circle")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -519,9 +454,9 @@ struct DetectedItemCard: View {
                 if !item.description.isEmpty {
                     Label(item.description, systemImage: "list.clipboard")
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(2)
+                        .lineLimit(3)
                 }
 
                 // Price
@@ -529,27 +464,27 @@ struct DetectedItemCard: View {
                     HStack {
                         Label("Estimated Value", systemImage: "dollarsign.circle")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
 
                         Spacer()
 
                         Text(item.estimatedPrice)
                             .font(.headline)
-                            .foregroundStyle(.primary)
+                            .foregroundColor(.primary)
                     }
                 }
 
-                Spacer(minLength: 0)
+                Spacer()
 
-                // Selection status text
+                // Selection status text (pinned to bottom)
                 HStack {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.callout)
-                        .foregroundStyle(isSelected ? .blue : .secondary)
+                        .foregroundColor(isSelected ? .blue : .secondary)
 
                     Text(isSelected ? "Selected for adding" : "Tap to select")
                         .font(.caption)
-                        .foregroundStyle(isSelected ? .blue : .secondary)
+                        .foregroundColor(isSelected ? .blue : .secondary)
                 }
             }
             .padding()
@@ -566,20 +501,6 @@ struct DetectedItemCard: View {
         .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 
-    init(
-        item: DetectedInventoryItem,
-        isSelected: Bool,
-        matchedLabel: InventoryLabel?,
-        croppedImage: UIImage? = nil,
-        onToggleSelection: @escaping () -> Void
-    ) {
-        self.item = item
-        self.isSelected = isSelected
-        self.matchedLabel = matchedLabel
-        self.croppedImage = croppedImage
-        self.onToggleSelection = onToggleSelection
-    }
-
     private var confidenceBadge: some View {
         HStack(spacing: 4) {
             Image(systemName: "brain")
@@ -589,11 +510,11 @@ struct DetectedItemCard: View {
                 .font(.caption)
                 .fontWeight(.medium)
         }
-        .foregroundStyle(confidenceColor)
+        .foregroundColor(confidenceColor)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(confidenceColor.opacity(0.1))
-        .clipShape(.rect(cornerRadius: 8))
+        .cornerRadius(8)
     }
 
     private var confidenceColor: Color {
@@ -610,9 +531,9 @@ struct DetectedItemCard: View {
 // MARK: - Preview
 
 #Preview {
-    let container = try! ModelContainer(
-        for: InventoryItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    let context = ModelContext(container)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
 
     let mockResponse = MultiItemAnalysisResponse(
         items: [
@@ -652,11 +573,10 @@ struct DetectedItemCard: View {
         confidence: 0.82
     )
 
-    return MultiItemSelectionView(
+    MultiItemSelectionView(
         analysisResponse: mockResponse,
         images: [UIImage()],
         location: nil,
-        modelContext: context,
         onItemsSelected: { items in
             print("Selected \(items.count) items")
         },
@@ -667,5 +587,5 @@ struct DetectedItemCard: View {
             print("Re-analyze requested")
         }
     )
-    .modelContainer(container)
+    .environmentObject(SettingsManager())
 }

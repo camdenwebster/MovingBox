@@ -9,23 +9,43 @@ import Foundation
 // MARK: - Token Usage Types
 
 struct TokenUsage: Decodable {
-    let prompt_tokens: Int
-    let completion_tokens: Int
-    let total_tokens: Int
-    let prompt_tokens_details: PromptTokensDetails?
-    let completion_tokens_details: CompletionTokensDetails?
+    let promptTokens: Int
+    let completionTokens: Int
+    let totalTokens: Int
+    let promptTokensDetails: PromptTokensDetails?
+    let completionTokensDetails: CompletionTokensDetails?
+
+    enum CodingKeys: String, CodingKey {
+        case promptTokens = "prompt_tokens"
+        case completionTokens = "completion_tokens"
+        case totalTokens = "total_tokens"
+        case promptTokensDetails = "prompt_tokens_details"
+        case completionTokensDetails = "completion_tokens_details"
+    }
 }
 
 struct PromptTokensDetails: Decodable {
-    let cached_tokens: Int?
-    let audio_tokens: Int?
+    let cachedTokens: Int?
+    let audioTokens: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case cachedTokens = "cached_tokens"
+        case audioTokens = "audio_tokens"
+    }
 }
 
 struct CompletionTokensDetails: Decodable {
-    let reasoning_tokens: Int?
-    let audio_tokens: Int?
-    let accepted_prediction_tokens: Int?
-    let rejected_prediction_tokens: Int?
+    let reasoningTokens: Int?
+    let audioTokens: Int?
+    let acceptedPredictionTokens: Int?
+    let rejectedPredictionTokens: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case reasoningTokens = "reasoning_tokens"
+        case audioTokens = "audio_tokens"
+        case acceptedPredictionTokens = "accepted_prediction_tokens"
+        case rejectedPredictionTokens = "rejected_prediction_tokens"
+    }
 }
 
 // MARK: - Parse Results
@@ -251,11 +271,11 @@ public struct AIResponseParser {
 
     private func convertAIProxyUsage(_ aiProxyUsage: OpenRouterChatCompletionResponseBody.Usage) -> TokenUsage {
         return TokenUsage(
-            prompt_tokens: aiProxyUsage.promptTokens ?? 0,
-            completion_tokens: aiProxyUsage.completionTokens ?? 0,
-            total_tokens: aiProxyUsage.totalTokens ?? 0,
-            prompt_tokens_details: nil,
-            completion_tokens_details: nil
+            promptTokens: aiProxyUsage.promptTokens ?? 0,
+            completionTokens: aiProxyUsage.completionTokens ?? 0,
+            totalTokens: aiProxyUsage.totalTokens ?? 0,
+            promptTokensDetails: nil,
+            completionTokensDetails: nil
         )
     }
 
@@ -271,41 +291,41 @@ public struct AIResponseParser {
         let requestSizeMB = Double(requestSize) / 1_000_000.0
 
         print("💰 TOKEN USAGE REPORT")
-        print("   📊 Total tokens: \(usage.total_tokens)")
-        print("   📝 Prompt tokens: \(usage.prompt_tokens)")
-        print("   🤖 Completion tokens: \(usage.completion_tokens)")
+        print("   📊 Total tokens: \(usage.totalTokens)")
+        print("   📝 Prompt tokens: \(usage.promptTokens)")
+        print("   🤖 Completion tokens: \(usage.completionTokens)")
         print("   ⏱️ Request time: \(String(format: "%.2f", elapsedTime))s")
         print("   📦 Request size: \(String(format: "%.2f", requestSizeMB))MB")
         print("   🖼️ Images: \(imageCount) (\(imageCount == 1 ? "single" : "multi")-photo analysis)")
 
-        let tokensPerSecond = Double(usage.total_tokens) / elapsedTime
-        let tokensPerMB = Double(usage.total_tokens) / max(requestSizeMB, 0.001)
+        let tokensPerSecond = Double(usage.totalTokens) / elapsedTime
+        let tokensPerMB = Double(usage.totalTokens) / max(requestSizeMB, 0.001)
         print(
             "   🚀 Efficiency: \(String(format: "%.1f", tokensPerSecond)) tokens/sec, \(String(format: "%.0f", tokensPerMB)) tokens/MB"
         )
 
-        if let promptDetails = usage.prompt_tokens_details {
+        if let promptDetails = usage.promptTokensDetails {
             print("   📋 Prompt details:")
-            if let cached = promptDetails.cached_tokens {
+            if let cached = promptDetails.cachedTokens {
                 print("      🗄️ Cached tokens: \(cached)")
             }
-            if let audio = promptDetails.audio_tokens {
+            if let audio = promptDetails.audioTokens {
                 print("      🎵 Audio tokens: \(audio)")
             }
         }
 
-        if let completionDetails = usage.completion_tokens_details {
+        if let completionDetails = usage.completionTokensDetails {
             print("   📝 Completion details:")
-            if let reasoning = completionDetails.reasoning_tokens {
+            if let reasoning = completionDetails.reasoningTokens {
                 print("      🧠 Reasoning tokens: \(reasoning)")
             }
-            if let audio = completionDetails.audio_tokens {
+            if let audio = completionDetails.audioTokens {
                 print("      🎵 Audio tokens: \(audio)")
             }
-            if let accepted = completionDetails.accepted_prediction_tokens {
+            if let accepted = completionDetails.acceptedPredictionTokens {
                 print("      ✅ Accepted prediction tokens: \(accepted)")
             }
-            if let rejected = completionDetails.rejected_prediction_tokens {
+            if let rejected = completionDetails.rejectedPredictionTokens {
                 print("      ❌ Rejected prediction tokens: \(rejected)")
             }
         }
@@ -315,26 +335,26 @@ public struct AIResponseParser {
             isPro: settings.isPro,
             highQualityEnabled: settings.highQualityAnalysisEnabled
         )
-        let usagePercentage = Double(usage.total_tokens) / Double(adjustedMaxTokens) * 100.0
+        let usagePercentage = Double(usage.totalTokens) / Double(adjustedMaxTokens) * 100.0
 
         if usagePercentage > 90.0 {
             print(
-                "⚠️ WARNING: Token usage at \(String(format: "%.1f", usagePercentage))% of limit (\(usage.total_tokens)/\(adjustedMaxTokens))"
+                "⚠️ WARNING: Token usage at \(String(format: "%.1f", usagePercentage))% of limit (\(usage.totalTokens)/\(adjustedMaxTokens))"
             )
         } else if usagePercentage > 75.0 {
             print(
-                "⚡ High token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(usage.total_tokens)/\(adjustedMaxTokens))"
+                "⚡ High token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(usage.totalTokens)/\(adjustedMaxTokens))"
             )
         } else {
             print(
-                "✅ Token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(usage.total_tokens)/\(adjustedMaxTokens))"
+                "✅ Token usage: \(String(format: "%.1f", usagePercentage))% of limit (\(usage.totalTokens)/\(adjustedMaxTokens))"
             )
         }
 
         telemetryTracker?.trackAITokenUsage(
-            totalTokens: usage.total_tokens,
-            promptTokens: usage.prompt_tokens,
-            completionTokens: usage.completion_tokens,
+            totalTokens: usage.totalTokens,
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
             requestTimeSeconds: elapsedTime,
             imageCount: imageCount,
             isProUser: settings.isPro,

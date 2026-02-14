@@ -13,7 +13,7 @@ struct DashboardSectionLabel: View {
     var useSubTitle: Bool = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack {
             Text(self.text)
                 .font(useSubTitle ? .title3 : .title)
                 .foregroundStyle(.primary)
@@ -21,7 +21,6 @@ struct DashboardSectionLabel: View {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(.secondary)
             }
-
         }
         .bold()
         .padding(.horizontal)

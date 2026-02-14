@@ -93,6 +93,7 @@ final class PaywallUITests: XCTestCase {
     func testSettingsViewPaywallButton() throws {
         // Given a user is in the Settings view
         app.launch()
+        dashboardScreen.waitForDashboard()
         navigationHelper.navigateToSettings()
         // When the user taps "Get MovingBox Pro"
 
