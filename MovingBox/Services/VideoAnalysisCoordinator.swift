@@ -1,7 +1,14 @@
 import AVFoundation
-import MovingBoxAIAnalysis
+@preconcurrency import MovingBoxAIAnalysis
 import SQLiteData
 import UIKit
+
+struct VideoAnalysisStreamingSnapshot: @unchecked Sendable {
+    let extractedFrames: [TimestampedFrame]
+    let progressiveMergedResponse: MultiItemAnalysisResponse?
+    let totalBatchCount: Int
+    let completedBatchCount: Int
+}
 
 struct VideoAnalysisProgress: Sendable {
     enum Phase: Sendable {
@@ -24,16 +31,17 @@ protocol VideoAnalysisCoordinatorProtocol: Sendable {
         aiService: AIAnalysisServiceProtocol,
         onProgress: @escaping @Sendable (VideoAnalysisProgress) -> Void
     ) async throws -> MultiItemAnalysisResponse
+    func streamingSnapshot() async -> VideoAnalysisStreamingSnapshot
 }
 
-final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @unchecked Sendable {
+actor VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol {
     private let frameExtractor: VideoFrameExtractorProtocol
     private let audioTranscriber: AudioTranscriberProtocol
 
-    private(set) var extractedFrames: [TimestampedFrame] = []
-    private(set) var progressiveMergedResponse: MultiItemAnalysisResponse?
-    private(set) var totalBatchCount: Int = 0
-    private(set) var completedBatchCount: Int = 0
+    private var extractedFrames: [TimestampedFrame] = []
+    private var progressiveMergedResponse: MultiItemAnalysisResponse?
+    private var totalBatchCount: Int = 0
+    private var completedBatchCount: Int = 0
 
     init(
         frameExtractor: VideoFrameExtractorProtocol = VideoFrameExtractor(),
@@ -50,9 +58,7 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
         aiService: AIAnalysisServiceProtocol,
         onProgress: @escaping @Sendable (VideoAnalysisProgress) -> Void
     ) async throws -> MultiItemAnalysisResponse {
-        progressiveMergedResponse = nil
-        totalBatchCount = 0
-        completedBatchCount = 0
+        resetStreamingState()
         await updateProgress(.extractingFrames, progress: 0.0, overall: 0.0, onProgress: onProgress)
 
         async let framesResult: [TimestampedFrame] = frameExtractor.extractFrames(
@@ -137,24 +143,14 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
                 settings: settings,
                 context: aiContext,
                 narrationContext: narrationContext,
-                onPartialResponse: { [weak self] partialResponse in
-                    guard let self else { return }
-
-                    let progressivelyMergedBatchResults =
-                        completedBatchResults + [
-                            (response: partialResponse, batchOffset: start)
-                        ]
-                    self.progressiveMergedResponse = VideoItemDeduplicator.deduplicate(
-                        batchResults: progressivelyMergedBatchResults
-                    )
-
-                    let inBatchProgress = max(0.12, min(0.92, Double(partialResponse.safeItems.count) * 0.18))
+                onPartialResponse: { partialResponse in
                     Task {
-                        await self.updateProgress(
-                            .analyzingBatch(current: batchIndex + 1, total: totalBatches),
-                            progress: (Double(batchIndex) + inBatchProgress) / Double(totalBatches),
-                            overall: 0.55
-                                + (Double(batchIndex) + inBatchProgress) / Double(max(totalBatches, 1)) * 0.4,
+                        await self.handlePartialResponse(
+                            partialResponse,
+                            completedBatchResults: completedBatchResults,
+                            batchOffset: start,
+                            batchIndex: batchIndex,
+                            totalBatches: totalBatches,
                             onProgress: onProgress
                         )
                     }
@@ -178,6 +174,48 @@ final class VideoAnalysisCoordinator: VideoAnalysisCoordinatorProtocol, @uncheck
         await updateProgress(.deduplicating, progress: 1.0, overall: 1.0, onProgress: onProgress)
 
         return mergedResponse
+    }
+
+    func streamingSnapshot() async -> VideoAnalysisStreamingSnapshot {
+        VideoAnalysisStreamingSnapshot(
+            extractedFrames: extractedFrames,
+            progressiveMergedResponse: progressiveMergedResponse,
+            totalBatchCount: totalBatchCount,
+            completedBatchCount: completedBatchCount
+        )
+    }
+
+    private func resetStreamingState() {
+        extractedFrames = []
+        progressiveMergedResponse = nil
+        totalBatchCount = 0
+        completedBatchCount = 0
+    }
+
+    private func handlePartialResponse(
+        _ partialResponse: MultiItemAnalysisResponse,
+        completedBatchResults: [(response: MultiItemAnalysisResponse, batchOffset: Int)],
+        batchOffset: Int,
+        batchIndex: Int,
+        totalBatches: Int,
+        onProgress: @escaping @Sendable (VideoAnalysisProgress) -> Void
+    ) async {
+        let progressivelyMergedBatchResults =
+            completedBatchResults + [
+                (response: partialResponse, batchOffset: batchOffset)
+            ]
+        progressiveMergedResponse = VideoItemDeduplicator.deduplicate(
+            batchResults: progressivelyMergedBatchResults
+        )
+
+        let inBatchProgress = max(0.12, min(0.92, Double(partialResponse.safeItems.count) * 0.18))
+        await updateProgress(
+            .analyzingBatch(current: batchIndex + 1, total: totalBatches),
+            progress: (Double(batchIndex) + inBatchProgress) / Double(totalBatches),
+            overall: 0.55
+                + (Double(batchIndex) + inBatchProgress) / Double(max(totalBatches, 1)) * 0.4,
+            onProgress: onProgress
+        )
     }
 
     private func updateProgress(

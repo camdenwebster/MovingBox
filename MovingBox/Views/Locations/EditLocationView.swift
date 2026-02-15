@@ -306,9 +306,11 @@ struct EditLocationView: View {
         let newID = UUID()
 
         // Process photo if one was selected
-        var photoData: Data?
+        let processedPhotoData: Data?
         if let image = loadedImage {
-            photoData = await OptimizedImageManager.shared.processImage(image)
+            processedPhotoData = await OptimizedImageManager.shared.processImage(image)
+        } else {
+            processedPhotoData = nil
         }
 
         // Capture state values for the closure
@@ -329,12 +331,12 @@ struct EditLocationView: View {
                     )
                 }.execute(db)
 
-                if let photoData {
+                if let processedPhotoData {
                     try SQLiteInventoryLocationPhoto.insert {
                         SQLiteInventoryLocationPhoto(
                             id: UUID(),
                             inventoryLocationID: newID,
-                            data: photoData,
+                            data: processedPhotoData,
                             sortOrder: 0
                         )
                     }.execute(db)

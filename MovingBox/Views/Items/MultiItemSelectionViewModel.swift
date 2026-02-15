@@ -348,9 +348,9 @@ final class MultiItemSelectionViewModel {
                         break
                     }
                     if let details {
-                        enrichedDetails[itemId] = details
+                        self.enrichedDetails[itemId] = details
                     }
-                    enrichmentCompleted += 1
+                    self.enrichmentCompleted += 1
                 }
             }
 
@@ -653,13 +653,14 @@ final class MultiItemSelectionViewModel {
                     photoDataList.append((imageData, index + 1))
                 }
             }
+            let photoEntries = photoDataList
 
             // Insert item + photos in a single transaction
             let itemToInsert = inventoryItem
             try await activeDatabase.write { db in
                 try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
 
-                for (imageData, sortOrder) in photoDataList {
+                for (imageData, sortOrder) in photoEntries {
                     try SQLiteInventoryItemPhoto.insert {
                         SQLiteInventoryItemPhoto(
                             id: UUID(),

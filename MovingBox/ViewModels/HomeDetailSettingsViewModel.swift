@@ -258,6 +258,7 @@ final class HomeDetailSettingsViewModel {
             let saveCountry = country
             let saveColor = colorName
             let shouldBePrimary = allHomes.isEmpty
+            let defaultRooms = TestData.defaultRooms
 
             try await database.write { db in
                 try SQLiteHome.insert {
@@ -276,7 +277,7 @@ final class HomeDetailSettingsViewModel {
                 }.execute(db)
 
                 // Create default locations for the new home
-                for roomData in TestData.defaultRooms {
+                for roomData in defaultRooms {
                     try SQLiteInventoryLocation.insert {
                         SQLiteInventoryLocation(
                             id: UUID(),

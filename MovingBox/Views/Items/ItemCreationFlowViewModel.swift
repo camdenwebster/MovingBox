@@ -358,7 +358,7 @@ class ItemCreationFlowViewModel: ObservableObject {
         let itemId = newID.uuidString
         let resolvedHomeID = await resolveHomeID()
 
-        var newItem = SQLiteInventoryItem(
+        let newItem = SQLiteInventoryItem(
             id: newID,
             assetId: itemId,
             locationID: locationID,
@@ -367,11 +367,23 @@ class ItemCreationFlowViewModel: ObservableObject {
 
         do {
             // Process images to JPEG data before DB write
-            var photoDataList: [(Data, Int)] = []
-            for (sortOrder, image) in capturedImages.enumerated() {
-                if let imageData = await OptimizedImageManager.shared.processImage(image) {
-                    photoDataList.append((imageData, sortOrder))
+            let photoDataList: [(Data, Int)] = await withTaskGroup(of: (Data, Int)?.self) { group in
+                for (sortOrder, image) in capturedImages.enumerated() {
+                    group.addTask {
+                        guard let imageData = await OptimizedImageManager.shared.processImage(image) else {
+                            return nil
+                        }
+                        return (imageData, sortOrder)
+                    }
                 }
+
+                var results: [(Data, Int)] = []
+                for await result in group {
+                    if let result {
+                        results.append(result)
+                    }
+                }
+                return results.sorted { $0.1 < $1.1 }
             }
 
             // Insert into SQLite
@@ -383,7 +395,7 @@ class ItemCreationFlowViewModel: ObservableObject {
                     try SQLiteInventoryItemPhoto.insert {
                         SQLiteInventoryItemPhoto(
                             id: UUID(),
-                            inventoryItemID: newItem.id,
+                            inventoryItemID: itemToInsert.id,
                             data: imageData,
                             sortOrder: sortOrder
                         )
@@ -668,33 +680,17 @@ class ItemCreationFlowViewModel: ObservableObject {
                 aiService: aiService,
                 onProgress: { [weak self] progress in
                     guard let self else { return }
-                    Task { @MainActor in
-                        self.videoProcessingProgress = progress
-                        if self.capturedImages.isEmpty,
-                            let coordinator = self.videoAnalysisCoordinator as? VideoAnalysisCoordinator,
-                            !coordinator.extractedFrames.isEmpty
-                        {
-                            self.capturedImages = coordinator.extractedFrames.map { $0.image }
-                        }
-
-                        if let coordinator = self.videoAnalysisCoordinator as? VideoAnalysisCoordinator {
-                            self.totalBatchCount = coordinator.totalBatchCount
-                            self.streamedBatchCount = coordinator.completedBatchCount
-
-                            if let streamedResponse = coordinator.progressiveMergedResponse {
-                                self.multiItemAnalysisResponse = streamedResponse
-                                if self.currentStep == .videoProcessing, !streamedResponse.safeItems.isEmpty {
-                                    self.goToStep(.multiItemSelection)
-                                }
-                            }
+                    Task {
+                        let snapshot = await self.videoAnalysisCoordinator.streamingSnapshot()
+                        await MainActor.run {
+                            self.applyVideoStreamingSnapshot(snapshot, progress: progress)
                         }
                     }
                 }
             )
 
-            if let coordinator = videoAnalysisCoordinator as? VideoAnalysisCoordinator {
-                capturedImages = coordinator.extractedFrames.map { $0.image }
-            }
+            let finalSnapshot = await videoAnalysisCoordinator.streamingSnapshot()
+            capturedImages = finalSnapshot.extractedFrames.map { $0.image }
 
             multiItemAnalysisResponse = response
             processingImage = false
@@ -723,6 +719,28 @@ class ItemCreationFlowViewModel: ObservableObject {
         }
     }
 
+    @MainActor
+    private func applyVideoStreamingSnapshot(
+        _ snapshot: VideoAnalysisStreamingSnapshot,
+        progress: VideoAnalysisProgress
+    ) {
+        videoProcessingProgress = progress
+
+        if capturedImages.isEmpty, !snapshot.extractedFrames.isEmpty {
+            capturedImages = snapshot.extractedFrames.map { $0.image }
+        }
+
+        totalBatchCount = snapshot.totalBatchCount
+        streamedBatchCount = snapshot.completedBatchCount
+
+        if let streamedResponse = snapshot.progressiveMergedResponse {
+            multiItemAnalysisResponse = streamedResponse
+            if currentStep == .videoProcessing, !streamedResponse.safeItems.isEmpty {
+                goToStep(.multiItemSelection)
+            }
+        }
+    }
+
     // MARK: - Multi-Item Processing
 
     /// Process selected multi-items and create inventory items
@@ -745,7 +763,7 @@ class ItemCreationFlowViewModel: ObservableObject {
             let newID = UUID()
             let itemId = newID.uuidString
 
-            var inventoryItem = SQLiteInventoryItem(
+            let inventoryItem = SQLiteInventoryItem(
                 id: newID,
                 title: detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title,
                 desc: detectedItem.description,
@@ -760,28 +778,28 @@ class ItemCreationFlowViewModel: ObservableObject {
                 homeID: resolvedHomeID
             )
 
-            do {
-                items.append(inventoryItem)
+            items.append(inventoryItem)
 
-                // Process primary image for this item
-                if let primaryImage = capturedImages.first,
-                    let imageData = await OptimizedImageManager.shared.processImage(primaryImage)
-                {
-                    photoDataByItem[inventoryItem.id] = [(imageData, 0)]
-                }
-            } catch {
-                throw InventoryItemCreationError.imageProcessingFailed
+            // Process primary image for this item
+            if let primaryImage = capturedImages.first,
+                let imageData = await OptimizedImageManager.shared.processImage(primaryImage)
+            {
+                photoDataByItem[inventoryItem.id] = [(imageData, 0)]
             }
         }
 
         // Batch insert all items into SQLite
         do {
-            try await database.write { [selectedMultiItems] db in
-                for (index, item) in items.enumerated() {
+            let itemsToInsert = items
+            let photoDataByItemSnapshot = photoDataByItem
+            let selectedItemsSnapshot = selectedMultiItems
+            let existingLabelsSnapshot = existingLabels
+            try await database.write { db in
+                for (index, item) in itemsToInsert.enumerated() {
                     try SQLiteInventoryItem.insert { item }.execute(db)
 
                     // Insert photo BLOBs
-                    if let photoEntries = photoDataByItem[item.id] {
+                    if let photoEntries = photoDataByItemSnapshot[item.id] {
                         for (imageData, sortOrder) in photoEntries {
                             try SQLiteInventoryItemPhoto.insert {
                                 SQLiteInventoryItemPhoto(
@@ -795,8 +813,8 @@ class ItemCreationFlowViewModel: ObservableObject {
                     }
 
                     // Match label for this item's category
-                    let detectedCategory = selectedMultiItems[index].category
-                    if let existingLabel = existingLabels.first(where: {
+                    let detectedCategory = selectedItemsSnapshot[index].category
+                    if let existingLabel = existingLabelsSnapshot.first(where: {
                         $0.name.lowercased() == detectedCategory.lowercased()
                     }) {
                         try SQLiteInventoryItemLabel.insert {
@@ -807,9 +825,10 @@ class ItemCreationFlowViewModel: ObservableObject {
                             )
                         }.execute(db)
                     }
-
-                    TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
                 }
+            }
+            for item in itemsToInsert {
+                TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
             }
         } catch {
             throw InventoryItemCreationError.contextSaveFailure

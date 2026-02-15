@@ -63,9 +63,11 @@ struct MovingBoxApp: App {
                 logger.error("appDatabase() failed, falling back to in-memory: \(error.localizedDescription)")
                 $0.defaultDatabase = try! makeInMemoryDatabase()
             }
+
+            let configuredDatabase = $0.defaultDatabase
             do {
                 let syncEngine = try SyncEngine(
-                    for: $0.defaultDatabase,
+                    for: configuredDatabase,
                     tables: SQLiteHome.self,
                     SQLiteInventoryLocation.self,
                     SQLiteInventoryItem.self,
@@ -81,6 +83,26 @@ struct MovingBoxApp: App {
                 $0.defaultSyncEngine = syncEngine
             } catch {
                 logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
+                // Always provide an explicit fallback so live runtime never falls back
+                // to `SyncEngine.testValue` from the dependencies system.
+                do {
+                    $0.defaultSyncEngine = try SyncEngine(
+                        for: configuredDatabase,
+                        startImmediately: false
+                    )
+                    logger.warning("Configured fallback SyncEngine without synchronized tables")
+                } catch {
+                    do {
+                        $0.defaultSyncEngine = try withDependencies {
+                            $0.context = .preview
+                        } operation: {
+                            try SyncEngine(for: configuredDatabase, startImmediately: false)
+                        }
+                        logger.warning("Configured preview-context fallback SyncEngine")
+                    } catch {
+                        logger.fault("Failed to configure any SyncEngine fallback: \(error.localizedDescription)")
+                    }
+                }
             }
         }
 
@@ -329,6 +351,7 @@ struct MovingBoxApp: App {
                     }
                     if homeCount == 0 && ShareMetadataStore.shared.pendingShareMetadata == nil {
                         let newHomeID = DefaultSeedID.home
+                        let defaultRooms = TestData.defaultRooms
                         try await database.write { db in
                             try SQLiteHome.insert {
                                 SQLiteHome(
@@ -339,7 +362,7 @@ struct MovingBoxApp: App {
                                 )
                             }.execute(db)
 
-                            for (index, roomData) in TestData.defaultRooms.enumerated() {
+                            for (index, roomData) in defaultRooms.enumerated() {
                                 try SQLiteInventoryLocation.insert {
                                     SQLiteInventoryLocation(
                                         id: DefaultSeedID.roomIDs[index],

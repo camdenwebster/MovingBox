@@ -14,7 +14,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Test Plans/MovingBoxUITests.xctestplan"
+            reference = "container:Test Plans/ReleaseTests.xctestplan"
             default = "YES">
          </TestPlanReference>
          <TestPlanReference

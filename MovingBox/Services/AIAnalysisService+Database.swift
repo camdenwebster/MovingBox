@@ -12,7 +12,7 @@ import UIKit
 
 // MARK: - SettingsManager conforms to AIAnalysisSettings
 
-extension SettingsManager: AIAnalysisSettings {}
+extension SettingsManager: @preconcurrency AIAnalysisSettings {}
 
 // MARK: - OptimizedImageManager conforms to AIImageOptimizer
 

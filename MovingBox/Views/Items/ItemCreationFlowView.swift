@@ -261,7 +261,7 @@ struct ItemCreationFlowView: View {
         let itemId = newID.uuidString
         let resolvedHomeID = await resolveHomeID()
 
-        var newItem = SQLiteInventoryItem(
+        let newItem = SQLiteInventoryItem(
             id: newID,
             title: "",
             desc: "",
@@ -277,11 +277,23 @@ struct ItemCreationFlowView: View {
 
         do {
             // Process images to JPEG data before DB write
-            var photoDataList: [(Data, Int)] = []
-            for (sortOrder, image) in images.enumerated() {
-                if let imageData = await OptimizedImageManager.shared.processImage(image) {
-                    photoDataList.append((imageData, sortOrder))
+            let photoDataList: [(Data, Int)] = await withTaskGroup(of: (Data, Int)?.self) { group in
+                for (sortOrder, image) in images.enumerated() {
+                    group.addTask {
+                        guard let imageData = await OptimizedImageManager.shared.processImage(image) else {
+                            return nil
+                        }
+                        return (imageData, sortOrder)
+                    }
                 }
+
+                var results: [(Data, Int)] = []
+                for await result in group {
+                    if let result {
+                        results.append(result)
+                    }
+                }
+                return results.sorted { $0.1 < $1.1 }
             }
 
             let itemToInsert = newItem
@@ -292,7 +304,7 @@ struct ItemCreationFlowView: View {
                     try SQLiteInventoryItemPhoto.insert {
                         SQLiteInventoryItemPhoto(
                             id: UUID(),
-                            inventoryItemID: newItem.id,
+                            inventoryItemID: itemToInsert.id,
                             data: imageData,
                             sortOrder: sortOrder
                         )

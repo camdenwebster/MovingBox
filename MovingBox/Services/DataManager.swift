@@ -736,6 +736,15 @@ actor DataManager {
                         let targetID: UUID
                         let isLocation: Bool
                     }
+                    struct InsertedLocationBatchEntry: Sendable {
+                        let name: String
+                        let id: UUID
+                        let photoURL: URL?
+                    }
+                    struct InsertedLabelBatchEntry: Sendable {
+                        let name: String
+                        let id: UUID
+                    }
                     var imageImportTasks: [ImageImportTask] = []
 
                     // Import locations if enabled
@@ -781,7 +790,10 @@ actor DataManager {
                                     let batchToProcess = locationDataBatch
                                     locationDataBatch.removeAll()
 
-                                    try await database.write { db in
+                                    let insertedLocations = try await database.write {
+                                        db -> [InsertedLocationBatchEntry] in
+                                        var inserted: [InsertedLocationBatchEntry] = []
+                                        inserted.reserveCapacity(batchToProcess.count)
                                         for data in batchToProcess {
                                             let locationID = UUID()
                                             try SQLiteInventoryLocation.insert(
@@ -792,18 +804,29 @@ actor DataManager {
                                                 )
                                             ).execute(db)
 
-                                            if let photoURL = data.photoURL {
-                                                imageImportTasks.append(
-                                                    ImageImportTask(
-                                                        sourceURL: photoURL,
-                                                        targetID: locationID,
-                                                        isLocation: true
-                                                    ))
-                                            }
-
-                                            locationCache[data.name] = locationID
-                                            locationCount += 1
+                                            inserted.append(
+                                                InsertedLocationBatchEntry(
+                                                    name: data.name,
+                                                    id: locationID,
+                                                    photoURL: data.photoURL
+                                                )
+                                            )
                                         }
+                                        return inserted
+                                    }
+
+                                    for insertedLocation in insertedLocations {
+                                        if let photoURL = insertedLocation.photoURL {
+                                            imageImportTasks.append(
+                                                ImageImportTask(
+                                                    sourceURL: photoURL,
+                                                    targetID: insertedLocation.id,
+                                                    isLocation: true
+                                                ))
+                                        }
+
+                                        locationCache[insertedLocation.name] = insertedLocation.id
+                                        locationCount += 1
                                     }
                                 }
 
@@ -817,7 +840,9 @@ actor DataManager {
                             if !locationDataBatch.isEmpty {
                                 let batchToProcess = locationDataBatch
 
-                                try await database.write { db in
+                                let insertedLocations = try await database.write { db -> [InsertedLocationBatchEntry] in
+                                    var inserted: [InsertedLocationBatchEntry] = []
+                                    inserted.reserveCapacity(batchToProcess.count)
                                     for data in batchToProcess {
                                         let locationID = UUID()
                                         try SQLiteInventoryLocation.insert(
@@ -828,18 +853,29 @@ actor DataManager {
                                             )
                                         ).execute(db)
 
-                                        if let photoURL = data.photoURL {
-                                            imageImportTasks.append(
-                                                ImageImportTask(
-                                                    sourceURL: photoURL,
-                                                    targetID: locationID,
-                                                    isLocation: true
-                                                ))
-                                        }
-
-                                        locationCache[data.name] = locationID
-                                        locationCount += 1
+                                        inserted.append(
+                                            InsertedLocationBatchEntry(
+                                                name: data.name,
+                                                id: locationID,
+                                                photoURL: data.photoURL
+                                            )
+                                        )
                                     }
+                                    return inserted
+                                }
+
+                                for insertedLocation in insertedLocations {
+                                    if let photoURL = insertedLocation.photoURL {
+                                        imageImportTasks.append(
+                                            ImageImportTask(
+                                                sourceURL: photoURL,
+                                                targetID: insertedLocation.id,
+                                                isLocation: true
+                                            ))
+                                    }
+
+                                    locationCache[insertedLocation.name] = insertedLocation.id
+                                    locationCount += 1
                                 }
                             }
                         }
@@ -881,7 +917,9 @@ actor DataManager {
                                     let batchToProcess = labelDataBatch
                                     labelDataBatch.removeAll()
 
-                                    try await database.write { db in
+                                    let insertedLabels = try await database.write { db -> [InsertedLabelBatchEntry] in
+                                        var inserted: [InsertedLabelBatchEntry] = []
+                                        inserted.reserveCapacity(batchToProcess.count)
                                         for data in batchToProcess {
                                             let labelID = UUID()
                                             let labelColor = Self.parseHexColor(data.colorHex)
@@ -896,9 +934,14 @@ actor DataManager {
                                                 )
                                             ).execute(db)
 
-                                            labelCache[data.name] = labelID
-                                            labelCount += 1
+                                            inserted.append(InsertedLabelBatchEntry(name: data.name, id: labelID))
                                         }
+                                        return inserted
+                                    }
+
+                                    for insertedLabel in insertedLabels {
+                                        labelCache[insertedLabel.name] = insertedLabel.id
+                                        labelCount += 1
                                     }
                                 }
 
@@ -912,7 +955,9 @@ actor DataManager {
                             if !labelDataBatch.isEmpty {
                                 let batchToProcess = labelDataBatch
 
-                                try await database.write { db in
+                                let insertedLabels = try await database.write { db -> [InsertedLabelBatchEntry] in
+                                    var inserted: [InsertedLabelBatchEntry] = []
+                                    inserted.reserveCapacity(batchToProcess.count)
                                     for data in batchToProcess {
                                         let labelID = UUID()
                                         let labelColor = Self.parseHexColor(data.colorHex)
@@ -927,9 +972,14 @@ actor DataManager {
                                             )
                                         ).execute(db)
 
-                                        labelCache[data.name] = labelID
-                                        labelCount += 1
+                                        inserted.append(InsertedLabelBatchEntry(name: data.name, id: labelID))
                                     }
+                                    return inserted
+                                }
+
+                                for insertedLabel in insertedLabels {
+                                    labelCache[insertedLabel.name] = insertedLabel.id
+                                    labelCount += 1
                                 }
                             }
                         }
@@ -949,6 +999,15 @@ actor DataManager {
                                 let locationName: String
                                 let labelName: String
                                 let photoURL: URL?
+                            }
+                            struct InsertedItemBatchEntry: Sendable {
+                                let itemID: UUID
+                                let photoURL: URL?
+                            }
+                            struct ItemImportBatchResult: Sendable {
+                                let insertedItems: [InsertedItemBatchEntry]
+                                let locationCache: [String: UUID]
+                                let labelCache: [String: UUID]
                             }
 
                             var itemDataBatch: [ItemParseData] = []
@@ -983,7 +1042,15 @@ actor DataManager {
                                     let batchToProcess = itemDataBatch
                                     itemDataBatch.removeAll()
 
-                                    try await database.write { db in
+                                    let locationCacheSnapshot = locationCache
+                                    let locationHomeCacheSnapshot = locationHomeCache
+                                    let labelCacheSnapshot = labelCache
+                                    let batchResult = try await database.write { db -> ItemImportBatchResult in
+                                        var mutableLocationCache = locationCacheSnapshot
+                                        var mutableLabelCache = labelCacheSnapshot
+                                        var insertedItems: [InsertedItemBatchEntry] = []
+                                        insertedItems.reserveCapacity(batchToProcess.count)
+
                                         for data in batchToProcess {
                                             let itemID = UUID()
 
@@ -992,9 +1059,9 @@ actor DataManager {
                                             var homeID: UUID? = nil
 
                                             if config.includeLocations && !data.locationName.isEmpty {
-                                                if let cachedLocationID = locationCache[data.locationName] {
+                                                if let cachedLocationID = mutableLocationCache[data.locationName] {
                                                     locationID = cachedLocationID
-                                                    homeID = locationHomeCache[cachedLocationID]
+                                                    homeID = locationHomeCacheSnapshot[cachedLocationID]
                                                 } else {
                                                     // Create new location on the fly
                                                     let newLocationID = UUID()
@@ -1005,7 +1072,7 @@ actor DataManager {
                                                             desc: ""
                                                         )
                                                     ).execute(db)
-                                                    locationCache[data.locationName] = newLocationID
+                                                    mutableLocationCache[data.locationName] = newLocationID
                                                     locationID = newLocationID
                                                 }
                                             }
@@ -1029,7 +1096,7 @@ actor DataManager {
                                                 var addedLabelIDs: Set<UUID> = []
                                                 for labelName in labelNames.prefix(5) {
                                                     var labelID: UUID
-                                                    if let cachedLabelID = labelCache[labelName] {
+                                                    if let cachedLabelID = mutableLabelCache[labelName] {
                                                         labelID = cachedLabelID
                                                     } else {
                                                         // Create new label on the fly
@@ -1042,7 +1109,7 @@ actor DataManager {
                                                                 emoji: ""
                                                             )
                                                         ).execute(db)
-                                                        labelCache[labelName] = labelID
+                                                        mutableLabelCache[labelName] = labelID
                                                     }
 
                                                     // Avoid duplicate join entries
@@ -1059,16 +1126,32 @@ actor DataManager {
                                                 }
                                             }
 
-                                            if let photoURL = data.photoURL {
-                                                imageImportTasks.append(
-                                                    ImageImportTask(
-                                                        sourceURL: photoURL,
-                                                        targetID: itemID,
-                                                        isLocation: false
-                                                    ))
-                                            }
+                                            insertedItems.append(
+                                                InsertedItemBatchEntry(
+                                                    itemID: itemID,
+                                                    photoURL: data.photoURL
+                                                )
+                                            )
+                                        }
 
-                                            itemCount += 1
+                                        return ItemImportBatchResult(
+                                            insertedItems: insertedItems,
+                                            locationCache: mutableLocationCache,
+                                            labelCache: mutableLabelCache
+                                        )
+                                    }
+
+                                    locationCache = batchResult.locationCache
+                                    labelCache = batchResult.labelCache
+                                    itemCount += batchResult.insertedItems.count
+                                    for insertedItem in batchResult.insertedItems {
+                                        if let photoURL = insertedItem.photoURL {
+                                            imageImportTasks.append(
+                                                ImageImportTask(
+                                                    sourceURL: photoURL,
+                                                    targetID: insertedItem.itemID,
+                                                    isLocation: false
+                                                ))
                                         }
                                     }
                                 }
@@ -1083,7 +1166,15 @@ actor DataManager {
                             if !itemDataBatch.isEmpty {
                                 let batchToProcess = itemDataBatch
 
-                                try await database.write { db in
+                                let locationCacheSnapshot = locationCache
+                                let locationHomeCacheSnapshot = locationHomeCache
+                                let labelCacheSnapshot = labelCache
+                                let batchResult = try await database.write { db -> ItemImportBatchResult in
+                                    var mutableLocationCache = locationCacheSnapshot
+                                    var mutableLabelCache = labelCacheSnapshot
+                                    var insertedItems: [InsertedItemBatchEntry] = []
+                                    insertedItems.reserveCapacity(batchToProcess.count)
+
                                     for data in batchToProcess {
                                         let itemID = UUID()
 
@@ -1092,9 +1183,9 @@ actor DataManager {
                                         var homeID: UUID? = nil
 
                                         if config.includeLocations && !data.locationName.isEmpty {
-                                            if let cachedLocationID = locationCache[data.locationName] {
+                                            if let cachedLocationID = mutableLocationCache[data.locationName] {
                                                 locationID = cachedLocationID
-                                                homeID = locationHomeCache[cachedLocationID]
+                                                homeID = locationHomeCacheSnapshot[cachedLocationID]
                                             } else {
                                                 let newLocationID = UUID()
                                                 try SQLiteInventoryLocation.insert(
@@ -1104,7 +1195,7 @@ actor DataManager {
                                                         desc: ""
                                                     )
                                                 ).execute(db)
-                                                locationCache[data.locationName] = newLocationID
+                                                mutableLocationCache[data.locationName] = newLocationID
                                                 locationID = newLocationID
                                             }
                                         }
@@ -1127,7 +1218,7 @@ actor DataManager {
                                             var addedLabelIDs: Set<UUID> = []
                                             for labelName in labelNames.prefix(5) {
                                                 var labelID: UUID
-                                                if let cachedLabelID = labelCache[labelName] {
+                                                if let cachedLabelID = mutableLabelCache[labelName] {
                                                     labelID = cachedLabelID
                                                 } else {
                                                     labelID = UUID()
@@ -1139,7 +1230,7 @@ actor DataManager {
                                                             emoji: ""
                                                         )
                                                     ).execute(db)
-                                                    labelCache[labelName] = labelID
+                                                    mutableLabelCache[labelName] = labelID
                                                 }
 
                                                 if !addedLabelIDs.contains(labelID) {
@@ -1155,16 +1246,31 @@ actor DataManager {
                                             }
                                         }
 
-                                        if let photoURL = data.photoURL {
-                                            imageImportTasks.append(
-                                                ImageImportTask(
-                                                    sourceURL: photoURL,
-                                                    targetID: itemID,
-                                                    isLocation: false
-                                                ))
-                                        }
+                                        insertedItems.append(
+                                            InsertedItemBatchEntry(
+                                                itemID: itemID,
+                                                photoURL: data.photoURL
+                                            )
+                                        )
+                                    }
+                                    return ItemImportBatchResult(
+                                        insertedItems: insertedItems,
+                                        locationCache: mutableLocationCache,
+                                        labelCache: mutableLabelCache
+                                    )
+                                }
 
-                                        itemCount += 1
+                                locationCache = batchResult.locationCache
+                                labelCache = batchResult.labelCache
+                                itemCount += batchResult.insertedItems.count
+                                for insertedItem in batchResult.insertedItems {
+                                    if let photoURL = insertedItem.photoURL {
+                                        imageImportTasks.append(
+                                            ImageImportTask(
+                                                sourceURL: photoURL,
+                                                targetID: insertedItem.itemID,
+                                                isLocation: false
+                                            ))
                                     }
                                 }
                             }
@@ -1201,12 +1307,15 @@ actor DataManager {
                                 return results
                             }
 
+                            let imageImportTasksSnapshot = imageImportTasks
+                            let insertPayloads: [(ImageImportTask, Data)] = readResults.compactMap {
+                                originalIndex, imageData in
+                                guard let imageData else { return nil }
+                                return (imageImportTasksSnapshot[originalIndex], imageData)
+                            }
+
                             try await database.write { db in
-                                for (originalIndex, imageData) in readResults {
-                                    guard let imageData else { continue }
-
-                                    let task = imageImportTasks[originalIndex]
-
+                                for (task, imageData) in insertPayloads {
                                     if task.isLocation {
                                         try SQLiteInventoryLocationPhoto.insert {
                                             SQLiteInventoryLocationPhoto(

@@ -15,8 +15,9 @@ class DefaultDataManager {
             }
             // Deterministic IDs so CloudKit sync won't create duplicate default
             // labels when a user reinstalls or sets up a new device.
+            let defaultLabels = TestData.labels
             try await database.write { db in
-                for (index, labelData) in TestData.labels.enumerated() {
+                for (index, labelData) in defaultLabels.enumerated() {
                     try SQLiteInventoryLabel.insert {
                         SQLiteInventoryLabel(
                             id: DefaultSeedID.labelIDs[index],

@@ -19,37 +19,37 @@ For full workflow details: `bd prime`
 - **Scheme**: MovingBox (Tests: MovingBoxTests, MovingBoxUITests)
 - **Bundle ID**: com.mothersound.movingbox
 - **DerivedData**: ./.build/DerivedData (in-project, preserves cache)
-- **Simulator UDID**: F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 (iPhone 17 Pro, iOS 26.1)
+- **Simulator UDID**: 4DA6503A-88E2-4019-B404-EBBB222F3038 (iPhone 17 Pro, iOS 26.2)
 
 ## Build Commands
 ```bash
 # Build (pipe through xcsift for clean output)
-xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # Unit tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # UI tests (Smoke tests) — grep filter preserves failure details that xcsift drops
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData -testPlan SmokeTests -resultBundlePath ./.build/SmokeTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | grep -E 'Test Case|: error:|Executed [0-9]+ test|\*\* TEST'
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan SmokeTests -resultBundlePath ./.build/SmokeTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | grep -E 'Test Case|: error:|Executed [0-9]+ test|\*\* TEST'
 ```
 
 ## Install & Launch
 ```bash
 # Boot simulator
-xcrun simctl boot F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0
+xcrun simctl boot 4DA6503A-88E2-4019-B404-EBBB222F3038
 
 # Install app
-xcrun simctl install F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 ./.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
+xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 ./.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 
 # Launch app
-xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox
+xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox
 
 # Launch with arguments (for exploratory testing - UI tests already use the necessary arguments)
-xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox --args -Mock-OpenAI -Use-Test-Data
+xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox --args -Mock-AI -Use-Test-Data
 ```
 
 ## Test Launch Arguments
-- `Mock-OpenAI` - Mock AI API (prevents real API calls)
+- `Mock-AI` - Mock AI API (prevents real API calls)
 - `Use-Test-Data` - Load test data
 - `Disable-Animations` - Stable UI tests
 - `Is-Pro` - Enable pro features
@@ -60,7 +60,7 @@ xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingb
 ## Logging
 ```bash
 # Stream logs (filter by app)
-xcrun simctl spawn F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 log stream --predicate 'subsystem == "com.mothersound.movingbox"'
+xcrun simctl spawn 4DA6503A-88E2-4019-B404-EBBB222F3038 log stream --predicate 'subsystem == "com.mothersound.movingbox"'
 
 # Or use print statements (appear in Xcode console and simctl output)
 ```

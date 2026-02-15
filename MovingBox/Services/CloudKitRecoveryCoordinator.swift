@@ -156,19 +156,22 @@ struct CloudKitRecoveryCoordinator {
             logger.info("Fetched \(totalRecords) total records from old CloudKit zone")
 
             // Build recordName → UUID map from CD_id fields
-            var recordNameToUUID: [String: UUID] = [:]
-            for records in [homes, labels, policies, locations, items] {
-                for record in records {
-                    let recordName = record.recordID.recordName
-                    if let idString = record["CD_id"] as? String,
-                        let uuid = UUID(uuidString: idString)
-                    {
-                        recordNameToUUID[recordName] = uuid
-                    } else {
-                        recordNameToUUID[recordName] = UUID()
+            let recordNameToUUID: [String: UUID] = {
+                var map: [String: UUID] = [:]
+                for records in [homes, labels, policies, locations, items] {
+                    for record in records {
+                        let recordName = record.recordID.recordName
+                        if let idString = record["CD_id"] as? String,
+                            let uuid = UUID(uuidString: idString)
+                        {
+                            map[recordName] = uuid
+                        } else {
+                            map[recordName] = UUID()
+                        }
                     }
                 }
-            }
+                return map
+            }()
 
             // Write everything in a single transaction
             let stats = try await database.write { db -> RecoveryStats in

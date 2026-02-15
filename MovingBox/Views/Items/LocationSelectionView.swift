@@ -5,13 +5,11 @@
 //  Created by AI Assistant on 1/10/25.
 //
 
-import Dependencies
 import SQLiteData
 import SwiftUI
 
 struct LocationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
-    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject var settingsManager: SettingsManager
     @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
     private var allLocations: [SQLiteInventoryLocation]
@@ -21,7 +19,11 @@ struct LocationSelectionView: View {
     @Binding var selectedLocation: SQLiteInventoryLocation?
     @Binding var selectedHome: SQLiteHome?
     @State private var pickedHome: SQLiteHome?
+    @State private var draftSelectedLocation: SQLiteInventoryLocation?
+    @State private var draftSelectedHome: SQLiteHome?
     @State private var searchText = ""
+    @State private var showingAddLocationSheet = false
+    @State private var locationIDsBeforeAddSheet: Set<UUID> = []
 
     init(selectedLocation: Binding<SQLiteInventoryLocation?>, selectedHome: Binding<SQLiteHome?>) {
         self._selectedLocation = selectedLocation
@@ -70,15 +72,14 @@ struct LocationSelectionView: View {
 
                 // None option
                 Button(action: {
-                    selectedHome = pickedHome
-                    selectedLocation = nil
-                    dismiss()
+                    draftSelectedHome = pickedHome
+                    draftSelectedLocation = nil
                 }) {
                     HStack {
                         Text("No Location")
                             .foregroundStyle(.primary)
                         Spacer()
-                        if selectedLocation == nil {
+                        if draftSelectedLocation == nil {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(Color.accentColor)
                         }
@@ -92,9 +93,8 @@ struct LocationSelectionView: View {
                     Section {
                         ForEach(filteredLocations) { location in
                             Button(action: {
-                                selectedHome = pickedHome
-                                selectedLocation = location
-                                dismiss()
+                                draftSelectedHome = pickedHome
+                                draftSelectedLocation = location
                             }) {
                                 HStack {
                                     if let symbolName = location.sfSymbolName {
@@ -113,7 +113,7 @@ struct LocationSelectionView: View {
                                         }
                                     }
                                     Spacer()
-                                    if selectedLocation?.id == location.id {
+                                    if draftSelectedLocation?.id == location.id {
                                         Image(systemName: "checkmark")
                                             .foregroundStyle(Color.accentColor)
                                     }
@@ -139,41 +139,92 @@ struct LocationSelectionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("Cancel", systemImage: "xmark") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem {
                     Button(action: {
-                        addNewLocation()
+                        locationIDsBeforeAddSheet = Set(allLocations.map(\.id))
+                        showingAddLocationSheet = true
                     }) {
                         Image(systemName: "plus")
                     }
+                    .accessibilityIdentifier("locationSelection-add")
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", systemImage: "checkmark") {
+                        selectedHome = draftSelectedHome ?? pickedHome
+                        selectedLocation = draftSelectedLocation
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("locationSelection-done")
                 }
             }
             .onAppear {
                 if pickedHome == nil {
                     pickedHome = selectedHome ?? activeHome ?? homes.first
                 }
+                draftSelectedHome = selectedHome ?? pickedHome
+                draftSelectedLocation = selectedLocation
+            }
+            .onChange(of: pickedHome) { _, newHome in
+                draftSelectedHome = newHome
+                guard let newHome else { return }
+                if draftSelectedLocation?.homeID != newHome.id {
+                    draftSelectedLocation = nil
+                }
             }
         }
+        .sheet(
+            isPresented: $showingAddLocationSheet,
+            onDismiss: {
+                handleAddLocationSheetDismissed()
+            },
+            content: {
+                NavigationStack {
+                    EditLocationView(
+                        locationID: nil,
+                        isEditing: true,
+                        presentedInSheet: true,
+                        homeID: pickedHome?.id
+                    )
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
+        )
     }
 
-    private func addNewLocation() {
-        let newID = UUID()
-        do {
-            try database.write { db in
-                try SQLiteInventoryLocation.insert {
-                    SQLiteInventoryLocation(id: newID, name: "New Location", homeID: pickedHome?.id)
-                }.execute(db)
-            }
-            selectedHome = pickedHome
-            selectedLocation = SQLiteInventoryLocation(id: newID, name: "New Location", homeID: pickedHome?.id)
-            dismiss()
-        } catch {
-            print("Failed to create new location: \(error)")
+    private func handleAddLocationSheetDismissed() {
+        defer { locationIDsBeforeAddSheet.removeAll() }
+
+        let addedLocations = allLocations.filter { !locationIDsBeforeAddSheet.contains($0.id) }
+        guard !addedLocations.isEmpty else { return }
+
+        let newlyAddedLocation: SQLiteInventoryLocation?
+        if let pickedHome {
+            newlyAddedLocation =
+                addedLocations.first(where: { $0.homeID == pickedHome.id }) ?? addedLocations.first
+        } else {
+            newlyAddedLocation = addedLocations.first
         }
+
+        guard let newlyAddedLocation else { return }
+
+        if let locationHomeID = newlyAddedLocation.homeID,
+            let locationHome = homes.first(where: { $0.id == locationHomeID })
+        {
+            pickedHome = locationHome
+            draftSelectedHome = locationHome
+        } else {
+            draftSelectedHome = pickedHome
+        }
+
+        draftSelectedLocation = newlyAddedLocation
+        searchText = ""
     }
 }
 
@@ -184,5 +235,6 @@ struct LocationSelectionView: View {
         $0.defaultDatabase = try appDatabase()
     }
     return LocationSelectionView(selectedLocation: $location, selectedHome: $home)
+        .environmentObject(Router())
         .environmentObject(SettingsManager())
 }

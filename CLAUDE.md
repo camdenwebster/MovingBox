@@ -45,11 +45,11 @@ xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 ./.build/DerivedData/B
 xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox
 
 # Launch with arguments (for exploratory testing - UI tests already use the necessary arguments)
-xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox --args -Mock-OpenAI -Use-Test-Data
+xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox --args -Mock-AI -Use-Test-Data
 ```
 
 ## Test Launch Arguments
-- `Mock-OpenAI` - Mock AI API (prevents real API calls)
+- `Mock-AI` - Mock AI API (prevents real API calls)
 - `Use-Test-Data` - Load test data
 - `Disable-Animations` - Stable UI tests
 - `Is-Pro` - Enable pro features

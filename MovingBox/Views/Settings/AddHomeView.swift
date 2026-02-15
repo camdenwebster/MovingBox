@@ -80,6 +80,7 @@ struct AddHomeView: View {
             let trimmedName = homeName.trimmingCharacters(in: .whitespacesAndNewlines)
             let newHomeID = UUID()
             let shouldBePrimary = existingHomes.isEmpty
+            let defaultRooms = TestData.defaultRooms
 
             try await database.write { db in
                 try SQLiteHome.insert {
@@ -92,7 +93,7 @@ struct AddHomeView: View {
                 }.execute(db)
 
                 // Create default locations for the new home
-                for roomData in TestData.defaultRooms {
+                for roomData in defaultRooms {
                     try SQLiteInventoryLocation.insert {
                         SQLiteInventoryLocation(
                             id: UUID(),

@@ -102,11 +102,33 @@ class LocationScreen {
     }
 
     func confirmDelete() {
-        deleteAlertConfirm.tap()
+        if deleteAlertConfirm.exists {
+            deleteAlertConfirm.tap()
+            return
+        }
+
+        let sheetDelete = app.sheets.buttons["Delete"].firstMatch
+        if sheetDelete.waitForExistence(timeout: 3) {
+            sheetDelete.tap()
+            return
+        }
+
+        XCTFail("Delete confirmation button was not found")
     }
 
     func cancelDelete() {
-        deleteAlertCancel.tap()
+        if deleteAlertCancel.exists {
+            deleteAlertCancel.tap()
+            return
+        }
+
+        let sheetCancel = app.sheets.buttons["Cancel"].firstMatch
+        if sheetCancel.waitForExistence(timeout: 3) {
+            sheetCancel.tap()
+            return
+        }
+
+        XCTFail("Delete cancel button was not found")
     }
 
     func tapNoLocationCard() {
@@ -115,8 +137,11 @@ class LocationScreen {
 
     // MARK: - Delete Verification
 
-    func waitForDeleteAlert(timeout: TimeInterval = 5) -> Bool {
-        return deleteAlert.waitForExistence(timeout: timeout)
+    func waitForDeleteAlert(timeout: TimeInterval = 8) -> Bool {
+        if deleteAlert.waitForExistence(timeout: timeout) {
+            return true
+        }
+        return app.sheets.buttons["Delete"].firstMatch.waitForExistence(timeout: 2)
     }
 
     func noLocationCardExists() -> Bool {

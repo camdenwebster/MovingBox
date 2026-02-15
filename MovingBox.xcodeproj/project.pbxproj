@@ -90,7 +90,6 @@
 /* Begin PBXFileReference section */
 		190DFBA32D6FC2140062D079 /* CurrencyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatter.swift; sourceTree = "<group>"; };
 		191881AB2EC54398009FB4F4 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLAUDE.md; sourceTree = "<group>"; };
-		191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = SmokeTests.xctestplan; path = "Test Plans/SmokeTests.xctestplan"; sourceTree = "<group>"; };
 		191881AD2EC61EB9009FB4F4 /* opencode.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = opencode.json; sourceTree = "<group>"; };
 		191FEA602D6D04E5006FF067 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		1920B1162D88B29100CFA1E9 /* TelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryManager.swift; sourceTree = "<group>"; };
@@ -134,6 +133,7 @@
 		19D7EF0D2F3FB814009F7F07 /* AIAnalysisService+Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIAnalysisService+Database.swift"; sourceTree = "<group>"; };
 		19D7EF0E2F3FB814009F7F07 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
 		19D7EF0F2F3FB814009F7F07 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		19D7F4362F41292B009F7F07 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
 		19E37DFC2E56168500FB73D8 /* MovingBox.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MovingBox.icon; sourceTree = "<group>"; };
 		19E37DFE2E56198200FB73D8 /* MovingBox-beta.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MovingBox-beta.icon"; sourceTree = "<group>"; };
 		19ECBB102DA5995900B8BF96 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
@@ -149,7 +149,6 @@
 		19F30B002F32000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		19F30B022F32000000000003 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		19F765D42DAB558000AE287D /* OptimizedImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedImageManager.swift; sourceTree = "<group>"; };
-		A1B2C3D42F4B000100000006 /* LabelEmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelEmojiCatalog.swift; sourceTree = "<group>"; };
 		3DE26B6A35F845E2A07F5DE6 /* ProgressMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProgressMapperTests.swift; path = MovingBoxTests/ProgressMapperTests.swift; sourceTree = "<group>"; };
 		496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestSeedDatabase.swift; path = MovingBox/Services/TestSeedDatabase.swift; sourceTree = SOURCE_ROOT; };
 		675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressMapper.swift; sourceTree = "<group>"; };
@@ -158,6 +157,7 @@
 		A1B2C3D42F4B000100000003 /* VideoItemDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoItemDeduplicator.swift; sourceTree = "<group>"; };
 		A1B2C3D42F4B000100000004 /* AudioTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTranscriber.swift; sourceTree = "<group>"; };
 		A1B2C3D42F4B000100000005 /* BoundingBoxCropper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundingBoxCropper.swift; sourceTree = "<group>"; };
+		A1B2C3D42F4B000100000006 /* LabelEmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelEmojiCatalog.swift; sourceTree = "<group>"; };
 		B65433A40EA29E772843D04D /* ShareMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareMetadataStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -253,11 +253,11 @@
 		1942DC712BF391CB00734AF4 = {
 			isa = PBXGroup;
 			children = (
+				19D7F4362F41292B009F7F07 /* AGENTS.md */,
 				19C49A492F3FB0C000F0E515 /* Packages */,
 				1917E1D62F3249280072C655 /* Test Plans */,
 				1917E1D02F3235D60072C655 /* spec */,
 				191881AD2EC61EB9009FB4F4 /* opencode.json */,
-				191881AC2EC5794A009FB4F4 /* SmokeTests.xctestplan */,
 				191881AB2EC54398009FB4F4 /* CLAUDE.md */,
 				190B05F92E079A4100F23E05 /* .claude */,
 				19B22B922DFD1AAD000437DE /* MovingBox_Features_Overview.md */,

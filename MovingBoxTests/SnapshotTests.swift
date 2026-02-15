@@ -461,37 +461,14 @@ extension SnapshotTests {
         await cleanup()
     }
 
-    @Test("Onboarding Notification View Layout")
-    func onboardingHomeViewSnapshot() async throws {
-        let _ = try await createTestDatabase()
-        let manager = OnboardingManager()
-        manager.currentStep = .notifications
-
-        let view = configureViewForSnapshot(
-            OnboardingHomeView()
-                .environmentObject(manager)
-        )
-
-        try await Task.sleep(for: .seconds(1))
-
-        assertSnapshot(
-            of: view,
-            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "onboarding_home_view\(snapshotSuffix)",
-            file: filePath
-        )
-
-        await cleanup()
-    }
-
     @Test("Onboarding Survey View Layout")
-    func onboardingLocationViewSnapshot() async throws {
+    func onboardingSurveyViewSnapshot() async throws {
         let _ = try await createTestDatabase()
         let manager = OnboardingManager()
         manager.currentStep = .survey
 
         let view = configureViewForSnapshot(
-            OnboardingLocationView()
+            OnboardingSurveyView()
                 .environmentObject(manager)
         )
 

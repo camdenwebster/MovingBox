@@ -3,7 +3,7 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-final class OptimizedImageManager {
+final class OptimizedImageManager: @unchecked Sendable {
     static let shared = OptimizedImageManager()
     private let cache = NSCache<NSString, UIImage>()
 

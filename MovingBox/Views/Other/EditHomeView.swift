@@ -317,10 +317,13 @@ struct EditHomeView: View {
 
         do {
             // Process photo before DB write
-            var photoData: Data?
+            let processedPhotoData: Data?
             if let image {
-                photoData = await OptimizedImageManager.shared.processImage(image)
+                processedPhotoData = await OptimizedImageManager.shared.processImage(image)
+            } else {
+                processedPhotoData = nil
             }
+            let defaultRooms = TestData.defaultRooms
 
             try await database.write { db in
                 try SQLiteHome.insert {
@@ -338,19 +341,19 @@ struct EditHomeView: View {
                     )
                 }.execute(db)
 
-                if let photoData {
+                if let processedPhotoData {
                     try SQLiteHomePhoto.insert {
                         SQLiteHomePhoto(
                             id: UUID(),
                             homeID: newHomeID,
-                            data: photoData,
+                            data: processedPhotoData,
                             sortOrder: 0
                         )
                     }.execute(db)
                 }
 
                 // Create default locations
-                for roomData in TestData.defaultRooms {
+                for roomData in defaultRooms {
                     try SQLiteInventoryLocation.insert {
                         SQLiteInventoryLocation(
                             id: UUID(),
