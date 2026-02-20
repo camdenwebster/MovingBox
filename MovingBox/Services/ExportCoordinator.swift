@@ -1,4 +1,4 @@
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
@@ -23,7 +23,7 @@ final class ExportCoordinator {
     }
 
     func exportWithProgress(
-        modelContainer: ModelContainer,
+        database: any DatabaseWriter,
         fileName: String,
         config: DataManager.ExportConfig
     ) async {
@@ -36,7 +36,7 @@ final class ExportCoordinator {
                 isExporting = true
 
                 for await progress in DataManager.shared.exportInventoryWithProgress(
-                    modelContainer: modelContainer,
+                    database: database,
                     fileName: fileName,
                     config: config
                 ) {
@@ -71,6 +71,8 @@ final class ExportCoordinator {
                         exportProgress = 0.8 + (progressValue * 0.2)
 
                     case .completed(let result):
+                        showExportProgress = false
+                        exportProgress = 1.0
                         archiveURL = result.archiveURL
                         showShareSheet = true
 
@@ -91,9 +93,44 @@ final class ExportCoordinator {
         }
     }
 
+    func exportDatabaseArchive(
+        database: any DatabaseWriter,
+        fileName: String
+    ) async {
+        exportTask = Task {
+            do {
+                exportError = nil
+                exportProgress = 0
+                exportPhase = ""
+                showExportProgress = true
+                isExporting = true
+
+                exportPhase = "Preparing database export..."
+                exportProgress = 0.25
+
+                let archive = try await DataManager.shared.exportDatabaseArchive(
+                    database: database,
+                    fileName: fileName
+                )
+
+                showExportProgress = false
+                exportProgress = 1.0
+                archiveURL = archive
+                showShareSheet = true
+            } catch {
+                print("❌ Database export error: \(error.localizedDescription)")
+                exportError = DataManager.SendableError(error)
+                showExportProgress = false
+                showExportError = true
+            }
+
+            isExporting = false
+        }
+    }
+
     func exportSpecificItems(
-        items: [InventoryItem],
-        modelContainer: ModelContainer
+        items: [SQLiteInventoryItem],
+        database: any DatabaseWriter
     ) async {
         exportTask = Task {
             do {
@@ -103,7 +140,7 @@ final class ExportCoordinator {
 
                 let url = try await DataManager.shared.exportSpecificItems(
                     items: items,
-                    modelContainer: modelContainer
+                    database: database
                 )
 
                 archiveURL = url

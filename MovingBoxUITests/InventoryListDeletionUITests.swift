@@ -78,9 +78,14 @@ final class InventoryListDeletionUITests: XCTestCase {
         inventoryListScreen.confirmDeletion()
 
         // Then: Item should be deleted and count should decrease
+        let expectedItemCount = initialItemCount - 1
+        XCTAssertTrue(
+            inventoryListScreen.waitForItemCount(expectedItemCount),
+            "Item count should decrease by 1 after deletion"
+        )
         let finalItemCount = inventoryListScreen.getItemCount()
         XCTAssertEqual(
-            finalItemCount, initialItemCount - 1, "Item count should decrease by 1 after deletion")
+            finalItemCount, expectedItemCount, "Item count should decrease by 1 after deletion")
 
         // And: Selection mode should exit automatically
         XCTAssertFalse(

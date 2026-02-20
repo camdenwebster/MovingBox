@@ -1,4 +1,5 @@
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 
@@ -21,10 +22,10 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     private(set) var lastError: Error?
     private(set) var deletionCompleted = false
 
-    private let modelContext: ModelContext
+    private let database: any DatabaseWriter
 
-    init(modelContext: ModelContext) {
-        self.modelContext = modelContext
+    init(database: any DatabaseWriter) {
+        self.database = database
     }
 
     func deleteAllData(scope: DeletionScope) async {
@@ -39,10 +40,8 @@ final class DataDeletionService: DataDeletionServiceProtocol {
         do {
             try await performDeletion(scope: scope)
 
-            // Give SwiftData time to process all deletions and refresh queries
-            // This is critical to prevent crashes from stale @Query results
-            // Views like DashboardView, LabelStatisticsView, LocationStatisticsView all have @Query
-            try await Task.sleep(nanoseconds: 1_000_000_000)  // 1.0 second
+            // Brief delay to let @FetchAll results refresh
+            try await Task.sleep(for: .seconds(1))
 
             deletionCompleted = true
         } catch {
@@ -57,13 +56,9 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     }
 
     private func performDeletion(scope: DeletionScope) async throws {
-        try await deleteSwiftDataContent()
+        try await deleteSQLiteContent()
         await clearImageCache()
         try await createInitialHome()
-
-        // Force model context to process all pending changes
-        // This helps ensure @Query results refresh before views render
-        try modelContext.save()
 
         if scope == .localAndICloud {
             print("🗑️ Deleted all data including iCloud sync")
@@ -73,48 +68,35 @@ final class DataDeletionService: DataDeletionServiceProtocol {
     }
 
     private func createInitialHome() async throws {
-        let newHome = Home(name: "My Home")
-        newHome.isPrimary = true
-        modelContext.insert(newHome)
-        try modelContext.save()
+        let newHomeID = UUID()
+        try await database.write { db in
+            try SQLiteHome.insert {
+                SQLiteHome(
+                    id: newHomeID,
+                    name: "My Home",
+                    isPrimary: true,
+                    colorName: "green"
+                )
+            }.execute(db)
+        }
 
-        UserDefaults.standard.set(newHome.id.uuidString, forKey: "activeHomeId")
-
+        UserDefaults.standard.set(newHomeID.uuidString, forKey: "activeHomeId")
         print("🏠 Created initial home after data deletion")
     }
 
-    private func deleteSwiftDataContent() async throws {
-        let itemDescriptor = FetchDescriptor<InventoryItem>()
-        let items = try modelContext.fetch(itemDescriptor)
-        for item in items {
-            modelContext.delete(item)
+    private func deleteSQLiteContent() async throws {
+        try await database.write { db in
+            // Delete join tables first (foreign key safety)
+            try SQLiteInventoryItemLabel.delete().execute(db)
+            try SQLiteHomeInsurancePolicy.delete().execute(db)
+            // Then child tables
+            try SQLiteInventoryItem.delete().execute(db)
+            try SQLiteInventoryLocation.delete().execute(db)
+            try SQLiteInventoryLabel.delete().execute(db)
+            try SQLiteInsurancePolicy.delete().execute(db)
+            // Then parent table
+            try SQLiteHome.delete().execute(db)
         }
-
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        let locations = try modelContext.fetch(locationDescriptor)
-        for location in locations {
-            modelContext.delete(location)
-        }
-
-        let labelDescriptor = FetchDescriptor<InventoryLabel>()
-        let labels = try modelContext.fetch(labelDescriptor)
-        for label in labels {
-            modelContext.delete(label)
-        }
-
-        let homeDescriptor = FetchDescriptor<Home>()
-        let homes = try modelContext.fetch(homeDescriptor)
-        for home in homes {
-            modelContext.delete(home)
-        }
-
-        let policyDescriptor = FetchDescriptor<InsurancePolicy>()
-        let policies = try modelContext.fetch(policyDescriptor)
-        for policy in policies {
-            modelContext.delete(policy)
-        }
-
-        try modelContext.save()
     }
 
     private func clearImageCache() async {
@@ -163,7 +145,7 @@ enum DeletionScope: String, CaseIterable {
 }
 
 struct DataDeletionView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var router: Router
     @State private var selectedScope: DeletionScope = .localOnly
@@ -205,7 +187,7 @@ struct DataDeletionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if deletionService == nil {
-                deletionService = DataDeletionService(modelContext: modelContext)
+                deletionService = DataDeletionService(database: database)
             }
         }
         .alert("Final Confirmation", isPresented: $showFinalConfirmation) {
@@ -231,7 +213,7 @@ struct DataDeletionView: View {
         .onChange(of: deletionService?.deletionCompleted) { _, completed in
             if completed == true {
                 // Dismiss back to settings and clear navigation stack
-                // We stay in settings to avoid Dashboard which has stale @Query results
+                // We stay in settings to avoid Dashboard which may have stale results
                 Task {
                     // First dismiss this view
                     await MainActor.run {
@@ -240,7 +222,7 @@ struct DataDeletionView: View {
 
                     // Give time for dismiss animation and SwiftData to process changes
                     // The 1s delay in the service + 500ms here = 1.5s total
-                    try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+                    try? await Task.sleep(for: .milliseconds(500))
 
                     // Clear navigation to go back to top-level settings view
                     // User can manually navigate to Dashboard when ready
@@ -257,11 +239,11 @@ struct DataDeletionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                         .font(.title2)
                     Text("Warning")
                         .font(.headline)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                 }
 
                 Text("This will permanently delete all your inventory data including:")
@@ -274,7 +256,7 @@ struct DataDeletionView: View {
                     Label("Home information and settings", systemImage: "house")
                 }
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             }
             .padding(.vertical, 8)
         }
@@ -318,7 +300,7 @@ struct DataDeletionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("To confirm deletion, type \"\(requiredConfirmationText)\" below:")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 TextField("Type \(requiredConfirmationText)", text: $confirmationText)
                     .textFieldStyle(.roundedBorder)
@@ -341,10 +323,10 @@ struct DataDeletionView: View {
                         }
                     }
                     .font(.headline)
-                    .foregroundColor(isConfirmationValid && !isDeleting ? Color.red : Color.gray)
+                    .foregroundStyle(isConfirmationValid && !isDeleting ? Color.red : Color.gray)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .cornerRadius(UIConstants.cornerRadius)
+                    .clipShape(.rect(cornerRadius: UIConstants.cornerRadius))
                 }
                 .backport.glassButtonStyle()
                 .disabled(!isConfirmationValid || isDeleting)
@@ -356,7 +338,7 @@ struct DataDeletionView: View {
                 "This action is irreversible. Make sure you have exported your data if you want to keep a backup."
             )
             .font(.footnote)
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
         }
     }
 
@@ -368,6 +350,9 @@ struct DataDeletionView: View {
 }
 
 #Preview {
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
     NavigationStack {
         DataDeletionView()
             .environmentObject(Router())

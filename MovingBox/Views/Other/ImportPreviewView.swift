@@ -1,9 +1,10 @@
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 
 struct ImportPreviewView: View {
-    @Environment(ModelContainerManager.self) private var containerManager
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
 
     let previewData: DataManager.ImportResult
@@ -74,7 +75,7 @@ struct ImportPreviewView: View {
 
                 for try await progress in await DataManager.shared.importInventory(
                     from: importURL,
-                    modelContainer: containerManager.container,
+                    database: database,
                     config: config
                 ) {
                     if Task.isCancelled {
@@ -125,7 +126,6 @@ struct ImportPreviewView: View {
 
 struct ImportPreviewContentView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @State private var previousState: ViewState = .preview
 
     let previewData: DataManager.ImportResult
     let config: DataManager.ImportConfig
@@ -158,6 +158,10 @@ struct ImportPreviewContentView: View {
         } else {
             return .preview
         }
+    }
+
+    private var isDatabaseImport: Bool {
+        config.format == .movingBoxDatabase
     }
 
     private var backgroundImage: String {
@@ -236,41 +240,74 @@ struct ImportPreviewContentView: View {
             Text("Ready to Import")
                 .font(.title2.bold())
 
-            VStack(spacing: 16) {
-                if config.includeItems && previewData.itemCount > 0 {
-                    PreviewRow(
-                        icon: "cube.box.fill",
-                        count: previewData.itemCount,
-                        label: previewData.itemCount == 1 ? "Item" : "Items"
-                    )
+            if isDatabaseImport {
+                VStack(spacing: 12) {
+                    Text("This will stage a full database restore.")
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                    Text("Your current local database will be replaced after app restart.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .background {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.ultraThinMaterial)
+                }
+            } else {
+                VStack(spacing: 16) {
+                    if config.includeItems && previewData.itemCount > 0 {
+                        PreviewRow(
+                            icon: "cube.box.fill",
+                            count: previewData.itemCount,
+                            label: previewData.itemCount == 1 ? "Item" : "Items"
+                        )
+                    }
+
+                    if config.includeLocations && previewData.locationCount > 0 {
+                        PreviewRow(
+                            icon: "map.fill",
+                            count: previewData.locationCount,
+                            label: previewData.locationCount == 1 ? "Location" : "Locations"
+                        )
+                    }
+
+                    if config.includeLabels && previewData.labelCount > 0 {
+                        PreviewRow(
+                            icon: "tag.fill",
+                            count: previewData.labelCount,
+                            label: previewData.labelCount == 1 ? "Label" : "Labels"
+                        )
+                    }
+
+                    if config.includeHomes && previewData.homeCount > 0 {
+                        PreviewRow(
+                            icon: "house.fill",
+                            count: previewData.homeCount,
+                            label: previewData.homeCount == 1 ? "Home" : "Homes"
+                        )
+                    }
+
+                    if config.includeInsurancePolicies && previewData.insurancePolicyCount > 0 {
+                        PreviewRow(
+                            icon: "doc.text.fill",
+                            count: previewData.insurancePolicyCount,
+                            label: previewData.insurancePolicyCount == 1 ? "Policy" : "Policies"
+                        )
+                    }
+                }
+                .padding()
+                .background {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.ultraThinMaterial)
                 }
 
-                if config.includeLocations && previewData.locationCount > 0 {
-                    PreviewRow(
-                        icon: "map.fill",
-                        count: previewData.locationCount,
-                        label: previewData.locationCount == 1 ? "Location" : "Locations"
-                    )
-                }
-
-                if config.includeLabels && previewData.labelCount > 0 {
-                    PreviewRow(
-                        icon: "tag.fill",
-                        count: previewData.labelCount,
-                        label: previewData.labelCount == 1 ? "Label" : "Labels"
-                    )
-                }
+                Text("This data will be added to your existing inventory.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
-            .padding()
-            .background {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-            }
-
-            Text("This data will be added to your existing inventory.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
     }
 
@@ -279,7 +316,7 @@ struct ImportPreviewContentView: View {
             ProgressView()
                 .controlSize(.large)
 
-            Text("Importing your data...")
+            Text(isDatabaseImport ? "Staging restore..." : "Importing your data...")
                 .font(.headline)
 
             VStack(spacing: 8) {
@@ -333,8 +370,12 @@ struct ImportPreviewContentView: View {
                         ProgressView()
                             .tint(.white)
                     }
-                    Text(isImporting ? "Importing..." : "Import Data")
-                        .font(.headline)
+                    Text(
+                        isImporting
+                            ? (isDatabaseImport ? "Staging..." : "Importing...")
+                            : (isDatabaseImport ? "Stage Restore" : "Import Data")
+                    )
+                    .font(.headline)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()

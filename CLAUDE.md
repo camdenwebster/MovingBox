@@ -1,39 +1,63 @@
 # MovingBox
+iOS AI-powered home inventory app. SwiftUI + SwiftData, OpenAI Vision API, RevenueCat, CloudKit.
 
-iOS AI-powered home inventory app. SwiftUI + SwiftData, Google Gemini AI via OpenRouter, RevenueCat, CloudKit.
+## Issue Tracking
+
+This project uses **bd (beads)** for issue tracking.
+Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for auto-injection.
+
+**Quick reference:**
+- `bd ready` - Find unblocked work
+- `bd create "Title" --type task --priority 2` - Create issue
+- `bd close <id>` - Complete work
+- `bd sync` - Sync with git (run at session end)
+
+For full workflow details: `bd prime`
 
 ## Project Configuration
 - **Project**: MovingBox.xcodeproj
 - **Scheme**: MovingBox (Tests: MovingBoxTests, MovingBoxUITests)
 - **Bundle ID**: com.mothersound.movingbox
 - **DerivedData**: ./.build/DerivedData (in-project, preserves cache)
-- **Simulator UDID**: F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 (iPhone 17 Pro, iOS 26.1)
+- **Simulator UDID**: 4DA6503A-88E2-4019-B404-EBBB222F3038 (iPhone 17 Pro, iOS 26.1)
 
 ## Build Commands
 ```bash
 # Build (pipe through xcsift for clean output)
-xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
 # Unit tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
-# UI tests
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+# UI tests (Smoke plan: fast PR/agent gate)
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan SmokeTests -resultBundlePath ./.build/SmokeTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | xcsift
+
+# UI tests (UI interaction plan)
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan MovingBoxUITests -resultBundlePath ./.build/MovingBoxUITests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | xcsift
+
+# UI tests (Release E2E CRUD plan)
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan ReleaseTests -resultBundlePath ./.build/ReleaseTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | xcsift
 ```
+
+## UI Test Plans
+- `SmokeTests`: Fast deterministic plan for AI agent validation and PR checks.
+- `MovingBoxUITests`: UI state/interaction-focused plan (navigation, visual state, control behavior).
+- `ReleaseTests`: Deterministic E2E CRUD plan for release confidence.
+- All three plans are configured with `selectedTests` allowlists (not `skippedTests` blacklists).
 
 ## Install & Launch
 ```bash
 # Boot simulator
-xcrun simctl boot F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0
+xcrun simctl boot 4DA6503A-88E2-4019-B404-EBBB222F3038
 
 # Install app
-xcrun simctl install F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 ./.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
+xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 ./.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 
 # Launch app
-xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox
+xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox
 
 # Launch with arguments (for exploratory testing - UI tests already use the necessary arguments)
-xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingbox --args -Mock-AI -Use-Test-Data
+xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox --args Mock-AI Use-Test-Data
 ```
 
 ## Test Launch Arguments
@@ -48,7 +72,7 @@ xcrun simctl launch F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 com.mothersound.movingb
 ## Logging
 ```bash
 # Stream logs (filter by app)
-xcrun simctl spawn F6D591E1-1CC6-4AE3-AB21-6BDFCA10B7D0 log stream --predicate 'subsystem == "com.mothersound.movingbox"'
+xcrun simctl spawn 4DA6503A-88E2-4019-B404-EBBB222F3038 log stream --predicate 'subsystem == "com.mothersound.movingbox"'
 
 # Or use print statements (appear in Xcode console and simctl output)
 ```

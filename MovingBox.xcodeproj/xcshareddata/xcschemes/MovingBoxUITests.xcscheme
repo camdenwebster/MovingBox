@@ -14,11 +14,14 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Test Plans/MovingBoxUITests.xctestplan"
+            reference = "container:Test Plans/SmokeTests.xctestplan"
             default = "YES">
          </TestPlanReference>
          <TestPlanReference
-            reference = "container:Test Plans/SmokeTests.xctestplan">
+            reference = "container:Test Plans/MovingBoxUITests.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:Test Plans/ReleaseTests.xctestplan">
          </TestPlanReference>
       </TestPlans>
       <Testables>

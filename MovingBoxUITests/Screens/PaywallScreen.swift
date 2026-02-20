@@ -8,26 +8,60 @@ class PaywallScreen {
     }
 
     var closeButton: XCUIElement {
-        return app.scrollViews.buttons.firstMatch
+        if app.buttons["dismissPaywall"].exists {
+            return app.buttons["dismissPaywall"]
+        }
+        if app.navigationBars.buttons["Close"].exists {
+            return app.navigationBars.buttons["Close"]
+        }
+        return app.buttons.matching(NSPredicate(format: "label == 'Close'")).firstMatch
     }
 
     func waitForPaywall(timeout: TimeInterval = 30) -> Bool {
-        return app.buttons["Restore Purchases"].firstMatch.waitForExistence(timeout: timeout)
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            if app.buttons["Restore Purchases"].exists
+                || app.otherElements["paywallView"].exists
+                || app.buttons["upgradeButton"].exists
+                || app.buttons["dismissPaywall"].exists
+            {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return false
     }
 
     func dismiss(timeout: TimeInterval = 5) {
-        guard closeButton.waitForExistence(timeout: timeout) else {
-            XCTFail("Close button on paywall alert not found")
+        if closeButton.waitForExistence(timeout: timeout) {
+            closeButton.tap()
+            _ = waitForPaywallToDismiss(timeout: timeout)
             return
         }
-        closeButton.tap()
 
-        let expectation = XCTestExpectation(description: "Paywall dismissed")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            if !self.closeButton.exists {
-                expectation.fulfill()
-            }
+        // Fallback for sheet-style paywalls without an explicit close button.
+        if app.sheets.firstMatch.exists {
+            app.sheets.firstMatch.swipeDown()
+            _ = waitForPaywallToDismiss(timeout: timeout)
+            return
         }
-        _ = XCTWaiter.wait(for: [expectation], timeout: timeout)
+
+        XCTFail("Close button on paywall alert not found")
+    }
+
+    @discardableResult
+    private func waitForPaywallToDismiss(timeout: TimeInterval) -> Bool {
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            if !app.buttons["Restore Purchases"].exists
+                && !app.otherElements["paywallView"].exists
+                && !app.buttons["upgradeButton"].exists
+                && !app.buttons["dismissPaywall"].exists
+            {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return false
     }
 }

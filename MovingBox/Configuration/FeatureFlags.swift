@@ -32,26 +32,43 @@ public struct FeatureFlags: Sendable {
     /// - Beta/TestFlight: disabled by default (can be toggled via debug menu)
     /// - Production: always disabled
     public let showZoomControl: Bool
+    /// Controls per-home sharing/scoping UI and behavior.
+    /// - Default: disabled in all distributions.
+    /// - Debug/Test override: launch argument `Enable-Family-Sharing-Scoping`.
+    public let familySharingScopingEnabled: Bool
 
     /// Initialize feature flags based on distribution type
     /// - Parameter distribution: The current app distribution
     public init(distribution: Distribution) {
+        self.init(
+            distribution: distribution,
+            launchArguments: ProcessInfo.processInfo.arguments
+        )
+    }
+
+    init(distribution: Distribution, launchArguments: [String]) {
+        let forceScopingEnabled = launchArguments.contains("Enable-Family-Sharing-Scoping")
+
         switch distribution {
         case .debug:
             // In debug builds, zoom is disabled by default but available for testing
             self.showZoomControl = true
+            self.familySharingScopingEnabled = forceScopingEnabled
         case .beta:
             // In beta/TestFlight builds, zoom is disabled by default but available for testing
             self.showZoomControl = false
+            self.familySharingScopingEnabled = forceScopingEnabled
         case .appstore:
             // In production builds, zoom is always disabled
             self.showZoomControl = false
+            self.familySharingScopingEnabled = false
         }
     }
 
     /// Internal initializer for testing with specific values
-    init(showZoomControl: Bool) {
+    init(showZoomControl: Bool, familySharingScopingEnabled: Bool = false) {
         self.showZoomControl = showZoomControl
+        self.familySharingScopingEnabled = familySharingScopingEnabled
     }
 }
 

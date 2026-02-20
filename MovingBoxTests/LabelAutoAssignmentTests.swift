@@ -1,57 +1,27 @@
-import SwiftData
 import Testing
-import UIKit
 
 @testable import MovingBox
 
 @MainActor
-@Suite("Label Auto Assignment Tests")
+@Suite("Label Emoji Catalog Tests")
 struct LabelAutoAssignmentTests {
-    private func createTestContainer() throws -> ModelContainer {
-        let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-            Home.self,
-            InsurancePolicy.self,
-        ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [configuration])
+    @Test("Returns emojis for known catalog category")
+    func testKnownCategoryReturnsEmojis() {
+        let emojis = LabelEmojiCatalog.emojis(for: "Food")
+        #expect(!emojis.isEmpty)
+        #expect(emojis.contains("🍕"))
     }
 
-    @Test("Reuses a similar existing label instead of creating a new one")
-    func testReusesSimilarExistingLabel() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
-
-        let kitchen = InventoryLabel(name: "Kitchen", desc: "", color: .systemOrange, emoji: "🍽️")
-        context.insert(kitchen)
-        try context.save()
-
-        let assigned = LabelAutoAssignment.labels(
-            for: ["Kitchen Appliance"],
-            existingLabels: [kitchen],
-            modelContext: context
-        )
-
-        let labelsInStore = try context.fetch(FetchDescriptor<InventoryLabel>())
-        #expect(assigned.count == 1)
-        #expect(assigned.first?.id == kitchen.id)
-        #expect(labelsInStore.count == 1)
+    @Test("Category lookup is case insensitive")
+    func testCategoryLookupCaseInsensitive() {
+        let lower = LabelEmojiCatalog.emojis(for: "animals")
+        let mixed = LabelEmojiCatalog.emojis(for: "AnImAlS")
+        #expect(lower == mixed)
+        #expect(!lower.isEmpty)
     }
 
-    @Test("Creates a context-aware emoji for new labels")
-    func testContextAwareEmojiForNewLabel() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
-
-        let assigned = LabelAutoAssignment.labels(
-            for: ["Guitar Equipment"],
-            existingLabels: [],
-            modelContext: context
-        )
-
-        #expect(assigned.count == 1)
-        #expect(assigned.first?.emoji == "🎸")
+    @Test("Unknown category returns empty list")
+    func testUnknownCategoryReturnsEmpty() {
+        #expect(LabelEmojiCatalog.emojis(for: "not-a-category").isEmpty)
     }
 }

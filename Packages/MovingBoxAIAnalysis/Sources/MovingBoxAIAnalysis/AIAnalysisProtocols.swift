@@ -47,6 +47,7 @@ public protocol AIAnalysisSettings: Sendable {
     var highQualityAnalysisEnabled: Bool { get }
     var effectiveAIModel: String { get }
     var effectiveImageResolution: CGFloat { get }
+    var effectiveDetailLevel: String { get }
 }
 
 // MARK: - Image Optimizer Abstraction

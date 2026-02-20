@@ -6,8 +6,9 @@
 //
 
 import CoreLocation
+import Dependencies
 import Foundation
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @Observable
@@ -16,7 +17,6 @@ final class HomeDetailSettingsViewModel {
 
     // MARK: - State
 
-    var tempHome: Home
     var isEditing: Bool
     var isCreating: Bool = false
     var showingDeleteConfirmation: Bool = false
@@ -25,26 +25,46 @@ final class HomeDetailSettingsViewModel {
     var addressInput: String = ""
     var isParsingAddress: Bool = false
 
+    // Form state
+    var name: String = ""
+    var address1: String = ""
+    var address2: String = ""
+    var city: String = ""
+    var state: String = ""
+    var zip: String = ""
+    var country: String = ""
+    var colorName: String = "green"
+    var isPrimary: Bool = false
+
     // MARK: - Dependencies
 
-    private let originalHome: Home?
-    private var modelContext: ModelContext
+    let originalHomeID: UUID?
+    private var database: (any DatabaseWriter)?
     private var settings: SettingsManager
-    private var allHomesProvider: () -> [Home]
+    private var allHomesProvider: () -> [SQLiteHome]
 
     // MARK: - Computed Properties
 
     var isNewHome: Bool {
-        originalHome == nil
+        originalHomeID == nil
     }
 
-    var displayHome: Home {
-        originalHome ?? tempHome
+    var displayName: String {
+        if !name.isEmpty {
+            return name
+        } else if !address1.isEmpty {
+            return address1
+        }
+        return "Unnamed Home"
+    }
+
+    var displayColor: Color {
+        Color.homeColor(for: colorName)
     }
 
     var canSave: Bool {
         let hasAddress = !addressInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let hasName = !tempHome.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return (hasAddress || hasName) && !isCreating && !isParsingAddress
     }
 
@@ -52,68 +72,69 @@ final class HomeDetailSettingsViewModel {
         allHomesProvider().count > 1 && isEditing
     }
 
-    private var allHomes: [Home] {
+    private var allHomes: [SQLiteHome] {
         allHomesProvider()
     }
 
     // MARK: - Initialization
 
     init(
-        home: Home?,
-        modelContext: ModelContext,
+        homeID: UUID?,
         settings: SettingsManager,
-        allHomesProvider: @escaping () -> [Home] = { [] }
+        allHomesProvider: @escaping () -> [SQLiteHome] = { [] }
     ) {
-        self.originalHome = home
-        self.modelContext = modelContext
+        self.originalHomeID = homeID
         self.settings = settings
         self.allHomesProvider = allHomesProvider
 
-        if let home = home {
-            // Create a copy for editing existing home
-            // Set all properties before assigning to self to avoid using self before init complete
-            let copy = Home(
-                id: home.id,
-                name: home.name,
-                address1: home.address1,
-                address2: home.address2,
-                city: home.city,
-                state: home.state,
-                zip: home.zip,
-                country: home.country
-            )
-            copy.isPrimary = home.isPrimary
-            copy.colorName = home.colorName
-            copy.imageURL = home.imageURL
-            self.tempHome = copy
+        if homeID != nil {
+            // Editing existing home — fields will be loaded in loadHomeData()
             self.isEditing = false
-            self.addressInput = Self.composeAddressString(from: home)
         } else {
             // Creating new home
-            let newHome = Home()
-            newHome.country = Locale.current.region?.identifier ?? "US"
-            self.tempHome = newHome
+            self.country = Locale.current.region?.identifier ?? "US"
             self.isEditing = true
         }
     }
 
     // MARK: - Public Methods
 
-    func updateDependencies(
-        modelContext: ModelContext,
-        settings: SettingsManager,
-        allHomesProvider: @escaping () -> [Home]
-    ) {
-        // Note: We use a technique here where we update dependencies after init
-        // because the View's init doesn't have access to @Environment values
-        // This is safe because these are reference types and state is preserved
-        self.modelContext = modelContext
-        self.settings = settings
-        self.allHomesProvider = allHomesProvider
+    func setDatabase(_ db: any DatabaseWriter) {
+        self.database = db
     }
 
-    func updateAllHomesProvider(_ provider: @escaping () -> [Home]) {
+    func updateAllHomesProvider(_ provider: @escaping () -> [SQLiteHome]) {
         self.allHomesProvider = provider
+    }
+
+    func loadHomeData() async {
+        guard let originalHomeID, let database else { return }
+
+        do {
+            let home = try await database.read { db in
+                try SQLiteHome.find(originalHomeID).fetchOne(db)
+            }
+            if let home {
+                name = home.name
+                address1 = home.address1
+                address2 = home.address2
+                city = home.city
+                state = home.state
+                zip = home.zip
+                country = home.country
+                colorName = home.colorName
+                isPrimary = home.isPrimary
+                addressInput = Self.composeAddressString(
+                    address1: home.address1,
+                    address2: home.address2,
+                    city: home.city,
+                    state: home.state,
+                    zip: home.zip
+                )
+            }
+        } catch {
+            saveError = "Failed to load home: \(error.localizedDescription)"
+        }
     }
 
     func parseAddress() async {
@@ -129,13 +150,13 @@ final class HomeDetailSettingsViewModel {
         do {
             let placemarks = try await geocoder.geocodeAddressString(trimmed)
             if let placemark = placemarks.first {
-                tempHome.address1 = [placemark.subThoroughfare, placemark.thoroughfare]
+                address1 = [placemark.subThoroughfare, placemark.thoroughfare]
                     .compactMap { $0 }.joined(separator: " ")
-                tempHome.address2 = ""
-                tempHome.city = placemark.locality ?? ""
-                tempHome.state = placemark.administrativeArea ?? ""
-                tempHome.zip = placemark.postalCode ?? ""
-                tempHome.country =
+                address2 = ""
+                city = placemark.locality ?? ""
+                state = placemark.administrativeArea ?? ""
+                zip = placemark.postalCode ?? ""
+                country =
                     placemark.isoCountryCode
                     ?? Locale.current.region?.identifier ?? "US"
             } else {
@@ -147,91 +168,147 @@ final class HomeDetailSettingsViewModel {
     }
 
     func togglePrimary(_ newValue: Bool) {
+        guard let database else { return }
+
         if newValue {
-            // Make this home primary and unmark all others
-            for otherHome in allHomes {
-                otherHome.isPrimary = (otherHome.id == tempHome.id)
+            isPrimary = true
+            let homeID = originalHomeID ?? UUID()
+            settings.activeHomeId = homeID.uuidString
+
+            // Update all other homes to not be primary
+            for otherHome in allHomes where otherHome.id != homeID {
+                do {
+                    try database.write { db in
+                        try SQLiteHome.find(otherHome.id).update {
+                            $0.isPrimary = false
+                        }.execute(db)
+                    }
+                } catch {
+                    print("Error updating home primary status: \(error)")
+                }
             }
-            tempHome.isPrimary = true
-            settings.activeHomeId = tempHome.id.uuidString
         } else {
+            isPrimary = false
             // Find another home to make primary
-            if let firstOtherHome = allHomes.first(where: { $0.id != tempHome.id }) {
-                firstOtherHome.isPrimary = true
-                tempHome.isPrimary = false
-                settings.activeHomeId = firstOtherHome.id.uuidString
+            let homeID = originalHomeID ?? UUID()
+            if let firstOther = allHomes.first(where: { $0.id != homeID }) {
+                do {
+                    try database.write { db in
+                        try SQLiteHome.find(firstOther.id).update {
+                            $0.isPrimary = true
+                        }.execute(db)
+                    }
+                } catch {
+                    print("Error updating home primary status: \(error)")
+                }
+                settings.activeHomeId = firstOther.id.uuidString
             }
         }
     }
 
     func saveChanges() async {
-        guard let existingHome = originalHome else { return }
+        guard let originalHomeID, let database else { return }
 
         await parseAddress()
 
-        existingHome.name = tempHome.name
-        existingHome.address1 = tempHome.address1
-        existingHome.address2 = tempHome.address2
-        existingHome.city = tempHome.city
-        existingHome.state = tempHome.state
-        existingHome.zip = tempHome.zip
-        existingHome.country = tempHome.country
-        existingHome.colorName = tempHome.colorName
-        existingHome.isPrimary = tempHome.isPrimary
-        existingHome.imageURL = tempHome.imageURL
+        let saveName = name
+        let saveAddr1 = address1
+        let saveAddr2 = address2
+        let saveCity = city
+        let saveState = state
+        let saveZip = zip
+        let saveCountry = country
+        let saveColor = colorName
+        let savePrimary = isPrimary
 
         do {
-            try modelContext.save()
+            try await database.write { db in
+                try SQLiteHome.find(originalHomeID).update {
+                    $0.name = saveName
+                    $0.address1 = saveAddr1
+                    $0.address2 = saveAddr2
+                    $0.city = saveCity
+                    $0.state = saveState
+                    $0.zip = saveZip
+                    $0.country = saveCountry
+                    $0.colorName = saveColor
+                    $0.isPrimary = savePrimary
+                }.execute(db)
+            }
         } catch {
             saveError = "Failed to save changes: \(error.localizedDescription)"
         }
     }
 
-    func createHome() async -> Bool {
+    func createHome() async -> UUID? {
+        guard let database else { return nil }
         isCreating = true
         saveError = nil
 
         do {
-            let trimmedName = tempHome.name.trimmingCharacters(in: .whitespacesAndNewlines)
-
             await parseAddress()
 
-            let newHome = try await DefaultDataManager.createNewHome(
-                name: trimmedName,
-                modelContext: modelContext
-            )
+            let newHomeID = UUID()
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let saveAddr1 = address1
+            let saveAddr2 = address2
+            let saveCity = city
+            let saveState = state
+            let saveZip = zip
+            let saveCountry = country
+            let saveColor = colorName
+            let shouldBePrimary = allHomes.isEmpty
+            let defaultRooms = TestData.defaultRooms
 
-            // Copy all properties from tempHome to newHome
-            newHome.address1 = tempHome.address1
-            newHome.address2 = tempHome.address2
-            newHome.city = tempHome.city
-            newHome.state = tempHome.state
-            newHome.zip = tempHome.zip
-            newHome.country = tempHome.country
-            newHome.colorName = tempHome.colorName
-            newHome.imageURL = tempHome.imageURL
+            try await database.write { db in
+                let householdID = try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
+                try SQLiteHome.insert {
+                    SQLiteHome(
+                        id: newHomeID,
+                        name: trimmedName,
+                        address1: saveAddr1,
+                        address2: saveAddr2,
+                        city: saveCity,
+                        state: saveState,
+                        zip: saveZip,
+                        country: saveCountry,
+                        isPrimary: shouldBePrimary,
+                        colorName: saveColor,
+                        householdID: householdID
+                    )
+                }.execute(db)
 
-            // If this is the first home, make it primary
-            if allHomes.isEmpty {
-                newHome.isPrimary = true
-                settings.activeHomeId = newHome.id.uuidString
+                // Create default locations for the new home
+                for roomData in defaultRooms {
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(
+                            id: UUID(),
+                            name: roomData.name,
+                            desc: roomData.desc,
+                            sfSymbolName: roomData.sfSymbol,
+                            homeID: newHomeID
+                        )
+                    }.execute(db)
+                }
             }
 
-            try modelContext.save()
+            if shouldBePrimary {
+                settings.activeHomeId = newHomeID.uuidString
+            }
 
-            TelemetryManager.shared.trackHomeCreated(name: newHome.displayName)
+            TelemetryManager.shared.trackHomeCreated(name: trimmedName.isEmpty ? saveAddr1 : trimmedName)
 
             isCreating = false
-            return true
+            return newHomeID
         } catch {
             saveError = "Failed to create home: \(error.localizedDescription)"
             isCreating = false
-            return false
+            return nil
         }
     }
 
     func deleteHome() -> Bool {
-        guard let homeToDelete = originalHome else { return false }
+        guard let originalHomeID, let database else { return false }
 
         // Validation: can't delete if only one home exists
         if allHomes.count <= 1 {
@@ -240,41 +317,46 @@ final class HomeDetailSettingsViewModel {
         }
 
         // If deleting primary home, make another home primary first
-        if homeToDelete.isPrimary {
-            if let firstOtherHome = allHomes.first(where: { $0.id != homeToDelete.id }) {
-                firstOtherHome.isPrimary = true
-                settings.activeHomeId = firstOtherHome.id.uuidString
-            }
-        }
-
-        // Delete all locations associated with this home
-        let locationDescriptor = FetchDescriptor<InventoryLocation>()
-        if let locations = try? modelContext.fetch(locationDescriptor) {
-            for location in locations where location.home?.id == homeToDelete.id {
-                // Unassign items from this location
-                if let items = location.inventoryItems {
-                    for item in items {
-                        item.location = nil
+        if isPrimary {
+            if let firstOther = allHomes.first(where: { $0.id != originalHomeID }) {
+                do {
+                    try database.write { db in
+                        try SQLiteHome.find(firstOther.id).update {
+                            $0.isPrimary = true
+                        }.execute(db)
                     }
+                } catch {
+                    print("Error updating home primary status: \(error)")
                 }
-                modelContext.delete(location)
+                settings.activeHomeId = firstOther.id.uuidString
             }
         }
 
-        // Clear direct home references from items
-        let itemDescriptor = FetchDescriptor<InventoryItem>()
-        if let items = try? modelContext.fetch(itemDescriptor) {
-            for item in items where item.home?.id == homeToDelete.id {
-                item.home = nil
-            }
-        }
-
-        // Delete the home itself
-        modelContext.delete(homeToDelete)
-
-        // Save changes
         do {
-            try modelContext.save()
+            try database.write { db in
+                // Unassign items from locations belonging to this home,
+                // then delete those locations, then clear home reference from items
+                // Note: We use @FetchAll-sourced data filtered in memory
+
+                // Set locationID = nil for items in locations belonging to this home
+                // and homeID = nil for items directly assigned to this home
+                try SQLiteInventoryItem
+                    .where { $0.homeID == originalHomeID }
+                    .update {
+                        $0.homeID = nil as UUID?
+                        $0.locationID = nil as UUID?
+                    }
+                    .execute(db)
+
+                // Delete all locations for this home
+                try SQLiteInventoryLocation
+                    .where { $0.homeID == originalHomeID }
+                    .delete()
+                    .execute(db)
+
+                // Delete the home itself
+                try SQLiteHome.find(originalHomeID).delete().execute(db)
+            }
             return true
         } catch {
             deleteError = "Failed to delete home: \(error.localizedDescription)"
@@ -296,14 +378,20 @@ final class HomeDetailSettingsViewModel {
 
     // MARK: - Private Helpers
 
-    private static func composeAddressString(from home: Home) -> String {
+    static func composeAddressString(
+        address1: String,
+        address2: String,
+        city: String,
+        state: String,
+        zip: String
+    ) -> String {
         var components: [String] = []
-        if !home.address1.isEmpty { components.append(home.address1) }
-        if !home.address2.isEmpty { components.append(home.address2) }
+        if !address1.isEmpty { components.append(address1) }
+        if !address2.isEmpty { components.append(address2) }
         var cityStateParts: [String] = []
-        if !home.city.isEmpty { cityStateParts.append(home.city) }
-        if !home.state.isEmpty { cityStateParts.append(home.state) }
-        if !home.zip.isEmpty { cityStateParts.append(home.zip) }
+        if !city.isEmpty { cityStateParts.append(city) }
+        if !state.isEmpty { cityStateParts.append(state) }
+        if !zip.isEmpty { cityStateParts.append(zip) }
         if !cityStateParts.isEmpty {
             components.append(cityStateParts.joined(separator: ", "))
         }
@@ -311,20 +399,20 @@ final class HomeDetailSettingsViewModel {
     }
 
     private func setFallbackAddress(_ raw: String) {
-        tempHome.address1 = raw
-        tempHome.address2 = ""
-        tempHome.city = ""
-        tempHome.state = ""
-        tempHome.zip = ""
-        tempHome.country = Locale.current.region?.identifier ?? "US"
+        address1 = raw
+        address2 = ""
+        city = ""
+        state = ""
+        zip = ""
+        country = Locale.current.region?.identifier ?? "US"
     }
 
     private func clearAddressFields() {
-        tempHome.address1 = ""
-        tempHome.address2 = ""
-        tempHome.city = ""
-        tempHome.state = ""
-        tempHome.zip = ""
-        tempHome.country = ""
+        address1 = ""
+        address2 = ""
+        city = ""
+        state = ""
+        zip = ""
+        country = ""
     }
 }

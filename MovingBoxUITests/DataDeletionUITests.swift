@@ -239,7 +239,7 @@ final class DataDeletionUITests: XCTestCase {
         }
 
         // When: User enters correct input
-        dataDeletionScreen.enterConfirmationText("DELETE")
+        dataDeletionScreen.enterConfirmationText("DELETE\r")
 
         // Then: Button should be enabled
         XCTAssertTrue(

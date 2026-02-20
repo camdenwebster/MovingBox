@@ -5,23 +5,26 @@
 //  Created by AI Assistant on 1/10/25.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct LabelSelectionView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\InventoryLabel.name)]) private var allLabels: [InventoryLabel]
+    @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+    @FetchAll(SQLiteHousehold.order(by: \.createdAt), animation: .default)
+    private var households: [SQLiteHousehold]
 
     // Support both single and multi-select modes
-    @Binding var selectedLabels: [InventoryLabel]
+    @Binding var selectedLabels: [SQLiteInventoryLabel]
     @State private var searchText = ""
     @State private var showAddLabelSheet = false
 
     private let maxLabels = 5
 
     // Single-select convenience initializer
-    init(selectedLabel: Binding<InventoryLabel?>) {
+    init(selectedLabel: Binding<SQLiteInventoryLabel?>) {
         self._selectedLabels = Binding(
             get: {
                 if let label = selectedLabel.wrappedValue {
@@ -36,24 +39,37 @@ struct LabelSelectionView: View {
     }
 
     // Multi-select initializer
-    init(selectedLabels: Binding<[InventoryLabel]>) {
+    init(selectedLabels: Binding<[SQLiteInventoryLabel]>) {
         self._selectedLabels = selectedLabels
     }
 
-    private var filteredLabels: [InventoryLabel] {
-        if searchText.isEmpty {
-            return allLabels
+    private var activeHouseholdID: UUID? {
+        households.first?.id
+    }
+
+    private var scopedLabels: [SQLiteInventoryLabel] {
+        guard let activeHouseholdID else {
+            return allLabels.filter { $0.householdID == nil }
         }
-        return allLabels.filter { label in
+        return allLabels.filter {
+            $0.householdID == activeHouseholdID || $0.householdID == nil
+        }
+    }
+
+    private var filteredLabels: [SQLiteInventoryLabel] {
+        if searchText.isEmpty {
+            return scopedLabels
+        }
+        return scopedLabels.filter { label in
             label.name.localizedCaseInsensitiveContains(searchText)
         }
     }
 
-    private func isSelected(_ label: InventoryLabel) -> Bool {
+    private func isSelected(_ label: SQLiteInventoryLabel) -> Bool {
         selectedLabels.contains { $0.id == label.id }
     }
 
-    private func toggleLabel(_ label: InventoryLabel) {
+    private func toggleLabel(_ label: SQLiteInventoryLabel) {
         withAnimation(.snappy(duration: 0.25)) {
             if isSelected(label) {
                 selectedLabels.removeAll { $0.id == label.id }
@@ -97,7 +113,7 @@ struct LabelSelectionView: View {
     }
 
     @ViewBuilder
-    private func selectedLabelCapsule(for label: InventoryLabel) -> some View {
+    private func selectedLabelCapsule(for label: SQLiteInventoryLabel) -> some View {
         HStack(spacing: 4) {
             Text(label.emoji)
             Text(label.name)
@@ -129,7 +145,7 @@ struct LabelSelectionView: View {
         .sheet(isPresented: $showAddLabelSheet) {
             NavigationStack {
                 EditLabelView(
-                    label: nil,
+                    labelID: nil,
                     isEditing: true,
                     presentedInSheet: true,
                     onLabelCreated: { newLabel in
@@ -165,7 +181,7 @@ struct LabelSelectionView: View {
     }
 
     @ViewBuilder
-    private func labelRow(for label: InventoryLabel) -> some View {
+    private func labelRow(for label: SQLiteInventoryLabel) -> some View {
         Button(action: { toggleLabel(label) }) {
             labelRowContent(for: label)
         }
@@ -174,7 +190,7 @@ struct LabelSelectionView: View {
     }
 
     @ViewBuilder
-    private func labelRowContent(for label: InventoryLabel) -> some View {
+    private func labelRowContent(for label: SQLiteInventoryLabel) -> some View {
         HStack {
             Text("\(label.emoji) \(label.name)")
                 .foregroundStyle(.primary)
@@ -185,7 +201,7 @@ struct LabelSelectionView: View {
     }
 
     @ViewBuilder
-    private func labelCheckmark(for label: InventoryLabel) -> some View {
+    private func labelCheckmark(for label: SQLiteInventoryLabel) -> some View {
         let selected = isSelected(label)
         let atMaxCapacity = selectedLabels.count >= maxLabels
 
@@ -283,6 +299,9 @@ struct FlowLayout: Layout {
 }
 
 #Preview {
-    @Previewable @State var labels: [InventoryLabel] = []
+    @Previewable @State var labels: [SQLiteInventoryLabel] = []
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
     return LabelSelectionView(selectedLabels: $labels)
 }

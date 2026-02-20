@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftData
 
 /// Maps raw progress events to normalized 0-1 progress values
 struct ProgressMapper {

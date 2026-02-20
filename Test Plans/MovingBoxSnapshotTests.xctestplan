@@ -68,6 +68,9 @@
       "skippedTests" : {
         "suites" : [
           {
+            "name" : "AIAnalysisServiceTests"
+          },
+          {
             "name" : "CurrencyFormatterTests"
           },
           {
@@ -75,9 +78,6 @@
           },
           {
             "name" : "JWTManagerTests"
-          },
-          {
-            "name" : "AIAnalysisServiceTests"
           }
         ]
       },

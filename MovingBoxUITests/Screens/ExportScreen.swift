@@ -3,9 +3,9 @@ import XCTest
 class ExportScreen {
     let app: XCUIApplication
 
-    let itemsToggle: XCUIElement
-    let locationsToggle: XCUIElement
-    let labelsToggle: XCUIElement
+    let formatPicker: XCUIElement
+    let photosToggle: XCUIElement
+    let homeToggles: XCUIElementQuery
     let exportButton: XCUIElement
     let cancelButton: XCUIElement
     let progressPhaseText: XCUIElement
@@ -13,15 +13,12 @@ class ExportScreen {
 
     init(app: XCUIApplication) {
         self.app = app
-        self.itemsToggle =
-            app.otherElements.matching(NSPredicate(format: "identifier == 'export-items-toggle'"))
+        self.formatPicker = app.otherElements["export-format-picker"]
+        self.photosToggle =
+            app.otherElements.matching(NSPredicate(format: "identifier == 'export-photos-toggle'"))
             .firstMatch
-        self.locationsToggle =
-            app.otherElements.matching(NSPredicate(format: "identifier == 'export-locations-toggle'"))
-            .firstMatch
-        self.labelsToggle =
-            app.otherElements.matching(NSPredicate(format: "identifier == 'export-labels-toggle'"))
-            .firstMatch
+        self.homeToggles =
+            app.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH 'export-home-toggle-'"))
         self.exportButton = app.buttons["export-data-button"]
         self.cancelButton = app.buttons["export-cancel-button"]
         self.progressPhaseText = app.staticTexts["export-progress-phase-text"]
@@ -43,43 +40,14 @@ class ExportScreen {
         cancelButton.tap()
     }
 
-    func toggleItems(_ enabled: Bool) {
-        itemsToggle.tap()
-    }
-
-    func toggleLocations(_ enabled: Bool) {
-        locationsToggle.tap()
-    }
-
-    func toggleLabels(_ enabled: Bool) {
-        labelsToggle.tap()
-    }
-
-    func enableAllOptions() {
-        toggleItems(true)
-        toggleLocations(true)
-        toggleLabels(true)
-    }
-
-    func disableAllOptions() {
-        toggleItems(false)
-        toggleLocations(false)
-        toggleLabels(false)
-    }
-
-    func selectOnlyItems() {
-        disableAllOptions()
-        toggleItems(true)
-    }
-
-    func selectOnlyLocations() {
-        disableAllOptions()
-        toggleLocations(true)
-    }
-
-    func selectOnlyLabels() {
-        disableAllOptions()
-        toggleLabels(true)
+    func disableAllCSVOptions() {
+        let count = homeToggles.count
+        for index in 0..<count {
+            homeToggles.element(boundBy: index).tap()
+        }
+        if photosToggle.exists {
+            photosToggle.tap()
+        }
     }
 
     func waitForExportProgress() -> Bool {

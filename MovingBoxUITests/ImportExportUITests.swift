@@ -134,22 +134,37 @@ final class ImportExportUITests: XCTestCase {
             importScreen.isSelectFileButtonEnabled(), "Select file button should be enabled by default")
     }
 
+    func testImportFormatPickerExists() throws {
+        navigateToImportScreen()
+        XCTAssertTrue(importScreen.isFormatPickerVisible(), "Import format picker should be visible")
+    }
+
     func testExportButtonDisabledWhenNoOptionsSelected() throws {
         navigateToExportScreen()
-        exportScreen.disableAllOptions()
+        exportScreen.disableAllCSVOptions()
         sleep(1)
         XCTAssertTrue(
-            exportScreen.isExportButtonDisabled(),
-            "Export button should be disabled when no options selected")
+            exportScreen.isExportButtonEnabled(),
+            "Export button should remain enabled for CSV exports even when all optional toggles are off")
     }
 
     func testImportButtonDisabledWhenNoOptionsSelected() throws {
         navigateToImportScreen()
+        importScreen.selectCSVArchiveFormat()
         importScreen.disableAllOptions()
         sleep(1)
         XCTAssertTrue(
             importScreen.isSelectFileButtonDisabled(),
             "Select file button should be disabled when no options selected")
+    }
+
+    func testImportButtonEnabledInDatabaseFormat() throws {
+        navigateToImportScreen()
+        importScreen.selectDatabaseFormat()
+        sleep(1)
+        XCTAssertTrue(
+            importScreen.isSelectFileButtonEnabled(),
+            "Select file button should remain enabled in database format")
     }
 
     func testImportWarningAppears() throws {

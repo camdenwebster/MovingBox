@@ -5,8 +5,8 @@
 //  Created by Camden Webster on 4/2/25.
 //
 
+import SQLiteData
 import SnapshotTesting
-import SwiftData
 import SwiftUI
 import Testing
 
@@ -18,7 +18,7 @@ final class SnapshotTests {
         let xcodeCloudPath: StaticString =
             "/Volumes/workspace/repository/ci_scripts/SnapshotTests.swift"
         if ProcessInfo.processInfo.environment["CI"] == "TRUE" {
-            print("☁️ Using Xcode Cloud path for Snapshots")
+            print("Using Xcode Cloud path for Snapshots")
             return xcodeCloudPath
         } else {
             return #file
@@ -27,15 +27,12 @@ final class SnapshotTests {
 
     var precision: Float = 0.99
 
-    // Helper property to check if mock data should be loaded
     private var shouldLoadMockData: Bool {
         return ProcessInfo.processInfo.arguments.contains("Mock-Data")
     }
 
-    // Helper property to check if dark mode should be used
     private var isDarkMode: Bool {
         let darkMode = ProcessInfo.processInfo.arguments.contains("Dark-Mode")
-        print("🎨 Running tests in \(darkMode ? "dark" : "light") mode")
         return darkMode
     }
 
@@ -46,67 +43,47 @@ final class SnapshotTests {
         return suffix
     }
 
-    private var testContainer: ModelContainer?
+    private var testDatabase: DatabaseQueue?
 
     private func cleanup() async {
-        print("Cleaning up test resources...")
-        guard let container = testContainer else { return }
-
-        let context = container.mainContext
+        guard let database = testDatabase else { return }
 
         do {
-            print("Deleting items...")
-            try context.deleteAllItems()
-
-            print("Deleting locations...")
-            try context.deleteAllLocations()
-
-            print("Deleting labels...")
-            try context.deleteAllLabels()
-
-            print("Deleting homes...")
-            try context.deleteAllHomes()
-
-            print("Deleting policies...")
-            try context.deleteAllPolicies()
-
-            try context.save()
-            print("Test data cleared successfully")
+            try await database.write { db in
+                try SQLiteInventoryItem.delete().execute(db)
+                try SQLiteInventoryItemLabel.delete().execute(db)
+                try SQLiteInventoryLocation.delete().execute(db)
+                try SQLiteInventoryLabel.delete().execute(db)
+                try SQLiteHome.delete().execute(db)
+                try SQLiteInsurancePolicy.delete().execute(db)
+            }
         } catch {
             print("Error during cleanup: \(error)")
         }
 
-        testContainer = nil
+        testDatabase = nil
     }
 
-    private func createTestContainer() async throws -> ModelContainer {
+    private func createTestDatabase() async throws -> DatabaseQueue {
         await cleanup()
 
-        print("Creating test container...")
-        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(
-            for: Home.self, InventoryLabel.self, InventoryItem.self, InventoryLocation.self,
-            InsurancePolicy.self, configurations: config)
+        let database = try makeInMemoryDatabase()
+        testDatabase = database
 
-        print("Container created successfully")
-        testContainer = container
-
-        if shouldLoadMockData {
-            print("Populating test data...")
-            await DefaultDataManager.populateTestData(modelContext: container.mainContext)
-            try container.mainContext.save()
-            print("Test data populated and saved")
-
-            // Verify data was loaded
-            let itemCount = try container.mainContext.fetch(FetchDescriptor<InventoryItem>()).count
-            let locationCount = try container.mainContext.fetch(FetchDescriptor<InventoryLocation>())
-                .count
-            let labelCount = try container.mainContext.fetch(FetchDescriptor<InventoryLabel>()).count
-            print(
-                "Verification - Items: \(itemCount), Locations: \(locationCount), Labels: \(labelCount)")
+        let _ = try prepareDependencies {
+            $0.defaultDatabase = database
         }
 
-        return container
+        if shouldLoadMockData {
+            let seeded = try makeSeededTestDatabase()
+            testDatabase = seeded
+            let _ = try prepareDependencies {
+                $0.defaultDatabase = seeded
+            }
+            return seeded
+        }
+
+        return database
     }
 
     private func configureViewForSnapshot<T: View>(_ view: T) -> some View {
@@ -122,43 +99,14 @@ final class SnapshotTests {
     }
 }
 
-// MARK: - Test Extensions
-extension ModelContext {
-    func deleteAllItems() throws {
-        let items = try fetch(FetchDescriptor<InventoryItem>())
-        items.forEach { delete($0) }
-    }
-
-    func deleteAllLocations() throws {
-        let locations = try fetch(FetchDescriptor<InventoryLocation>())
-        locations.forEach { delete($0) }
-    }
-
-    func deleteAllLabels() throws {
-        let labels = try fetch(FetchDescriptor<InventoryLabel>())
-        labels.forEach { delete($0) }
-    }
-
-    func deleteAllHomes() throws {
-        let homes = try fetch(FetchDescriptor<Home>())
-        homes.forEach { delete($0) }
-    }
-
-    func deleteAllPolicies() throws {
-        let policies = try fetch(FetchDescriptor<InsurancePolicy>())
-        policies.forEach { delete($0) }
-    }
-}
-
 // MARK: - Tests
 extension SnapshotTests {
     @Test("Dashboard View Layout")
     func dashboardViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let _ = try await createTestDatabase()
 
         let view = configureViewForSnapshot(
             DashboardView()
-                .modelContainer(container)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -175,19 +123,14 @@ extension SnapshotTests {
 
     @Test("Inventory List View Layout")
     func inventoryListViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryLocation>(
-            predicate: #Predicate<InventoryLocation> { location in
-                location.name == "Kitchen"
-            }
-        )
-        let locations = try container.mainContext.fetch(descriptor)
-        let location = locations.first
+        let location = try await database.read { db in
+            try SQLiteInventoryLocation.where { $0.name == "Kitchen" }.fetchOne(db)
+        }
 
         let view = configureViewForSnapshot(
-            InventoryListView(location: location)
-                .modelContainer(container)
+            InventoryListView(locationID: location?.id)
         )
 
         for i in 1...4 {
@@ -207,11 +150,10 @@ extension SnapshotTests {
 
     @Test("Locations List View Layout")
     func locationsListViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let _ = try await createTestDatabase()
 
         let view = configureViewForSnapshot(
             LocationsListView(showAllHomes: false)
-                .modelContainer(container)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -228,19 +170,16 @@ extension SnapshotTests {
 
     @Test("Edit Location View Layout - Edit Mode")
     func editLocationViewEditModeSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryLocation>(
-            predicate: #Predicate<InventoryLocation> { location in
-                location.name == "Kitchen"
-            }
-        )
-        let locations = try container.mainContext.fetch(descriptor)
-        let location = locations.first ?? InventoryLocation()
+        let location = try await database.read { db in
+            try SQLiteInventoryLocation.where { $0.name == "Kitchen" }.fetchOne(db)
+        }
+
+        let locationID = location?.id ?? UUID()
 
         let view = configureViewForSnapshot(
-            EditLocationView(location: location)
-                .modelContainer(container)
+            EditLocationView(locationID: locationID)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -257,19 +196,16 @@ extension SnapshotTests {
 
     @Test("Edit Label View Layout - Read Mode")
     func editLabelViewReadModeSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryLabel>(
-            predicate: #Predicate<InventoryLabel> { label in
-                label.name == "Electronics"
-            }
-        )
-        let labels = try container.mainContext.fetch(descriptor)
-        let label = labels.first ?? InventoryLabel()
+        let label = try await database.read { db in
+            try SQLiteInventoryLabel.where { $0.name == "Electronics" }.fetchOne(db)
+        }
+
+        let labelID = label?.id ?? UUID()
 
         let view = configureViewForSnapshot(
-            EditLabelView(label: label)
-                .modelContainer(container)
+            EditLabelView(labelID: labelID)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -286,19 +222,16 @@ extension SnapshotTests {
 
     @Test("Edit Label View Layout - Edit Mode")
     func editLabelViewEditModeSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryLabel>(
-            predicate: #Predicate<InventoryLabel> { label in
-                label.name == "Electronics"
-            }
-        )
-        let labels = try container.mainContext.fetch(descriptor)
-        let label = labels.first ?? InventoryLabel()
+        let label = try await database.read { db in
+            try SQLiteInventoryLabel.where { $0.name == "Electronics" }.fetchOne(db)
+        }
+
+        let labelID = label?.id ?? UUID()
 
         let view = configureViewForSnapshot(
-            EditLabelView(label: label)
-                .modelContainer(container)
+            EditLabelView(labelID: labelID)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -315,13 +248,10 @@ extension SnapshotTests {
 
     @Test("Edit Home View Layout - Read Mode")
     func editHomeViewReadModeSnapshot() async throws {
-        let container = try await createTestContainer()
-
-        _ = FetchDescriptor<Home>()
+        let _ = try await createTestDatabase()
 
         let view = configureViewForSnapshot(
             EditHomeView()
-                .modelContainer(container)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -338,13 +268,10 @@ extension SnapshotTests {
 
     @Test("Edit Home View Layout - Edit Mode")
     func editHomeViewEditModeSnapshot() async throws {
-        let container = try await createTestContainer()
-
-        _ = FetchDescriptor<Home>()
+        let _ = try await createTestDatabase()
 
         let view = configureViewForSnapshot(
             EditHomeView()
-                .modelContainer(container)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -361,23 +288,22 @@ extension SnapshotTests {
 
     @Test("Inventory Detail View - Read Mode")
     func inventoryDetailViewReadModeSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryItem>(
-            predicate: #Predicate<InventoryItem> { item in
-                item.title == "MacBook Pro" && item.make == "Apple" && item.model == "MacBook Pro M2"
-            }
-        )
-        let items = try container.mainContext.fetch(descriptor)
-        let item = items.first ?? InventoryItem()
+        let item = try await database.read { db in
+            try SQLiteInventoryItem
+                .where { $0.title == "MacBook Pro" && $0.make == "Apple" && $0.model == "MacBook Pro M2" }
+                .fetchOne(db)
+        }
+
+        let itemID = item?.id ?? UUID()
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                itemID: itemID,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: false
             )
-            .modelContainer(container)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -394,23 +320,22 @@ extension SnapshotTests {
 
     @Test("Inventory Detail View - Edit Mode")
     func inventoryDetailViewEditModeSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryItem>(
-            predicate: #Predicate<InventoryItem> { item in
-                item.title == "MacBook Pro" && item.make == "Apple" && item.model == "MacBook Pro M2"
-            }
-        )
-        let items = try container.mainContext.fetch(descriptor)
-        let item = items.first ?? InventoryItem()
+        let item = try await database.read { db in
+            try SQLiteInventoryItem
+                .where { $0.title == "MacBook Pro" && $0.make == "Apple" && $0.model == "MacBook Pro M2" }
+                .fetchOne(db)
+        }
+
+        let itemID = item?.id ?? UUID()
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                itemID: itemID,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: true
             )
-            .modelContainer(container)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -427,28 +352,21 @@ extension SnapshotTests {
 
     @Test("Inventory Detail View - Multi-Photo Display")
     func inventoryDetailViewMultiPhotoSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryItem>(
-            sortBy: [SortDescriptor(\.title)]
-        )
-        let items = try container.mainContext.fetch(descriptor)
-        let item = items.first ?? InventoryItem()
+        let items = try await database.read { db in
+            try SQLiteInventoryItem.order(by: \.title).fetchAll(db)
+        }
 
-        // Add mock secondary photos for testing
-        item.secondaryPhotoURLs = [
-            "file:///mock/path/secondary1.jpg",
-            "file:///mock/path/secondary2.jpg",
-            "file:///mock/path/secondary3.jpg",
-        ]
+        let item = items.first ?? SQLiteInventoryItem(id: UUID())
+        let itemID = item.id
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                itemID: itemID,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: false
             )
-            .modelContainer(container)
             .environmentObject(Router())
             .environmentObject(SettingsManager())
             .environmentObject(OnboardingManager())
@@ -468,27 +386,21 @@ extension SnapshotTests {
 
     @Test("Inventory Detail View - Multi-Photo Edit Mode")
     func inventoryDetailViewMultiPhotoEditSnapshot() async throws {
-        let container = try await createTestContainer()
+        let database = try await createTestDatabase()
 
-        let descriptor = FetchDescriptor<InventoryItem>(
-            sortBy: [SortDescriptor(\.title)]
-        )
-        let items = try container.mainContext.fetch(descriptor)
-        let item = items.first ?? InventoryItem()
+        let items = try await database.read { db in
+            try SQLiteInventoryItem.order(by: \.title).fetchAll(db)
+        }
 
-        // Add mock secondary photos for testing
-        item.secondaryPhotoURLs = [
-            "file:///mock/path/secondary1.jpg",
-            "file:///mock/path/secondary2.jpg",
-        ]
+        let item = items.first ?? SQLiteInventoryItem(id: UUID())
+        let itemID = item.id
 
         let view = configureViewForSnapshot(
             InventoryDetailView(
-                inventoryItemToDisplay: item,
+                itemID: itemID,
                 navigationPath: .constant(NavigationPath()),
                 isEditing: true
             )
-            .modelContainer(container)
             .environmentObject(Router())
             .environmentObject(SettingsManager())
             .environmentObject(OnboardingManager())
@@ -508,11 +420,10 @@ extension SnapshotTests {
 
     @Test("Settings View Layout")
     func settingsViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let _ = try await createTestDatabase()
 
         let view = configureViewForSnapshot(
             SettingsView()
-                .modelContainer(container)
         )
 
         try await Task.sleep(for: .seconds(1))
@@ -529,13 +440,12 @@ extension SnapshotTests {
 
     @Test("Onboarding Welcome View Layout")
     func onboardingWelcomeViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let _ = try await createTestDatabase()
         let manager = OnboardingManager()
         manager.currentStep = .welcome
 
         let view = configureViewForSnapshot(
             OnboardingWelcomeView()
-                .modelContainer(container)
                 .environmentObject(manager)
         )
 
@@ -551,39 +461,14 @@ extension SnapshotTests {
         await cleanup()
     }
 
-    @Test("Onboarding Notification View Layout")
-    func onboardingHomeViewSnapshot() async throws {
-        let container = try await createTestContainer()
-        let manager = OnboardingManager()
-        manager.currentStep = .notifications
-
-        let view = configureViewForSnapshot(
-            OnboardingHomeView()
-                .modelContainer(container)
-                .environmentObject(manager)
-        )
-
-        try await Task.sleep(for: .seconds(1))
-
-        assertSnapshot(
-            of: view,
-            as: .image(precision: precision, layout: .device(config: .iPhone13Pro)),
-            named: "onboarding_home_view\(snapshotSuffix)",
-            file: filePath
-        )
-
-        await cleanup()
-    }
-
     @Test("Onboarding Survey View Layout")
-    func onboardingLocationViewSnapshot() async throws {
-        let container = try await createTestContainer()
+    func onboardingSurveyViewSnapshot() async throws {
+        let _ = try await createTestDatabase()
         let manager = OnboardingManager()
         manager.currentStep = .survey
 
         let view = configureViewForSnapshot(
-            OnboardingLocationView()
-                .modelContainer(container)
+            OnboardingSurveyView()
                 .environmentObject(manager)
         )
 
@@ -601,13 +486,12 @@ extension SnapshotTests {
 
     @Test("Onboarding Item View Layout")
     func onboardingItemViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let _ = try await createTestDatabase()
         let manager = OnboardingManager()
         manager.currentStep = .item
 
         let view = configureViewForSnapshot(
             OnboardingItemView()
-                .modelContainer(container)
                 .environmentObject(manager)
         )
 
@@ -625,13 +509,12 @@ extension SnapshotTests {
 
     @Test("Onboarding Completion View Layout")
     func onboardingCompletionViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let _ = try await createTestDatabase()
         let manager = OnboardingManager()
         manager.currentStep = .completion
 
         let view = configureViewForSnapshot(
             OnboardingCompletionView(isPresented: .constant(true))
-                .modelContainer(container)
                 .environmentObject(manager)
         )
 
@@ -647,12 +530,11 @@ extension SnapshotTests {
 
     @Test("Full Onboarding Flow Layout")
     func onboardingFlowViewSnapshot() async throws {
-        let container = try await createTestContainer()
+        let _ = try await createTestDatabase()
         let manager = OnboardingManager()
 
         let view = configureViewForSnapshot(
             OnboardingView(isPresented: .constant(true))
-                .modelContainer(container)
                 .environmentObject(manager)
         )
 

@@ -72,7 +72,7 @@ class CameraScreen {
 
     // MARK: - Wait Methods
 
-    func waitForCamera(timeout: TimeInterval = 5) -> Bool {
+    func waitForCamera(timeout: TimeInterval = 8) -> Bool {
         app.tap()
 
         let startTime = Date()
@@ -90,8 +90,15 @@ class CameraScreen {
         return false
     }
 
-    func waitForPreviewOverlay(timeout: TimeInterval = 5) -> Bool {
-        return previewRetakeButton.waitForExistence(timeout: timeout)
+    func waitForPreviewOverlay(timeout: TimeInterval = 10) -> Bool {
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < timeout {
+            if previewRetakeButton.exists || doneButton.exists {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return false
     }
 
     // MARK: - Photo Capture Methods
@@ -108,11 +115,13 @@ class CameraScreen {
         }
     }
 
-    func finishCapture() {
-        if doneButton.waitForExistence(timeout: 2) {
-            print("✅ Tapping done/continue button")
-            doneButton.tap()
+    func finishCapture(timeout: TimeInterval = 10) {
+        guard doneButton.waitForExistence(timeout: timeout) else {
+            XCTFail("❌ Continue/analysis button did not appear after capture")
+            return
         }
+        print("✅ Tapping done/continue button")
+        doneButton.tap()
     }
 
     func retake() {

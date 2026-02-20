@@ -42,7 +42,7 @@ class HomeManagementScreen {
         self.cancelButton = app.buttons["Cancel"]
 
         // Home Detail Screen
-        self.editButton = app.buttons["Edit"]
+        self.editButton = app.buttons["editButton"]
         self.doneButton = app.buttons["Done"]
         self.deleteButton = app.buttons["Delete Home"]
         self.primaryHomeToggle = app.switches["Set as Primary"]

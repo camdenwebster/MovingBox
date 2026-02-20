@@ -6,7 +6,7 @@
 //
 
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import SwiftUI
 import Testing
 import UIKit
@@ -18,16 +18,8 @@ import UIKit
 
     // MARK: - Helpers
 
-    private func createTestContainer() throws -> ModelContainer {
-        let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-            Home.self,
-            InsurancePolicy.self,
-        ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [configuration])
+    private func createTestDatabase() throws -> DatabaseQueue {
+        try makeInMemoryDatabase()
     }
 
     private func createTestImage() -> UIImage {
@@ -78,10 +70,10 @@ import UIKit
             condition: "New",
             color: "Black",
             dimensions: "12 x 8 x 4 inches",
-            dimensionLength: nil,
-            dimensionWidth: nil,
-            dimensionHeight: nil,
-            dimensionUnit: nil,
+            dimensionLength: "12",
+            dimensionWidth: "8",
+            dimensionHeight: "4",
+            dimensionUnit: "inches",
             weightValue: "10",
             weightUnit: "lbs",
             purchaseLocation: "Test Store",
@@ -97,7 +89,21 @@ import UIKit
             if viewModel.enrichmentFinished {
                 return
             }
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    @MainActor
+    private final class CountingMockAIAnalysisService: MockAIAnalysisService {
+        var analyzeItemCallCount = 0
+
+        override func analyzeItem(
+            from images: [UIImage],
+            settings: AIAnalysisSettings,
+            context: AIAnalysisContext
+        ) async throws -> ImageDetails {
+            analyzeItemCallCount += 1
+            return try await super.analyzeItem(from: images, settings: settings, context: context)
         }
     }
 
@@ -105,8 +111,7 @@ import UIKit
 
     @Test("Enrichment populates details for each item")
     func testEnrichmentPopulatesDetails() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let analysisResponse = createMockAnalysisResponse(itemCount: 2)
         let mockService = MockAIAnalysisService()
         let settings = MockSettingsManager()
@@ -115,7 +120,7 @@ import UIKit
             analysisResponse: analysisResponse,
             images: [createTestImage()],
             location: nil,
-            modelContext: context,
+            database: database,
             aiAnalysisService: mockService
         )
 
@@ -133,8 +138,7 @@ import UIKit
 
     @Test("Enrichment failure is non-fatal")
     func testEnrichmentFailureIsNonFatal() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let analysisResponse = createMockAnalysisResponse(itemCount: 1)
         let mockService = MockAIAnalysisService()
         mockService.shouldFail = true
@@ -144,7 +148,7 @@ import UIKit
             analysisResponse: analysisResponse,
             images: [createTestImage()],
             location: nil,
-            modelContext: context,
+            database: database,
             aiAnalysisService: mockService
         )
 
@@ -162,15 +166,14 @@ import UIKit
 
     @Test("createInventoryItem uses enriched details when available")
     func testCreateInventoryItemUsesEnrichedDetails() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let analysisResponse = createMockAnalysisResponse(itemCount: 1)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: [createTestImage()],
             location: nil,
-            modelContext: context
+            database: database
         )
 
         guard let detectedItem = viewModel.detectedItems.first else {
@@ -194,15 +197,14 @@ import UIKit
 
     @Test("createInventoryItem falls back to pass 1 data when no enrichment")
     func testCreateInventoryItemFallbacksWithoutEnrichment() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let analysisResponse = createMockAnalysisResponse(itemCount: 1)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: [createTestImage()],
             location: nil,
-            modelContext: context
+            database: database
         )
 
         guard let detectedItem = viewModel.detectedItems.first else {
@@ -216,22 +218,21 @@ import UIKit
 
         #expect(createdItem.title == detectedItem.title)
         #expect(createdItem.serial.isEmpty)
-        #expect(!createdItem.hasUsedAI)
+        #expect(createdItem.hasUsedAI)
     }
 
     @Test("Enrichment is idempotent")
     func testEnrichmentIsIdempotent() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let analysisResponse = createMockAnalysisResponse(itemCount: 2)
-        let mockService = MockAIAnalysisService()
+        let mockService = CountingMockAIAnalysisService()
         let settings = MockSettingsManager()
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: [createTestImage()],
             location: nil,
-            modelContext: context,
+            database: database,
             aiAnalysisService: mockService
         )
 
@@ -244,7 +245,7 @@ import UIKit
 
         let firstCallCount = mockService.analyzeItemCallCount
         viewModel.startEnrichment(settings: settings)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        try await Task.sleep(for: .milliseconds(100))
 
         #expect(mockService.analyzeItemCallCount == firstCallCount)
         #expect(viewModel.enrichmentFinished)
@@ -252,8 +253,7 @@ import UIKit
 
     @Test("Cancellation stops in-progress enrichment")
     func testEnrichmentCancellation() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let analysisResponse = createMockAnalysisResponse(itemCount: 2)
         let mockService = MockAIAnalysisService()
         let settings = MockSettingsManager()
@@ -262,7 +262,7 @@ import UIKit
             analysisResponse: analysisResponse,
             images: [createTestImage()],
             location: nil,
-            modelContext: context,
+            database: database,
             aiAnalysisService: mockService
         )
 
@@ -271,9 +271,9 @@ import UIKit
         }
 
         viewModel.startEnrichment(settings: settings)
-        try await Task.sleep(nanoseconds: 50_000_000)
+        try await Task.sleep(for: .milliseconds(50))
         viewModel.cancelEnrichment()
-        try await Task.sleep(nanoseconds: 50_000_000)
+        try await Task.sleep(for: .milliseconds(50))
 
         #expect(!viewModel.isEnriching)
         #expect(!viewModel.enrichmentFinished)
@@ -282,17 +282,16 @@ import UIKit
 
     @Test("Analyze item call count matches item count")
     func testAnalyzeItemCallCountMatchesItemCount() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let database = try createTestDatabase()
         let analysisResponse = createMockAnalysisResponse(itemCount: 3)
-        let mockService = MockAIAnalysisService()
+        let mockService = CountingMockAIAnalysisService()
         let settings = MockSettingsManager()
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: [createTestImage()],
             location: nil,
-            modelContext: context,
+            database: database,
             aiAnalysisService: mockService
         )
 

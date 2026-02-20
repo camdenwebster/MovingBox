@@ -1,0 +1,65 @@
+{
+  "configurations" : [
+    {
+      "id" : "FB1A4F89-AF10-43AE-AC8E-E09660FE5DBF",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "defaultTestExecutionTimeAllowance" : 240,
+    "environmentVariableEntries" : [
+      {
+        "key" : "AIPROXY_DEVICE_CHECK_BYPASS",
+        "value" : "f3543606-afa8-4394-99a9-74bd9a2421a2"
+      }
+    ],
+    "maximumTestExecutionTimeAllowance" : 300,
+    "maximumTestRepetitions" : 3,
+    "repeatInNewRunnerProcess" : true,
+    "testRepetitionMode" : "retryOnFailure",
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "selectedTests" : [
+        "DataDeletionUITests\/testCompleteDeletionFlow()",
+        "ImportExportUITests\/testExportButtonDisabledWhenNoOptionsSelected()",
+        "ImportExportUITests\/testImportButtonDisabledWhenNoOptionsSelected()",
+        "ImportExportUITests\/testImportWarningAppears()",
+        "FamilySharingUITests\/testScopingControlsAppearWhenFlagEnabled()",
+        "InventoryItemUITests\/testAddItemFromPhotoViaListView()",
+        "InventoryItemUITests\/testAddItemViaDashboard()",
+        "InventoryListDeletionUITests\/testCancelDeletion()",
+        "InventoryListDeletionUITests\/testEnterAndExitSelectionMode()",
+        "InventoryListDeletionUITests\/testSelectAndDeleteSingleItem()",
+        "LabelManagementUITests\/testCreateNewLabel()",
+        "LabelManagementUITests\/testLabelsAreGlobalAcrossHomes()",
+        "LocationManagementUITests\/testCreateNewLocationWithSymbol()",
+        "MultiHomeNavigationUITests\/testCreateMultipleHomes_ShouldAllowNavigationBetweenAll()",
+        "MultiHomeNavigationUITests\/testDashboardRecentlyAdded_ShouldShowItemsWithLocationFromSameHome()",
+        "MultiHomeNavigationUITests\/testDashboardRecentlyAdded_ShouldShowOnlyItemsFromSelectedHome()",
+        "MultiHomeNavigationUITests\/testDashboardStatistics_ShouldReflectSelectedHomeOnly()",
+        "MultiHomeNavigationUITests\/testDeleteHome_ItemsShouldBecomeUnassigned()",
+        "MultiHomeNavigationUITests\/testMoveItemToAnotherHome_ShouldAppearInNewHomeInventory()",
+        "MultiHomeNavigationUITests\/testMoveItemToAnotherHome_ShouldUpdateLocationDisplay()",
+        "MultiHomeNavigationUITests\/testNavigateToInventoryList_ShouldFilterBySelectedHome()",
+        "MultiHomeNavigationUITests\/testOrphanedItemsMigration_ShouldAssignToPrimaryHome()",
+        "MultiHomeNavigationUITests\/testSwitchHomeAfterCreatingItem_ShouldShowCorrectItems()",
+        "MultiPhotoUITests\/testEditModePhotoManagement()",
+        "MultiPhotoUITests\/testMultiPhotoDisplayInDetailView()",
+        "PaywallUITests\/testProUserBypassesPaywallForListViewCamera()",
+        "PaywallUITests\/testProUserBypassesPaywallForTabViewCamera()"
+      ],
+      "target" : {
+        "containerPath" : "container:MovingBox.xcodeproj",
+        "identifier" : "19B7D96E2D9B112200690F64",
+        "name" : "MovingBoxUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

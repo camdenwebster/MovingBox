@@ -10,6 +10,7 @@ class MultiItemSelectionScreen {
     let continueButton: XCUIElement
     let locationButton: XCUIElement
     let selectionCounter: XCUIElement
+    let successCheckMark: XCUIElement
 
     init(app: XCUIApplication) {
         self.app = app
@@ -21,6 +22,7 @@ class MultiItemSelectionScreen {
         self.continueButton = app.buttons["multiItemContinueButton"]
         self.locationButton = app.buttons["multiItemLocationButton"]
         self.selectionCounter = app.staticTexts["multiItemSelectionCounter"]
+        self.successCheckMark = app.images["multiItemSummaryView"]
     }
 
     func isDisplayed(timeout: TimeInterval = 5) -> Bool {

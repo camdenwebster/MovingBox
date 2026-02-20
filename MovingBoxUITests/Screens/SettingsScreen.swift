@@ -21,6 +21,7 @@ class SettingsScreen {
     let manageHomesButton: XCUIElement
     let labelsButton: XCUIElement
     let insurancePoliciesButton: XCUIElement
+    let familySharingButton: XCUIElement
 
     init(app: XCUIApplication) {
         self.app = app
@@ -36,6 +37,7 @@ class SettingsScreen {
         self.manageHomesButton = app.buttons["Manage Homes"]
         self.labelsButton = app.buttons["settings-labels-button"]
         self.insurancePoliciesButton = app.buttons["settings-insurance-button"]
+        self.familySharingButton = app.buttons["familySharingLink"]
     }
 
     // MARK: - Actions
@@ -78,6 +80,10 @@ class SettingsScreen {
 
     func tapInsurancePolicies() {
         insurancePoliciesButton.tap()
+    }
+
+    func tapFamilySharing() {
+        familySharingButton.tap()
     }
 
     // MARK: - Verification

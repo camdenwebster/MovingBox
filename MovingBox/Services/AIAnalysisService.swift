@@ -13,7 +13,6 @@ import UIKit
 // MARK: - Mock Service for Testing
 
 #if DEBUG
-    @MainActor
     class MockAIAnalysisService: AIAnalysisServiceProtocol {
         var shouldFail = false
         var shouldFailMultiItem = false

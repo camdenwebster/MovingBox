@@ -5,28 +5,46 @@
 //  Created by Claude on 1/17/26.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct GlobalLabelSettingsView: View {
-    @Environment(\.modelContext) var modelContext
-    @Query(sort: \InventoryLabel.name) private var allLabels: [InventoryLabel]
+    @Dependency(\.defaultDatabase) var database
 
-    @State private var selectedLabel: InventoryLabel?
+    @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+    @FetchAll(SQLiteHousehold.order(by: \.createdAt), animation: .default)
+    private var households: [SQLiteHousehold]
+
+    @State private var selectedLabelID: UUID?
     @State private var showAddLabelSheet = false
+
+    private var activeHouseholdID: UUID? {
+        households.first?.id
+    }
+
+    private var visibleLabels: [SQLiteInventoryLabel] {
+        guard let activeHouseholdID else {
+            return allLabels.filter { $0.householdID == nil }
+        }
+        return allLabels.filter {
+            $0.householdID == activeHouseholdID || $0.householdID == nil
+        }
+    }
 
     var body: some View {
         List {
-            if allLabels.isEmpty {
+            if visibleLabels.isEmpty {
                 ContentUnavailableView(
                     "No Labels",
                     systemImage: "tag",
                     description: Text("Add labels to categorize your items.")
                 )
             } else {
-                ForEach(allLabels) { label in
+                ForEach(visibleLabels) { label in
                     Button {
-                        selectedLabel = label
+                        selectedLabelID = label.id
                     } label: {
                         LabelCapsuleView(label: label)
                     }
@@ -52,16 +70,21 @@ struct GlobalLabelSettingsView: View {
                 .accessibilityIdentifier("labels-add-button")
             }
         }
-        .sheet(item: $selectedLabel) { label in
+        .sheet(
+            item: Binding(
+                get: { selectedLabelID.map { IdentifiableUUID(id: $0) } },
+                set: { selectedLabelID = $0?.id }
+            )
+        ) { wrapper in
             NavigationStack {
-                EditLabelView(label: label, isEditing: true, presentedInSheet: true)
+                EditLabelView(labelID: wrapper.id, isEditing: true, presentedInSheet: true)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showAddLabelSheet) {
             NavigationStack {
-                EditLabelView(label: nil, isEditing: true, presentedInSheet: true)
+                EditLabelView(labelID: nil, isEditing: true, presentedInSheet: true)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -70,33 +93,31 @@ struct GlobalLabelSettingsView: View {
 
     func deleteLabel(at offsets: IndexSet) {
         for index in offsets {
-            let labelToDelete = allLabels[index]
-            modelContext.delete(labelToDelete)
-            print("Deleting label: \(labelToDelete.name)")
-            TelemetryManager.shared.trackLabelDeleted()
+            let labelToDelete = visibleLabels[index]
+            do {
+                try database.write { db in
+                    try SQLiteInventoryLabel.find(labelToDelete.id).delete().execute(db)
+                }
+                print("Deleting label: \(labelToDelete.name)")
+                TelemetryManager.shared.trackLabelDeleted()
+            } catch {
+                print("Failed to delete label: \(error)")
+            }
         }
-        try? modelContext.save()
     }
 }
 
+/// Simple wrapper to make a UUID work with sheet(item:)
+private struct IdentifiableUUID: Identifiable {
+    let id: UUID
+}
+
 #Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: InventoryLabel.self, configurations: config)
-
-        let label1 = InventoryLabel(name: "Electronics", desc: "Electronic devices", emoji: "📱")
-        let label2 = InventoryLabel(name: "Furniture", desc: "Home furniture", emoji: "🛋️")
-
-        container.mainContext.insert(label1)
-        container.mainContext.insert(label2)
-
-        return NavigationStack {
-            GlobalLabelSettingsView()
-                .modelContainer(container)
-                .environmentObject(Router())
-        }
-    } catch {
-        return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundStyle(.red)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    NavigationStack {
+        GlobalLabelSettingsView()
+            .environmentObject(Router())
     }
 }
