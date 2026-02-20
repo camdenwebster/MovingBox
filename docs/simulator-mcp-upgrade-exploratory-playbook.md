@@ -19,11 +19,15 @@ Out of scope:
 2. Bundle ID: `com.mothersound.movingbox`.
 3. Local git contains tag `2.1.0` and commit `c71e90ef77442755e4937686f0e0f3ec5a87ac7d`.
 4. Test asset files exist:
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/beach-house.imageset/beach-house.jpg`
    - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/lamp-bedside.imageset/lamp-bedside.jpg`
    - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/floor-lamp.imageset/floor-lamp.jpg`
    - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/router-wifi.imageset/router-wifi.jpg`
    - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/wireless-router.imageset/wireless-router.jpg`
    - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg`
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/living-room.imageset/living-room.jpg`
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/garage.imageset/garage.jpg`
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/home-office.imageset/home-office.jpg`
 5. Do not perform in-place `git checkout` in the current repo root (working tree may be dirty).
 6. iOS Simulator MCP is available and supports:
    - `open_simulator`
@@ -108,11 +112,15 @@ xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 \
 3. Import deterministic photo fixtures into simulator photo library:
 ```bash
 xcrun simctl addmedia 4DA6503A-88E2-4019-B404-EBBB222F3038 \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/beach-house.imageset/beach-house.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/lamp-bedside.imageset/lamp-bedside.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/floor-lamp.imageset/floor-lamp.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/router-wifi.imageset/router-wifi.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/wireless-router.imageset/wireless-router.jpg \
-  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/living-room.imageset/living-room.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/garage.imageset/garage.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/home-office.imageset/home-office.jpg
 ```
 4. Launch with version-correct exploratory args (no test data preload):
 ```bash
@@ -136,37 +144,77 @@ For each UI step:
 
 ### Deterministic Baseline Dataset
 Create the following data:
-1. Homes:
-   - `My Home` (default-like)
-   - `Upgrade-Probe Home` (customized)
-2. Locations (3 total):
+1. Home profile (`My Home`):
+   - Home photo: `beach-house.jpg` (primary).
+   - Address details:
+     - `address1`: `123 Coastal Drive`
+     - `address2`: `Unit 7B`
+     - `city`: `Santa Barbara`
+     - `state`: `CA`
+     - `zip`: `93101`
+     - `country`: `US`
+2. Insurance policy (assigned to `My Home`):
+   - `providerName`: `Migration Test Mutual`
+   - `policyNumber`: `MTM-2201-CA`
+   - `deductibleAmount`: `1500`
+   - `dwellingCoverageAmount`: `550000`
+   - `personalPropertyCoverageAmount`: `185000`
+   - `lossOfUseCoverageAmount`: `50000`
+   - `liabilityCoverageAmount`: `300000`
+   - `medicalPaymentsCoverageAmount`: `5000`
+3. Locations (3 total):
    - `Living Room` in `My Home`
    - `Garage` in `My Home`
-   - `Office` in `Upgrade-Probe Home`
-3. Items (6 total):
+   - `Office` in `My Home`
+4. Location photos:
+   - `Living Room`: `living-room.jpg` (primary)
+   - `Garage`: `garage.jpg` (primary)
+   - `Office`: `home-office.jpg` (primary)
+5. Labels (at least 3):
+   - `Essential` (emoji `✅`, color `green`)
+   - `High Value` (emoji `💎`, color `purple`)
+   - `Heavy` (emoji `🧰`, color `orange`)
+6. Items (6 total):
    - `Bedside Lamp (Photos: lamp-bedside.jpg primary, floor-lamp.jpg secondary)`
    - `Router/Modem Combo (Photos: router-wifi.jpg primary, wireless-router.jpg secondary)`
    - `Toolbox (Heavy) (Photo: toolbox.jpg primary)`
    - `Unicode Test - Cafe`
-   - `Long Text Item - Lorem ipsum ...` (very long notes/description)
-   - `Orphan Candidate` (save without location)
-4. Photos:
+   - `Long Text Item` (very long notes/description)
+   - `Orphan Candidate` (keep title but explicitly assign location)
+7. Item location assignment:
+   - `Bedside Lamp` -> `Living Room`
+   - `Router/Modem Combo` -> `Office`
+   - `Toolbox (Heavy)` -> `Garage`
+   - `Unicode Test - Cafe` -> `Office`
+   - `Long Text Item` -> `Living Room`
+   - `Orphan Candidate` -> `Garage`
+8. Item label assignment:
+   - `Bedside Lamp` -> `Essential`
+   - `Router/Modem Combo` -> `High Value`
+   - `Toolbox (Heavy)` -> `Heavy`
+   - `Unicode Test - Cafe` -> `Essential`
+   - `Long Text Item` -> `High Value`
+   - `Orphan Candidate` -> `Heavy`
+9. Photos:
    - Select imported simulator photos from Phase 1 step 3.
    - Ensure at least two items have primary + secondary photos (`Bedside Lamp`, `Router/Modem Combo`).
    - Ensure at least one additional item has a primary photo (`Toolbox (Heavy)`).
-5. Field stress:
+10. Field stress:
    - Special characters: `#`, `/`, parentheses, long strings.
 
 ### Required MCP Evidence During Data Creation
 Capture screenshots via `screenshot` after each checkpoint:
-1. Home list with 2 homes.
-2. Location list showing 3 locations.
-3. Item list showing 6 items.
-4. Detail view for each multi-photo item.
-5. Detail view for `Orphan Candidate`.
-6. Detail view for `Bedside Lamp` showing `lamp-bedside.jpg` + `floor-lamp.jpg`.
-7. Detail view for `Router/Modem Combo` showing `router-wifi.jpg` + `wireless-router.jpg`.
-8. Detail view for `Toolbox (Heavy)` showing `toolbox.jpg`.
+1. Home detail showing `beach-house.jpg` and populated address fields.
+2. Insurance policy detail assigned to `My Home`.
+3. Location list showing 3 locations.
+4. Location detail for each location showing its photo.
+5. Label list showing at least 3 labels with distinct emoji/color.
+6. Item list showing 6 items.
+7. Item detail for each image-backed item.
+8. Item detail showing location + label assignment for `Orphan Candidate`.
+9. Detail view for `Bedside Lamp` showing `lamp-bedside.jpg` + `floor-lamp.jpg`.
+10. Detail view for `Router/Modem Combo` showing `router-wifi.jpg` + `wireless-router.jpg`.
+11. Detail view for `Toolbox (Heavy)` showing `toolbox.jpg`.
 
 Save screenshots in:
 `/Users/camden.webster/dev/MovingBox/.build/exploratory-upgrade/<timestamp>/screenshots/phase2-*`
@@ -218,6 +266,54 @@ FROM ZINVENTORYITEM
 WHERE ZTITLE IN ('Bedside Lamp', 'Router/Modem Combo', 'Toolbox (Heavy)');
 SQL
 ```
+6. Record pre-upgrade home/address/photo evidence:
+```bash
+sqlite3 "${STORE_PATH}" <<'SQL' | tee "${RUN_ROOT}/db/pre-coredata-home-evidence.txt"
+.headers on
+.mode column
+SELECT
+  ZNAME,
+  ZADDRESS1,
+  ZADDRESS2,
+  ZCITY,
+  ZSTATE,
+  ZZIP,
+  ZCOUNTRY,
+  CASE WHEN ZIMAGEURL IS NULL THEN 0 ELSE 1 END AS hasPrimaryImageURL,
+  CASE WHEN ZSECONDARYPHOTOURLS IS NULL THEN 0 ELSE 1 END AS hasSecondaryPhotoBlob
+FROM ZHOME
+WHERE ZNAME = 'My Home';
+SQL
+```
+7. Record pre-upgrade policy + label + location-photo evidence:
+```bash
+sqlite3 "${STORE_PATH}" <<'SQL' | tee "${RUN_ROOT}/db/pre-coredata-policy-label-evidence.txt"
+.headers on
+.mode column
+SELECT ZPROVIDERNAME, ZPOLICYNUMBER, ZDEDUCTIBLEAMOUNT, ZDWELLINGCOVERAGEAMOUNT
+FROM ZINSURANCEPOLICY;
+
+SELECT ZNAME, ZEMOJI FROM ZINVENTORYLABEL;
+
+SELECT ZTITLE, ZLABEL, ZLOCATION
+FROM ZINVENTORYITEM
+WHERE ZTITLE IN (
+  'Bedside Lamp',
+  'Router/Modem Combo',
+  'Toolbox (Heavy)',
+  'Unicode Test - Cafe',
+  'Long Text Item',
+  'Orphan Candidate'
+);
+
+SELECT
+  ZNAME,
+  CASE WHEN ZIMAGEURL IS NULL THEN 0 ELSE 1 END AS hasPrimaryImageURL,
+  CASE WHEN ZSECONDARYPHOTOURLS IS NULL THEN 0 ELSE 1 END AS hasSecondaryPhotoBlob
+FROM ZINVENTORYLOCATION
+WHERE ZNAME IN ('Living Room', 'Garage', 'Office');
+SQL
+```
 
 ## Phase 4: Build + Install Target Commit In-Place (Upgrade Simulation)
 1. Build from `/tmp/movingbox-target`:
@@ -266,10 +362,12 @@ Confirm:
 ### C. sqlite-data Presence and Counts
 Find candidate sqlite DB:
 ```bash
-find "${DATA_CONTAINER}/Library/Application Support" -maxdepth 3 -type f -name '*.sqlite' \
+find "${DATA_CONTAINER}/Library/Application Support" -maxdepth 3 -type f \
+  \( -name '*.sqlite' -o -name '*.db' \) \
   | tee "${RUN_ROOT}/db/post-sqlite-candidates.txt"
 ```
-For each candidate, list tables and select the DB containing `homes` and `inventoryItems`.
+For each candidate, list tables and select the DB containing `homes` and `inventoryItems`
+(commonly `SQLiteData.db`).
 
 Run count + integrity checks:
 ```bash
@@ -321,7 +419,81 @@ Pass conditions:
 1. `Bedside Lamp` has `photoBlobCount >= 2`.
 2. `Router/Modem Combo` has `photoBlobCount >= 2`.
 3. `Toolbox (Heavy)` has `photoBlobCount >= 1`.
-4. UI still renders photos for those items (see section E).
+4. `homePhotos` includes at least one photo for `My Home`.
+5. `inventoryLocationPhotos` includes at least one photo for each of `Living Room`, `Garage`, `Office`.
+6. UI still renders photos for those entities (see section E).
+
+### C3. Home, Policy, Label, and Location Assignment Validation
+Run post-migration value checks:
+```bash
+sqlite3 "${SQLITE_DB}" <<'SQL' | tee "${RUN_ROOT}/db/post-home-policy-label-location-evidence.txt"
+.headers on
+.mode column
+SELECT name, address1, address2, city, state, zip, country
+FROM homes
+WHERE name = 'My Home';
+
+SELECT h.name AS homeName, COUNT(hp.id) AS homePhotoCount
+FROM homes h
+LEFT JOIN homePhotos hp ON hp.homeID = h.id
+WHERE h.name = 'My Home'
+GROUP BY h.id, h.name;
+
+SELECT p.providerName, p.policyNumber, p.deductibleAmount, p.dwellingCoverageAmount
+FROM insurancePolicies p;
+
+SELECT h.name AS homeName, p.providerName, p.policyNumber
+FROM homeInsurancePolicies hip
+JOIN homes h ON h.id = hip.homeID
+JOIN insurancePolicies p ON p.id = hip.insurancePolicyID
+WHERE h.name = 'My Home';
+
+SELECT name, emoji
+FROM inventoryLabels
+WHERE name IN ('Essential', 'High Value', 'Heavy')
+ORDER BY name;
+
+SELECT i.title, COUNT(il.id) AS labelCount
+FROM inventoryItems i
+LEFT JOIN inventoryItemLabels il ON il.inventoryItemID = i.id
+WHERE i.title IN (
+  'Bedside Lamp',
+  'Router/Modem Combo',
+  'Toolbox (Heavy)',
+  'Unicode Test - Cafe',
+  'Long Text Item',
+  'Orphan Candidate'
+)
+GROUP BY i.id, i.title
+ORDER BY i.title;
+
+SELECT l.name, COUNT(lp.id) AS locationPhotoCount
+FROM inventoryLocations l
+LEFT JOIN inventoryLocationPhotos lp ON lp.inventoryLocationID = l.id
+WHERE l.name IN ('Living Room', 'Garage', 'Office')
+GROUP BY l.id, l.name
+ORDER BY l.name;
+
+SELECT i.title, l.name AS locationName
+FROM inventoryItems i
+LEFT JOIN inventoryLocations l ON l.id = i.locationID
+WHERE i.title IN (
+  'Bedside Lamp',
+  'Router/Modem Combo',
+  'Toolbox (Heavy)',
+  'Unicode Test - Cafe',
+  'Long Text Item',
+  'Orphan Candidate'
+)
+ORDER BY i.title;
+SQL
+```
+Pass conditions:
+1. `My Home` retains populated address fields (non-empty `address1`, `city`, `state`, `zip`, `country`).
+2. At least one policy exists and is linked to `My Home`.
+3. Labels `Essential`, `High Value`, and `Heavy` exist with expected emojis.
+4. Each of the six test items has at least one label relationship row.
+5. Each of the six test items resolves a non-null location.
 
 ### D. SwiftData Archive Validation
 Confirm old store moved to backup:
@@ -332,13 +504,15 @@ find "${DATA_CONTAINER}/Library/Application Support/SwiftDataBackup" -maxdepth 2
 
 ### E. UI-Level Validation via MCP
 Use MCP to verify:
-1. All expected homes/locations/items visible.
-2. Multi-photo items still display photos.
-3. Orphan-prone item exists and is viewable/editable.
-4. No startup migration error alert appears.
+1. `My Home` shows home photo + populated address after migration.
+2. Insurance policy remains attached and readable.
+3. All expected locations/items/labels visible.
+4. Home/location/item photos all render.
+5. Item label chips and assigned locations are intact.
+6. No startup migration error alert appears.
 
 Capture screenshots:
-`phase5-homes.png`, `phase5-locations.png`, `phase5-items.png`, `phase5-item-detail-photos.png`.
+`phase5-homes.png`, `phase5-home-policy.png`, `phase5-locations.png`, `phase5-location-detail-photos.png`, `phase5-labels.png`, `phase5-items.png`, `phase5-item-detail-photos.png`.
 
 ## Phase 6: Exploratory Charters (MCP Execution)
 Each charter must include:
@@ -400,6 +574,22 @@ Checks:
 2. Item list appears with stable counts.
 3. Reanalyze/cancel controls work.
 
+## Additional Edge Cases (Recommended)
+Run these as additional passes when release risk is high:
+1. **Idempotent launch check**:
+   - Relaunch target app 3 consecutive times after successful migration.
+   - Verify no duplicate homes/items/photos are created.
+2. **Retry safety check**:
+   - Force one migration failure in a disposable run, then recover.
+   - Verify attempts counter increments and successful retry clears attempts.
+3. **Mixed photo state check**:
+   - Include one missing photo file path and one valid path in pre-upgrade data.
+   - Verify migration logs a bounded error count, still migrates valid photos, and does not fail entire migration.
+4. **Label cardinality check**:
+   - Validate one item with no label and one item with a label, both survive migration without FK issues.
+5. **Home-policy linkage check**:
+   - Verify policy rows are not orphaned and join table (`homeInsurancePolicies`) links remain valid.
+
 ## Evidence Capture Requirements
 Mandatory artifacts under `${RUN_ROOT}`:
 1. `logs/build-v210.log`
@@ -413,9 +603,12 @@ Mandatory artifacts under `${RUN_ROOT}`:
 9. `db/post-swiftdata-backup-files.txt`
 10. `db/pre-coredata-image-evidence.txt`
 11. `db/post-item-photo-evidence.txt`
-12. `screenshots/*.png`
-13. `reports/final-verdict.md`
-14. `reports/defects.md` (if any failures)
+12. `db/pre-coredata-home-evidence.txt`
+13. `db/pre-coredata-policy-label-evidence.txt`
+14. `db/post-home-policy-label-location-evidence.txt`
+15. `screenshots/*.png`
+16. `reports/final-verdict.md`
+17. `reports/defects.md` (if any failures)
 
 ## Pass/Fail Gates and Severity Policy
 Strict blocking policy:
@@ -505,11 +698,15 @@ xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox \
   -derivedDataPath ./.build/DerivedData 2>&1 | xcsift \
   | tee "${RUN_ROOT}/logs/build-v210.log"
 xcrun simctl addmedia 4DA6503A-88E2-4019-B404-EBBB222F3038 \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/beach-house.imageset/beach-house.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/lamp-bedside.imageset/lamp-bedside.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/floor-lamp.imageset/floor-lamp.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/router-wifi.imageset/router-wifi.jpg \
   /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/wireless-router.imageset/wireless-router.jpg \
-  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/living-room.imageset/living-room.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/garage.imageset/garage.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/home-office.imageset/home-office.jpg
 xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 \
   /tmp/movingbox-v210/.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox \
