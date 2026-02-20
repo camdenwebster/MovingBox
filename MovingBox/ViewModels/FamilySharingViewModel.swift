@@ -38,10 +38,19 @@ final class FamilySharingViewModel {
     }
 
     var ownerName: String {
-        guard let owner = existingShare?.participants.first(where: { $0.role == .owner }) else {
-            return "Unknown"
+        guard let share = existingShare else {
+            return "Owner"
         }
-        return owner.userIdentity.nameComponents?.formatted() ?? "Owner"
+        let ownerIdentity = share.participants.first(where: { $0.role == .owner })?.userIdentity
+        let currentUserIdentity = share.currentUserParticipant?.userIdentity
+
+        if let ownerIdentityName = identityDisplayName(ownerIdentity) {
+            return ownerIdentityName
+        }
+        if let currentUserIdentityName = identityDisplayName(currentUserIdentity), isOwner {
+            return currentUserIdentityName
+        }
+        return isOwner ? "You" : "Owner"
     }
 
     var participantCount: Int {
@@ -87,7 +96,14 @@ final class FamilySharingViewModel {
             homeName = resolvedHomeName(from: home)
 
             if let metadata = try await database.read({ db in
-                try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+                do {
+                    return try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+                } catch {
+                    if isMissingSyncMetadataTableError(error) {
+                        return nil
+                    }
+                    throw error
+                }
             }) {
                 existingShare = metadata.share
             } else {
@@ -145,7 +161,14 @@ final class FamilySharingViewModel {
 
             // Check for existing share metadata
             if let metadata = try await database.read({ db in
-                try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+                do {
+                    return try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+                } catch {
+                    if isMissingSyncMetadataTableError(error) {
+                        return nil
+                    }
+                    throw error
+                }
             }), metadata.share != nil {
                 // Create SharedRecord from existing share
                 let sharedRecord = try await syncEngine.share(record: home) { _ in }
@@ -216,5 +239,15 @@ final class FamilySharingViewModel {
         if !home.name.isEmpty { return home.name }
         if !home.address1.isEmpty { return home.address1 }
         return "Home"
+    }
+
+    private func identityDisplayName(_ identity: CKUserIdentity?) -> String? {
+        if let name = identity?.nameComponents?.formatted(), !name.isEmpty {
+            return name
+        }
+        if let email = identity?.lookupInfo?.emailAddress, !email.isEmpty {
+            return email
+        }
+        return nil
     }
 }

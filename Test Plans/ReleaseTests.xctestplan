@@ -25,11 +25,33 @@
   "testTargets" : [
     {
       "parallelizable" : true,
-      "skippedTests" : [
-        "FastlaneSnapshots",
-        "ImportExportUITests\/testImportExportFlow()",
-        "NavigationSystemUITests",
-        "PaywallUITests\/testFirstItemCreationShowsPaywall()"
+      "selectedTests" : [
+        "DataDeletionUITests\/testCompleteDeletionFlow()",
+        "ImportExportUITests\/testExportButtonDisabledWhenNoOptionsSelected()",
+        "ImportExportUITests\/testImportButtonDisabledWhenNoOptionsSelected()",
+        "ImportExportUITests\/testImportWarningAppears()",
+        "InventoryItemUITests\/testAddItemFromPhotoViaListView()",
+        "InventoryItemUITests\/testAddItemViaDashboard()",
+        "InventoryListDeletionUITests\/testCancelDeletion()",
+        "InventoryListDeletionUITests\/testEnterAndExitSelectionMode()",
+        "InventoryListDeletionUITests\/testSelectAndDeleteSingleItem()",
+        "LabelManagementUITests\/testCreateNewLabel()",
+        "LabelManagementUITests\/testLabelsAreGlobalAcrossHomes()",
+        "LocationManagementUITests\/testCreateNewLocationWithSymbol()",
+        "MultiHomeNavigationUITests\/testCreateMultipleHomes_ShouldAllowNavigationBetweenAll()",
+        "MultiHomeNavigationUITests\/testDashboardRecentlyAdded_ShouldShowItemsWithLocationFromSameHome()",
+        "MultiHomeNavigationUITests\/testDashboardRecentlyAdded_ShouldShowOnlyItemsFromSelectedHome()",
+        "MultiHomeNavigationUITests\/testDashboardStatistics_ShouldReflectSelectedHomeOnly()",
+        "MultiHomeNavigationUITests\/testDeleteHome_ItemsShouldBecomeUnassigned()",
+        "MultiHomeNavigationUITests\/testMoveItemToAnotherHome_ShouldAppearInNewHomeInventory()",
+        "MultiHomeNavigationUITests\/testMoveItemToAnotherHome_ShouldUpdateLocationDisplay()",
+        "MultiHomeNavigationUITests\/testNavigateToInventoryList_ShouldFilterBySelectedHome()",
+        "MultiHomeNavigationUITests\/testOrphanedItemsMigration_ShouldAssignToPrimaryHome()",
+        "MultiHomeNavigationUITests\/testSwitchHomeAfterCreatingItem_ShouldShowCorrectItems()",
+        "MultiPhotoUITests\/testEditModePhotoManagement()",
+        "MultiPhotoUITests\/testMultiPhotoDisplayInDetailView()",
+        "PaywallUITests\/testProUserBypassesPaywallForListViewCamera()",
+        "PaywallUITests\/testProUserBypassesPaywallForTabViewCamera()"
       ],
       "target" : {
         "containerPath" : "container:MovingBox.xcodeproj",

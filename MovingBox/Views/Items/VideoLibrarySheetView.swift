@@ -13,7 +13,7 @@ struct VideoLibrarySheetView: View {
     @Environment(\.dismiss) private var dismiss
 
     let location: SQLiteInventoryLocation?
-    let onAnalyzeVideo: (URL) -> Void
+    let onAnalyzeVideo: (URL) async throws -> Void
 
     @State private var savedVideos: [SavedAnalysisVideo] = []
     @State private var selectedVideoItem: PhotosPickerItem?
@@ -67,10 +67,13 @@ struct VideoLibrarySheetView: View {
                                 Spacer(minLength: 8)
 
                                 Button("Analyze") {
-                                    onAnalyzeVideo(video.url)
+                                    Task {
+                                        await analyzeSavedVideo(video)
+                                    }
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
+                                .disabled(processingVideo)
                                 .accessibilityIdentifier("videoLibrary-analyze-\(video.id.uuidString)")
 
                                 Button {
@@ -197,7 +200,21 @@ struct VideoLibrarySheetView: View {
         let savedURL = try await OptimizedImageManager.shared.saveVideo(url)
         _ = SavedAnalysisVideoStore.addVideo(savedURL, location: location)
         reloadVideos()
-        onAnalyzeVideo(savedURL)
+        try await onAnalyzeVideo(savedURL)
+    }
+
+    @MainActor
+    private func analyzeSavedVideo(_ video: SavedAnalysisVideo) async {
+        processingVideo = true
+        defer {
+            processingVideo = false
+        }
+
+        do {
+            try await onAnalyzeVideo(video.url)
+        } catch {
+            errorMessage = "Failed to prepare video: \(error.localizedDescription)"
+        }
     }
 
     private static let dateFormatter: DateFormatter = {

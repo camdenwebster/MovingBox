@@ -872,7 +872,16 @@ struct ExistingUserShareAcceptanceView: View {
             let homes = try SQLiteHome.fetchAll(db)
             guard
                 let matchedHome = try homes.first(where: { home in
-                    guard let metadata = try SyncMetadata.find(home.syncMetadataID).fetchOne(db) else {
+                    let metadata: SyncMetadata?
+                    do {
+                        metadata = try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+                    } catch {
+                        if isMissingSyncMetadataTableError(error) {
+                            return false
+                        }
+                        throw error
+                    }
+                    guard let metadata else {
                         return false
                     }
                     return metadata.recordName == rootRecordID.recordName

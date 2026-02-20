@@ -2,10 +2,23 @@
 
 UI tests using XCTest with Page Object Model pattern.
 
-## Test Command
+## Test Commands
 ```bash
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=31D4A8DF-E68A-4884-BAAA-DFDF61090577' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
+# Smoke plan (fast PR/agent gate)
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan SmokeTests 2>&1 | xcsift
+
+# UI interaction plan
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan MovingBoxUITests 2>&1 | xcsift
+
+# Release E2E CRUD plan
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan ReleaseTests 2>&1 | xcsift
 ```
+
+## Plan Intent
+- `SmokeTests`: Fast deterministic checks for PRs and agent validation.
+- `MovingBoxUITests`: UI interaction/state coverage.
+- `ReleaseTests`: Deterministic E2E app-functionality/CRUD coverage.
+- Membership is managed via `selectedTests` allowlists.
 
 ## Launch Arguments
 

@@ -785,11 +785,6 @@ struct CameraBottomControls: View {
             }
 
             HStack(spacing: 12) {
-                Text(photoCounterText)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(minWidth: 60, alignment: .leading)
-                    .accessibilityIdentifier("cameraPhotoCount")
 
                 Spacer()
 

@@ -133,6 +133,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -187,6 +188,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -228,6 +230,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -258,6 +261,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -288,6 +292,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -370,6 +375,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "UI-Testing-Mock-Camera",
             "Mock-AI",
             "Is-Pro",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -518,6 +524,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -561,6 +568,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -731,6 +739,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -759,6 +768,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -809,6 +819,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -865,6 +876,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -947,6 +959,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -1044,6 +1057,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
             "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")

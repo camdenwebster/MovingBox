@@ -5,6 +5,7 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import AVFoundation
 import Dependencies
 import RevenueCatUI
 import SQLiteData
@@ -20,6 +21,18 @@ enum Options: Hashable {
 private struct VideoAnalysisSelection: Identifiable {
     let id = UUID()
     let url: URL
+    let preloadedAsset: AVAsset
+}
+
+private enum VideoAnalysisLaunchError: LocalizedError {
+    case noVideoTrack
+
+    var errorDescription: String? {
+        switch self {
+        case .noVideoTrack:
+            return "No video track found. Please select a valid video."
+        }
+    }
 }
 
 struct InventoryListView: View {
@@ -186,7 +199,7 @@ struct InventoryListView: View {
                 VideoLibrarySheetView(
                     location: selectedLocation,
                     onAnalyzeVideo: { url in
-                        startVideoAnalysis(for: url)
+                        try await startVideoAnalysis(for: url)
                     }
                 )
                 .presentationDetents([.large])
@@ -205,7 +218,8 @@ struct InventoryListView: View {
                 EnhancedItemCreationFlowView(
                     captureMode: .video,
                     locationID: locationID,
-                    initialVideoURL: selection.url
+                    initialVideoURL: selection.url,
+                    initialVideoAsset: selection.preloadedAsset
                 ) {
                     pendingVideoAnalysis = nil
                 }
@@ -577,11 +591,16 @@ struct InventoryListView: View {
         showingVideoLibrary = true
     }
 
-    private func startVideoAnalysis(for url: URL) {
-        showingVideoLibrary = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            pendingVideoAnalysis = VideoAnalysisSelection(url: url)
+    private func startVideoAnalysis(for url: URL) async throws {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        guard !tracks.isEmpty else {
+            throw VideoAnalysisLaunchError.noVideoTrack
         }
+
+        showingVideoLibrary = false
+        try await Task.sleep(for: .milliseconds(150))
+        pendingVideoAnalysis = VideoAnalysisSelection(url: url, preloadedAsset: asset)
     }
 
     private func trackVideoLibraryTipVisitIfNeeded() {

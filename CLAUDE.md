@@ -29,9 +29,21 @@ xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox -destination 'id
 # Unit tests
 xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxTests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData 2>&1 | xcsift
 
-# UI tests (Smoke tests) — grep filter preserves failure details that xcsift drops
-xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan SmokeTests -resultBundlePath ./.build/SmokeTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | grep -E 'Test Case|: error:|Executed [0-9]+ test|\*\* TEST'
+# UI tests (Smoke plan: fast PR/agent gate)
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan SmokeTests -resultBundlePath ./.build/SmokeTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | xcsift
+
+# UI tests (UI interaction plan)
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan MovingBoxUITests -resultBundlePath ./.build/MovingBoxUITests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | xcsift
+
+# UI tests (Release E2E CRUD plan)
+xcodebuild test -project MovingBox.xcodeproj -scheme MovingBoxUITests -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' -derivedDataPath ./.build/DerivedData -testPlan ReleaseTests -resultBundlePath ./.build/ReleaseTests-$(date +%Y%m%d-%H%M%S).xcresult 2>&1 | xcsift
 ```
+
+## UI Test Plans
+- `SmokeTests`: Fast deterministic plan for AI agent validation and PR checks.
+- `MovingBoxUITests`: UI state/interaction-focused plan (navigation, visual state, control behavior).
+- `ReleaseTests`: Deterministic E2E CRUD plan for release confidence.
+- All three plans are configured with `selectedTests` allowlists (not `skippedTests` blacklists).
 
 ## Install & Launch
 ```bash
@@ -45,7 +57,7 @@ xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 ./.build/DerivedData/B
 xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox
 
 # Launch with arguments (for exploratory testing - UI tests already use the necessary arguments)
-xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox --args -Mock-AI -Use-Test-Data
+xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox --args Mock-AI Use-Test-Data
 ```
 
 ## Test Launch Arguments

@@ -136,11 +136,11 @@ final class ImportExportUITests: XCTestCase {
 
     func testExportButtonDisabledWhenNoOptionsSelected() throws {
         navigateToExportScreen()
-        exportScreen.disableAllOptions()
+        exportScreen.disableAllCSVOptions()
         sleep(1)
         XCTAssertTrue(
-            exportScreen.isExportButtonDisabled(),
-            "Export button should be disabled when no options selected")
+            exportScreen.isExportButtonEnabled(),
+            "Export button should remain enabled for CSV exports even when all optional toggles are off")
     }
 
     func testImportButtonDisabledWhenNoOptionsSelected() throws {

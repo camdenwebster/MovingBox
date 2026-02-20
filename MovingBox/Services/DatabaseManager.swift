@@ -5,6 +5,33 @@ import SQLiteData
 
 private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "Database")
 
+let movingBoxCloudKitContainerIdentifier = "iCloud.com.mothersound.movingbox"
+private let isRunningXCTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
+/// Attempts to attach sqlite-data's CloudKit metadatabase to a database connection.
+/// This is best-effort so local-only/test flows keep working when CloudKit is unavailable.
+func attachMetadatabaseIfPossible(to db: Database) {
+    // XCTest runs many DB-backed tests in parallel; sharing sqlite-data's
+    // CloudKit metadata database across those connections causes lock errors.
+    guard !isRunningXCTest else { return }
+
+    do {
+        try db.attachMetadatabase(containerIdentifier: movingBoxCloudKitContainerIdentifier)
+    } catch {
+        // Best effort only. Callers should treat missing sync metadata as "not shared".
+    }
+}
+
+/// Returns true when an error indicates the sqlite-data CloudKit metadata table is unavailable.
+func isMissingSyncMetadataTableError(_ error: Error) -> Bool {
+    guard let error = error as? DatabaseError else { return false }
+    guard error.resultCode == .SQLITE_ERROR else { return false }
+    guard let message = error.message?.lowercased() else { return false }
+    return message.contains("no such table")
+        && (message.contains("sqlitedata_icloud_metadata")
+            || message.contains("sqlitedata_icloud.sqlitedata_icloud_metadata"))
+}
+
 /// Registers all sqlite-data schema migrations on the given migrator.
 /// Shared between the production database and in-memory test databases
 /// so the schema is always defined in exactly one place.
@@ -325,7 +352,7 @@ func appDatabase() throws -> any DatabaseWriter {
     configuration.foreignKeysEnabled = true
 
     configuration.prepareDatabase { db in
-        try db.attachMetadatabase()
+        attachMetadatabaseIfPossible(to: db)
         #if DEBUG
             db.trace(options: .profile) {
                 guard

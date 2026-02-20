@@ -118,7 +118,14 @@ private struct HomeSharingSummaryRow: View {
 
         do {
             let metadata = try await database.read { db in
-                try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+                do {
+                    return try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
+                } catch {
+                    if isMissingSyncMetadataTableError(error) {
+                        return nil
+                    }
+                    throw error
+                }
             }
             if let share = metadata?.share {
                 isShared = true

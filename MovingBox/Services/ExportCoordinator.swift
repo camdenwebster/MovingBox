@@ -71,6 +71,8 @@ final class ExportCoordinator {
                         exportProgress = 0.8 + (progressValue * 0.2)
 
                     case .completed(let result):
+                        showExportProgress = false
+                        exportProgress = 1.0
                         archiveURL = result.archiveURL
                         showShareSheet = true
 
@@ -82,6 +84,41 @@ final class ExportCoordinator {
                 }
             } catch {
                 print("❌ Export error: \(error.localizedDescription)")
+                exportError = DataManager.SendableError(error)
+                showExportProgress = false
+                showExportError = true
+            }
+
+            isExporting = false
+        }
+    }
+
+    func exportDatabaseArchive(
+        database: any DatabaseWriter,
+        fileName: String
+    ) async {
+        exportTask = Task {
+            do {
+                exportError = nil
+                exportProgress = 0
+                exportPhase = ""
+                showExportProgress = true
+                isExporting = true
+
+                exportPhase = "Preparing database export..."
+                exportProgress = 0.25
+
+                let archive = try await DataManager.shared.exportDatabaseArchive(
+                    database: database,
+                    fileName: fileName
+                )
+
+                showExportProgress = false
+                exportProgress = 1.0
+                archiveURL = archive
+                showShareSheet = true
+            } catch {
+                print("❌ Database export error: \(error.localizedDescription)")
                 exportError = DataManager.SendableError(error)
                 showExportProgress = false
                 showExportError = true

@@ -335,17 +335,17 @@ class ItemCreationFlowViewModel: ObservableObject {
     }
 
     /// Start video analysis flow for an already-saved local video URL.
-    func handleSavedVideo(_ url: URL) {
+    func handleSavedVideo(_ url: URL, preparedAsset: AVAsset? = nil) {
         resetAnalysisState()
         updateCaptureMode(.video)
-        startVideoProcessingFlow(with: url)
+        startVideoProcessingFlow(with: url, preparedAsset: preparedAsset)
     }
 
-    private func startVideoProcessingFlow(with savedURL: URL) {
+    private func startVideoProcessingFlow(with savedURL: URL, preparedAsset: AVAsset? = nil) {
         videoURL = savedURL
-        videoAsset = AVAsset(url: savedURL)
+        videoAsset = preparedAsset ?? AVAsset(url: savedURL)
         capturedImages = []
-        goToStep(.videoProcessing)
+        goToStep(.multiItemSelection)
     }
 
     /// Create a single inventory item (for single item mode)

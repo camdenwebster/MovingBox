@@ -73,7 +73,7 @@ struct VideoItemSelectionListView: View {
                 Color(.systemBackground)
                     .ignoresSafeArea()
 
-                if viewModel.hasNoItems {
+                if viewModel.hasNoItems && !isStreamingResults {
                     noItemsView
                 } else {
                     mainContentView

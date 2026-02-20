@@ -63,7 +63,7 @@ class InventoryListScreen {
         self.actionsButton = app.buttons["Actions"]
         self.deleteSelectedButton = app.buttons["deleteSelected"]
         self.deleteConfirmationAlert = app.alerts["Delete Items"]
-        self.deleteButton = self.deleteConfirmationAlert.buttons["alertDelete"]
+        self.deleteButton = self.deleteConfirmationAlert.buttons.matching(identifier: "alertDelete").firstMatch
         self.alertCancelButton = self.deleteConfirmationAlert.buttons["Cancel"]
     }
 
@@ -132,6 +132,10 @@ class InventoryListScreen {
     }
 
     func confirmDeletion() {
+        XCTAssertTrue(
+            deleteButton.waitForExistence(timeout: 5),
+            "Delete confirmation button should be visible"
+        )
         deleteButton.tap()
     }
 
@@ -145,6 +149,19 @@ class InventoryListScreen {
 
     func getItemCount() -> Int {
         return app.cells.count
+    }
+
+    func waitForItemCount(_ expectedCount: Int, timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if getItemCount() == expectedCount {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+
+        return getItemCount() == expectedCount
     }
 
     func waitForItemsToLoad() -> Bool {

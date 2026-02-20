@@ -6,6 +6,9 @@ import SQLiteData
 func makeInMemoryDatabase() throws -> DatabaseQueue {
     var configuration = Configuration()
     configuration.foreignKeysEnabled = true
+    configuration.prepareDatabase { db in
+        attachMetadatabaseIfPossible(to: db)
+    }
     let db = try DatabaseQueue(configuration: configuration)
 
     var migrator = DatabaseMigrator()

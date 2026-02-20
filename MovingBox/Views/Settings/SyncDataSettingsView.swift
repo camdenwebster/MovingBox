@@ -259,7 +259,7 @@ struct SyncDataSettingsView: View {
 
                 NavigationLink(value: Router.Destination.exportDataView) {
                     Label {
-                        Text("Export Data")
+                        Text("Export Data (CSV / Database)")
                             .foregroundStyle(.primary)
                     } icon: {
                         Image(systemName: "square.and.arrow.up")

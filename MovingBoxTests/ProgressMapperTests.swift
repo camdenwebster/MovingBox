@@ -106,6 +106,8 @@ struct ProgressMapperTests {
             itemCount: 1,
             locationCount: 0,
             labelCount: 0,
+            homeCount: 0,
+            insurancePolicyCount: 0,
             photoCount: 0
         )
 

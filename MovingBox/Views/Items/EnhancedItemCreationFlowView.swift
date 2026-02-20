@@ -29,6 +29,7 @@ struct EnhancedItemCreationFlowView: View {
     let captureMode: CaptureMode
     let locationID: UUID?
     let initialVideoURL: URL?
+    let initialVideoAsset: AVAsset?
     let onComplete: (() -> Void)?
 
     // MARK: - Initialization
@@ -37,11 +38,13 @@ struct EnhancedItemCreationFlowView: View {
         captureMode: CaptureMode,
         location: SQLiteInventoryLocation?,
         initialVideoURL: URL? = nil,
+        initialVideoAsset: AVAsset? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
         self.locationID = location?.id
         self.initialVideoURL = initialVideoURL
+        self.initialVideoAsset = initialVideoAsset
         self.onComplete = onComplete
 
         self._viewModel = StateObject(
@@ -55,11 +58,13 @@ struct EnhancedItemCreationFlowView: View {
         captureMode: CaptureMode,
         locationID: UUID?,
         initialVideoURL: URL? = nil,
+        initialVideoAsset: AVAsset? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.captureMode = captureMode
         self.locationID = locationID
         self.initialVideoURL = initialVideoURL
+        self.initialVideoAsset = initialVideoAsset
         self.onComplete = onComplete
 
         self._viewModel = StateObject(
@@ -76,7 +81,7 @@ struct EnhancedItemCreationFlowView: View {
                 mainContentView
 
                 // Progress indicator at bottom (except on camera view)
-                if viewModel.currentStep != .camera {
+                if viewModel.currentStep != .camera, viewModel.captureMode != .video {
                     bottomProgressIndicator
                 }
             }
@@ -115,7 +120,7 @@ struct EnhancedItemCreationFlowView: View {
 
             if !hasBootstrappedInitialVideo, let initialVideoURL {
                 hasBootstrappedInitialVideo = true
-                viewModel.handleSavedVideo(initialVideoURL)
+                viewModel.handleSavedVideo(initialVideoURL, preparedAsset: initialVideoAsset)
             }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -291,47 +296,55 @@ struct EnhancedItemCreationFlowView: View {
 
     @ViewBuilder
     private var multiItemSelectionView: some View {
-        if let analysisResponse = viewModel.multiItemAnalysisResponse {
-            Group {
-                if viewModel.captureMode == .video {
-                    VideoItemSelectionListView(
-                        analysisResponse: analysisResponse,
-                        images: viewModel.capturedImages,
-                        location: resolvedLocation,
-                        database: database,
-                        aiAnalysisService: viewModel.selectionAIAnalysisService,
-                        isStreamingResults: viewModel.isVideoAnalysisStreaming,
-                        streamingStatusText: viewModel.videoStreamingStatusText,
-                        onItemsSelected: { items in
-                            viewModel.handleMultiItemSelection(items)
-                        },
-                        onCancel: {
-                            dismiss()
-                        },
-                        onReanalyze: {
-                            viewModel.resetAnalysisState()
-                            viewModel.goToStep(.videoProcessing)
-                        }
-                    )
-                } else {
-                    MultiItemSelectionView(
-                        analysisResponse: analysisResponse,
-                        images: viewModel.capturedImages,
-                        locationID: locationID,
-                        onItemsSelected: { items in
-                            viewModel.handleMultiItemSelection(items)
-                        },
-                        onCancel: {
-                            dismiss()
-                        },
-                        onReanalyze: {
-                            // Go back to analyzing step to re-analyze the images
-                            viewModel.resetAnalysisState()
-                            viewModel.goToStep(.analyzing)
-                        }
-                    )
+        if viewModel.captureMode == .video {
+            VideoItemSelectionListView(
+                analysisResponse: viewModel.multiItemAnalysisResponse ?? streamingPlaceholderResponse,
+                images: viewModel.capturedImages,
+                location: resolvedLocation,
+                database: database,
+                aiAnalysisService: viewModel.selectionAIAnalysisService,
+                isStreamingResults: viewModel.isVideoAnalysisStreaming,
+                streamingStatusText: viewModel.videoStreamingStatusText,
+                onItemsSelected: { items in
+                    viewModel.handleMultiItemSelection(items)
+                },
+                onCancel: {
+                    dismiss()
+                },
+                onReanalyze: {
+                    viewModel.resetAnalysisState()
+                    viewModel.goToStep(.multiItemSelection)
+                }
+            )
+            .task {
+                if !viewModel.processingImage, viewModel.multiItemAnalysisResponse == nil {
+                    await viewModel.performVideoProcessing()
                 }
             }
+            .transition(
+                .asymmetric(
+                    insertion: .move(edge: .trailing),
+                    removal: .move(edge: .leading)
+                )
+            )
+            .id("multiItemSelection-\(viewModel.transitionId)")
+        } else if let analysisResponse = viewModel.multiItemAnalysisResponse {
+            MultiItemSelectionView(
+                analysisResponse: analysisResponse,
+                images: viewModel.capturedImages,
+                locationID: locationID,
+                onItemsSelected: { items in
+                    viewModel.handleMultiItemSelection(items)
+                },
+                onCancel: {
+                    dismiss()
+                },
+                onReanalyze: {
+                    // Go back to analyzing step to re-analyze the images
+                    viewModel.resetAnalysisState()
+                    viewModel.goToStep(.analyzing)
+                }
+            )
             .transition(
                 .asymmetric(
                     insertion: .move(edge: .trailing),
@@ -360,6 +373,15 @@ struct EnhancedItemCreationFlowView: View {
             }
             .padding()
         }
+    }
+
+    private var streamingPlaceholderResponse: MultiItemAnalysisResponse {
+        MultiItemAnalysisResponse(
+            items: [],
+            detectedCount: 0,
+            analysisType: "video_streaming_placeholder",
+            confidence: 0.0
+        )
     }
 
     @ViewBuilder

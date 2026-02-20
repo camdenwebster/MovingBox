@@ -429,9 +429,9 @@ struct HomeDetailSettingsView: View {
                     }
                 }
 
-                if sharingViewModel.isSharing && !sharingViewModel.isOwner {
+                if sharingViewModel.isSharing {
                     HStack {
-                        Label("Shared by", systemImage: "person.fill")
+                        Label("Owner", systemImage: "person.fill")
                         Spacer()
                         Text(sharingViewModel.ownerName)
                             .foregroundStyle(.secondary)
@@ -671,7 +671,7 @@ struct HomeDetailSettingsView: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(participant.userIdentity.nameComponents?.formatted() ?? "Unknown")
+                Text(participantDisplayName(participant))
                     .font(.body)
                 Text(participant.role == .owner ? "Owner" : "Member")
                     .font(.caption)
@@ -680,6 +680,16 @@ struct HomeDetailSettingsView: View {
 
             Spacer()
         }
+    }
+
+    private func participantDisplayName(_ participant: CKShare.Participant) -> String {
+        if let name = participant.userIdentity.nameComponents?.formatted(), !name.isEmpty {
+            return name
+        }
+        if let email = participant.userIdentity.lookupInfo?.emailAddress, !email.isEmpty {
+            return email
+        }
+        return participant.role == .owner ? "Owner" : "Unknown"
     }
 }
 
