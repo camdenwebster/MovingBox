@@ -55,6 +55,14 @@ Generate frames for existing screenshots
 
 Run UI Tests on multiple devices
 
+### ios banner
+
+```sh
+[bundle exec] fastlane ios banner
+```
+
+Generate marketing banner
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.

@@ -91,4 +91,10 @@ platform :ios do
       derived_data_path: "DerivedData"
     )
   end
+
+  desc "Generate marketing banner"
+  lane :banner do
+    script_dir = File.expand_path(File.join(File.dirname(__FILE__), "..", "..", "..", "MothersoundLLC", "02-marketing", "assets"))
+    sh("bash #{script_dir}/generate_banner.sh")
+  end
 end
