@@ -1,4 +1,6 @@
+import Darwin
 import Foundation
+import SQLiteData
 import Testing
 
 @testable import MovingBox
@@ -8,6 +10,7 @@ struct SQLiteMigrationCoordinatorTests {
 
     private static let testMigrationKey =
         "com.mothersound.movingbox.sqlitedata.migration.complete"
+    private static let testStoreOverrideEnv = "MOVINGBOX_SWIFTDATA_STORE_PATH_OVERRIDE"
 
     // MARK: - Fresh Install
 
@@ -314,5 +317,204 @@ struct SQLiteMigrationCoordinatorTests {
                 arguments: [itemID.uuidString.lowercased()])
         }
         #expect(itemHomeID == home2ID.uuidString.lowercased())
+    }
+
+    // MARK: - Legacy Zero-Home Upgrade Regression
+
+    @Test("Legacy store with items/locations and zero homes migrates successfully")
+    func legacyStoreWithoutHomesStillMigrates() throws {
+        let db = try makeInMemoryDatabase()
+        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "SQLiteMigrationCoordinatorTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let storePath = tempRoot.appendingPathComponent("default.store").path
+        try createLegacyStoreWithoutHomes(at: storePath)
+
+        UserDefaults.standard.removeObject(forKey: Self.testMigrationKey)
+        UserDefaults.standard.removeObject(forKey: Self.testAttemptsKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: Self.testMigrationKey)
+            UserDefaults.standard.removeObject(forKey: Self.testAttemptsKey)
+            unsetenv(Self.testStoreOverrideEnv)
+        }
+
+        setenv(Self.testStoreOverrideEnv, storePath, 1)
+
+        let result = SQLiteMigrationCoordinator.migrateIfNeeded(database: db)
+        let stats: SQLiteMigrationCoordinator.MigrationStats
+        switch result {
+        case .success(let successStats):
+            stats = successStats
+        default:
+            Issue.record("Expected successful migration, got \(result)")
+            return
+        }
+
+        #expect(stats.homes == 1)
+        #expect(stats.locations == 3)
+        #expect(stats.items == 6)
+        #expect(UserDefaults.standard.bool(forKey: Self.testMigrationKey))
+        #expect(UserDefaults.standard.object(forKey: Self.testAttemptsKey) == nil)
+
+        let migrated = try db.read { db in
+            let homeCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM homes") ?? 0
+            let locationCount =
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM inventoryLocations")
+                ?? 0
+            let itemCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM inventoryItems") ?? 0
+            let locationsWithoutHome =
+                try Int.fetchOne(
+                    db, sql: "SELECT COUNT(*) FROM inventoryLocations WHERE homeID IS NULL") ?? 0
+            let itemsWithoutHome =
+                try Int.fetchOne(
+                    db, sql: "SELECT COUNT(*) FROM inventoryItems WHERE homeID IS NULL") ?? 0
+            return (
+                homeCount: homeCount,
+                locationCount: locationCount,
+                itemCount: itemCount,
+                locationsWithoutHome: locationsWithoutHome,
+                itemsWithoutHome: itemsWithoutHome
+            )
+        }
+
+        #expect(migrated.homeCount == 1)
+        #expect(migrated.locationCount == 3)
+        #expect(migrated.itemCount == 6)
+        #expect(migrated.locationsWithoutHome == 0)
+        #expect(migrated.itemsWithoutHome == 0)
+    }
+
+    @Test("Successful migration archives legacy SwiftData store")
+    func successfulMigrationArchivesStore() throws {
+        let db = try makeInMemoryDatabase()
+        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "SQLiteMigrationCoordinatorArchiveTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let storePath = tempRoot.appendingPathComponent("default.store").path
+        try createLegacyStoreWithoutHomes(at: storePath)
+
+        UserDefaults.standard.removeObject(forKey: Self.testMigrationKey)
+        UserDefaults.standard.removeObject(forKey: Self.testAttemptsKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: Self.testMigrationKey)
+            UserDefaults.standard.removeObject(forKey: Self.testAttemptsKey)
+            unsetenv(Self.testStoreOverrideEnv)
+        }
+
+        setenv(Self.testStoreOverrideEnv, storePath, 1)
+
+        let result = SQLiteMigrationCoordinator.migrateIfNeeded(database: db)
+        switch result {
+        case .success:
+            break
+        default:
+            Issue.record("Expected successful migration, got \(result)")
+            return
+        }
+
+        let backupStorePath =
+            tempRoot
+            .appendingPathComponent("SwiftDataBackup")
+            .appendingPathComponent("default.store")
+            .path
+        #expect(!FileManager.default.fileExists(atPath: storePath))
+        #expect(FileManager.default.fileExists(atPath: backupStorePath))
+    }
+
+    // MARK: - Helpers
+
+    private func createLegacyStoreWithoutHomes(at storePath: String) throws {
+        let legacyDB = try DatabaseQueue(path: storePath)
+        try legacyDB.write { db in
+            try db.execute(
+                sql: """
+                    CREATE TABLE ZHOME (
+                        Z_PK INTEGER PRIMARY KEY,
+                        ZNAME TEXT,
+                        ZADDRESS1 TEXT,
+                        ZADDRESS2 TEXT,
+                        ZCITY TEXT,
+                        ZSTATE TEXT,
+                        ZZIP TEXT,
+                        ZCOUNTRY TEXT,
+                        ZPURCHASEDATE REAL,
+                        ZPURCHASEPRICE REAL,
+                        ZIMAGEURL TEXT,
+                        ZSECONDARYPHOTOURLS BLOB
+                    )
+                    """
+            )
+
+            try db.execute(
+                sql: """
+                    CREATE TABLE ZINVENTORYLOCATION (
+                        Z_PK INTEGER PRIMARY KEY,
+                        ZNAME TEXT NOT NULL,
+                        ZDESC TEXT,
+                        ZIMAGEURL TEXT,
+                        ZSECONDARYPHOTOURLS BLOB
+                    )
+                    """
+            )
+
+            try db.execute(
+                sql: """
+                    CREATE TABLE ZINVENTORYITEM (
+                        Z_PK INTEGER PRIMARY KEY,
+                        ZTITLE TEXT NOT NULL,
+                        ZQUANTITYSTRING TEXT,
+                        ZQUANTITYINT INTEGER,
+                        ZDESC TEXT,
+                        ZSERIAL TEXT,
+                        ZMODEL TEXT,
+                        ZMAKE TEXT,
+                        ZPRICE REAL,
+                        ZINSURED INTEGER,
+                        ZASSETID TEXT,
+                        ZNOTES TEXT,
+                        ZIMAGEURL TEXT,
+                        ZSECONDARYPHOTOURLS BLOB,
+                        ZHASUSEDAI INTEGER,
+                        ZCREATEDAT REAL,
+                        ZLOCATION INTEGER
+                    )
+                    """
+            )
+
+            for (index, name) in ["Living Room", "Garage", "Office"].enumerated() {
+                try db.execute(
+                    sql: """
+                        INSERT INTO ZINVENTORYLOCATION (Z_PK, ZNAME, ZDESC, ZIMAGEURL, ZSECONDARYPHOTOURLS)
+                        VALUES (?, ?, ?, NULL, NULL)
+                        """,
+                    arguments: [index + 1, name, ""]
+                )
+            }
+
+            let itemNames = [
+                "Lamp #1",
+                "Router/Modem Combo",
+                "Toolbox (Heavy)",
+                "Unicode Test - Cafe",
+                "Long Text Item",
+                "Orphan Candidate",
+            ]
+            for (index, title) in itemNames.enumerated() {
+                try db.execute(
+                    sql: """
+                        INSERT INTO ZINVENTORYITEM (
+                            Z_PK, ZTITLE, ZQUANTITYSTRING, ZQUANTITYINT, ZDESC, ZSERIAL,
+                            ZMODEL, ZMAKE, ZPRICE, ZINSURED, ZASSETID, ZNOTES, ZIMAGEURL,
+                            ZSECONDARYPHOTOURLS, ZHASUSEDAI, ZCREATEDAT, ZLOCATION
+                        ) VALUES (?, ?, '1', 1, '', '', '', '', 0.0, 0, '', '', NULL, NULL, 0, 0, ?)
+                        """,
+                    arguments: [index + 1, title, (index % 3) + 1]
+                )
+            }
+        }
     }
 }

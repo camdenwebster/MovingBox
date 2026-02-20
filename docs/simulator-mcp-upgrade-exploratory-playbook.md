@@ -44,18 +44,22 @@ TS="$(date +%Y%m%d-%H%M%S)"
 RUN_ROOT="/Users/camden.webster/dev/MovingBox/.build/exploratory-upgrade/${TS}"
 mkdir -p "${RUN_ROOT}"/{logs,screenshots,db,reports,commands}
 ```
-2. Boot simulator once:
+2. Erase all simulators to guarantee a clean state before exploratory testing:
+```bash
+xcrun simctl erase all
+```
+3. Boot simulator once:
 ```bash
 xcrun simctl boot 4DA6503A-88E2-4019-B404-EBBB222F3038 || true
 open -a Simulator
 ```
-3. Start subsystem log stream to file:
+4. Start subsystem log stream to file:
 ```bash
 xcrun simctl spawn 4DA6503A-88E2-4019-B404-EBBB222F3038 \
   log stream --predicate 'subsystem == "com.mothersound.movingbox"' \
   | tee "${RUN_ROOT}/logs/app-subsystem.log"
 ```
-4. Record environment metadata:
+5. Record environment metadata:
 ```bash
 {
   echo "timestamp=${TS}"
@@ -410,8 +414,9 @@ git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-main -
 
 Fresh rerun:
 1. Create new timestamped `RUN_ROOT`.
-2. Recreate worktrees.
-3. Repeat from Environment Setup.
+2. Run `xcrun simctl erase all`.
+3. Recreate worktrees.
+4. Repeat from Environment Setup.
 
 ## Appendix: Copy-Paste Commands
 
@@ -420,6 +425,7 @@ Fresh rerun:
 TS="$(date +%Y%m%d-%H%M%S)"
 RUN_ROOT="/Users/camden.webster/dev/MovingBox/.build/exploratory-upgrade/${TS}"
 mkdir -p "${RUN_ROOT}"/{logs,screenshots,db,reports,commands}
+xcrun simctl erase all
 xcrun simctl boot 4DA6503A-88E2-4019-B404-EBBB222F3038 || true
 open -a Simulator
 ```

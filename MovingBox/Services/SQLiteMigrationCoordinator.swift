@@ -98,18 +98,17 @@ struct SQLiteMigrationCoordinator {
         do {
             let stats = try performMigration(from: oldDB, to: database)
 
-            // Sanity check: onboarding always creates at least one home, so a
-            // non-empty SwiftData store that yields zero homes indicates a read
-            // failure (wrong schema, corrupted file, etc.). Bail before we
-            // archive the old store so a retry can succeed.
-            if stats.homes == 0 {
+            // Sanity check: a migration that produced user data but no homes
+            // indicates an unresolved schema/read issue.
+            let migratedUserData = stats.labels + stats.policies + stats.locations + stats.items
+            if stats.homes == 0 && migratedUserData > 0 {
                 let msg = "Migration produced zero homes from non-empty store — aborting"
                 logger.error("\(msg)")
                 return .error(msg)
             }
 
             try validate(database: database, expected: stats)
-            archiveOldStore()
+            archiveOldStore(at: storePath)
             markComplete()
             UserDefaults.standard.removeObject(forKey: migrationAttemptsKey)
             logger.info("Migration succeeded: \(stats.description)")
@@ -149,7 +148,7 @@ struct SQLiteMigrationCoordinator {
 
         var skippedColors = 0
         let labels = readLabels(db: oldDB, zpkMap: &labelZPKMap, skippedColors: &skippedColors)
-        let homes = readHomes(db: oldDB, zpkMap: &homeZPKMap)
+        var homes = readHomes(db: oldDB, zpkMap: &homeZPKMap)
         let policies = readPolicies(db: oldDB, zpkMap: &policyZPKMap)
         let locations = readLocations(db: oldDB, zpkMap: &locationZPKMap)
         let items = readItems(db: oldDB, zpkMap: &itemZPKMap)
@@ -162,6 +161,34 @@ struct SQLiteMigrationCoordinator {
         var locationHomeMap = readLocationHomeRelationships(db: oldDB)
         let itemLocationMap = readItemLocationRelationships(db: oldDB)
         var itemHomeMap = readItemHomeRelationships(db: oldDB)
+
+        // Legacy edge case: users who skipped onboarding in old builds can have
+        // locations/items persisted with zero ZHOME rows.
+        let hasUserData = !labels.isEmpty || !policies.isEmpty || !locations.isEmpty || !items.isEmpty
+        if homes.isEmpty && hasUserData {
+            let fallbackHome = RawHome(
+                zpk: -1,
+                uuid: DefaultSeedID.home,
+                name: "My Home",
+                address1: "",
+                address2: "",
+                city: "",
+                state: "",
+                zip: "",
+                country: Locale.current.region?.identifier ?? "US",
+                purchaseDate: Date(),
+                purchasePrice: 0,
+                imageURL: nil,
+                secondaryPhotoURLsJSON: "[]",
+                isPrimary: true,
+                colorName: "green"
+            )
+            homes = [fallbackHome]
+            homeZPKMap[fallbackHome.zpk] = fallbackHome.uuid
+            logger.warning(
+                "Legacy SwiftData store had user data with zero homes; synthesized fallback home \(fallbackHome.uuid.uuidString, privacy: .public)"
+            )
+        }
 
         // Backfill: items without a direct home FK but with a location that has a
         // known home should inherit that home. This handles post-multi-home schemas
@@ -930,19 +957,22 @@ struct SQLiteMigrationCoordinator {
 
     // MARK: - Completion & Backup
 
-    private static func archiveOldStore() {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!
+    private static func archiveOldStore(at storePath: String) {
+        let storeURL = URL(fileURLWithPath: storePath)
+        let appSupport = storeURL.deletingLastPathComponent()
+        let storeName = storeURL.lastPathComponent
         let backupDir = appSupport.appendingPathComponent("SwiftDataBackup")
 
         do {
             try FileManager.default.createDirectory(
                 at: backupDir, withIntermediateDirectories: true)
-            for ext in ["store", "store-shm", "store-wal"] {
-                let src = appSupport.appendingPathComponent("default.\(ext)")
-                let dst = backupDir.appendingPathComponent("default.\(ext)")
+            for fileName in [storeName, "\(storeName)-shm", "\(storeName)-wal"] {
+                let src = appSupport.appendingPathComponent(fileName)
+                let dst = backupDir.appendingPathComponent(fileName)
                 if FileManager.default.fileExists(atPath: src.path) {
+                    if FileManager.default.fileExists(atPath: dst.path) {
+                        try FileManager.default.removeItem(at: dst)
+                    }
                     try FileManager.default.moveItem(at: src, to: dst)
                 }
             }
@@ -959,6 +989,12 @@ struct SQLiteMigrationCoordinator {
     // MARK: - SQLite Helpers
 
     private static func swiftDataStorePath() -> String {
+        if let overridePath = ProcessInfo.processInfo.environment[
+            "MOVINGBOX_SWIFTDATA_STORE_PATH_OVERRIDE"
+        ], !overridePath.isEmpty {
+            return overridePath
+        }
+
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first!
