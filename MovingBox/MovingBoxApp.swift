@@ -19,6 +19,29 @@ import WishKit
 
 private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "App")
 
+private func makeAppSyncEngine(
+    for database: any DatabaseWriter,
+    startImmediately: Bool
+) throws -> SyncEngine {
+    try SyncEngine(
+        for: database,
+        tables: SQLiteHousehold.self,
+        SQLiteHouseholdMember.self,
+        SQLiteHouseholdInvite.self,
+        SQLiteHome.self,
+        SQLiteInventoryLocation.self,
+        SQLiteInventoryItem.self,
+        SQLiteInventoryLabel.self,
+        SQLiteInsurancePolicy.self,
+        SQLiteInventoryItemLabel.self,
+        SQLiteHomeInsurancePolicy.self,
+        SQLiteInventoryItemPhoto.self,
+        SQLiteHomePhoto.self,
+        SQLiteInventoryLocationPhoto.self,
+        startImmediately: startImmediately
+    )
+}
+
 @main
 struct MovingBoxApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -66,46 +89,25 @@ struct MovingBoxApp: App {
 
             let configuredDatabase = $0.defaultDatabase
             do {
-                let syncEngine = try SyncEngine(
+                let syncEngine = try makeAppSyncEngine(
                     for: configuredDatabase,
-                    tables: SQLiteHousehold.self,
-                    SQLiteHouseholdMember.self,
-                    SQLiteHouseholdInvite.self,
-                    SQLiteHomeAccessOverride.self,
-                    SQLiteHome.self,
-                    SQLiteInventoryLocation.self,
-                    SQLiteInventoryItem.self,
-                    SQLiteInventoryLabel.self,
-                    SQLiteInsurancePolicy.self,
-                    SQLiteInventoryItemLabel.self,
-                    SQLiteHomeInsurancePolicy.self,
-                    SQLiteInventoryItemPhoto.self,
-                    SQLiteHomePhoto.self,
-                    SQLiteInventoryLocationPhoto.self,
                     startImmediately: false
                 )
                 $0.defaultSyncEngine = syncEngine
             } catch {
                 logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
-                // Always provide an explicit fallback so live runtime never falls back
-                // to `SyncEngine.testValue` from the dependencies system.
                 do {
-                    $0.defaultSyncEngine = try SyncEngine(
-                        for: configuredDatabase,
-                        startImmediately: false
-                    )
-                    logger.warning("Configured fallback SyncEngine without synchronized tables")
-                } catch {
-                    do {
-                        $0.defaultSyncEngine = try withDependencies {
-                            $0.context = .preview
-                        } operation: {
-                            try SyncEngine(for: configuredDatabase, startImmediately: false)
-                        }
-                        logger.warning("Configured preview-context fallback SyncEngine")
-                    } catch {
-                        logger.fault("Failed to configure any SyncEngine fallback: \(error.localizedDescription)")
+                    $0.defaultSyncEngine = try withDependencies {
+                        $0.context = .preview
+                    } operation: {
+                        try makeAppSyncEngine(
+                            for: configuredDatabase,
+                            startImmediately: false
+                        )
                     }
+                    logger.warning("Configured preview-context fallback SyncEngine")
+                } catch {
+                    logger.fault("Failed to configure any SyncEngine fallback: \(error.localizedDescription)")
                 }
             }
         }
