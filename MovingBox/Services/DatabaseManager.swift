@@ -42,6 +42,7 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
             """
             CREATE TABLE "inventoryLabels" (
                 "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "householdID" TEXT,
                 "name" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
                 "desc" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
                 "color" INTEGER,
@@ -220,6 +221,13 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
 
         try #sql(
             """
+            CREATE INDEX "idx_inventoryLabels_householdID" ON "inventoryLabels"("householdID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
             CREATE INDEX "idx_homeInsurancePolicies_homeID" ON "homeInsurancePolicies"("homeID")
             """
         )
@@ -344,6 +352,297 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
             """
         )
         .execute(db)
+    }
+
+    migrator.registerMigration("Add household sharing tables") { db in
+        try #sql(
+            """
+            CREATE TABLE IF NOT EXISTS "households" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "name" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "sharingEnabled" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
+                "defaultAccessPolicy" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'allHomesShared',
+                "createdAt" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT CURRENT_TIMESTAMP
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE TABLE IF NOT EXISTS "householdMembers" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "householdID" TEXT NOT NULL REFERENCES "households"("id") ON DELETE CASCADE,
+                "displayName" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "contactEmail" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "role" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'member',
+                "status" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'active',
+                "isCurrentUser" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
+                "createdAt" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT CURRENT_TIMESTAMP
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE TABLE IF NOT EXISTS "householdInvites" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "householdID" TEXT NOT NULL REFERENCES "households"("id") ON DELETE CASCADE,
+                "invitedByMemberID" TEXT REFERENCES "householdMembers"("id") ON DELETE SET NULL,
+                "acceptedMemberID" TEXT REFERENCES "householdMembers"("id") ON DELETE SET NULL,
+                "displayName" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "email" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "role" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'member',
+                "status" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'pending',
+                "createdAt" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT CURRENT_TIMESTAMP,
+                "acceptedAt" TEXT
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE TABLE IF NOT EXISTS "homeAccessOverrides" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "householdID" TEXT NOT NULL REFERENCES "households"("id") ON DELETE CASCADE,
+                "homeID" TEXT NOT NULL REFERENCES "homes"("id") ON DELETE CASCADE,
+                "memberID" TEXT NOT NULL REFERENCES "householdMembers"("id") ON DELETE CASCADE,
+                "decision" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'allow',
+                "createdAt" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT CURRENT_TIMESTAMP
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_householdMembers_householdID"
+                ON "householdMembers"("householdID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_householdInvites_householdID"
+                ON "householdInvites"("householdID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_homeAccessOverrides_homeID"
+                ON "homeAccessOverrides"("homeID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS "idx_homeAccessOverrides_household_home_member_unique"
+                ON "homeAccessOverrides"("householdID", "homeID", "memberID")
+            """
+        )
+        .execute(db)
+    }
+
+    migrator.registerMigration("Add household columns to homes") { db in
+        let existingHomeColumns = try String.fetchAll(
+            db,
+            sql: "SELECT name FROM pragma_table_info('homes')"
+        )
+
+        if !existingHomeColumns.contains("householdID") {
+            try #sql(
+                """
+                ALTER TABLE "homes" ADD COLUMN "householdID" TEXT REFERENCES "households"("id") ON DELETE SET NULL
+                """
+            )
+            .execute(db)
+        }
+
+        if !existingHomeColumns.contains("isPrivate") {
+            try #sql(
+                """
+                ALTER TABLE "homes" ADD COLUMN "isPrivate" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0
+                """
+            )
+            .execute(db)
+        }
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_homes_householdID" ON "homes"("householdID")
+            """
+        )
+        .execute(db)
+
+        let defaultHouseholdID: String
+        if let existingID = try String.fetchOne(
+            db,
+            sql: "SELECT id FROM households ORDER BY createdAt ASC LIMIT 1"
+        ) {
+            defaultHouseholdID = existingID
+        } else {
+            let newID = UUID().uuidString.lowercased()
+            try db.execute(
+                sql:
+                    """
+                    INSERT INTO households (id, name, defaultAccessPolicy, createdAt)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    """,
+                arguments: [newID, "My Household", HouseholdDefaultAccessPolicy.allHomesShared.rawValue]
+            )
+            defaultHouseholdID = newID
+        }
+
+        try db.execute(
+            sql:
+                """
+                UPDATE homes
+                SET householdID = ?
+                WHERE householdID IS NULL
+                """,
+            arguments: [defaultHouseholdID]
+        )
+
+        let currentOwnerCount =
+            try Int.fetchOne(
+                db,
+                sql:
+                    """
+                    SELECT COUNT(*)
+                    FROM householdMembers
+                    WHERE householdID = ?
+                      AND isCurrentUser = 1
+                      AND status = ?
+                    """,
+                arguments: [defaultHouseholdID, HouseholdMemberStatus.active.rawValue]
+            ) ?? 0
+
+        if currentOwnerCount == 0 {
+            try db.execute(
+                sql:
+                    """
+                    INSERT INTO householdMembers (
+                        id, householdID, displayName, contactEmail, role, status, isCurrentUser, createdAt
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+                    """,
+                arguments: [
+                    UUID().uuidString.lowercased(),
+                    defaultHouseholdID,
+                    "You",
+                    "",
+                    HouseholdMemberRole.owner.rawValue,
+                    HouseholdMemberStatus.active.rawValue,
+                ]
+            )
+        }
+    }
+
+    migrator.registerMigration("Add sharingEnabled to households") { db in
+        let householdColumns = try String.fetchAll(
+            db,
+            sql: "SELECT name FROM pragma_table_info('households')"
+        )
+        if !householdColumns.contains("sharingEnabled") {
+            try #sql(
+                """
+                ALTER TABLE "households" ADD COLUMN "sharingEnabled" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0
+                """
+            )
+            .execute(db)
+        }
+    }
+
+    migrator.registerMigration("Scope labels to households") { db in
+        let labelColumns = try String.fetchAll(
+            db,
+            sql: "SELECT name FROM pragma_table_info('inventoryLabels')"
+        )
+        if !labelColumns.contains("householdID") {
+            try #sql(
+                """
+                ALTER TABLE "inventoryLabels" ADD COLUMN "householdID" TEXT
+                """
+            )
+            .execute(db)
+        }
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_inventoryLabels_householdID" ON "inventoryLabels"("householdID")
+            """
+        )
+        .execute(db)
+
+        let defaultHouseholdID: String
+        if let existingID = try String.fetchOne(
+            db,
+            sql: "SELECT id FROM households ORDER BY createdAt ASC LIMIT 1"
+        ) {
+            defaultHouseholdID = existingID
+        } else {
+            let newID = UUID().uuidString.lowercased()
+            try db.execute(
+                sql:
+                    """
+                    INSERT INTO households (id, name, defaultAccessPolicy, sharingEnabled, createdAt)
+                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                    """,
+                arguments: [newID, "My Household", HouseholdDefaultAccessPolicy.allHomesShared.rawValue]
+            )
+            defaultHouseholdID = newID
+        }
+
+        let ownerCount =
+            try Int.fetchOne(
+                db,
+                sql:
+                    """
+                    SELECT COUNT(*)
+                    FROM householdMembers
+                    WHERE householdID = ?
+                      AND isCurrentUser = 1
+                      AND status = ?
+                    """,
+                arguments: [defaultHouseholdID, HouseholdMemberStatus.active.rawValue]
+            ) ?? 0
+
+        if ownerCount == 0 {
+            try db.execute(
+                sql:
+                    """
+                    INSERT INTO householdMembers (
+                        id, householdID, displayName, contactEmail, role, status, isCurrentUser, createdAt
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+                    """,
+                arguments: [
+                    UUID().uuidString.lowercased(),
+                    defaultHouseholdID,
+                    "You",
+                    "",
+                    HouseholdMemberRole.owner.rawValue,
+                    HouseholdMemberStatus.active.rawValue,
+                ]
+            )
+        }
+
+        try db.execute(
+            sql:
+                """
+                UPDATE inventoryLabels
+                SET householdID = ?
+                WHERE householdID IS NULL
+                """,
+            arguments: [defaultHouseholdID]
+        )
     }
 }
 

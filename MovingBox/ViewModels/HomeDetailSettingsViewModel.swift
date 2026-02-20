@@ -261,6 +261,7 @@ final class HomeDetailSettingsViewModel {
             let defaultRooms = TestData.defaultRooms
 
             try await database.write { db in
+                let householdID = try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
                 try SQLiteHome.insert {
                     SQLiteHome(
                         id: newHomeID,
@@ -272,7 +273,8 @@ final class HomeDetailSettingsViewModel {
                         zip: saveZip,
                         country: saveCountry,
                         isPrimary: shouldBePrimary,
-                        colorName: saveColor
+                        colorName: saveColor,
+                        householdID: householdID
                     )
                 }.execute(db)
 

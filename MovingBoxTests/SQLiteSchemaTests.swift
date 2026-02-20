@@ -12,10 +12,19 @@ struct SQLiteSchemaTests {
     func labelCRUD() throws {
         let db = try makeInMemoryDatabase()
         let id = UUID()
+        let householdID = UUID()
 
         try db.write { db in
+            try SQLiteHousehold.insert(
+                SQLiteHousehold(id: householdID, name: "Household")
+            ).execute(db)
             try SQLiteInventoryLabel.insert(
-                SQLiteInventoryLabel(id: id, name: "Electronics", emoji: "💻")
+                SQLiteInventoryLabel(
+                    id: id,
+                    householdID: householdID,
+                    name: "Electronics",
+                    emoji: "💻"
+                )
             ).execute(db)
         }
 
@@ -25,6 +34,7 @@ struct SQLiteSchemaTests {
         #expect(fetched != nil)
         #expect(fetched?.name == "Electronics")
         #expect(fetched?.emoji == "💻")
+        #expect(fetched?.householdID == householdID)
     }
 
     // MARK: - Home CRUD
@@ -255,6 +265,59 @@ struct SQLiteSchemaTests {
         #expect(tables.contains("inventoryItems"))
         #expect(tables.contains("inventoryItemLabels"))
         #expect(tables.contains("homeInsurancePolicies"))
+        #expect(tables.contains("households"))
+        #expect(tables.contains("householdMembers"))
+        #expect(tables.contains("householdInvites"))
+        #expect(tables.contains("homeAccessOverrides"))
+    }
+
+    @Test("Home access overrides enforce household-home-member uniqueness")
+    func homeAccessOverrideUniqueConstraint() throws {
+        let db = try makeInMemoryDatabase()
+        let householdID = UUID()
+        let homeID = UUID()
+        let memberID = UUID()
+
+        try db.write { db in
+            try SQLiteHousehold.insert {
+                SQLiteHousehold(id: householdID, name: "Household", sharingEnabled: true)
+            }.execute(db)
+            try SQLiteHome.insert {
+                SQLiteHome(id: homeID, name: "Main", householdID: householdID)
+            }.execute(db)
+            try SQLiteHouseholdMember.insert {
+                SQLiteHouseholdMember(
+                    id: memberID,
+                    householdID: householdID,
+                    displayName: "Alex",
+                    role: HouseholdMemberRole.member.rawValue
+                )
+            }.execute(db)
+
+            try SQLiteHomeAccessOverride.insert {
+                SQLiteHomeAccessOverride(
+                    id: UUID(),
+                    householdID: householdID,
+                    homeID: homeID,
+                    memberID: memberID,
+                    decision: HomeAccessOverrideDecision.allow.rawValue
+                )
+            }.execute(db)
+        }
+
+        #expect(throws: Error.self) {
+            try db.write { db in
+                try SQLiteHomeAccessOverride.insert {
+                    SQLiteHomeAccessOverride(
+                        id: UUID(),
+                        householdID: householdID,
+                        homeID: homeID,
+                        memberID: memberID,
+                        decision: HomeAccessOverrideDecision.deny.rawValue
+                    )
+                }.execute(db)
+            }
+        }
     }
 
     // MARK: - FK Integrity

@@ -13,6 +13,8 @@ struct LabelSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
     private var allLabels: [SQLiteInventoryLabel]
+    @FetchAll(SQLiteHousehold.order(by: \.createdAt), animation: .default)
+    private var households: [SQLiteHousehold]
 
     // Support both single and multi-select modes
     @Binding var selectedLabels: [SQLiteInventoryLabel]
@@ -41,11 +43,24 @@ struct LabelSelectionView: View {
         self._selectedLabels = selectedLabels
     }
 
+    private var activeHouseholdID: UUID? {
+        households.first?.id
+    }
+
+    private var scopedLabels: [SQLiteInventoryLabel] {
+        guard let activeHouseholdID else {
+            return allLabels.filter { $0.householdID == nil }
+        }
+        return allLabels.filter {
+            $0.householdID == activeHouseholdID || $0.householdID == nil
+        }
+    }
+
     private var filteredLabels: [SQLiteInventoryLabel] {
         if searchText.isEmpty {
-            return allLabels
+            return scopedLabels
         }
-        return allLabels.filter { label in
+        return scopedLabels.filter { label in
             label.name.localizedCaseInsensitiveContains(searchText)
         }
     }

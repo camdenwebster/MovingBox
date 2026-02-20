@@ -17,6 +17,40 @@ nonisolated struct SQLiteHome: Hashable, Identifiable {
     var purchasePrice: Decimal = 0
     var isPrimary: Bool = false
     var colorName: String = "green"
+    var householdID: SQLiteHousehold.ID?
+    var isPrivate: Bool = false
+
+    init(
+        id: UUID,
+        name: String = "",
+        address1: String = "",
+        address2: String = "",
+        city: String = "",
+        state: String = "",
+        zip: String = "",
+        country: String = "",
+        purchaseDate: Date = Date(),
+        purchasePrice: Decimal = 0,
+        isPrimary: Bool = false,
+        colorName: String = "green",
+        householdID: SQLiteHousehold.ID? = nil,
+        isPrivate: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.address1 = address1
+        self.address2 = address2
+        self.city = city
+        self.state = state
+        self.zip = zip
+        self.country = country
+        self.purchaseDate = purchaseDate
+        self.purchasePrice = purchasePrice
+        self.isPrimary = isPrimary
+        self.colorName = colorName
+        self.householdID = householdID
+        self.isPrivate = isPrivate
+    }
 
     var displayName: String {
         name.isEmpty ? "Unnamed Home" : name

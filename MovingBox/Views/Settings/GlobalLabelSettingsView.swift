@@ -14,20 +14,35 @@ struct GlobalLabelSettingsView: View {
 
     @FetchAll(SQLiteInventoryLabel.order(by: \.name), animation: .default)
     private var allLabels: [SQLiteInventoryLabel]
+    @FetchAll(SQLiteHousehold.order(by: \.createdAt), animation: .default)
+    private var households: [SQLiteHousehold]
 
     @State private var selectedLabelID: UUID?
     @State private var showAddLabelSheet = false
 
+    private var activeHouseholdID: UUID? {
+        households.first?.id
+    }
+
+    private var visibleLabels: [SQLiteInventoryLabel] {
+        guard let activeHouseholdID else {
+            return allLabels.filter { $0.householdID == nil }
+        }
+        return allLabels.filter {
+            $0.householdID == activeHouseholdID || $0.householdID == nil
+        }
+    }
+
     var body: some View {
         List {
-            if allLabels.isEmpty {
+            if visibleLabels.isEmpty {
                 ContentUnavailableView(
                     "No Labels",
                     systemImage: "tag",
                     description: Text("Add labels to categorize your items.")
                 )
             } else {
-                ForEach(allLabels) { label in
+                ForEach(visibleLabels) { label in
                     Button {
                         selectedLabelID = label.id
                     } label: {
@@ -78,7 +93,7 @@ struct GlobalLabelSettingsView: View {
 
     func deleteLabel(at offsets: IndexSet) {
         for index in offsets {
-            let labelToDelete = allLabels[index]
+            let labelToDelete = visibleLabels[index]
             do {
                 try database.write { db in
                     try SQLiteInventoryLabel.find(labelToDelete.id).delete().execute(db)

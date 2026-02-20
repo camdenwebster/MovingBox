@@ -7,6 +7,12 @@
 
     /// Fixed UUIDs for test seed data, enabling deterministic cross-references.
     enum SeedID {
+        // Household sharing
+        static let household = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        static let ownerMember = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        static let guestMember = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        static let pendingInvite = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+
         // Homes
         static let mainHome = UUID(uuidString: "00000000-0001-0000-0000-000000000001")!
         static let beachHome = UUID(uuidString: "00000000-0001-0000-0000-000000000002")!
@@ -83,118 +89,202 @@
         try db.write { db in
             try db.seed {
                 // ─────────────────────────────────────────────
+                // MARK: Household Sharing
+                // ─────────────────────────────────────────────
+                SQLiteHousehold(
+                    id: SeedID.household,
+                    name: "Seed Household",
+                    sharingEnabled: true,
+                    defaultAccessPolicy: HouseholdDefaultAccessPolicy.allHomesShared.rawValue
+                )
+
+                SQLiteHouseholdMember(
+                    id: SeedID.ownerMember,
+                    householdID: SeedID.household,
+                    displayName: "You",
+                    role: HouseholdMemberRole.owner.rawValue,
+                    isCurrentUser: true
+                )
+
+                SQLiteHouseholdMember(
+                    id: SeedID.guestMember,
+                    householdID: SeedID.household,
+                    displayName: "Alex"
+                )
+
+                SQLiteHouseholdInvite(
+                    id: SeedID.pendingInvite,
+                    householdID: SeedID.household,
+                    invitedByMemberID: SeedID.ownerMember,
+                    displayName: "Taylor",
+                    email: "taylor@example.com"
+                )
+
+                // ─────────────────────────────────────────────
                 // MARK: Homes
                 // ─────────────────────────────────────────────
                 SQLiteHome(
                     id: SeedID.mainHome, name: "Main House",
                     address1: "123 Main Street", city: "Portland", state: "OR",
-                    isPrimary: true
+                    isPrimary: true,
+                    householdID: SeedID.household,
+                    isPrivate: false
                 )
                 SQLiteHome(
                     id: SeedID.beachHome, name: "Beach House",
-                    address1: "456 Ocean Drive", city: "Malibu", state: "CA"
+                    address1: "456 Ocean Drive", city: "Malibu", state: "CA",
+                    householdID: SeedID.household,
+                    isPrivate: true
+                )
+
+                SQLiteHomeAccessOverride(
+                    id: UUID(),
+                    householdID: SeedID.household,
+                    homeID: SeedID.mainHome,
+                    memberID: SeedID.guestMember,
+                    decision: HomeAccessOverrideDecision.allow.rawValue
                 )
 
                 // ─────────────────────────────────────────────
                 // MARK: Labels (20)
                 // ─────────────────────────────────────────────
                 SQLiteInventoryLabel(
-                    id: SeedID.electronics, name: "Electronics",
+                    id: SeedID.electronics,
+                    householdID: SeedID.household,
+                    name: "Electronics",
                     desc: "Computers, phones, and gadgets",
                     color: UIColor(red: 0.95, green: 0.61, blue: 0.61, alpha: 1.0), emoji: "📱"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.furniture, name: "Furniture",
+                    id: SeedID.furniture,
+                    householdID: SeedID.household,
+                    name: "Furniture",
                     desc: "Chairs, tables, and storage",
                     color: UIColor(red: 0.82, green: 0.71, blue: 0.55, alpha: 1.0), emoji: "🪑"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.kitchenLabel, name: "Kitchen",
+                    id: SeedID.kitchenLabel,
+                    householdID: SeedID.household,
+                    name: "Kitchen",
                     desc: "Appliances and cookware",
                     color: UIColor(red: 0.73, green: 0.87, blue: 0.68, alpha: 1.0), emoji: "🍳"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.books, name: "Books",
+                    id: SeedID.books,
+                    householdID: SeedID.household,
+                    name: "Books",
                     desc: "Books and magazines",
                     color: UIColor(red: 0.67, green: 0.84, blue: 0.90, alpha: 1.0), emoji: "📚"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.art, name: "Art",
+                    id: SeedID.art,
+                    householdID: SeedID.household,
+                    name: "Art",
                     desc: "Paintings and decorative items",
                     color: UIColor(red: 0.85, green: 0.75, blue: 0.86, alpha: 1.0), emoji: "🎨"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.tools, name: "Tools",
+                    id: SeedID.tools,
+                    householdID: SeedID.household,
+                    name: "Tools",
                     desc: "Hand tools and power tools",
                     color: UIColor(red: 0.80, green: 0.80, blue: 0.83, alpha: 1.0), emoji: "🔧"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.sports, name: "Sports",
+                    id: SeedID.sports,
+                    householdID: SeedID.household,
+                    name: "Sports",
                     desc: "Exercise and sports equipment",
                     color: UIColor(red: 0.96, green: 0.76, blue: 0.56, alpha: 1.0), emoji: "🏀"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.clothing, name: "Clothing",
+                    id: SeedID.clothing,
+                    householdID: SeedID.household,
+                    name: "Clothing",
                     desc: "Clothes and accessories",
                     color: UIColor(red: 0.69, green: 0.88, blue: 0.90, alpha: 1.0), emoji: "👕"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.jewelry, name: "Jewelry",
+                    id: SeedID.jewelry,
+                    householdID: SeedID.household,
+                    name: "Jewelry",
                     desc: "Watches, necklaces, and rings",
                     color: UIColor(red: 0.90, green: 0.85, blue: 0.60, alpha: 1.0), emoji: "💍"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.documents, name: "Documents",
+                    id: SeedID.documents,
+                    householdID: SeedID.household,
+                    name: "Documents",
                     desc: "Important papers and files",
                     color: UIColor(red: 0.87, green: 0.87, blue: 0.87, alpha: 1.0), emoji: "📄"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.collectibles, name: "Collectibles",
+                    id: SeedID.collectibles,
+                    householdID: SeedID.household,
+                    name: "Collectibles",
                     desc: "Figurines, stamps, and memorabilia",
                     color: UIColor(red: 0.78, green: 0.70, blue: 0.84, alpha: 1.0), emoji: "🏆"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.seasonal, name: "Seasonal",
+                    id: SeedID.seasonal,
+                    householdID: SeedID.household,
+                    name: "Seasonal",
                     desc: "Holiday decorations and items",
                     color: UIColor(red: 0.92, green: 0.70, blue: 0.70, alpha: 1.0), emoji: "🎄"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.bathroom, name: "Bathroom",
+                    id: SeedID.bathroom,
+                    householdID: SeedID.household,
+                    name: "Bathroom",
                     desc: "Towels, toiletries, and accessories",
                     color: UIColor(red: 0.65, green: 0.85, blue: 0.85, alpha: 1.0), emoji: "🚿"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.toys, name: "Toys",
+                    id: SeedID.toys,
+                    householdID: SeedID.household,
+                    name: "Toys",
                     desc: "Children's toys and games",
                     color: UIColor(red: 0.94, green: 0.82, blue: 0.65, alpha: 1.0), emoji: "🧸"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.gardening, name: "Gardening",
+                    id: SeedID.gardening,
+                    householdID: SeedID.household,
+                    name: "Gardening",
                     desc: "Plants, pots, and garden tools",
                     color: UIColor(red: 0.60, green: 0.80, blue: 0.60, alpha: 1.0), emoji: "🌱"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.technology, name: "Technology",
+                    id: SeedID.technology,
+                    householdID: SeedID.household,
+                    name: "Technology",
                     desc: "Chargers, cables, and accessories",
                     color: UIColor(red: 0.75, green: 0.75, blue: 0.95, alpha: 1.0), emoji: "💻"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.memorabilia, name: "Memorabilia",
+                    id: SeedID.memorabilia,
+                    householdID: SeedID.household,
+                    name: "Memorabilia",
                     desc: "Personal mementos and keepsakes",
                     color: UIColor(red: 0.85, green: 0.80, blue: 0.70, alpha: 1.0), emoji: "🎞️"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.petSupplies, name: "Pet Supplies",
+                    id: SeedID.petSupplies,
+                    householdID: SeedID.household,
+                    name: "Pet Supplies",
                     desc: "Pet food, toys, and accessories",
                     color: UIColor(red: 0.80, green: 0.90, blue: 0.75, alpha: 1.0), emoji: "🐾"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.media, name: "Media",
+                    id: SeedID.media,
+                    householdID: SeedID.household,
+                    name: "Media",
                     desc: "DVDs, CDs, and physical media",
                     color: UIColor(red: 0.70, green: 0.65, blue: 0.75, alpha: 1.0), emoji: "💿"
                 )
                 SQLiteInventoryLabel(
-                    id: SeedID.decorative, name: "Decorative",
+                    id: SeedID.decorative,
+                    householdID: SeedID.household,
+                    name: "Decorative",
                     desc: "Home decor and ornamental items",
                     color: UIColor(red: 0.90, green: 0.80, blue: 0.90, alpha: 1.0), emoji: "🏺"
                 )

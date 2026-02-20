@@ -310,7 +310,9 @@ struct SQLiteModelCRUDTests {
             #expect(home?.name == "")
             #expect(home?.address1 == "")
             #expect(home?.city == "")
+            #expect(home?.householdID == nil)
             #expect(home?.isPrimary == false)
+            #expect(home?.isPrivate == false)
             #expect(home?.colorName == "green")
             #expect(home?.purchasePrice == 0)
         }

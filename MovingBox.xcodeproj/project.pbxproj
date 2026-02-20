@@ -61,6 +61,7 @@
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
 		810FB0E2246E896DD548B208 /* ShareMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65433A40EA29E772843D04D /* ShareMetadataStore.swift */; };
+		F0A1B2C32F50000100ABCD02 /* HouseholdSharingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C32F50000100ABCD01 /* HouseholdSharingService.swift */; };
 		A1B2C3D42F4B000100000011 /* VideoAnalysisCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000001 /* VideoAnalysisCoordinator.swift */; };
 		A1B2C3D42F4B000100000012 /* VideoFrameExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000002 /* VideoFrameExtractor.swift */; };
 		A1B2C3D42F4B000100000013 /* VideoItemDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000003 /* VideoItemDeduplicator.swift */; };
@@ -159,6 +160,7 @@
 		A1B2C3D42F4B000100000005 /* BoundingBoxCropper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundingBoxCropper.swift; sourceTree = "<group>"; };
 		A1B2C3D42F4B000100000006 /* LabelEmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelEmojiCatalog.swift; sourceTree = "<group>"; };
 		B65433A40EA29E772843D04D /* ShareMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareMetadataStore.swift; sourceTree = "<group>"; };
+		F0A1B2C32F50000100ABCD01 /* HouseholdSharingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseholdSharingService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -359,6 +361,7 @@
 				19F30A0D2F3400B0003DF00D /* PhotoBlobMigrationCoordinator.swift */,
 				19F30A092F3200A0003DF009 /* CloudKitRecoveryCoordinator.swift */,
 				B65433A40EA29E772843D04D /* ShareMetadataStore.swift */,
+				F0A1B2C32F50000100ABCD01 /* HouseholdSharingService.swift */,
 				19F30A072F3100A7003DF007 /* TestDatabaseHelper.swift */,
 				19BA29922DC464A70064C5A9 /* DataManager.swift */,
 				675FF6BD87F34DE490BDDB1A /* ProgressMapper.swift */,
@@ -687,6 +690,7 @@
 				19F30A0E2F3400B1003DF00E /* PhotoBlobMigrationCoordinator.swift in Sources */,
 				19F30A0A2F3200A1003DF00A /* CloudKitRecoveryCoordinator.swift in Sources */,
 				810FB0E2246E896DD548B208 /* ShareMetadataStore.swift in Sources */,
+				F0A1B2C32F50000100ABCD02 /* HouseholdSharingService.swift in Sources */,
 				19F30A082F3100A8003DF008 /* TestDatabaseHelper.swift in Sources */,
 				A1B2C3D42F4B000100000015 /* BoundingBoxCropper.swift in Sources */,
 				A1B2C3D42F4B000100000014 /* AudioTranscriber.swift in Sources */,

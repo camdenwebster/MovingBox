@@ -209,7 +209,8 @@ struct InventoryDetailView: View {
         if isEditing {
             Button("Save") {
                 Task {
-                    await saveItemToSQLite()
+                    let didSave = await saveItemToSQLite()
+                    guard didSave else { return }
                     hasUserMadeChanges = false
                     originalValues = nil
                     isEditing = false
@@ -1162,7 +1163,7 @@ struct InventoryDetailView: View {
                 Button("Choose from Photos") { showPhotoPicker = true }
                     .accessibilityIdentifier("chooseFromLibrary")
             }
-            .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
+            .alert("Error", isPresented: $showingErrorAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage)
@@ -1339,7 +1340,7 @@ struct InventoryDetailView: View {
                 displayPriceString = formatInitialPrice(item.price)
 
                 // Save to SQLite
-                await saveItemToSQLite()
+                _ = await saveItemToSQLite()
 
                 isLoadingOpenAiResults = false
             } catch let aiError as AIAnalysisError {
@@ -1441,14 +1442,18 @@ struct InventoryDetailView: View {
         Task {
             do {
                 try await database.write { db in
+                    let householdID = try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
                     try SQLiteInventoryLabel.insert {
-                        SQLiteInventoryLabel(id: labelID, name: "")
+                        SQLiteInventoryLabel(id: labelID, householdID: householdID, name: "")
                     }.execute(db)
                 }
             } catch {
                 print("Error creating label: \(error)")
             }
-            sqliteSelectedLabels = [SQLiteInventoryLabel(id: labelID, name: "")]
+            let householdID = try? await database.read { db in
+                try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
+            }
+            sqliteSelectedLabels = [SQLiteInventoryLabel(id: labelID, householdID: householdID, name: "")]
             router.navigate(to: .editLabelView(labelID: labelID, isEditing: true))
         }
     }
@@ -1676,12 +1681,32 @@ struct InventoryDetailView: View {
         await loadAllImages()
     }
 
-    private func saveItemToSQLite() async {
+    private func saveItemToSQLite() async -> Bool {
         let currentItem = item
         let currentLabels = sqliteSelectedLabels
         let id = currentItem.id
 
         do {
+            let originalHomeID = try await database.read { db in
+                try SQLiteInventoryItem.find(id).fetchOne(db)?.homeID
+            }
+
+            if let sourceHomeID = originalHomeID,
+                let destinationHomeID = currentItem.homeID,
+                sourceHomeID != destinationHomeID
+            {
+                do {
+                    try await HouseholdSharingService().moveItemAsCurrentUser(
+                        itemID: id,
+                        destinationHomeID: destinationHomeID
+                    )
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showingErrorAlert = true
+                    return false
+                }
+            }
+
             try await database.write { db in
                 // Check if item already exists
                 let exists = try SQLiteInventoryItem.find(id).fetchOne(db) != nil
@@ -1744,8 +1769,11 @@ struct InventoryDetailView: View {
                     }.execute(db)
                 }
             }
+            return true
         } catch {
-            print("Failed to save item to SQLite: \(error)")
+            errorMessage = "Failed to save item: \(error.localizedDescription)"
+            showingErrorAlert = true
+            return false
         }
     }
 
@@ -2182,7 +2210,7 @@ extension InventoryDetailView {
         try? FileManager.default.removeItem(at: fileURL)
 
         item.attachments.removeAll { $0.url == urlString }
-        await saveItemToSQLite()
+        _ = await saveItemToSQLite()
     }
 
     private func handleAttachmentFileImport(_ result: Result<[URL], Error>) async {
@@ -2218,7 +2246,7 @@ extension InventoryDetailView {
 
                 let attachment = AttachmentInfo(url: destinationURL.absoluteString, originalName: originalName)
                 item.attachments.append(attachment)
-                await saveItemToSQLite()
+                _ = await saveItemToSQLite()
                 print("✅ Successfully saved attachment: \(originalName)")
             } catch {
                 print("Failed to save attachment file: \(error)")

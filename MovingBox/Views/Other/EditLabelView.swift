@@ -182,11 +182,14 @@ struct EditLabelView: View {
         let desc = labelDesc
         let color = UIColor(labelColor)
         let emoji = labelEmoji
+        var householdID: UUID?
         do {
             try database.write { db in
+                householdID = try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
                 try SQLiteInventoryLabel.insert {
                     SQLiteInventoryLabel(
                         id: newID,
+                        householdID: householdID,
                         name: name,
                         desc: desc,
                         color: color,
@@ -195,7 +198,7 @@ struct EditLabelView: View {
                 }.execute(db)
             }
             let newLabel = SQLiteInventoryLabel(
-                id: newID, name: name, desc: desc, color: color, emoji: emoji
+                id: newID, householdID: householdID, name: name, desc: desc, color: color, emoji: emoji
             )
             TelemetryManager.shared.trackLabelCreated(name: name)
             print("EditLabelView: Created new label - \(name)")

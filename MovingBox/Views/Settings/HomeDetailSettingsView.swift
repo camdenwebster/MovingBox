@@ -5,7 +5,6 @@
 //  Created by Claude on 12/20/25.
 //
 
-import CloudKit
 import Dependencies
 import SQLiteData
 import SwiftUI
@@ -27,10 +26,7 @@ struct HomeDetailSettingsView: View {
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var photoIsLoading = false
-    @State private var sharingViewModel: FamilySharingViewModel?
-    @State private var showSharingSheet = false
-    @State private var showStopSharingConfirmation = false
-    @State private var showLeaveSharingConfirmation = false
+    @State private var homeAccessViewModel: HomeAccessOverridesViewModel?
 
     private let availableColors: [(name: String, color: Color)] = [
         ("green", .green),
@@ -46,6 +42,12 @@ struct HomeDetailSettingsView: View {
         ("mint", .mint),
         ("brown", .brown),
     ]
+
+    private enum OverrideSelection: String, Hashable {
+        case inherit
+        case allow
+        case deny
+    }
 
     init(homeID: UUID?, presentedInSheet: Bool = false) {
         self.homeID = homeID
@@ -110,80 +112,37 @@ struct HomeDetailSettingsView: View {
                 vm.setDatabase(database)
                 viewModel = vm
             }
-            if sharingViewModel == nil, let homeID {
-                sharingViewModel = FamilySharingViewModel(homeID: homeID)
+            if homeAccessViewModel == nil, let homeID {
+                homeAccessViewModel = HomeAccessOverridesViewModel(homeID: homeID)
             }
         }
         .task(id: homeID) {
             if let vm = viewModel {
                 await vm.loadHomeData()
             }
-            if let sharingViewModel {
-                await sharingViewModel.fetchSharingState()
+            if let homeAccessViewModel {
+                await homeAccessViewModel.load()
             }
         }
         .onChange(of: allHomes) { _, newHomes in
             viewModel?.updateAllHomesProvider { newHomes }
         }
-        .sheet(
-            isPresented: $showSharingSheet,
-            onDismiss: {
-                Task {
-                    await sharingViewModel?.fetchSharingState()
-                }
-            }
-        ) {
-            if let sharingViewModel {
-                CloudSharingPrepareView(
-                    viewModel: sharingViewModel,
-                    isPresented: $showSharingSheet
-                )
-            }
-        }
-        .confirmationDialog(
-            "Stop Sharing",
-            isPresented: $showStopSharingConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Stop Sharing", role: .destructive) {
-                Task {
-                    await sharingViewModel?.stopSharing()
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("All participants will lose access to this home.")
-        }
-        .confirmationDialog(
-            "Leave This Home",
-            isPresented: $showLeaveSharingConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Leave Home", role: .destructive) {
-                Task {
-                    await sharingViewModel?.leaveSharedHome()
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You will lose access to this shared home.")
-        }
         .alert(
             "Sharing Error",
             isPresented: Binding(
-                get: { sharingViewModel?.error != nil },
+                get: { homeAccessViewModel?.errorMessage != nil },
                 set: { newValue in
                     if !newValue {
-                        sharingViewModel?.error = nil
+                        homeAccessViewModel?.errorMessage = nil
                     }
                 }
             )
         ) {
             Button("OK") {
-                sharingViewModel?.error = nil
+                homeAccessViewModel?.errorMessage = nil
             }
         } message: {
-            Text(sharingViewModel?.error ?? "")
+            Text(homeAccessViewModel?.errorMessage ?? "")
         }
         .onDisappear {
             tempUIImage = nil
@@ -407,79 +366,113 @@ struct HomeDetailSettingsView: View {
 
     @ViewBuilder
     private func sharingSection(viewModel: HomeDetailSettingsViewModel) -> some View {
-        if !viewModel.isNewHome, !viewModel.isEditing, let sharingViewModel {
+        if !viewModel.isNewHome && !viewModel.isEditing, let accessVM = self.homeAccessViewModel {
             Section {
+                Toggle(
+                    isOn: Binding(
+                        get: { accessVM.isPrivate },
+                        set: { newValue in
+                            Task {
+                                await accessVM.setPrivate(newValue)
+                            }
+                        }
+                    )
+                ) {
+                    Label("Private Home", systemImage: "lock.house")
+                }
+                .accessibilityIdentifier("home-private-toggle")
+
                 HStack {
-                    Label {
-                        Text("Status")
-                    } icon: {
-                        Image(systemName: sharingViewModel.isSharing ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(sharingViewModel.isSharing ? .green : .secondary)
-                    }
+                    Label("Default Policy", systemImage: "person.2.badge.gearshape")
                     Spacer()
-                    if sharingViewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else if sharingViewModel.isSharing {
-                        Text("Shared with \(sharingViewModel.participantCount) people")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Not Shared")
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(
+                        accessVM.defaultAccessPolicy == .allHomesShared
+                            ? "All Homes"
+                            : "Owner Scoped"
+                    )
+                    .foregroundStyle(.secondary)
                 }
 
-                if sharingViewModel.isSharing {
+                if accessVM.isLoading {
                     HStack {
-                        Label("Owner", systemImage: "person.fill")
                         Spacer()
-                        Text(sharingViewModel.ownerName)
-                            .foregroundStyle(.secondary)
+                        ProgressView()
+                        Spacer()
                     }
-                }
-
-                if sharingViewModel.isSharing && !sharingViewModel.participants.isEmpty {
-                    ForEach(sharingViewModel.participants, id: \.userIdentity) { participant in
-                        homeParticipantRow(participant: participant)
-                    }
-                }
-
-                if sharingViewModel.isSharing {
-                    Button("Manage Sharing", systemImage: "person.2.badge.gearshape") {
-                        showSharingSheet = true
-                    }
-
-                    if sharingViewModel.isOwner {
-                        Button("Stop Sharing", systemImage: "xmark.circle", role: .destructive) {
-                            showStopSharingConfirmation = true
-                        }
-                    } else {
-                        Button(
-                            "Leave This Home",
-                            systemImage: "rectangle.portrait.and.arrow.right",
-                            role: .destructive
-                        ) {
-                            showLeaveSharingConfirmation = true
-                        }
-                    }
-                } else if settings.isPro {
-                    Button("Share This Home", systemImage: "person.badge.plus") {
-                        showSharingSheet = true
-                    }
+                } else if accessVM.memberAccessStates.isEmpty {
+                    Text("No members to configure.")
+                        .foregroundStyle(.secondary)
                 } else {
-                    Button("Share This Home (Pro)", systemImage: "person.badge.plus") {
-                        router.navigate(to: .subscriptionSettingsView)
-                    }
+                    memberAccessRows(
+                        accessStates: accessVM.memberAccessStates,
+                        homeAccessViewModel: accessVM
+                    )
                 }
             } header: {
-                Text("Sharing")
+                Text("Sharing Access")
             } footer: {
-                if !settings.isPro && !sharingViewModel.isSharing {
-                    Text("A Pro subscription is required to start sharing.")
-                } else {
-                    Text("Sharing is managed per home.")
-                }
+                Text(
+                    accessVM.isPrivate
+                        ? "This home is private and excluded from automatic member access."
+                        : "Use overrides to grant or deny access for individual members."
+                )
             }
+        }
+    }
+
+    private func memberAccessRows(
+        accessStates: [MemberHomeAccessState],
+        homeAccessViewModel: HomeAccessOverridesViewModel
+    ) -> some View {
+        let indexedStates = Array(accessStates.enumerated())
+        return ForEach(indexedStates, id: \.element.id) { _, state in
+            VStack(alignment: .leading, spacing: 8) {
+                Text(displayName(for: state.member))
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Text(accessSourceText(state.source))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Picker(
+                    "Access",
+                    selection: Binding(
+                        get: {
+                            switch state.overrideDecision {
+                            case .allow:
+                                return OverrideSelection.allow
+                            case .deny:
+                                return OverrideSelection.deny
+                            case nil:
+                                return .inherit
+                            }
+                        },
+                        set: { (selection: OverrideSelection) in
+                            Task {
+                                let decision: HomeAccessOverrideDecision? =
+                                    switch selection {
+                                    case .inherit: nil
+                                    case .allow: HomeAccessOverrideDecision.allow
+                                    case .deny: HomeAccessOverrideDecision.deny
+                                    }
+                                await homeAccessViewModel.setOverride(
+                                    memberID: state.member.id,
+                                    decision: decision
+                                )
+                            }
+                        }
+                    )
+                ) {
+                    Text("Inherit").tag(OverrideSelection.inherit)
+                    Text("Allow").tag(OverrideSelection.allow)
+                    Text("Deny").tag(OverrideSelection.deny)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("home-override-picker-\(state.member.id.uuidString)")
+            }
+            .padding(.vertical, 4)
+            .accessibilityIdentifier("home-access-row-\(state.member.id.uuidString)")
         }
     }
 
@@ -663,33 +656,29 @@ struct HomeDetailSettingsView: View {
         return lines.joined(separator: "\n")
     }
 
-    @ViewBuilder
-    private func homeParticipantRow(participant: CKShare.Participant) -> some View {
-        HStack {
-            Image(systemName: participant.role == .owner ? "crown.fill" : "person.fill")
-                .foregroundStyle(participant.role == .owner ? .yellow : .blue)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(participantDisplayName(participant))
-                    .font(.body)
-                Text(participant.role == .owner ? "Owner" : "Member")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
+    private func displayName(for member: SQLiteHouseholdMember) -> String {
+        if !member.displayName.isEmpty {
+            return member.displayName
         }
+        if !member.contactEmail.isEmpty {
+            return member.contactEmail
+        }
+        return "Member"
     }
 
-    private func participantDisplayName(_ participant: CKShare.Participant) -> String {
-        if let name = participant.userIdentity.nameComponents?.formatted(), !name.isEmpty {
-            return name
+    private func accessSourceText(_ source: HomeAccessSource) -> String {
+        switch source {
+        case .inherited:
+            return "Access inherited from household default."
+        case .overriddenAllow:
+            return "Explicitly allowed for this home."
+        case .overriddenDeny:
+            return "Explicitly denied for this home."
+        case .privateHome:
+            return "Blocked because this home is private."
+        case .noMembership:
+            return "No active household membership."
         }
-        if let email = participant.userIdentity.lookupInfo?.emailAddress, !email.isEmpty {
-            return email
-        }
-        return participant.role == .owner ? "Owner" : "Unknown"
     }
 }
 

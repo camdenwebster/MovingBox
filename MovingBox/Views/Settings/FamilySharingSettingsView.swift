@@ -1,168 +1,266 @@
-//
-//  FamilySharingSettingsView.swift
-//  MovingBox
-//
-//  Created by Camden Webster on 2/4/26.
-//
-
-import Dependencies
-import SQLiteData
 import SwiftUI
 
 struct FamilySharingSettingsView: View {
-    @FetchAll(SQLiteHome.order(by: \.name), animation: .default)
-    private var homes: [SQLiteHome]
+    @State private var viewModel = GlobalSharingSettingsViewModel()
+    @State private var showInviteSheet = false
+    @State private var showEnableConfirmation = false
 
     var body: some View {
         List {
-            homesSection
-            infoSection
+            statusSection
+
+            if viewModel.isSharingEnabled {
+                policySection
+                membersSection
+                invitesSection
+                homesSummarySection
+            }
         }
         .navigationTitle("Family Sharing")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if viewModel.isSharingEnabled {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Invite", systemImage: "person.badge.plus") {
+                        showInviteSheet = true
+                    }
+                    .accessibilityIdentifier("family-sharing-invite-button")
+                }
+            }
+        }
+        .task {
+            await viewModel.load()
+        }
+        .sheet(isPresented: $showInviteSheet) {
+            InviteMemberSheet(viewModel: viewModel)
+        }
+        .alert(
+            "Enable Family Sharing?",
+            isPresented: $showEnableConfirmation
+        ) {
+            Button("Enable") {
+                Task {
+                    await viewModel.setSharingEnabled(true)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You can keep specific homes private and exclude them from automatic sharing.")
+        }
+        .alert(
+            "Sharing Error",
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { newValue in
+                    if !newValue {
+                        viewModel.errorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK") {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
     }
 
     @ViewBuilder
-    private var homesSection: some View {
-        Section {
-            if homes.isEmpty {
-                Text("Create a home to start sharing.")
+    private var statusSection: some View {
+        Section("Status") {
+            HStack {
+                Label("Family Sharing", systemImage: "person.2.fill")
+                Spacer()
+                if viewModel.isLoading {
+                    ProgressView()
+                } else {
+                    Text(viewModel.isSharingEnabled ? "Enabled" : "Disabled")
+                        .foregroundStyle(viewModel.isSharingEnabled ? .green : .secondary)
+                }
+            }
+
+            if viewModel.isSharingEnabled {
+                Text(viewModel.shareStatusText)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(homes) { home in
-                    NavigationLink {
-                        HomeDetailSettingsView(homeID: home.id, presentedInSheet: false)
-                    } label: {
-                        HomeSharingSummaryRow(home: home)
-                    }
+                Button("Enable Family Sharing", systemImage: "person.2.badge.gearshape") {
+                    showEnableConfirmation = true
                 }
+                .accessibilityIdentifier("family-sharing-enable-button")
             }
-        } header: {
-            Text("Homes")
-        } footer: {
-            Text("Sharing is managed inside each home's settings.")
         }
     }
 
     @ViewBuilder
-    private var infoSection: some View {
+    private var policySection: some View {
         Section {
-            InfoRow(
-                icon: "house",
-                title: "Per-Home Sharing",
-                description: "Invite people to specific homes while keeping others private."
-            )
-            InfoRow(
-                icon: "arrow.triangle.2.circlepath",
-                title: "Real-time Sync",
-                description: "Changes sync automatically between all participants."
-            )
-            InfoRow(
-                icon: "lock.shield",
-                title: "Secure",
-                description: "Data is encrypted and only shared with people you invite."
-            )
+            Picker(
+                "Access Policy",
+                selection: Binding(
+                    get: { viewModel.defaultAccessPolicy },
+                    set: { viewModel.defaultAccessPolicy = $0 }
+                )
+            ) {
+                Text("All Homes").tag(HouseholdDefaultAccessPolicy.allHomesShared)
+                Text("Owner Scoped").tag(HouseholdDefaultAccessPolicy.ownerScopesHomes)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("family-sharing-policy-picker")
         } header: {
-            Text("About Family Sharing")
-        }
-    }
-}
-
-private struct HomeSharingSummaryRow: View {
-    @Dependency(\.defaultDatabase) private var database
-
-    let home: SQLiteHome
-
-    @State private var isLoading = true
-    @State private var isShared = false
-    @State private var participantCount = 0
-
-    private var homeDisplayName: String {
-        if !home.name.isEmpty { return home.name }
-        if !home.address1.isEmpty { return home.address1 }
-        return "Unnamed Home"
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(homeDisplayName)
-                .foregroundStyle(.primary)
-
-            HStack(spacing: 8) {
-                Image(systemName: isShared ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isShared ? .green : .secondary)
-
-                if isLoading {
-                    Text("Checking status...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if isShared {
-                    Text("Shared with \(participantCount) people")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Not Shared")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .task(id: home.syncMetadataID) {
-            await loadSharingStatus()
+            Text("Default Home Access")
+        } footer: {
+            Text("Home-specific overrides can still grant or deny access per member.")
         }
     }
 
-    private func loadSharingStatus() async {
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            let metadata = try await database.read { db in
-                do {
-                    return try SyncMetadata.find(home.syncMetadataID).fetchOne(db)
-                } catch {
-                    if isMissingSyncMetadataTableError(error) {
-                        return nil
-                    }
-                    throw error
-                }
-            }
-            if let share = metadata?.share {
-                isShared = true
-                participantCount = share.participants.filter { $0.role != .owner }.count
+    @ViewBuilder
+    private var membersSection: some View {
+        Section {
+            if viewModel.nonOwnerMembers.isEmpty {
+                Text("No members yet.")
+                    .foregroundStyle(.secondary)
             } else {
-                isShared = false
-                participantCount = 0
+                ForEach(viewModel.nonOwnerMembers) { member in
+                    memberRow(member)
+                }
             }
-        } catch {
-            isShared = false
-            participantCount = 0
+        } header: {
+            Text("Members")
         }
     }
-}
 
-private struct InfoRow: View {
-    let icon: String
-    let title: String
-    let description: String
+    @ViewBuilder
+    private var invitesSection: some View {
+        Section {
+            if viewModel.pendingInvites.isEmpty {
+                Text("No pending invites.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(viewModel.pendingInvites) { invite in
+                    inviteRow(invite)
+                }
+            }
+        } header: {
+            Text("Pending Invites")
+        } footer: {
+            Text("Invites become members automatically with access to non-private homes.")
+        }
+    }
 
-    var body: some View {
+    @ViewBuilder
+    private var homesSummarySection: some View {
+        Section {
+            HStack {
+                Label("Homes marked private", systemImage: "house.and.flag.fill")
+                Spacer()
+                Text("\(viewModel.privateHomeCount)")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Private Homes")
+        } footer: {
+            Text("Manage private-home and per-member overrides from each home's settings.")
+        }
+    }
+
+    private func memberRow(_ member: SQLiteHouseholdMember) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(.tint)
-                .frame(width: 28)
+            Image(systemName: "person.fill")
+                .foregroundStyle(.blue)
+                .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text(description)
+                Text(member.displayName.isEmpty ? member.contactEmail : member.displayName)
+                if !member.contactEmail.isEmpty {
+                    Text(member.contactEmail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Button("Remove", role: .destructive) {
+                Task {
+                    await viewModel.revokeMember(memberID: member.id)
+                }
+            }
+            .buttonStyle(.borderless)
+        }
+        .accessibilityIdentifier("family-sharing-member-\(member.id.uuidString)")
+    }
+
+    private func inviteRow(_ invite: SQLiteHouseholdInvite) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "envelope.badge")
+                .foregroundStyle(.orange)
+                .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(invite.displayName.isEmpty ? invite.email : invite.displayName)
+                Text(invite.email)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Spacer()
+
+            Button("Mark Accepted") {
+                Task {
+                    await viewModel.acceptInvite(inviteID: invite.id)
+                }
+            }
+            .buttonStyle(.borderless)
         }
-        .padding(.vertical, 2)
+        .accessibilityIdentifier("family-sharing-invite-\(invite.id.uuidString)")
+    }
+}
+
+private struct InviteMemberSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var viewModel: GlobalSharingSettingsViewModel
+
+    @State private var displayName = ""
+    @State private var email = ""
+    @State private var isSubmitting = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Invite Details") {
+                    TextField("Name", text: $displayName)
+                        .textInputAutocapitalization(.words)
+
+                    TextField("Email", text: $email)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                }
+            }
+            .navigationTitle("Invite Member")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Send Invite") {
+                        isSubmitting = true
+                        Task {
+                            await viewModel.createInvite(displayName: displayName, email: email)
+                            isSubmitting = false
+                            dismiss()
+                        }
+                    }
+                    .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
+                    .bold()
+                }
+            }
+        }
     }
 }
 

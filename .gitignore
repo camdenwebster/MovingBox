@@ -108,3 +108,5 @@ fastlane/screenshots/dark/screenshots.html
 .claude/settings.local.json
 .tmp-home/
 .tuist/
+# Nightshift plan artifacts (keep out of version control)
+.nightshift-plan
