@@ -3,6 +3,10 @@ import Dependencies
 import Foundation
 import SQLiteData
 
+#if canImport(UIKit)
+    import UIKit
+#endif
+
 @Observable
 @MainActor
 final class GlobalSharingSettingsViewModel {
@@ -155,6 +159,8 @@ final class GlobalSharingSettingsViewModel {
         guard isICloudSyncEnabled else {
             throw SharePreparationError.syncDisabled
         }
+        let shareTitle = household.name.isEmpty ? "MovingBox Household" : household.name
+        let thumbnailImageData = appIconThumbnailData
 
         // Share creation requires a running sync engine and existing metadata for
         // the root record. On first share attempt, force a sync pass first.
@@ -167,8 +173,10 @@ final class GlobalSharingSettingsViewModel {
 
         do {
             let sharedRecord = try await syncEngine.share(record: household) { share in
-                let title = household.name.isEmpty ? "MovingBox Household" : household.name
-                share[CKShare.SystemFieldKey.title] = title
+                share[CKShare.SystemFieldKey.title] = shareTitle
+                if let thumbnailImageData {
+                    share[CKShare.SystemFieldKey.thumbnailImageData] = thumbnailImageData
+                }
             }
             hasCloudShare = true
             return sharedRecord
@@ -178,13 +186,47 @@ final class GlobalSharingSettingsViewModel {
             try? await syncEngine.sendChanges()
             try? await syncEngine.fetchChanges()
             let sharedRecord = try await syncEngine.share(record: household) { share in
-                let title = household.name.isEmpty ? "MovingBox Household" : household.name
-                share[CKShare.SystemFieldKey.title] = title
+                share[CKShare.SystemFieldKey.title] = shareTitle
+                if let thumbnailImageData {
+                    share[CKShare.SystemFieldKey.thumbnailImageData] = thumbnailImageData
+                }
             }
             hasCloudShare = true
             return sharedRecord
         }
     }
+
+    private var appIconThumbnailData: Data? {
+        #if canImport(UIKit)
+            guard let icon = Bundle.main.icon else { return nil }
+            let roundedIcon = roundedShareIcon(from: icon)
+            return roundedIcon.pngData()
+        #else
+            nil
+        #endif
+    }
+
+    #if canImport(UIKit)
+        private func roundedShareIcon(from image: UIImage) -> UIImage {
+            let side = min(image.size.width, image.size.height)
+            let size = CGSize(width: side, height: side)
+            let rect = CGRect(origin: .zero, size: size)
+            let cornerRadius = side * 0.224
+
+            let format = UIGraphicsImageRendererFormat.default()
+            format.opaque = false
+            // Preserve the source icon resolution to avoid a blurry thumbnail.
+            format.scale = max(image.scale, 1)
+
+            return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                UIBezierPath(
+                    roundedRect: rect,
+                    cornerRadius: cornerRadius
+                ).addClip()
+                image.draw(in: rect)
+            }
+        }
+    #endif
 
     func handleCloudShareStopped() async {
         do {

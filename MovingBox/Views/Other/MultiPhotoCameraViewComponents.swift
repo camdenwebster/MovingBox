@@ -792,9 +792,6 @@ struct CameraBottomControls: View {
                     .frame(width: 150)
 
                 Spacer()
-
-                Color.clear
-                    .frame(width: 50, height: 50)
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal)
