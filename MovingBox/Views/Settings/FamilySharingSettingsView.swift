@@ -30,8 +30,7 @@ struct FamilySharingSettingsView: View {
                             do {
                                 shareRecord = try await viewModel.prepareShareRecord()
                             } catch {
-                                viewModel.errorMessage =
-                                    "Failed to prepare sharing sheet: \(error.localizedDescription)"
+                                viewModel.errorMessage = viewModel.sharePreparationErrorMessage(for: error)
                             }
                         }
                     }

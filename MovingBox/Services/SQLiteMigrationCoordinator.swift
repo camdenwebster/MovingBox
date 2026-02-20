@@ -1184,13 +1184,20 @@ struct SQLiteMigrationCoordinator {
         guard blobLen > 0 else { return nil }
 
         let data = Data(bytes: blobPtr, count: blobLen)
-        let hex = SQLiteRecordWriter.colorHexFromData(data)
+        let hex = decodeLabelColorHex(data: data, skippedColors: &skippedColors)
 
-        if hex == 0x8080_80FF {
+        return hex
+    }
+
+    /// Exposed internally for migration-focused unit tests.
+    static func decodeLabelColorHex(data: Data, skippedColors: inout Int) -> Int64 {
+        let decodeResult = SQLiteRecordWriter.decodeColorHexFromData(data)
+
+        if decodeResult.usedFallback {
             logger.warning("Failed to deserialize UIColor BLOB — using fallback gray")
             skippedColors += 1
         }
-        return hex
+        return decodeResult.hex
     }
 
     /// Reads two Int64 columns as pairs from a query result

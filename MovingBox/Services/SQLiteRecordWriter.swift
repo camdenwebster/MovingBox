@@ -110,6 +110,11 @@ enum SQLiteRecordWriter {
         let insurancePolicyID: String
     }
 
+    struct ColorHexDecodeResult {
+        let hex: Int64
+        let usedFallback: Bool
+    }
+
     // MARK: - Insert Functions
 
     static func insertLabel(_ data: LabelWriteData, into db: Database) throws {
@@ -276,20 +281,22 @@ enum SQLiteRecordWriter {
     // MARK: - Shared Helpers
 
     /// Converts NSKeyedArchiver UIColor data to hex RGBA Int64.
-    /// Returns a fallback gray (0x808080FF) if the BLOB exists but can't be deserialized.
-    static func colorHexFromData(_ data: Data) -> Int64? {
-        guard let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: UIColor.self, from: data)
-        else { return 0x8080_80FF }
+    /// Returns `usedFallback = true` when fallback gray (0x808080FF) was needed.
+    static func decodeColorHexFromData(_ data: Data) -> ColorHexDecodeResult {
+        guard
+            let color = decodeArchivedUIColor(from: data),
+            let hex = colorHex(from: color)
+        else {
+            return ColorHexDecodeResult(hex: fallbackColorHex, usedFallback: true)
+        }
 
-        let converted = color.cgColor.converted(
-            to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil
-        )
-        guard let components = converted?.components, components.count >= 3 else { return nil }
-        let r = Int64(components[0] * 0xFF) << 24
-        let g = Int64(components[1] * 0xFF) << 16
-        let b = Int64(components[2] * 0xFF) << 8
-        let a = Int64((components.count >= 4 ? components[3] : 1) * 0xFF)
-        return r | g | b | a
+        return ColorHexDecodeResult(hex: hex, usedFallback: false)
+    }
+
+    /// Converts NSKeyedArchiver UIColor data to hex RGBA Int64.
+    /// Returns fallback gray if the BLOB exists but can't be deserialized.
+    static func colorHexFromData(_ data: Data) -> Int64? {
+        decodeColorHexFromData(data).hex
     }
 
     /// Converts a Double value to Decimal via string representation to avoid
@@ -297,5 +304,42 @@ enum SQLiteRecordWriter {
     static func decimalFromDouble(_ value: Double?) -> Decimal {
         guard let value else { return 0 }
         return Decimal(string: "\(value)") ?? Decimal(value)
+    }
+
+    private static let fallbackColorHex: Int64 = 0x8080_80FF
+
+    private static func decodeArchivedUIColor(from data: Data) -> UIColor? {
+        if let secureColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: UIColor.self, from: data) {
+            return secureColor
+        }
+
+        // Legacy fallback for archives that cannot be decoded via secure unarchive APIs.
+        if let topLevelObject = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) {
+            if let color = topLevelObject as? UIColor {
+                return color
+            }
+        }
+
+        return nil
+    }
+
+    private static func colorHex(from color: UIColor) -> Int64? {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        if color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) == false {
+            let resolvedColor = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+            guard resolvedColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+                return nil
+            }
+        }
+
+        let r = Int64(red * 0xFF) << 24
+        let g = Int64(green * 0xFF) << 16
+        let b = Int64(blue * 0xFF) << 8
+        let a = Int64(alpha * 0xFF)
+        return r | g | b | a
     }
 }

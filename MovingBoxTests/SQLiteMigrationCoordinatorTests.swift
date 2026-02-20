@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 import SQLiteData
 import Testing
+import UIKit
 
 @testable import MovingBox
 
@@ -115,6 +116,49 @@ struct SQLiteMigrationCoordinatorTests {
 
         let desc = stats.description
         #expect(!desc.contains("skipped"))
+    }
+
+    // MARK: - Label Color Blob Migration
+
+    @Test("Valid archived UIColor blob migrates to expected hex without skipped increment")
+    func validArchivedUIColorBlobKeepsColor() throws {
+        let color = UIColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1.0)
+        let blob = try NSKeyedArchiver.archivedData(withRootObject: color, requiringSecureCoding: true)
+
+        var skippedColors = 0
+        let hex = SQLiteMigrationCoordinator.decodeLabelColorHex(data: blob, skippedColors: &skippedColors)
+
+        #expect(hex == 0x3366_99FF)
+        #expect(skippedColors == 0)
+    }
+
+    @Test("Malformed color blob falls back to gray and increments skippedColors")
+    func malformedUIColorBlobFallsBack() {
+        let invalidBlob = Data([0x00, 0x01, 0x02, 0x03])
+
+        var skippedColors = 0
+        let hex = SQLiteMigrationCoordinator.decodeLabelColorHex(
+            data: invalidBlob, skippedColors: &skippedColors)
+
+        #expect(hex == 0x8080_80FF)
+        #expect(skippedColors == 1)
+    }
+
+    @Test("Archived gray UIColor does not falsely increment skippedColors")
+    func archivedGrayUIColorDoesNotCountAsSkipped() throws {
+        let realGray = UIColor(
+            red: 128.0 / 255.0,
+            green: 128.0 / 255.0,
+            blue: 128.0 / 255.0,
+            alpha: 1.0
+        )
+        let blob = try NSKeyedArchiver.archivedData(withRootObject: realGray, requiringSecureCoding: true)
+
+        var skippedColors = 0
+        let hex = SQLiteMigrationCoordinator.decodeLabelColorHex(data: blob, skippedColors: &skippedColors)
+
+        #expect(hex == 0x8080_80FF)
+        #expect(skippedColors == 0)
     }
 
     // MARK: - Decimal Precision

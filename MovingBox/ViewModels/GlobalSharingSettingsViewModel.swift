@@ -6,6 +6,17 @@ import SQLiteData
 @Observable
 @MainActor
 final class GlobalSharingSettingsViewModel {
+    private enum SharePreparationError: LocalizedError {
+        case syncDisabled
+
+        var errorDescription: String? {
+            switch self {
+            case .syncDisabled:
+                return "iCloud sync is disabled."
+            }
+        }
+    }
+
     var isLoading = false
     var errorMessage: String?
     var household: SQLiteHousehold?
@@ -141,13 +152,38 @@ final class GlobalSharingSettingsViewModel {
         guard let household else {
             throw HouseholdSharingServiceError.noHousehold
         }
-
-        let sharedRecord = try await syncEngine.share(record: household) { share in
-            let title = household.name.isEmpty ? "MovingBox Household" : household.name
-            share[CKShare.SystemFieldKey.title] = title
+        guard isICloudSyncEnabled else {
+            throw SharePreparationError.syncDisabled
         }
-        hasCloudShare = true
-        return sharedRecord
+
+        // Share creation requires a running sync engine and existing metadata for
+        // the root record. On first share attempt, force a sync pass first.
+        try await syncEngine.start()
+        do {
+            try await syncEngine.sendChanges()
+        } catch {
+            // Keep going: metadata may already exist from previous sync.
+        }
+
+        do {
+            let sharedRecord = try await syncEngine.share(record: household) { share in
+                let title = household.name.isEmpty ? "MovingBox Household" : household.name
+                share[CKShare.SystemFieldKey.title] = title
+            }
+            hasCloudShare = true
+            return sharedRecord
+        } catch {
+            // Retry once after an explicit send/fetch to recover from
+            // "recordMetadataNotFound" timing windows.
+            try? await syncEngine.sendChanges()
+            try? await syncEngine.fetchChanges()
+            let sharedRecord = try await syncEngine.share(record: household) { share in
+                let title = household.name.isEmpty ? "MovingBox Household" : household.name
+                share[CKShare.SystemFieldKey.title] = title
+            }
+            hasCloudShare = true
+            return sharedRecord
+        }
     }
 
     func handleCloudShareStopped() async {
@@ -191,5 +227,45 @@ final class GlobalSharingSettingsViewModel {
         } catch {
             hasCloudShare = false
         }
+    }
+
+    var isICloudSyncEnabled: Bool {
+        UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool ?? true
+    }
+
+    func sharePreparationErrorMessage(for error: Error) -> String {
+        if let shareError = error as? SharePreparationError {
+            switch shareError {
+            case .syncDisabled:
+                return "iCloud Sync is disabled. Enable it in Sync Data settings to use Family Sharing."
+            }
+        }
+
+        if let ckError = error as? CKError {
+            switch ckError.code {
+            case .notAuthenticated:
+                return "Sign in to iCloud on this device to use Family Sharing."
+            case .networkUnavailable, .networkFailure, .serviceUnavailable:
+                return "Couldn’t reach iCloud right now. Check your connection and try again."
+            default:
+                break
+            }
+        }
+
+        let debugDescription = String(describing: error)
+        if debugDescription.contains("syncEngineNotRunning") {
+            return "iCloud sync is still starting. Please wait a moment and try again."
+        }
+        if debugDescription.contains("recordMetadataNotFound") {
+            return "Preparing your household in iCloud. Please try again in a moment."
+        }
+        if debugDescription.contains("recordTableNotSynchronized") {
+            return "This build is missing household sync configuration for sharing."
+        }
+        if debugDescription.contains("recordNotRoot") {
+            return "This record type cannot be shared directly."
+        }
+
+        return "Failed to prepare sharing sheet: \(error.localizedDescription)"
     }
 }
