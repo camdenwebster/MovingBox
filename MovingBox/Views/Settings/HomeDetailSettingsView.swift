@@ -11,6 +11,7 @@ import SwiftUI
 
 struct HomeDetailSettingsView: View {
     @Dependency(\.defaultDatabase) var database
+    @Environment(\.featureFlags) private var featureFlags
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
@@ -112,7 +113,7 @@ struct HomeDetailSettingsView: View {
                 vm.setDatabase(database)
                 viewModel = vm
             }
-            if homeAccessViewModel == nil, let homeID {
+            if featureFlags.familySharingScopingEnabled, homeAccessViewModel == nil, let homeID {
                 homeAccessViewModel = HomeAccessOverridesViewModel(homeID: homeID)
             }
         }
@@ -366,7 +367,11 @@ struct HomeDetailSettingsView: View {
 
     @ViewBuilder
     private func sharingSection(viewModel: HomeDetailSettingsViewModel) -> some View {
-        if !viewModel.isNewHome && !viewModel.isEditing, let accessVM = self.homeAccessViewModel {
+        if featureFlags.familySharingScopingEnabled,
+            !viewModel.isNewHome,
+            !viewModel.isEditing,
+            let accessVM = self.homeAccessViewModel
+        {
             Section {
                 Toggle(
                     isOn: Binding(

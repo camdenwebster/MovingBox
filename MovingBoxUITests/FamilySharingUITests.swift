@@ -29,84 +29,74 @@ final class FamilySharingUITests: XCTestCase {
         app.terminate()
     }
 
-    func testEnableFamilySharingShowsPrivateHomeWarning() throws {
+    func testFamilySharingUsesToggleAndNoCustomInviteSheet() throws {
         openFamilySharing()
+        enableFamilySharingIfNeeded()
+        waitForSharingEnabledUI()
 
-        let enableButton = app.buttons["family-sharing-enable-button"]
-        XCTAssertTrue(enableButton.waitForExistence(timeout: 5), "Enable Family Sharing button should be visible")
-        enableButton.tap()
-
-        let warningText = app.staticTexts[
-            "You can keep specific homes private and exclude them from automatic sharing."
-        ]
-        XCTAssertTrue(warningText.waitForExistence(timeout: 5), "Private-home warning should be shown")
-
-        let confirmButton = app.alerts.buttons["Enable"]
-        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5), "Enable confirmation button should be visible")
-        confirmButton.tap()
-
+        let inviteButtonByID = app.buttons["family-sharing-invite-button"]
+        let inviteButtonByLabel = app.buttons["Invite"]
         XCTAssertTrue(
-            app.segmentedControls["family-sharing-policy-picker"].waitForExistence(timeout: 5),
-            "Global sharing policy picker should be shown after enabling"
+            waitForAnyExistence([inviteButtonByID, inviteButtonByLabel], timeout: 20),
+            "Invite button should be visible"
         )
-    }
-
-    func testInviteAcceptanceUpdatesGlobalSharingMembers() throws {
-        openFamilySharing()
-        enableSharingIfNeeded()
-
-        let inviteButton = app.buttons["family-sharing-invite-button"]
-        XCTAssertTrue(inviteButton.waitForExistence(timeout: 5), "Invite button should be visible")
+        let inviteButton = inviteButtonByID.exists ? inviteButtonByID : inviteButtonByLabel
         inviteButton.tap()
 
-        let nameField = app.textFields["Name"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Name field should appear in invite sheet")
-        nameField.tap()
-        nameField.typeText("Alex")
+        XCTAssertFalse(app.textFields["Name"].waitForExistence(timeout: 2), "Legacy invite sheet should not appear")
+        XCTAssertFalse(app.textFields["Email"].waitForExistence(timeout: 2), "Legacy invite sheet should not appear")
+    }
 
-        let emailField = app.textFields["Email"]
-        emailField.tap()
-        emailField.typeText("alex@example.com")
+    func testScopingControlsAreHiddenByDefault() throws {
+        openFamilySharing()
+        enableFamilySharingIfNeeded()
 
-        app.buttons["Send Invite"].tap()
+        XCTAssertFalse(
+            app.segmentedControls["family-sharing-policy-picker"].exists,
+            "Policy picker should be hidden when scoping feature flag is disabled"
+        )
 
-        let markAccepted = app.buttons["Mark Accepted"].firstMatch
-        XCTAssertTrue(markAccepted.waitForExistence(timeout: 5), "Pending invite should be visible")
-        markAccepted.tap()
-
-        XCTAssertTrue(
-            app.staticTexts["Alex"].waitForExistence(timeout: 5)
-                || app.staticTexts["alex@example.com"].waitForExistence(timeout: 5),
-            "Accepted invite should appear in active members"
+        navigateBackIfPossible()
+        settingsScreen.tapManageHomes()
+        openMainHomeFromList()
+        XCTAssertFalse(
+            app.switches["home-private-toggle"].exists,
+            "Home scoping controls should be hidden when scoping feature flag is disabled"
         )
     }
 
-    func testHomeAccessOverrideControlsAreInteractive() throws {
+    func testScopingControlsAppearWhenFlagEnabled() throws {
+        app.terminate()
+        app.launchArguments = [
+            "Use-Test-Data",
+            "Disable-Animations",
+            "Skip-Onboarding",
+            "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
+            "Is-Pro",
+            "Enable-Family-Sharing-Scoping",
+        ]
+        app.launch()
+
+        XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after relaunch")
+
         openFamilySharing()
-        enableSharingIfNeeded()
-        inviteAndAcceptMember(name: "Jordan", email: "jordan@example.com")
+        enableFamilySharingIfNeeded()
+        waitForSharingEnabledUI()
+        let pickerByID = app.segmentedControls["family-sharing-policy-picker"]
+        let allHomesOption = app.buttons["All Homes"]
+        let ownerScopedOption = app.buttons["Owner Scoped"]
+        let pickerVisible =
+            pickerByID.waitForExistence(timeout: 15)
+            || (allHomesOption.waitForExistence(timeout: 15) && ownerScopedOption.exists)
+        XCTAssertTrue(pickerVisible, "Policy picker should be visible when scoping feature flag is enabled")
 
         navigateBackIfPossible()
-        XCTAssertTrue(settingsScreen.isDisplayed(), "Should return to Settings")
-
         settingsScreen.tapManageHomes()
-        XCTAssertTrue(app.navigationBars["Homes"].waitForExistence(timeout: 5), "Home list should be visible")
-
         openMainHomeFromList()
-
         let privateToggle = app.switches["home-private-toggle"]
-        XCTAssertTrue(privateToggle.waitForExistence(timeout: 5), "Private home toggle should be shown")
-        privateToggle.tap()
-
-        let overridePicker = app.segmentedControls.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "home-override-picker-")
-        ).firstMatch
-        XCTAssertTrue(overridePicker.waitForExistence(timeout: 5), "Member home override picker should be visible")
-
-        let denyButton = overridePicker.buttons["Deny"]
-        XCTAssertTrue(denyButton.exists, "Deny segment should be available")
-        denyButton.tap()
-        XCTAssertTrue(denyButton.exists, "Deny segment should remain visible after selection")
+        XCTAssertTrue(privateToggle.waitForExistence(timeout: 5), "Home scoping controls should be visible")
     }
 
     private func openFamilySharing() {
@@ -117,49 +107,56 @@ final class FamilySharingUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Family Sharing"].waitForExistence(timeout: 5), "Family Sharing should open")
     }
 
-    private func enableSharingIfNeeded() {
-        let enableButton = app.buttons["family-sharing-enable-button"]
-        if enableButton.waitForExistence(timeout: 2) {
-            enableButton.tap()
-            let confirmButton = app.alerts.buttons["Enable"]
-            XCTAssertTrue(confirmButton.waitForExistence(timeout: 5), "Enable confirmation should appear")
-            confirmButton.tap()
+    private func enableFamilySharingIfNeeded() {
+        let sharingToggle = app.switches["family-sharing-toggle"]
+        XCTAssertTrue(sharingToggle.waitForExistence(timeout: 8), "Family sharing toggle should be visible")
+        let deadline = Date().addingTimeInterval(15)
+        while !isSwitchOn(sharingToggle), Date() < deadline {
+            if sharingToggle.isHittable {
+                sharingToggle.tap()
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
-
-        XCTAssertTrue(
-            app.segmentedControls["family-sharing-policy-picker"].waitForExistence(timeout: 5),
-            "Policy picker should be visible once sharing is enabled"
-        )
     }
 
-    private func inviteAndAcceptMember(name: String, email: String) {
+    private func isSwitchOn(_ toggle: XCUIElement) -> Bool {
+        let value = String(describing: toggle.value).lowercased()
+        return value == "1" || value == "on" || value == "true"
+    }
+
+    private func waitForSharingEnabledUI() {
+        let sharingToggle = app.switches["family-sharing-toggle"]
         let inviteButton = app.buttons["family-sharing-invite-button"]
-        XCTAssertTrue(inviteButton.waitForExistence(timeout: 5), "Invite button should be visible")
-        inviteButton.tap()
+        let inviteLabelButton = app.buttons["Invite"]
+        let inviteHint = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "Use the invite button")
+        ).firstMatch
 
-        let nameField = app.textFields["Name"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Invite name field should be visible")
-        nameField.tap()
-        nameField.typeText(name)
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline {
+            if inviteButton.exists || inviteLabelButton.exists || inviteHint.exists {
+                return
+            }
+            if sharingToggle.exists, sharingToggle.isHittable, !isSwitchOn(sharingToggle) {
+                sharingToggle.tap()
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+    }
 
-        let emailField = app.textFields["Email"]
-        emailField.tap()
-        emailField.typeText(email)
-
-        app.buttons["Send Invite"].tap()
-
-        let markAccepted = app.buttons["Mark Accepted"].firstMatch
-        XCTAssertTrue(markAccepted.waitForExistence(timeout: 5), "Pending invite should exist")
-        markAccepted.tap()
-
-        XCTAssertTrue(
-            app.staticTexts[name].waitForExistence(timeout: 5)
-                || app.staticTexts[email].waitForExistence(timeout: 5),
-            "Accepted invite should appear in members"
-        )
+    private func waitForAnyExistence(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if elements.contains(where: \.exists) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return false
     }
 
     private func openMainHomeFromList() {
+        XCTAssertTrue(app.navigationBars["Homes"].waitForExistence(timeout: 5), "Home list should be visible")
         let predicates = [
             NSPredicate(format: "label CONTAINS[c] %@", "Main House"),
             NSPredicate(format: "label CONTAINS[c] %@", "123 Main Street"),
@@ -169,7 +166,7 @@ final class FamilySharingUITests: XCTestCase {
             let candidate = app.buttons.matching(predicate).firstMatch
             if candidate.waitForExistence(timeout: 2) {
                 candidate.tap()
-                if app.switches["home-private-toggle"].waitForExistence(timeout: 5) {
+                if !app.navigationBars["Homes"].exists {
                     return
                 }
                 navigateBackIfPossible()

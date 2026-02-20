@@ -61,7 +61,6 @@
 		19F765D52DAB558000AE287D /* OptimizedImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F765D42DAB558000AE287D /* OptimizedImageManager.swift */; };
 		4A01539D070041769323F9C9 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D8EF9BE2FD8E4F3AAFF4F0BC /* Sentry */; };
 		810FB0E2246E896DD548B208 /* ShareMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65433A40EA29E772843D04D /* ShareMetadataStore.swift */; };
-		F0A1B2C32F50000100ABCD02 /* HouseholdSharingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C32F50000100ABCD01 /* HouseholdSharingService.swift */; };
 		A1B2C3D42F4B000100000011 /* VideoAnalysisCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000001 /* VideoAnalysisCoordinator.swift */; };
 		A1B2C3D42F4B000100000012 /* VideoFrameExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000002 /* VideoFrameExtractor.swift */; };
 		A1B2C3D42F4B000100000013 /* VideoItemDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000003 /* VideoItemDeduplicator.swift */; };
@@ -69,6 +68,7 @@
 		A1B2C3D42F4B000100000015 /* BoundingBoxCropper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000005 /* BoundingBoxCropper.swift */; };
 		A1B2C3D42F4B000100000016 /* LabelEmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F4B000100000006 /* LabelEmojiCatalog.swift */; };
 		C1083E5906EC3ACD9B80C40F /* TestSeedDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496F4C92B9629F6EE657DDD0 /* TestSeedDatabase.swift */; };
+		F0A1B2C32F50000100ABCD02 /* HouseholdSharingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C32F50000100ABCD01 /* HouseholdSharingService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */

@@ -3,13 +3,17 @@ import XCTest
 class ImportScreen {
     let app: XCUIApplication
 
+    let formatPicker: XCUIElement
     let itemsToggle: XCUIElement
     let locationsToggle: XCUIElement
     let labelsToggle: XCUIElement
+    let homesToggle: XCUIElement
+    let insurancePoliciesToggle: XCUIElement
     let selectFileButton: XCUIElement
 
     init(app: XCUIApplication) {
         self.app = app
+        self.formatPicker = app.otherElements["import-format-picker"]
         // Use descendants to find the actual switch element within the toggle container
         self.itemsToggle =
             app.switches.matching(NSPredicate(format: "identifier == 'import-items-toggle'")).firstMatch
@@ -18,6 +22,11 @@ class ImportScreen {
             .firstMatch
         self.labelsToggle =
             app.switches.matching(NSPredicate(format: "identifier == 'import-labels-toggle'")).firstMatch
+        self.homesToggle =
+            app.switches.matching(NSPredicate(format: "identifier == 'import-homes-toggle'")).firstMatch
+        self.insurancePoliciesToggle =
+            app.switches.matching(NSPredicate(format: "identifier == 'import-insurance-policies-toggle'"))
+            .firstMatch
         self.selectFileButton =
             app.cells.containing(.button, identifier: "import-select-file-button").firstMatch
     }
@@ -29,6 +38,36 @@ class ImportScreen {
 
     func tapSelectFileButton() {
         selectFileButton.tap()
+    }
+
+    func isFormatPickerVisible() -> Bool {
+        formatPicker.waitForExistence(timeout: 5)
+    }
+
+    func selectCSVArchiveFormat() {
+        formatPicker.tap()
+        let option = app.buttons["CSV Archive"].firstMatch
+        if option.waitForExistence(timeout: 2) {
+            option.tap()
+            return
+        }
+        let fallback = app.staticTexts["CSV Archive"].firstMatch
+        if fallback.waitForExistence(timeout: 2) {
+            fallback.tap()
+        }
+    }
+
+    func selectDatabaseFormat() {
+        formatPicker.tap()
+        let option = app.buttons["MovingBox Database"].firstMatch
+        if option.waitForExistence(timeout: 2) {
+            option.tap()
+            return
+        }
+        let fallback = app.staticTexts["MovingBox Database"].firstMatch
+        if fallback.waitForExistence(timeout: 2) {
+            fallback.tap()
+        }
     }
 
     func toggleItems(_ enabled: Bool) {
@@ -55,16 +94,36 @@ class ImportScreen {
         }
     }
 
+    func toggleHomes(_ enabled: Bool) {
+        let currentValue = homesToggle.value as? String
+        let isCurrentlyOn = currentValue == "1"
+        if isCurrentlyOn != enabled {
+            homesToggle.tap()
+        }
+    }
+
+    func toggleInsurancePolicies(_ enabled: Bool) {
+        let currentValue = insurancePoliciesToggle.value as? String
+        let isCurrentlyOn = currentValue == "1"
+        if isCurrentlyOn != enabled {
+            insurancePoliciesToggle.tap()
+        }
+    }
+
     func enableAllOptions() {
         toggleItems(true)
         toggleLocations(true)
         toggleLabels(true)
+        toggleHomes(true)
+        toggleInsurancePolicies(true)
     }
 
     func disableAllOptions() {
         toggleItems(false)
         toggleLocations(false)
         toggleLabels(false)
+        toggleHomes(false)
+        toggleInsurancePolicies(false)
     }
 
     func selectOnlyItems() {

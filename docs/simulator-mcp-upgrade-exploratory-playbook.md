@@ -1,4 +1,4 @@
-# MCP-Driven Simulator Upgrade Exploratory Playbook (`2.1.0` -> `main`)
+# MCP-Driven Simulator Upgrade Exploratory Playbook (`2.1.0` -> `c71e90ef77442755e4937686f0e0f3ec5a87ac7d`)
 
 ## Purpose and Scope
 This playbook defines a deterministic procedure for a coding agent to perform exploratory upgrade testing in the iOS Simulator using iOS Simulator MCP interactions.
@@ -6,7 +6,7 @@ This playbook defines a deterministic procedure for a coding agent to perform ex
 Primary goals:
 1. Build and install `2.1.0`.
 2. Create baseline user data in the simulator via MCP-driven UI interactions.
-3. Build and install current `main` in-place over the same app install to simulate upgrade.
+3. Build and install target commit `c71e90ef77442755e4937686f0e0f3ec5a87ac7d` in-place over the same app install to simulate upgrade.
 4. Verify migration behavior and exploratory charter outcomes.
 5. Produce strict pass/fail output with evidence artifacts.
 
@@ -17,9 +17,15 @@ Out of scope:
 ## Hard Preconditions
 1. Simulator UDID: `4DA6503A-88E2-4019-B404-EBBB222F3038`.
 2. Bundle ID: `com.mothersound.movingbox`.
-3. Local git contains tag `2.1.0` and branch `main`.
-4. Do not perform in-place `git checkout` in the current repo root (working tree may be dirty).
-5. iOS Simulator MCP is available and supports:
+3. Local git contains tag `2.1.0` and commit `c71e90ef77442755e4937686f0e0f3ec5a87ac7d`.
+4. Test asset files exist:
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/lamp-bedside.imageset/lamp-bedside.jpg`
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/floor-lamp.imageset/floor-lamp.jpg`
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/router-wifi.imageset/router-wifi.jpg`
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/wireless-router.imageset/wireless-router.jpg`
+   - `/Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg`
+5. Do not perform in-place `git checkout` in the current repo root (working tree may be dirty).
+6. iOS Simulator MCP is available and supports:
    - `open_simulator`
    - `get_booted_sim_id`
    - `ui_describe_all`
@@ -28,13 +34,13 @@ Out of scope:
    - `ui_swipe`
    - `launch_app`
    - `screenshot`
-6. CLI tools available: `git`, `xcodebuild`, `xcrun`, `sqlite3`, `plutil`, `find`.
+7. CLI tools available: `git`, `xcodebuild`, `xcrun`, `sqlite3`, `plutil`, `find`.
 
 ## Safety Rules for Dirty Working Tree
-1. Never run `git checkout 2.1.0` or `git checkout main` in `/Users/camden.webster/dev/MovingBox`.
+1. Never run `git checkout 2.1.0` or `git checkout c71e90ef77442755e4937686f0e0f3ec5a87ac7d` in `/Users/camden.webster/dev/MovingBox`.
 2. Always use detached worktrees:
    - `/tmp/movingbox-v210`
-   - `/tmp/movingbox-main`
+   - `/tmp/movingbox-target`
 3. Do not use destructive git commands (`reset --hard`, checkout file rewrites) in the primary working tree.
 
 ## Environment Setup
@@ -65,8 +71,10 @@ xcrun simctl spawn 4DA6503A-88E2-4019-B404-EBBB222F3038 \
   echo "timestamp=${TS}"
   echo "udid=4DA6503A-88E2-4019-B404-EBBB222F3038"
   echo "bundle=com.mothersound.movingbox"
+  echo "target_commit=c71e90ef77442755e4937686f0e0f3ec5a87ac7d"
   git -C /Users/camden.webster/dev/MovingBox rev-parse --short HEAD
   git -C /Users/camden.webster/dev/MovingBox rev-parse --short 2.1.0
+  git -C /Users/camden.webster/dev/MovingBox rev-parse --short c71e90ef77442755e4937686f0e0f3ec5a87ac7d
 } | tee "${RUN_ROOT}/reports/environment.txt"
 ```
 
@@ -74,13 +82,13 @@ xcrun simctl spawn 4DA6503A-88E2-4019-B404-EBBB222F3038 \
 Create detached worktrees for baseline and target:
 ```bash
 git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-v210 --force 2>/dev/null || true
-git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-main --force 2>/dev/null || true
+git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-target --force 2>/dev/null || true
 
 git -C /Users/camden.webster/dev/MovingBox worktree add --detach /tmp/movingbox-v210 2.1.0
-git -C /Users/camden.webster/dev/MovingBox worktree add --detach /tmp/movingbox-main main
+git -C /Users/camden.webster/dev/MovingBox worktree add --detach /tmp/movingbox-target c71e90ef77442755e4937686f0e0f3ec5a87ac7d
 
 git -C /tmp/movingbox-v210 rev-parse --short HEAD | tee "${RUN_ROOT}/reports/v210-commit.txt"
-git -C /tmp/movingbox-main rev-parse --short HEAD | tee "${RUN_ROOT}/reports/main-commit.txt"
+git -C /tmp/movingbox-target rev-parse --short HEAD | tee "${RUN_ROOT}/reports/target-commit.txt"
 ```
 
 ## Phase 1: Build + Install `2.1.0`
@@ -97,12 +105,21 @@ xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox \
 xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 \
   /tmp/movingbox-v210/.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 ```
-3. Launch with version-correct exploratory args (no test data preload):
+3. Import deterministic photo fixtures into simulator photo library:
+```bash
+xcrun simctl addmedia 4DA6503A-88E2-4019-B404-EBBB222F3038 \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/lamp-bedside.imageset/lamp-bedside.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/floor-lamp.imageset/floor-lamp.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/router-wifi.imageset/router-wifi.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/wireless-router.imageset/wireless-router.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg
+```
+4. Launch with version-correct exploratory args (no test data preload):
 ```bash
 xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox \
   --args Skip-Onboarding Disable-Animations UI-Testing-Mock-Camera Is-Pro Mock-OpenAI
 ```
-4. MCP initialization:
+5. MCP initialization:
    - `open_simulator`
    - `get_booted_sim_id` and verify expected UDID.
 
@@ -127,14 +144,16 @@ Create the following data:
    - `Garage` in `My Home`
    - `Office` in `Upgrade-Probe Home`
 3. Items (6 total):
-   - `Lamp #1`
-   - `Router/Modem Combo`
-   - `Toolbox (Heavy)`
+   - `Bedside Lamp (Photos: lamp-bedside.jpg primary, floor-lamp.jpg secondary)`
+   - `Router/Modem Combo (Photos: router-wifi.jpg primary, wireless-router.jpg secondary)`
+   - `Toolbox (Heavy) (Photo: toolbox.jpg primary)`
    - `Unicode Test - Cafe`
    - `Long Text Item - Lorem ipsum ...` (very long notes/description)
    - `Orphan Candidate` (save without location)
 4. Photos:
-   - At least 2 items with primary + secondary photos.
+   - Select imported simulator photos from Phase 1 step 3.
+   - Ensure at least two items have primary + secondary photos (`Bedside Lamp`, `Router/Modem Combo`).
+   - Ensure at least one additional item has a primary photo (`Toolbox (Heavy)`).
 5. Field stress:
    - Special characters: `#`, `/`, parentheses, long strings.
 
@@ -145,6 +164,9 @@ Capture screenshots via `screenshot` after each checkpoint:
 3. Item list showing 6 items.
 4. Detail view for each multi-photo item.
 5. Detail view for `Orphan Candidate`.
+6. Detail view for `Bedside Lamp` showing `lamp-bedside.jpg` + `floor-lamp.jpg`.
+7. Detail view for `Router/Modem Combo` showing `router-wifi.jpg` + `wireless-router.jpg`.
+8. Detail view for `Toolbox (Heavy)` showing `toolbox.jpg`.
 
 Save screenshots in:
 `/Users/camden.webster/dev/MovingBox/.build/exploratory-upgrade/<timestamp>/screenshots/phase2-*`
@@ -183,20 +205,33 @@ SQL
 plutil -p "${DATA_CONTAINER}/Library/Preferences/com.mothersound.movingbox.plist" \
   | tee "${RUN_ROOT}/db/pre-preferences.txt"
 ```
-
-## Phase 4: Build + Install `main` In-Place (Upgrade Simulation)
-1. Build from `/tmp/movingbox-main`:
+5. Record pre-upgrade image-backed item evidence in CoreData store:
 ```bash
-cd /tmp/movingbox-main
+sqlite3 "${STORE_PATH}" <<'SQL' | tee "${RUN_ROOT}/db/pre-coredata-image-evidence.txt"
+.headers on
+.mode column
+SELECT
+  ZTITLE,
+  CASE WHEN ZIMAGEURL IS NULL THEN 0 ELSE 1 END AS hasPrimaryImageURL,
+  CASE WHEN ZSECONDARYPHOTOURLS IS NULL THEN 0 ELSE 1 END AS hasSecondaryPhotoBlob
+FROM ZINVENTORYITEM
+WHERE ZTITLE IN ('Bedside Lamp', 'Router/Modem Combo', 'Toolbox (Heavy)');
+SQL
+```
+
+## Phase 4: Build + Install Target Commit In-Place (Upgrade Simulation)
+1. Build from `/tmp/movingbox-target`:
+```bash
+cd /tmp/movingbox-target
 xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox \
   -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' \
   -derivedDataPath ./.build/DerivedData 2>&1 | xcsift \
-  | tee "${RUN_ROOT}/logs/build-main.log"
+  | tee "${RUN_ROOT}/logs/build-target.log"
 ```
 2. Install in-place (same simulator, same bundle, no uninstall/reset):
 ```bash
 xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 \
-  /tmp/movingbox-main/.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
+  /tmp/movingbox-target/.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 ```
 3. Launch for real migration path:
 ```bash
@@ -265,6 +300,28 @@ sqlite3 "${SQLITE_DB}" 'PRAGMA foreign_key_check;' \
   | tee "${RUN_ROOT}/db/post-fk-check.txt"
 ```
 Pass condition: `post-fk-check.txt` is empty.
+
+### C2. Image Migration Validation
+Confirm image-backed items migrated to BLOB tables:
+```bash
+sqlite3 "${SQLITE_DB}" <<'SQL' | tee "${RUN_ROOT}/db/post-item-photo-evidence.txt"
+.headers on
+.mode column
+SELECT
+  i.title,
+  COUNT(p.id) AS photoBlobCount
+FROM inventoryItems i
+LEFT JOIN inventoryItemPhotos p ON p.inventoryItemID = i.id
+WHERE i.title IN ('Bedside Lamp', 'Router/Modem Combo', 'Toolbox (Heavy)')
+GROUP BY i.id, i.title
+ORDER BY i.title;
+SQL
+```
+Pass conditions:
+1. `Bedside Lamp` has `photoBlobCount >= 2`.
+2. `Router/Modem Combo` has `photoBlobCount >= 2`.
+3. `Toolbox (Heavy)` has `photoBlobCount >= 1`.
+4. UI still renders photos for those items (see section E).
 
 ### D. SwiftData Archive Validation
 Confirm old store moved to backup:
@@ -346,7 +403,7 @@ Checks:
 ## Evidence Capture Requirements
 Mandatory artifacts under `${RUN_ROOT}`:
 1. `logs/build-v210.log`
-2. `logs/build-main.log`
+2. `logs/build-target.log`
 3. `logs/app-subsystem.log`
 4. `db/pre-coredata-counts.txt`
 5. `db/post-sqlite-counts.txt`
@@ -354,9 +411,11 @@ Mandatory artifacts under `${RUN_ROOT}`:
 7. `db/pre-preferences.txt`
 8. `db/post-preferences.txt`
 9. `db/post-swiftdata-backup-files.txt`
-10. `screenshots/*.png`
-11. `reports/final-verdict.md`
-12. `reports/defects.md` (if any failures)
+10. `db/pre-coredata-image-evidence.txt`
+11. `db/post-item-photo-evidence.txt`
+12. `screenshots/*.png`
+13. `reports/final-verdict.md`
+14. `reports/defects.md` (if any failures)
 
 ## Pass/Fail Gates and Severity Policy
 Strict blocking policy:
@@ -408,7 +467,7 @@ xcrun simctl uninstall 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movi
 3. Remove temporary worktrees:
 ```bash
 git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-v210 --force || true
-git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-main --force || true
+git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-target --force || true
 ```
 4. Preserve run artifacts in `.build/exploratory-upgrade/<timestamp>/`.
 
@@ -433,9 +492,9 @@ open -a Simulator
 ### B. Worktrees
 ```bash
 git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-v210 --force 2>/dev/null || true
-git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-main --force 2>/dev/null || true
+git -C /Users/camden.webster/dev/MovingBox worktree remove /tmp/movingbox-target --force 2>/dev/null || true
 git -C /Users/camden.webster/dev/MovingBox worktree add --detach /tmp/movingbox-v210 2.1.0
-git -C /Users/camden.webster/dev/MovingBox worktree add --detach /tmp/movingbox-main main
+git -C /Users/camden.webster/dev/MovingBox worktree add --detach /tmp/movingbox-target c71e90ef77442755e4937686f0e0f3ec5a87ac7d
 ```
 
 ### C. Build/install `2.1.0`
@@ -445,21 +504,27 @@ xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox \
   -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' \
   -derivedDataPath ./.build/DerivedData 2>&1 | xcsift \
   | tee "${RUN_ROOT}/logs/build-v210.log"
+xcrun simctl addmedia 4DA6503A-88E2-4019-B404-EBBB222F3038 \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/lamp-bedside.imageset/lamp-bedside.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/floor-lamp.imageset/floor-lamp.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/router-wifi.imageset/router-wifi.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/wireless-router.imageset/wireless-router.jpg \
+  /Users/camden.webster/dev/MovingBox/MovingBox/TestAssets.xcassets/toolbox.imageset/toolbox.jpg
 xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 \
   /tmp/movingbox-v210/.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox \
   --args Skip-Onboarding Disable-Animations UI-Testing-Mock-Camera Is-Pro Mock-OpenAI
 ```
 
-### D. Build/install `main` in-place
+### D. Build/install target commit in-place
 ```bash
-cd /tmp/movingbox-main
+cd /tmp/movingbox-target
 xcodebuild build -project MovingBox.xcodeproj -scheme MovingBox \
   -destination 'id=4DA6503A-88E2-4019-B404-EBBB222F3038' \
   -derivedDataPath ./.build/DerivedData 2>&1 | xcsift \
-  | tee "${RUN_ROOT}/logs/build-main.log"
+  | tee "${RUN_ROOT}/logs/build-target.log"
 xcrun simctl install 4DA6503A-88E2-4019-B404-EBBB222F3038 \
-  /tmp/movingbox-main/.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
+  /tmp/movingbox-target/.build/DerivedData/Build/Products/Debug-iphonesimulator/MovingBox.app
 xcrun simctl launch 4DA6503A-88E2-4019-B404-EBBB222F3038 com.mothersound.movingbox \
   --args Skip-Onboarding Disable-Animations UI-Testing-Mock-Camera Is-Pro
 ```
@@ -477,7 +542,7 @@ plutil -p "${DATA_CONTAINER}/Library/Preferences/com.mothersound.movingbox.plist
 # Upgrade Exploratory Verdict
 - Run root: <path>
 - Baseline commit (2.1.0): <sha>
-- Target commit (main): <sha>
+- Target commit (`c71e90ef77442755e4937686f0e0f3ec5a87ac7d`): <sha>
 - Overall Verdict: PASS|FAIL
 
 ## Gate Results

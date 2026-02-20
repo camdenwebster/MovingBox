@@ -678,6 +678,12 @@ struct InventoryListView: View {
                             )
                         }.execute(db)
                     }
+
+                    try SQLiteInventoryItem.find(itemID)
+                        .update {
+                            $0.labelIDs = label.map { [$0.id] } ?? []
+                        }
+                        .execute(db)
                 }
             }
             selectedItemIDs.removeAll()

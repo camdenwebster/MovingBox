@@ -1,4 +1,7 @@
+import CloudKit
+import Dependencies
 import Foundation
+import SQLiteData
 
 @Observable
 @MainActor
@@ -11,8 +14,13 @@ final class GlobalSharingSettingsViewModel {
     var invites: [SQLiteHouseholdInvite] = []
     var homes: [SQLiteHome] = []
     var overrides: [SQLiteHomeAccessOverride] = []
+    var hasCloudShare = false
 
     private let service = HouseholdSharingService()
+    @ObservationIgnored
+    @Dependency(\.defaultSyncEngine) private var syncEngine
+    @ObservationIgnored
+    @Dependency(\.defaultDatabase) private var database
 
     var defaultAccessPolicy: HouseholdDefaultAccessPolicy {
         get {
@@ -46,7 +54,10 @@ final class GlobalSharingSettingsViewModel {
     }
 
     var shareStatusText: String {
-        "\(nonOwnerMembers.count) members, \(pendingInvites.count) pending invites"
+        if hasCloudShare {
+            return "System iCloud share configured"
+        }
+        return "\(nonOwnerMembers.count) members, \(pendingInvites.count) pending invites"
     }
 
     func load() async {
@@ -61,6 +72,7 @@ final class GlobalSharingSettingsViewModel {
             invites = snapshot.invites
             homes = snapshot.homes
             overrides = snapshot.overrides
+            await refreshCloudShareStatus()
             errorMessage = nil
         } catch {
             errorMessage = "Failed to load sharing settings: \(error.localizedDescription)"
@@ -106,7 +118,42 @@ final class GlobalSharingSettingsViewModel {
 
     func setSharingEnabled(_ enabled: Bool) async {
         do {
-            try await service.setSharingEnabled(enabled)
+            if enabled {
+                try await service.setSharingEnabled(true)
+                await load()
+            } else {
+                if hasCloudShare, let household {
+                    try await syncEngine.unshare(record: household)
+                }
+                try await service.setSharingEnabled(false)
+                hasCloudShare = false
+                await load()
+            }
+        } catch {
+            errorMessage = "Failed to update sharing status: \(error.localizedDescription)"
+        }
+    }
+
+    func prepareShareRecord() async throws -> SharedRecord {
+        if household == nil {
+            await load()
+        }
+        guard let household else {
+            throw HouseholdSharingServiceError.noHousehold
+        }
+
+        let sharedRecord = try await syncEngine.share(record: household) { share in
+            let title = household.name.isEmpty ? "MovingBox Household" : household.name
+            share[CKShare.SystemFieldKey.title] = title
+        }
+        hasCloudShare = true
+        return sharedRecord
+    }
+
+    func handleCloudShareStopped() async {
+        do {
+            try await service.setSharingEnabled(false)
+            hasCloudShare = false
             await load()
         } catch {
             errorMessage = "Failed to update sharing status: \(error.localizedDescription)"
@@ -119,6 +166,30 @@ final class GlobalSharingSettingsViewModel {
             await load()
         } catch {
             errorMessage = "Failed to update sharing policy: \(error.localizedDescription)"
+        }
+    }
+
+    private func refreshCloudShareStatus() async {
+        guard let household else {
+            hasCloudShare = false
+            return
+        }
+
+        do {
+            hasCloudShare = try await database.read { db in
+                do {
+                    return try SyncMetadata.find(household.syncMetadataID)
+                        .select(\.share)
+                        .fetchOne(db) != nil
+                } catch {
+                    if isMissingSyncMetadataTableError(error) {
+                        return false
+                    }
+                    throw error
+                }
+            }
+        } catch {
+            hasCloudShare = false
         }
     }
 }

@@ -76,6 +76,8 @@ actor DataManager {
         case failedCreateZip
         case invalidZipFile
         case invalidCSVFormat
+        case invalidDatabaseArchive
+        case restoreStagingFailed
         case photoNotFound
         case fileAccessDenied
         case fileTooLarge
@@ -115,6 +117,10 @@ actor DataManager {
             } else if description.contains("invalidCSVFormat") {
                 return
                     "This doesn't appear to be a MovingBox export file. Please use a ZIP file that was exported from MovingBox."
+            } else if description.contains("invalidDatabaseArchive") {
+                return "This database backup archive is invalid. Use a backup exported from MovingBox."
+            } else if description.contains("restoreStagingFailed") {
+                return "Unable to stage the database restore. Please try selecting the backup again."
             } else if description.contains("photoNotFound") {
                 return "Some photos could not be found during the import process."
             } else if description.contains("fileAccessDenied") {
@@ -139,6 +145,10 @@ actor DataManager {
             } else if description.contains("invalidCSVFormat") {
                 return
                     "MovingBox can only import files that were exported from the app. If you have data from another app, you'll need to manually add it."
+            } else if description.contains("invalidDatabaseArchive") {
+                return "Select a ZIP archive created by MovingBox's Database export option."
+            } else if description.contains("restoreStagingFailed") {
+                return "Ensure the archive is still available and you have free storage, then try again."
             } else if description.contains("photoNotFound") {
                 return "The import will continue, but some images may be missing from your inventory."
             } else if description.contains("fileAccessDenied") {
@@ -613,9 +623,33 @@ actor DataManager {
     }
 
     struct ImportConfig {
+        let format: ImportFormat
         let includeItems: Bool
         let includeLocations: Bool
         let includeLabels: Bool
+        let includeHomes: Bool
+        let includeInsurancePolicies: Bool
+
+        init(
+            format: ImportFormat = .csvArchive,
+            includeItems: Bool = true,
+            includeLocations: Bool = true,
+            includeLabels: Bool = true,
+            includeHomes: Bool = true,
+            includeInsurancePolicies: Bool = true
+        ) {
+            self.format = format
+            self.includeItems = includeItems
+            self.includeLocations = includeLocations
+            self.includeLabels = includeLabels
+            self.includeHomes = includeHomes
+            self.includeInsurancePolicies = includeInsurancePolicies
+        }
+    }
+
+    enum ImportFormat: String, CaseIterable, Sendable {
+        case csvArchive
+        case movingBoxDatabase
     }
 
     enum ImportProgress: Sendable {
@@ -628,6 +662,25 @@ actor DataManager {
         let itemCount: Int
         let locationCount: Int
         let labelCount: Int
+        let homeCount: Int
+        let insurancePolicyCount: Int
+        let requiresRestart: Bool
+
+        init(
+            itemCount: Int,
+            locationCount: Int,
+            labelCount: Int,
+            homeCount: Int = 0,
+            insurancePolicyCount: Int = 0,
+            requiresRestart: Bool = false
+        ) {
+            self.itemCount = itemCount
+            self.locationCount = locationCount
+            self.labelCount = labelCount
+            self.homeCount = homeCount
+            self.insurancePolicyCount = insurancePolicyCount
+            self.requiresRestart = requiresRestart
+        }
     }
 
     /// Progress updates during export operations
@@ -778,784 +831,835 @@ actor DataManager {
     /// Preview import without actually creating objects - just validates and counts
     func previewImport(
         from zipURL: URL,
-        config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+        config: ImportConfig = ImportConfig()
     ) async throws -> ImportResult {
-        return try await Task.detached(priority: .userInitiated) {
-            let workingDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("preview-\(UUID().uuidString)", isDirectory: true)
-
-            defer {
-                try? FileManager.default.removeItem(at: workingDir)
-            }
-
-            let localZipURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(zipURL.lastPathComponent)
-            try? FileManager.default.removeItem(at: localZipURL)
-
+        try await Task.detached(priority: .userInitiated) {
             guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
                 throw DataError.fileAccessDenied
             }
 
-            try FileManager.default.copyItem(at: zipURL, to: localZipURL)
-            try FileManager.default.setAttributes(
-                [
-                    .posixPermissions: 0o644
-                ], ofItemAtPath: localZipURL.path)
+            switch config.format {
+            case .csvArchive:
+                let workingDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("preview-\(UUID().uuidString)", isDirectory: true)
+                defer {
+                    try? FileManager.default.removeItem(at: workingDir)
+                }
 
-            try FileManager.default.createDirectory(
-                at: workingDir,
-                withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o755]
-            )
+                do {
+                    try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
+                    try FileManager.default.unzipItem(at: zipURL, to: workingDir)
+                } catch {
+                    throw DataError.invalidZipFile
+                }
 
-            try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
+                let itemCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("inventory.csv"),
+                    enabled: config.includeItems
+                )
+                let locationCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("locations.csv"),
+                    enabled: config.includeLocations
+                )
+                let labelCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("labels.csv"),
+                    enabled: config.includeLabels
+                )
+                let homeCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("home-details.csv"),
+                    enabled: config.includeHomes
+                )
+                let insurancePolicyCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("insurance-policy-details.csv"),
+                    enabled: config.includeInsurancePolicies
+                )
 
-            let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
-            let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
-            let labelsCSVURL = workingDir.appendingPathComponent("labels.csv")
+                return ImportResult(
+                    itemCount: itemCount,
+                    locationCount: locationCount,
+                    labelCount: labelCount,
+                    homeCount: homeCount,
+                    insurancePolicyCount: insurancePolicyCount,
+                    requiresRestart: false
+                )
 
-            var itemCount = 0
-            var locationCount = 0
-            var labelCount = 0
-
-            if config.includeItems, FileManager.default.fileExists(atPath: itemsCSVURL.path) {
-                let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
-                let rows = csvString.components(separatedBy: .newlines)
-                    .filter { !$0.isEmpty }
-                itemCount = max(0, rows.count - 1)
+            case .movingBoxDatabase:
+                do {
+                    try validateDatabaseBackupArchive(at: zipURL)
+                } catch {
+                    throw DataError.invalidDatabaseArchive
+                }
+                return ImportResult(
+                    itemCount: 0,
+                    locationCount: 0,
+                    labelCount: 0,
+                    homeCount: 0,
+                    insurancePolicyCount: 0,
+                    requiresRestart: true
+                )
             }
-
-            if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
-                let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
-                let rows = csvString.components(separatedBy: .newlines)
-                    .filter { !$0.isEmpty }
-                locationCount = max(0, rows.count - 1)
-            }
-
-            if config.includeLabels, FileManager.default.fileExists(atPath: labelsCSVURL.path) {
-                let csvString = try String(contentsOf: labelsCSVURL, encoding: .utf8)
-                let rows = csvString.components(separatedBy: .newlines)
-                    .filter { !$0.isEmpty }
-                labelCount = max(0, rows.count - 1)
-            }
-
-            return ImportResult(
-                itemCount: itemCount,
-                locationCount: locationCount,
-                labelCount: labelCount
-            )
         }.value
     }
 
     /// Imports inventory from a zip file and reports progress through an async sequence.
-    ///
-    /// Uses `database.write {}` for all insert operations. Since sqlite-data models are
-    /// value-type structs, no MainActor isolation is needed for property access.
-    ///
-    /// - Parameters:
-    ///   - zipURL: URL to the zip file containing exported data
-    ///   - database: A DatabaseWriter (Sendable, safe to pass across actors)
-    ///   - config: What data types to import (items, locations, labels)
-    /// - Returns: AsyncStream yielding ImportProgress updates
     func importInventory(
         from zipURL: URL,
         database: any DatabaseWriter,
-        config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+        config: ImportConfig = ImportConfig()
     ) -> AsyncStream<ImportProgress> {
         AsyncStream { continuation in
             Task.detached(priority: .userInitiated) {
                 do {
-                    let workingDir = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
-
-                    defer {
-                        try? FileManager.default.removeItem(at: workingDir)
-                    }
-
-                    let localZipURL = FileManager.default.temporaryDirectory
-                        .appendingPathComponent(zipURL.lastPathComponent)
-                    try? FileManager.default.removeItem(at: localZipURL)
-
-                    // Check if we can access the file
                     guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
-                        continuation.yield(.error(SendableError(DataError.fileAccessDenied)))
-                        continuation.finish()
-                        return
+                        throw DataError.fileAccessDenied
                     }
 
-                    try FileManager.default.copyItem(at: zipURL, to: localZipURL)
-                    try FileManager.default.setAttributes(
-                        [
-                            .posixPermissions: 0o644
-                        ], ofItemAtPath: localZipURL.path)
-
-                    try FileManager.default.createDirectory(
-                        at: workingDir,
-                        withIntermediateDirectories: true,
-                        attributes: [.posixPermissions: 0o755]
-                    )
-
-                    try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
-
-                    // Get CSV files
-                    let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
-                    let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
-                    let labelsCSVURL = workingDir.appendingPathComponent("labels.csv")
-                    let photosDir = workingDir.appendingPathComponent("photos")
-
-                    // Calculate total rows based on enabled types
-                    var totalRows = 0
-                    var processedRows = 0
-
-                    if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
-                        let locationCSV = try String(contentsOf: locationsCSVURL, encoding: .utf8)
-                        let locationCount =
-                            locationCSV.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-                            .count - 1
-                        totalRows += locationCount
-                    }
-
-                    if config.includeLabels, FileManager.default.fileExists(atPath: labelsCSVURL.path) {
-                        let labelsCSV = try String(contentsOf: labelsCSVURL, encoding: .utf8)
-                        let labelCount =
-                            labelsCSV.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-                            .count - 1
-                        totalRows += labelCount
-                    }
-
-                    if config.includeItems, FileManager.default.fileExists(atPath: itemsCSVURL.path) {
-                        let itemsCSV = try String(contentsOf: itemsCSVURL, encoding: .utf8)
-                        let itemCount =
-                            itemsCSV.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-                            .count - 1
-                        totalRows += itemCount
-                    }
-
-                    guard totalRows > 0 else {
-                        continuation.yield(.error(SendableError(DataError.invalidCSVFormat)))
-                        continuation.finish()
-                        throw DataError.invalidCSVFormat
-                    }
-
-                    var locationCount = 0
-                    var labelCount = 0
-                    var itemCount = 0
-
-                    let batchSize = 50
-
-                    // Pre-fetch existing locations and labels for caching
-                    // UUID-based caches since sqlite-data uses value types
-                    var locationCache: [String: UUID] = [:]
-                    var labelCache: [String: UUID] = [:]
-
-                    // Also cache locationID -> homeID for setting item homeID
-                    var locationHomeCache: [UUID: UUID] = [:]
-
-                    let existingLocations = try await database.read { db in
-                        try SQLiteInventoryLocation.all.fetchAll(db)
-                    }
-                    for location in existingLocations {
-                        locationCache[location.name] = location.id
-                        if let homeID = location.homeID {
-                            locationHomeCache[location.id] = homeID
+                    switch config.format {
+                    case .movingBoxDatabase:
+                        do {
+                            try stagePendingDatabaseRestoreArchive(from: zipURL)
+                        } catch let error as PendingDatabaseRestoreError {
+                            switch error {
+                            case .invalidArchive, .missingDatabaseFile, .multipleDatabaseFiles,
+                                .unsupportedDatabaseExtension, .unexpectedArchiveContents:
+                                throw DataError.invalidDatabaseArchive
+                            default:
+                                throw DataError.restoreStagingFailed
+                            }
+                        } catch {
+                            throw DataError.restoreStagingFailed
                         }
-                    }
-
-                    let existingLabels = try await database.read { db in
-                        try SQLiteInventoryLabel.all.fetchAll(db)
-                    }
-                    for label in existingLabels {
-                        labelCache[label.name] = label.id
-                    }
-
-                    // Collect image import tasks for concurrent processing.
-                    struct ImageImportTask: Sendable {
-                        let sourceURL: URL
-                        let targetID: UUID
-                        let isLocation: Bool
-                        let sortOrder: Int
-                    }
-                    struct InsertedLocationBatchEntry: Sendable {
-                        let name: String
-                        let id: UUID
-                        let photoURL: URL?
-                    }
-                    struct InsertedLabelBatchEntry: Sendable {
-                        let name: String
-                        let id: UUID
-                    }
-                    var imageImportTasks: [ImageImportTask] = []
-
-                    // Import locations if enabled
-                    if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
-                        let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
-                        let rows = csvString.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-
-                        if rows.count > 1 {
-                            // Parse CSV off main thread
-                            struct LocationParseData {
-                                let name: String
-                                let desc: String
-                                let photoURL: URL?
-                            }
-
-                            var locationDataBatch: [LocationParseData] = []
-
-                            for row in rows.dropFirst() {
-                                let values = self.parseCSVRow(row)
-                                guard values.count >= 3 else { continue }
-
-                                var photoURL: URL? = nil
-                                if !values[2].isEmpty {
-                                    let sanitizedFilename = self.sanitizeFilename(values[2])
-                                    let url = photosDir.appendingPathComponent(sanitizedFilename)
-                                    if FileManager.default.fileExists(atPath: url.path) {
-                                        photoURL = url
-                                    }
-                                }
-
-                                locationDataBatch.append(
-                                    LocationParseData(
-                                        name: values[0],
-                                        desc: values[1],
-                                        photoURL: photoURL
-                                    ))
-
-                                processedRows += 1
-
-                                // Process batch when full
-                                if locationDataBatch.count >= batchSize {
-                                    let batchToProcess = locationDataBatch
-                                    locationDataBatch.removeAll()
-
-                                    let insertedLocations = try await database.write {
-                                        db -> [InsertedLocationBatchEntry] in
-                                        var inserted: [InsertedLocationBatchEntry] = []
-                                        inserted.reserveCapacity(batchToProcess.count)
-                                        for data in batchToProcess {
-                                            let locationID = UUID()
-                                            try SQLiteInventoryLocation.insert(
-                                                SQLiteInventoryLocation(
-                                                    id: locationID,
-                                                    name: data.name,
-                                                    desc: data.desc
-                                                )
-                                            ).execute(db)
-
-                                            inserted.append(
-                                                InsertedLocationBatchEntry(
-                                                    name: data.name,
-                                                    id: locationID,
-                                                    photoURL: data.photoURL
-                                                )
-                                            )
-                                        }
-                                        return inserted
-                                    }
-
-                                    for insertedLocation in insertedLocations {
-                                        if let photoURL = insertedLocation.photoURL {
-                                            imageImportTasks.append(
-                                                ImageImportTask(
-                                                    sourceURL: photoURL,
-                                                    targetID: insertedLocation.id,
-                                                    isLocation: true,
-                                                    sortOrder: 0
-                                                ))
-                                        }
-
-                                        locationCache[insertedLocation.name] = insertedLocation.id
-                                        locationCount += 1
-                                    }
-                                }
-
-                                if processedRows % 50 == 0 || processedRows == totalRows {
-                                    let progress = Double(processedRows) / Double(totalRows)
-                                    continuation.yield(.progress(progress))
-                                }
-                            }
-
-                            // Process remaining locations
-                            if !locationDataBatch.isEmpty {
-                                let batchToProcess = locationDataBatch
-
-                                let insertedLocations = try await database.write { db -> [InsertedLocationBatchEntry] in
-                                    var inserted: [InsertedLocationBatchEntry] = []
-                                    inserted.reserveCapacity(batchToProcess.count)
-                                    for data in batchToProcess {
-                                        let locationID = UUID()
-                                        try SQLiteInventoryLocation.insert(
-                                            SQLiteInventoryLocation(
-                                                id: locationID,
-                                                name: data.name,
-                                                desc: data.desc
-                                            )
-                                        ).execute(db)
-
-                                        inserted.append(
-                                            InsertedLocationBatchEntry(
-                                                name: data.name,
-                                                id: locationID,
-                                                photoURL: data.photoURL
-                                            )
-                                        )
-                                    }
-                                    return inserted
-                                }
-
-                                for insertedLocation in insertedLocations {
-                                    if let photoURL = insertedLocation.photoURL {
-                                        imageImportTasks.append(
-                                            ImageImportTask(
-                                                sourceURL: photoURL,
-                                                targetID: insertedLocation.id,
-                                                isLocation: true,
-                                                sortOrder: 0
-                                            ))
-                                    }
-
-                                    locationCache[insertedLocation.name] = insertedLocation.id
-                                    locationCount += 1
-                                }
-                            }
-                        }
-                    }
-
-                    // Import labels if enabled
-                    if config.includeLabels, FileManager.default.fileExists(atPath: labelsCSVURL.path) {
-                        let csvString = try String(contentsOf: labelsCSVURL, encoding: .utf8)
-                        let rows = csvString.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-
-                        if rows.count > 1 {
-                            // Parse CSV off main thread
-                            struct LabelParseData {
-                                let name: String
-                                let desc: String
-                                let colorHex: String
-                                let emoji: String
-                            }
-
-                            var labelDataBatch: [LabelParseData] = []
-
-                            for row in rows.dropFirst() {
-                                let values = self.parseCSVRow(row)
-                                guard values.count >= 4 else { continue }
-
-                                labelDataBatch.append(
-                                    LabelParseData(
-                                        name: values[0],
-                                        desc: values[1],
-                                        colorHex: values[2],
-                                        emoji: values[3]
-                                    ))
-
-                                processedRows += 1
-
-                                // Process batch when full
-                                if labelDataBatch.count >= batchSize {
-                                    let batchToProcess = labelDataBatch
-                                    labelDataBatch.removeAll()
-
-                                    let insertedLabels = try await database.write { db -> [InsertedLabelBatchEntry] in
-                                        var inserted: [InsertedLabelBatchEntry] = []
-                                        inserted.reserveCapacity(batchToProcess.count)
-                                        for data in batchToProcess {
-                                            let labelID = UUID()
-                                            let labelColor = Self.parseHexColor(data.colorHex)
-
-                                            try SQLiteInventoryLabel.insert(
-                                                SQLiteInventoryLabel(
-                                                    id: labelID,
-                                                    name: data.name,
-                                                    desc: data.desc,
-                                                    color: labelColor,
-                                                    emoji: data.emoji
-                                                )
-                                            ).execute(db)
-
-                                            inserted.append(InsertedLabelBatchEntry(name: data.name, id: labelID))
-                                        }
-                                        return inserted
-                                    }
-
-                                    for insertedLabel in insertedLabels {
-                                        labelCache[insertedLabel.name] = insertedLabel.id
-                                        labelCount += 1
-                                    }
-                                }
-
-                                if processedRows % 50 == 0 || processedRows == totalRows {
-                                    let progress = Double(processedRows) / Double(totalRows)
-                                    continuation.yield(.progress(progress))
-                                }
-                            }
-
-                            // Process remaining labels
-                            if !labelDataBatch.isEmpty {
-                                let batchToProcess = labelDataBatch
-
-                                let insertedLabels = try await database.write { db -> [InsertedLabelBatchEntry] in
-                                    var inserted: [InsertedLabelBatchEntry] = []
-                                    inserted.reserveCapacity(batchToProcess.count)
-                                    for data in batchToProcess {
-                                        let labelID = UUID()
-                                        let labelColor = Self.parseHexColor(data.colorHex)
-
-                                        try SQLiteInventoryLabel.insert(
-                                            SQLiteInventoryLabel(
-                                                id: labelID,
-                                                name: data.name,
-                                                desc: data.desc,
-                                                color: labelColor,
-                                                emoji: data.emoji
-                                            )
-                                        ).execute(db)
-
-                                        inserted.append(InsertedLabelBatchEntry(name: data.name, id: labelID))
-                                    }
-                                    return inserted
-                                }
-
-                                for insertedLabel in insertedLabels {
-                                    labelCache[insertedLabel.name] = insertedLabel.id
-                                    labelCount += 1
-                                }
-                            }
-                        }
-                    }
-
-                    // Import items if enabled
-                    if config.includeItems, FileManager.default.fileExists(atPath: itemsCSVURL.path) {
-                        let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
-                        let rows = csvString.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-
-                        if rows.count > 1 {
-                            // Parse CSV data off main thread
-                            struct ItemParseData {
-                                let title: String
-                                let desc: String
-                                let locationName: String
-                                let labelName: String
-                                let photoURLs: [URL]
-                            }
-                            struct InsertedItemBatchEntry: Sendable {
-                                let itemID: UUID
-                                let photoURLs: [URL]
-                            }
-                            struct ItemImportBatchResult: Sendable {
-                                let insertedItems: [InsertedItemBatchEntry]
-                                let locationCache: [String: UUID]
-                                let labelCache: [String: UUID]
-                            }
-
-                            let headerValues = self.parseCSVRow(rows[0])
-                            let normalizedHeaderIndex = Dictionary(
-                                uniqueKeysWithValues: headerValues.enumerated().map { index, value in
-                                    (value.lowercased().replacingOccurrences(of: " ", with: ""), index)
-                                }
-                            )
-
-                            let photoColumnIndices: [Int] = headerValues.enumerated().compactMap { index, value in
-                                let normalized = value.lowercased().replacingOccurrences(of: " ", with: "")
-                                return normalized.hasPrefix("photofilename") ? index : nil
-                            }
-
-                            let effectivePhotoColumnIndices: [Int] = {
-                                if !photoColumnIndices.isEmpty {
-                                    return photoColumnIndices
-                                }
-                                if let legacyPhotoIndex = normalizedHeaderIndex["photofilename"] {
-                                    return [legacyPhotoIndex]
-                                }
-                                return []
-                            }()
-
-                            func value(
-                                for keys: [String],
-                                in values: [String]
-                            ) -> String {
-                                for key in keys {
-                                    if let index = normalizedHeaderIndex[key], index < values.count {
-                                        return values[index]
-                                    }
-                                }
-                                return ""
-                            }
-
-                            func processItemBatch(
-                                _ batchToProcess: [ItemParseData],
-                                locationCacheSnapshot: [String: UUID],
-                                locationHomeCacheSnapshot: [UUID: UUID],
-                                labelCacheSnapshot: [String: UUID]
-                            ) async throws -> ItemImportBatchResult {
-                                try await database.write { db -> ItemImportBatchResult in
-                                    var mutableLocationCache = locationCacheSnapshot
-                                    var mutableLabelCache = labelCacheSnapshot
-                                    var insertedItems: [InsertedItemBatchEntry] = []
-                                    insertedItems.reserveCapacity(batchToProcess.count)
-
-                                    for data in batchToProcess {
-                                        let itemID = UUID()
-
-                                        // Resolve location
-                                        var locationID: UUID? = nil
-                                        var homeID: UUID? = nil
-
-                                        if config.includeLocations && !data.locationName.isEmpty {
-                                            if let cachedLocationID = mutableLocationCache[data.locationName] {
-                                                locationID = cachedLocationID
-                                                homeID = locationHomeCacheSnapshot[cachedLocationID]
-                                            } else {
-                                                let newLocationID = UUID()
-                                                try SQLiteInventoryLocation.insert(
-                                                    SQLiteInventoryLocation(
-                                                        id: newLocationID,
-                                                        name: data.locationName,
-                                                        desc: ""
-                                                    )
-                                                ).execute(db)
-                                                mutableLocationCache[data.locationName] = newLocationID
-                                                locationID = newLocationID
-                                            }
-                                        }
-
-                                        try SQLiteInventoryItem.insert(
-                                            SQLiteInventoryItem(
-                                                id: itemID,
-                                                title: data.title,
-                                                desc: data.desc,
-                                                locationID: locationID,
-                                                homeID: homeID
-                                            )
-                                        ).execute(db)
-
-                                        // Resolve labels and create join table entries
-                                        if config.includeLabels && !data.labelName.isEmpty {
-                                            let labelNames = data.labelName.split(separator: ",").map {
-                                                $0.trimmingCharacters(in: .whitespaces)
-                                            }
-                                            var addedLabelIDs: Set<UUID> = []
-                                            for labelName in labelNames.prefix(5) {
-                                                var labelID: UUID
-                                                if let cachedLabelID = mutableLabelCache[labelName] {
-                                                    labelID = cachedLabelID
-                                                } else {
-                                                    labelID = UUID()
-                                                    try SQLiteInventoryLabel.insert(
-                                                        SQLiteInventoryLabel(
-                                                            id: labelID,
-                                                            name: labelName,
-                                                            desc: "",
-                                                            emoji: ""
-                                                        )
-                                                    ).execute(db)
-                                                    mutableLabelCache[labelName] = labelID
-                                                }
-
-                                                if !addedLabelIDs.contains(labelID) {
-                                                    addedLabelIDs.insert(labelID)
-                                                    try SQLiteInventoryItemLabel.insert(
-                                                        SQLiteInventoryItemLabel(
-                                                            id: UUID(),
-                                                            inventoryItemID: itemID,
-                                                            inventoryLabelID: labelID
-                                                        )
-                                                    ).execute(db)
-                                                }
-                                            }
-                                        }
-
-                                        insertedItems.append(
-                                            InsertedItemBatchEntry(
-                                                itemID: itemID,
-                                                photoURLs: data.photoURLs
-                                            )
-                                        )
-                                    }
-
-                                    return ItemImportBatchResult(
-                                        insertedItems: insertedItems,
-                                        locationCache: mutableLocationCache,
-                                        labelCache: mutableLabelCache
-                                    )
-                                }
-                            }
-
-                            var itemDataBatch: [ItemParseData] = []
-
-                            for row in rows.dropFirst() {
-                                let values = self.parseCSVRow(row)
-                                let title = value(for: ["title"], in: values)
-                                guard !title.isEmpty else { continue }
-
-                                let photoURLs: [URL] = effectivePhotoColumnIndices.compactMap { index in
-                                    guard index < values.count else { return nil }
-                                    let photoFilename = values[index]
-                                    guard !photoFilename.isEmpty else { return nil }
-                                    let sanitizedFilename = self.sanitizeFilename(photoFilename)
-                                    let url = photosDir.appendingPathComponent(sanitizedFilename)
-                                    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-                                    return url
-                                }
-
-                                itemDataBatch.append(
-                                    ItemParseData(
-                                        title: title,
-                                        desc: value(for: ["description", "desc"], in: values),
-                                        locationName: value(for: ["location"], in: values),
-                                        labelName: value(for: ["label"], in: values),
-                                        photoURLs: photoURLs
-                                    ))
-
-                                processedRows += 1
-
-                                // Process batch when full
-                                if itemDataBatch.count >= batchSize {
-                                    let batchToProcess = itemDataBatch
-                                    itemDataBatch.removeAll()
-
-                                    let batchResult = try await processItemBatch(
-                                        batchToProcess,
-                                        locationCacheSnapshot: locationCache,
-                                        locationHomeCacheSnapshot: locationHomeCache,
-                                        labelCacheSnapshot: labelCache
-                                    )
-
-                                    locationCache = batchResult.locationCache
-                                    labelCache = batchResult.labelCache
-                                    itemCount += batchResult.insertedItems.count
-                                    for insertedItem in batchResult.insertedItems {
-                                        for (sortOrder, photoURL) in insertedItem.photoURLs.enumerated() {
-                                            imageImportTasks.append(
-                                                ImageImportTask(
-                                                    sourceURL: photoURL,
-                                                    targetID: insertedItem.itemID,
-                                                    isLocation: false,
-                                                    sortOrder: sortOrder
-                                                ))
-                                        }
-                                    }
-                                }
-
-                                if processedRows % 50 == 0 || processedRows == totalRows {
-                                    let progress = Double(processedRows) / Double(totalRows)
-                                    continuation.yield(.progress(progress))
-                                }
-                            }
-
-                            // Process remaining items
-                            if !itemDataBatch.isEmpty {
-                                let batchToProcess = itemDataBatch
-
-                                let batchResult = try await processItemBatch(
-                                    batchToProcess,
-                                    locationCacheSnapshot: locationCache,
-                                    locationHomeCacheSnapshot: locationHomeCache,
-                                    labelCacheSnapshot: labelCache
+                        continuation.yield(
+                            .completed(
+                                ImportResult(
+                                    itemCount: 0,
+                                    locationCount: 0,
+                                    labelCount: 0,
+                                    homeCount: 0,
+                                    insurancePolicyCount: 0,
+                                    requiresRestart: true
                                 )
+                            )
+                        )
+                        continuation.finish()
 
-                                locationCache = batchResult.locationCache
-                                labelCache = batchResult.labelCache
-                                itemCount += batchResult.insertedItems.count
-                                for insertedItem in batchResult.insertedItems {
-                                    for (sortOrder, photoURL) in insertedItem.photoURLs.enumerated() {
-                                        imageImportTasks.append(
-                                            ImageImportTask(
-                                                sourceURL: photoURL,
-                                                targetID: insertedItem.itemID,
-                                                isLocation: false,
-                                                sortOrder: sortOrder
-                                            ))
-                                    }
-                                }
-                            }
+                    case .csvArchive:
+                        let result = try await self.importCSVArchive(
+                            from: zipURL,
+                            database: database,
+                            config: config
+                        ) { progress in
+                            continuation.yield(.progress(progress))
                         }
+                        continuation.yield(.completed(result))
+                        continuation.finish()
                     }
-
-                    // Read and insert photo blobs in batches to keep peak memory bounded.
-                    if !imageImportTasks.isEmpty {
-                        print("Importing \(imageImportTasks.count) photos...")
-
-                        let imageBatchSize = 20
-                        for batchStart in stride(from: 0, to: imageImportTasks.count, by: imageBatchSize) {
-                            let batchEnd = min(batchStart + imageBatchSize, imageImportTasks.count)
-                            let batch = Array(imageImportTasks[batchStart..<batchEnd])
-
-                            let readResults = try await withThrowingTaskGroup(
-                                of: (Int, Data?).self
-                            ) { group in
-                                for (index, task) in batch.enumerated() {
-                                    group.addTask {
-                                        do {
-                                            try self.validateImageFile(task.sourceURL)
-                                            return (batchStart + index, try Data(contentsOf: task.sourceURL))
-                                        } catch {
-                                            return (batchStart + index, nil)
-                                        }
-                                    }
-                                }
-
-                                var results: [(Int, Data?)] = []
-                                for try await result in group {
-                                    results.append(result)
-                                }
-                                return results
-                            }
-
-                            let imageImportTasksSnapshot = imageImportTasks
-                            let insertPayloads: [(ImageImportTask, Data)] = readResults.compactMap {
-                                originalIndex, imageData in
-                                guard let imageData else { return nil }
-                                return (imageImportTasksSnapshot[originalIndex], imageData)
-                            }
-
-                            try await database.write { db in
-                                for (task, imageData) in insertPayloads {
-                                    if task.isLocation {
-                                        try SQLiteInventoryLocationPhoto.insert {
-                                            SQLiteInventoryLocationPhoto(
-                                                id: UUID(),
-                                                inventoryLocationID: task.targetID,
-                                                data: imageData,
-                                                sortOrder: task.sortOrder
-                                            )
-                                        }.execute(db)
-                                    } else {
-                                        try SQLiteInventoryItemPhoto.insert {
-                                            SQLiteInventoryItemPhoto(
-                                                id: UUID(),
-                                                inventoryItemID: task.targetID,
-                                                data: imageData,
-                                                sortOrder: task.sortOrder
-                                            )
-                                        }.execute(db)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    continuation.yield(
-                        .completed(
-                            ImportResult(
-                                itemCount: itemCount,
-                                locationCount: locationCount,
-                                labelCount: labelCount
-                            )))
-                    continuation.finish()
-
                 } catch {
                     continuation.yield(.error(SendableError(error)))
                     continuation.finish()
                 }
             }
         }
+    }
+
+    private enum PhotoImportTarget: Sendable {
+        case item(UUID)
+        case location(UUID)
+        case home(UUID)
+    }
+
+    private struct ImageImportTask: Sendable {
+        let sourceURL: URL
+        let target: PhotoImportTarget
+        let sortOrder: Int
+    }
+
+    private struct ItemImportEntry: Sendable {
+        let item: SQLiteInventoryItem
+        let labelIDs: [UUID]
+        let photoURLs: [URL]
+    }
+
+    private struct GeneratedLabelEntry: Sendable {
+        let id: UUID
+        let householdID: UUID?
+        let name: String
+    }
+
+    private struct PolicyImportEntry: Sendable {
+        let policy: SQLiteInsurancePolicy
+        let homeIDs: [UUID]
+    }
+
+    private func importCSVArchive(
+        from zipURL: URL,
+        database: any DatabaseWriter,
+        config: ImportConfig,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> ImportResult {
+        let workingDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: workingDir)
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
+            try FileManager.default.unzipItem(at: zipURL, to: workingDir)
+        } catch {
+            throw DataError.invalidZipFile
+        }
+
+        let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
+        let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
+        let labelsCSVURL = workingDir.appendingPathComponent("labels.csv")
+        let homesCSVURL = workingDir.appendingPathComponent("home-details.csv")
+        let insurancePoliciesCSVURL = workingDir.appendingPathComponent("insurance-policy-details.csv")
+        let photosDir = workingDir.appendingPathComponent("photos")
+
+        let itemRows = try readCSVRowsIfExists(at: itemsCSVURL)
+        let locationRows = try readCSVRowsIfExists(at: locationsCSVURL)
+        let labelRows = try readCSVRowsIfExists(at: labelsCSVURL)
+        let homeRows = try readCSVRowsIfExists(at: homesCSVURL)
+        let insuranceRows = try readCSVRowsIfExists(at: insurancePoliciesCSVURL)
+
+        var totalRows = 0
+        if config.includeHomes { totalRows += max(0, homeRows.count - 1) }
+        if config.includeLocations { totalRows += max(0, locationRows.count - 1) }
+        if config.includeLabels { totalRows += max(0, labelRows.count - 1) }
+        if config.includeItems { totalRows += max(0, itemRows.count - 1) }
+        if config.includeInsurancePolicies { totalRows += max(0, insuranceRows.count - 1) }
+        guard totalRows > 0 else { throw DataError.invalidCSVFormat }
+
+        var processedRows = 0
+        func updateProgress() {
+            let current = min(max(Double(processedRows) / Double(totalRows), 0), 1)
+            progress(current)
+        }
+
+        var locationCount = 0
+        var labelCount = 0
+        var itemCount = 0
+        var homeCount = 0
+        var insurancePolicyCount = 0
+
+        let householdID = try await database.read { db in
+            try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
+        }
+
+        let existingHomes = try await database.read { db in
+            try SQLiteHome.fetchAll(db)
+        }
+        var homeCacheBySourceID: [String: UUID] = Dictionary(
+            uniqueKeysWithValues: existingHomes.map { ($0.id.uuidString.lowercased(), $0.id) }
+        )
+        var homeCacheByName: [String: UUID] = [:]
+        for home in existingHomes where !home.name.isEmpty {
+            homeCacheByName[home.name.lowercased()] = home.id
+        }
+
+        let existingLocations = try await database.read { db in
+            try SQLiteInventoryLocation.fetchAll(db)
+        }
+        var locationCacheBySourceID: [String: UUID] = Dictionary(
+            uniqueKeysWithValues: existingLocations.map { ($0.id.uuidString.lowercased(), $0.id) }
+        )
+        var locationCacheByName: [String: UUID] = [:]
+        var locationHomeCache: [UUID: UUID] = [:]
+        for location in existingLocations where !location.name.isEmpty {
+            locationCacheByName[location.name.lowercased()] = location.id
+            if let homeID = location.homeID {
+                locationHomeCache[location.id] = homeID
+            }
+        }
+
+        let existingLabels = try await database.read { db in
+            try SQLiteInventoryLabel.fetchAll(db)
+        }
+        var labelCache: [String: UUID] = [:]
+        for label in existingLabels where !label.name.isEmpty {
+            labelCache[label.name.lowercased()] = label.id
+        }
+
+        var imageImportTasks: [ImageImportTask] = []
+
+        func normalize(_ value: String) -> String {
+            value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+
+        func value(
+            for keys: [String],
+            values: [String],
+            index: [String: Int]
+        ) -> String {
+            for key in keys {
+                if let headerIndex = index[key], headerIndex < values.count {
+                    return values[headerIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+            return ""
+        }
+
+        func splitList(_ value: String) -> [String] {
+            value
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+
+        func resolveHomeID(homeIDString: String, homeName: String) -> UUID? {
+            let normalizedID = normalize(homeIDString)
+            if !normalizedID.isEmpty, let cached = homeCacheBySourceID[normalizedID] {
+                return cached
+            }
+            let normalizedName = normalize(homeName)
+            if !normalizedName.isEmpty, let cached = homeCacheByName[normalizedName] {
+                return cached
+            }
+            return nil
+        }
+
+        if config.includeHomes, homeRows.count > 1 {
+            let headers = homeRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var homesToInsert: [(sourceID: String, home: SQLiteHome, photoURL: URL?)] = []
+            homesToInsert.reserveCapacity(homeRows.count - 1)
+
+            for row in homeRows.dropFirst() {
+                let sourceHomeID = normalize(value(for: ["homeid"], values: row, index: index))
+                let name = value(for: ["name"], values: row, index: index)
+                let homeID = UUID()
+                let photoFilename = value(for: ["photofilename"], values: row, index: index)
+                var photoURL: URL?
+                if !photoFilename.isEmpty {
+                    let candidate = photosDir.appendingPathComponent(self.sanitizeFilename(photoFilename))
+                    if FileManager.default.fileExists(atPath: candidate.path) {
+                        photoURL = candidate
+                    }
+                }
+
+                homesToInsert.append(
+                    (
+                        sourceID: sourceHomeID,
+                        home: SQLiteHome(
+                            id: homeID,
+                            name: name,
+                            address1: value(for: ["address1"], values: row, index: index),
+                            address2: value(for: ["address2"], values: row, index: index),
+                            city: value(for: ["city"], values: row, index: index),
+                            state: value(for: ["state"], values: row, index: index),
+                            zip: value(for: ["zip"], values: row, index: index),
+                            country: value(for: ["country"], values: row, index: index),
+                            purchaseDate: self.parseCSVDate(value(for: ["purchasedate"], values: row, index: index))
+                                ?? Date(),
+                            purchasePrice: self.parseDecimal(value(for: ["purchaseprice"], values: row, index: index))
+                                ?? 0,
+                            isPrimary: self.parseBool(value(for: ["isprimary"], values: row, index: index)),
+                            colorName: value(for: ["colorname"], values: row, index: index).isEmpty
+                                ? "green" : value(for: ["colorname"], values: row, index: index),
+                            householdID: householdID,
+                            isPrivate: false
+                        ),
+                        photoURL: photoURL
+                    )
+                )
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for entry in homesToInsert {
+                    try SQLiteHome.insert { entry.home }.execute(db)
+                }
+            }
+
+            for entry in homesToInsert {
+                if !entry.sourceID.isEmpty {
+                    homeCacheBySourceID[entry.sourceID] = entry.home.id
+                }
+                if !entry.home.name.isEmpty {
+                    homeCacheByName[entry.home.name.lowercased()] = entry.home.id
+                }
+                if let photoURL = entry.photoURL {
+                    imageImportTasks.append(
+                        ImageImportTask(
+                            sourceURL: photoURL,
+                            target: .home(entry.home.id),
+                            sortOrder: 0
+                        )
+                    )
+                }
+                homeCount += 1
+            }
+        }
+
+        if config.includeLocations, locationRows.count > 1 {
+            let headers = locationRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var locationsToInsert: [(sourceID: String, location: SQLiteInventoryLocation, photoURL: URL?)] = []
+            locationsToInsert.reserveCapacity(locationRows.count - 1)
+
+            for row in locationRows.dropFirst() {
+                let sourceLocationID = normalize(value(for: ["locationid"], values: row, index: index))
+                let locationID = UUID()
+                let name = value(for: ["name"], values: row, index: index)
+                let homeID = resolveHomeID(
+                    homeIDString: value(for: ["homeid"], values: row, index: index),
+                    homeName: value(for: ["home"], values: row, index: index)
+                )
+                let photoFilename = value(for: ["photofilename"], values: row, index: index)
+                var photoURL: URL?
+                if !photoFilename.isEmpty {
+                    let candidate = photosDir.appendingPathComponent(self.sanitizeFilename(photoFilename))
+                    if FileManager.default.fileExists(atPath: candidate.path) {
+                        photoURL = candidate
+                    }
+                }
+
+                let location = SQLiteInventoryLocation(
+                    id: locationID,
+                    name: name,
+                    desc: value(for: ["description", "desc"], values: row, index: index),
+                    sfSymbolName: nil,
+                    homeID: homeID
+                )
+                locationsToInsert.append((sourceID: sourceLocationID, location: location, photoURL: photoURL))
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for entry in locationsToInsert {
+                    try SQLiteInventoryLocation.insert { entry.location }.execute(db)
+                }
+            }
+
+            for entry in locationsToInsert {
+                if !entry.sourceID.isEmpty {
+                    locationCacheBySourceID[entry.sourceID] = entry.location.id
+                }
+                if !entry.location.name.isEmpty {
+                    locationCacheByName[entry.location.name.lowercased()] = entry.location.id
+                }
+                if let homeID = entry.location.homeID {
+                    locationHomeCache[entry.location.id] = homeID
+                }
+                if let photoURL = entry.photoURL {
+                    imageImportTasks.append(
+                        ImageImportTask(
+                            sourceURL: photoURL,
+                            target: .location(entry.location.id),
+                            sortOrder: 0
+                        )
+                    )
+                }
+                locationCount += 1
+            }
+        }
+
+        if config.includeLabels, labelRows.count > 1 {
+            let headers = labelRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var labelsToInsert: [SQLiteInventoryLabel] = []
+            labelsToInsert.reserveCapacity(labelRows.count - 1)
+            for row in labelRows.dropFirst() {
+                let name = value(for: ["name"], values: row, index: index)
+                let label = SQLiteInventoryLabel(
+                    id: UUID(),
+                    householdID: householdID,
+                    name: name,
+                    desc: value(for: ["description", "desc"], values: row, index: index),
+                    color: Self.parseHexColor(value(for: ["colorhex"], values: row, index: index)),
+                    emoji: value(for: ["emoji"], values: row, index: index)
+                )
+                labelsToInsert.append(label)
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for label in labelsToInsert {
+                    try SQLiteInventoryLabel.insert { label }.execute(db)
+                }
+            }
+
+            for label in labelsToInsert {
+                if !label.name.isEmpty {
+                    labelCache[label.name.lowercased()] = label.id
+                }
+                labelCount += 1
+            }
+        }
+
+        if config.includeItems, itemRows.count > 1 {
+            let headers = itemRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            let photoColumnIndices: [Int] = headers.enumerated().compactMap { headerIndex, value in
+                let normalized = value.lowercased().replacingOccurrences(of: " ", with: "")
+                return normalized.hasPrefix("photofilename") ? headerIndex : nil
+            }
+
+            var itemsToInsert: [ItemImportEntry] = []
+            var generatedLocations: [SQLiteInventoryLocation] = []
+            var generatedLabels: [GeneratedLabelEntry] = []
+
+            for row in itemRows.dropFirst() {
+                let title = value(for: ["title"], values: row, index: index)
+                guard !title.isEmpty else { continue }
+
+                let locationName = value(for: ["location"], values: row, index: index)
+                let sourceLocationID = normalize(value(for: ["locationid"], values: row, index: index))
+                var resolvedHomeID = resolveHomeID(
+                    homeIDString: value(for: ["homeid"], values: row, index: index),
+                    homeName: value(for: ["home"], values: row, index: index)
+                )
+
+                var locationID: UUID?
+                if config.includeLocations {
+                    if !sourceLocationID.isEmpty, let cached = locationCacheBySourceID[sourceLocationID] {
+                        locationID = cached
+                    } else if let cached = locationCacheByName[locationName.lowercased()] {
+                        locationID = cached
+                    } else if !locationName.isEmpty {
+                        let generatedLocationID = UUID()
+                        let generatedLocation = SQLiteInventoryLocation(
+                            id: generatedLocationID,
+                            name: locationName,
+                            desc: "",
+                            sfSymbolName: nil,
+                            homeID: resolvedHomeID
+                        )
+                        generatedLocations.append(generatedLocation)
+                        locationCacheByName[locationName.lowercased()] = generatedLocationID
+                        locationID = generatedLocationID
+                    }
+                }
+
+                if resolvedHomeID == nil, let locationID, let homeID = locationHomeCache[locationID] {
+                    resolvedHomeID = homeID
+                }
+
+                let labelNames = splitList(value(for: ["label"], values: row, index: index))
+                var labelIDs: [UUID] = []
+                if config.includeLabels {
+                    var seenLabelIDs: Set<UUID> = []
+                    for labelName in labelNames.prefix(5) {
+                        let key = labelName.lowercased()
+                        let labelID: UUID
+                        if let cached = labelCache[key] {
+                            labelID = cached
+                        } else {
+                            let generatedLabelID = UUID()
+                            labelCache[key] = generatedLabelID
+                            generatedLabels.append(
+                                GeneratedLabelEntry(
+                                    id: generatedLabelID,
+                                    householdID: householdID,
+                                    name: labelName
+                                )
+                            )
+                            labelID = generatedLabelID
+                        }
+                        if !seenLabelIDs.contains(labelID) {
+                            seenLabelIDs.insert(labelID)
+                            labelIDs.append(labelID)
+                        }
+                    }
+                }
+
+                let photoURLs: [URL] = photoColumnIndices.compactMap { photoIndex in
+                    guard photoIndex < row.count else { return nil }
+                    let filename = row[photoIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !filename.isEmpty else { return nil }
+                    let candidate = photosDir.appendingPathComponent(self.sanitizeFilename(filename))
+                    return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+                }
+
+                var parsedItem = SQLiteInventoryItem(
+                    id: UUID(),
+                    title: title,
+                    quantityString: value(for: ["quantitystring"], values: row, index: index).isEmpty
+                        ? "1" : value(for: ["quantitystring"], values: row, index: index),
+                    quantityInt: self.parseInt(value(for: ["quantityint"], values: row, index: index)) ?? 1,
+                    desc: value(for: ["description", "desc"], values: row, index: index),
+                    serial: value(for: ["serial"], values: row, index: index),
+                    model: value(for: ["model"], values: row, index: index),
+                    make: value(for: ["make"], values: row, index: index),
+                    price: self.parseDecimal(value(for: ["price"], values: row, index: index)) ?? 0,
+                    insured: self.parseBool(value(for: ["insured"], values: row, index: index)),
+                    assetId: value(for: ["assetid"], values: row, index: index),
+                    notes: value(for: ["notes"], values: row, index: index),
+                    replacementCost: self.parseDecimal(value(for: ["replacementcost"], values: row, index: index)),
+                    depreciationRate: self.parseDouble(value(for: ["depreciationrate"], values: row, index: index)),
+                    hasUsedAI: self.parseBool(value(for: ["hasusedai"], values: row, index: index)),
+                    createdAt: self.parseCSVDate(value(for: ["createdat"], values: row, index: index)) ?? Date(),
+                    purchaseDate: self.parseCSVDate(value(for: ["purchasedate"], values: row, index: index)),
+                    warrantyExpirationDate: self.parseCSVDate(
+                        value(for: ["warrantyexpirationdate"], values: row, index: index)
+                    ),
+                    purchaseLocation: value(for: ["purchaselocation"], values: row, index: index),
+                    condition: value(for: ["condition"], values: row, index: index),
+                    hasWarranty: self.parseBool(value(for: ["haswarranty"], values: row, index: index)),
+                    attachments: self.decodeAttachments(
+                        from: value(for: ["attachmentsjson"], values: row, index: index)),
+                    dimensionLength: value(for: ["dimensionlength"], values: row, index: index),
+                    dimensionWidth: value(for: ["dimensionwidth"], values: row, index: index),
+                    dimensionHeight: value(for: ["dimensionheight"], values: row, index: index),
+                    dimensionUnit: value(for: ["dimensionunit"], values: row, index: index).isEmpty
+                        ? "inches" : value(for: ["dimensionunit"], values: row, index: index),
+                    weightValue: value(for: ["weightvalue"], values: row, index: index),
+                    weightUnit: value(for: ["weightunit"], values: row, index: index).isEmpty
+                        ? "lbs" : value(for: ["weightunit"], values: row, index: index),
+                    color: value(for: ["color"], values: row, index: index),
+                    storageRequirements: value(for: ["storagerequirements"], values: row, index: index),
+                    isFragile: self.parseBool(value(for: ["isfragile"], values: row, index: index)),
+                    movingPriority: self.parseInt(value(for: ["movingpriority"], values: row, index: index)) ?? 3,
+                    roomDestination: value(for: ["roomdestination"], values: row, index: index),
+                    locationID: locationID,
+                    homeID: resolvedHomeID
+                )
+                parsedItem.labelIDs = labelIDs
+
+                itemsToInsert.append(
+                    ItemImportEntry(
+                        item: parsedItem,
+                        labelIDs: labelIDs,
+                        photoURLs: photoURLs
+                    )
+                )
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for location in generatedLocations {
+                    try SQLiteInventoryLocation.insert { location }.execute(db)
+                }
+                for generatedLabel in generatedLabels {
+                    try SQLiteInventoryLabel.insert {
+                        SQLiteInventoryLabel(
+                            id: generatedLabel.id,
+                            householdID: generatedLabel.householdID,
+                            name: generatedLabel.name,
+                            desc: "",
+                            color: nil,
+                            emoji: ""
+                        )
+                    }.execute(db)
+                }
+                for entry in itemsToInsert {
+                    try SQLiteInventoryItem.insert { entry.item }.execute(db)
+                    for labelID in entry.labelIDs {
+                        try SQLiteInventoryItemLabel.insert {
+                            SQLiteInventoryItemLabel(
+                                id: UUID(),
+                                inventoryItemID: entry.item.id,
+                                inventoryLabelID: labelID
+                            )
+                        }.execute(db)
+                    }
+                }
+            }
+
+            for location in generatedLocations {
+                if let homeID = location.homeID {
+                    locationHomeCache[location.id] = homeID
+                }
+                locationCount += 1
+            }
+            labelCount += generatedLabels.count
+            itemCount += itemsToInsert.count
+
+            for entry in itemsToInsert {
+                for (sortOrder, photoURL) in entry.photoURLs.enumerated() {
+                    imageImportTasks.append(
+                        ImageImportTask(
+                            sourceURL: photoURL,
+                            target: .item(entry.item.id),
+                            sortOrder: sortOrder
+                        )
+                    )
+                }
+            }
+        }
+
+        if config.includeInsurancePolicies, insuranceRows.count > 1 {
+            let headers = insuranceRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var policiesToInsert: [PolicyImportEntry] = []
+            policiesToInsert.reserveCapacity(insuranceRows.count - 1)
+            for row in insuranceRows.dropFirst() {
+                let policyID = UUID()
+                let homeIDTokens = splitList(value(for: ["homeids"], values: row, index: index))
+                let homeNameTokens = splitList(value(for: ["homes"], values: row, index: index))
+
+                var resolvedHomeIDs: [UUID] = []
+                for token in homeIDTokens {
+                    if let cached = homeCacheBySourceID[token.lowercased()] {
+                        resolvedHomeIDs.append(cached)
+                    }
+                }
+                if resolvedHomeIDs.isEmpty {
+                    for homeName in homeNameTokens {
+                        if let cached = homeCacheByName[homeName.lowercased()] {
+                            resolvedHomeIDs.append(cached)
+                        }
+                    }
+                }
+
+                let policy = SQLiteInsurancePolicy(
+                    id: policyID,
+                    providerName: value(for: ["providername"], values: row, index: index),
+                    policyNumber: value(for: ["policynumber"], values: row, index: index),
+                    deductibleAmount: self.parseDecimal(
+                        value(for: ["deductibleamount"], values: row, index: index)
+                    ) ?? 0,
+                    dwellingCoverageAmount: self.parseDecimal(
+                        value(for: ["dwellingcoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    personalPropertyCoverageAmount: self.parseDecimal(
+                        value(for: ["personalpropertycoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    lossOfUseCoverageAmount: self.parseDecimal(
+                        value(for: ["lossofusecoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    liabilityCoverageAmount: self.parseDecimal(
+                        value(for: ["liabilitycoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    medicalPaymentsCoverageAmount: self.parseDecimal(
+                        value(for: ["medicalpaymentscoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    startDate: self.parseCSVDate(value(for: ["startdate"], values: row, index: index))
+                        ?? Date(),
+                    endDate: self.parseCSVDate(value(for: ["enddate"], values: row, index: index))
+                        ?? Date()
+                )
+                policiesToInsert.append(
+                    PolicyImportEntry(
+                        policy: policy,
+                        homeIDs: Array(Set(resolvedHomeIDs))
+                    )
+                )
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for entry in policiesToInsert {
+                    try SQLiteInsurancePolicy.insert { entry.policy }.execute(db)
+                    for homeID in entry.homeIDs {
+                        try SQLiteHomeInsurancePolicy.insert {
+                            SQLiteHomeInsurancePolicy(
+                                id: UUID(),
+                                homeID: homeID,
+                                insurancePolicyID: entry.policy.id
+                            )
+                        }.execute(db)
+                    }
+                }
+            }
+
+            insurancePolicyCount += policiesToInsert.count
+        }
+
+        if !imageImportTasks.isEmpty {
+            let imageBatchSize = 20
+            for batchStart in stride(from: 0, to: imageImportTasks.count, by: imageBatchSize) {
+                let batchEnd = min(batchStart + imageBatchSize, imageImportTasks.count)
+                let batch = Array(imageImportTasks[batchStart..<batchEnd])
+
+                let payloads: [(ImageImportTask, Data)] = try await withThrowingTaskGroup(
+                    of: (ImageImportTask, Data).self
+                ) { group in
+                    for task in batch {
+                        group.addTask {
+                            try self.validateImageFile(task.sourceURL)
+                            let data = try Data(contentsOf: task.sourceURL)
+                            return (task, data)
+                        }
+                    }
+
+                    var allPayloads: [(ImageImportTask, Data)] = []
+                    for try await payload in group {
+                        allPayloads.append(payload)
+                    }
+                    return allPayloads
+                }
+
+                try await database.write { db in
+                    for (task, imageData) in payloads {
+                        switch task.target {
+                        case .item(let itemID):
+                            try SQLiteInventoryItemPhoto.insert {
+                                SQLiteInventoryItemPhoto(
+                                    id: UUID(),
+                                    inventoryItemID: itemID,
+                                    data: imageData,
+                                    sortOrder: task.sortOrder
+                                )
+                            }.execute(db)
+                        case .location(let locationID):
+                            try SQLiteInventoryLocationPhoto.insert {
+                                SQLiteInventoryLocationPhoto(
+                                    id: UUID(),
+                                    inventoryLocationID: locationID,
+                                    data: imageData,
+                                    sortOrder: task.sortOrder
+                                )
+                            }.execute(db)
+                        case .home(let homeID):
+                            try SQLiteHomePhoto.insert {
+                                SQLiteHomePhoto(
+                                    id: UUID(),
+                                    homeID: homeID,
+                                    data: imageData,
+                                    sortOrder: task.sortOrder
+                                )
+                            }.execute(db)
+                        }
+                    }
+                }
+            }
+        }
+
+        progress(1.0)
+        return ImportResult(
+            itemCount: itemCount,
+            locationCount: locationCount,
+            labelCount: labelCount,
+            homeCount: homeCount,
+            insurancePolicyCount: insurancePolicyCount,
+            requiresRestart: false
+        )
     }
 
     // MARK: - Helper Functions
@@ -1581,6 +1685,58 @@ actor DataManager {
             blue: CGFloat(rgbValue & 0x0000FF) / 255.0,
             alpha: 1.0
         )
+    }
+
+    private nonisolated func previewCSVCount(at url: URL, enabled: Bool) throws -> Int {
+        guard enabled, FileManager.default.fileExists(atPath: url.path) else { return 0 }
+        let rows = try readCSVRowsIfExists(at: url)
+        return max(0, rows.count - 1)
+    }
+
+    private nonisolated func readCSVRowsIfExists(at url: URL) throws -> [[String]] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        let csvString = try String(contentsOf: url, encoding: .utf8)
+        let lines =
+            csvString
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return lines.map(parseCSVRow)
+    }
+
+    private nonisolated func parseBool(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "true" || normalized == "1" || normalized == "yes"
+    }
+
+    private nonisolated func parseInt(_ value: String) -> Int? {
+        Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private nonisolated func parseDouble(_ value: String) -> Double? {
+        Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private nonisolated func parseDecimal(_ value: String) -> Decimal? {
+        Decimal(string: value.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private nonisolated func parseCSVDate(_ value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let date = Self.csvISO8601DateFormatter.date(from: trimmed) {
+            return date
+        }
+        return Self.csvISO8601FallbackDateFormatter.date(from: trimmed)
+    }
+
+    private nonisolated func decodeAttachments(from json: String) -> [AttachmentInfo] {
+        let trimmed = json.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        guard let data = trimmed.data(using: .utf8) else { return [] }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode([AttachmentInfo].self, from: data)) ?? []
     }
 
     // MARK: - Fetch Helpers (Export)
@@ -2273,6 +2429,12 @@ actor DataManager {
         return formatter
     }()
 
+    private static let csvISO8601FallbackDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     private nonisolated static func encodeAttachmentsAsJSONString(_ attachments: [AttachmentInfo]) -> String {
         guard !attachments.isEmpty else { return "[]" }
         let encoder = JSONEncoder()
@@ -2295,16 +2457,26 @@ actor DataManager {
         var currentValue = ""
         var insideQuotes = false
 
-        for char in row {
-            if char == "\"" {
+        var index = row.startIndex
+        while index < row.endIndex {
+            let character = row[index]
+            if character == "\"" {
+                let nextIndex = row.index(after: index)
+                if insideQuotes, nextIndex < row.endIndex, row[nextIndex] == "\"" {
+                    currentValue.append("\"")
+                    index = row.index(after: nextIndex)
+                    continue
+                }
                 insideQuotes.toggle()
-            } else if char == "," && !insideQuotes {
+            } else if character == "," && !insideQuotes {
                 values.append(currentValue)
                 currentValue = ""
             } else {
-                currentValue.append(char)
+                currentValue.append(character)
             }
+            index = row.index(after: index)
         }
+
         values.append(currentValue)
 
         return values.map { $0.trimmingCharacters(in: .whitespaces) }

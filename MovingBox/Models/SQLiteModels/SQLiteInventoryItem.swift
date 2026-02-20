@@ -38,6 +38,8 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
     // MARK: - Attachments
     @Column(as: [AttachmentInfo].JSONRepresentation.self)
     var attachments: [AttachmentInfo] = []
+    @Column(as: [UUID].JSONRepresentation.self)
+    var labelIDs: [UUID] = []
 
     // MARK: - Physical Properties
     var dimensionLength: String = ""
@@ -55,7 +57,7 @@ nonisolated struct SQLiteInventoryItem: Hashable, Identifiable {
     var roomDestination: String = ""
 
     // MARK: - Foreign Keys
-    var locationID: SQLiteInventoryLocation.ID?
+    var locationID: UUID?
     var homeID: SQLiteHome.ID?
 
 }

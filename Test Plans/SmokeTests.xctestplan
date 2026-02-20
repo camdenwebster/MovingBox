@@ -26,7 +26,7 @@
         "DashboardNavigationUITests\/testDashboardDisplaysCorrectly()",
         "DashboardNavigationUITests\/testNavigationFromDashboardToAllItems()",
         "DataDeletionUITests\/testNavigationToDataDeletion()",
-        "FamilySharingUITests\/testEnableFamilySharingShowsPrivateHomeWarning()",
+        "FamilySharingUITests\/testFamilySharingUsesToggleAndNoCustomInviteSheet()",
         "ImportExportUITests\/testCanNavigateToSyncData()",
         "ImportExportUITests\/testImportWarningAppears()",
         "InventoryItemUITests\/testAddItemViaDashboard()",

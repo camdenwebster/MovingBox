@@ -60,6 +60,11 @@ enum HouseholdSharingServiceError: LocalizedError {
 
 struct HouseholdSharingService {
     @Dependency(\.defaultDatabase) private var database
+    private let featureFlags: FeatureFlags
+
+    init(featureFlags: FeatureFlags = FeatureFlags(distribution: .current)) {
+        self.featureFlags = featureFlags
+    }
 
     @discardableResult
     func ensureBootstrap() async throws -> UUID {
@@ -458,6 +463,10 @@ struct HouseholdSharingService {
             return (false, .noMembership, nil)
         }
         if member.role == HouseholdMemberRole.owner.rawValue {
+            return (true, .inherited, nil)
+        }
+        guard featureFlags.familySharingScopingEnabled else {
+            // V1 global sharing mode: ignore private homes and per-home overrides.
             return (true, .inherited, nil)
         }
 

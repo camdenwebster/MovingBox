@@ -650,6 +650,118 @@ struct DataManagerTests {
         #expect(itemPhotos.map(\.sortOrder) == [0, 1])
     }
 
+    @Test("Import CSV includes homes and insurance policies")
+    func importCSVIncludesHomesAndInsurancePolicies() async throws {
+        let database = try makeInMemoryDatabase()
+        let zipURL = try createFullParityImportFile()
+        defer {
+            try? fileManager.removeItem(at: zipURL)
+        }
+
+        var result: DataManager.ImportResult?
+        for try await progress in await DataManager.shared.importInventory(
+            from: zipURL,
+            database: database,
+            config: .init(
+                format: .csvArchive,
+                includeItems: true,
+                includeLocations: true,
+                includeLabels: true,
+                includeHomes: true,
+                includeInsurancePolicies: true
+            )
+        ) {
+            if case .completed(let importResult) = progress {
+                result = importResult
+            }
+        }
+
+        #expect(result?.homeCount == 1)
+        #expect(result?.insurancePolicyCount == 1)
+        #expect(result?.requiresRestart == false)
+
+        let homes = try await database.read { db in
+            try SQLiteHome.fetchAll(db)
+        }
+        #expect(homes.count == 1)
+
+        let policies = try await database.read { db in
+            try SQLiteInsurancePolicy.fetchAll(db)
+        }
+        #expect(policies.count == 1)
+
+        let homePolicyLinks = try await database.read { db in
+            try SQLiteHomeInsurancePolicy.fetchAll(db)
+        }
+        #expect(homePolicyLinks.count == 1)
+    }
+
+    @Test("Database import preview requires restart")
+    func databaseImportPreviewRequiresRestart() async throws {
+        let dbURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("movingbox-preview-db-\(UUID().uuidString).sqlite")
+        let database = try makePersistentDatabase(at: dbURL)
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Preview Restore Item")
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportDatabaseArchive(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "database-import-preview")
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+            try? removeSQLiteSidecars(at: dbURL)
+        }
+
+        let preview = try await DataManager.shared.previewImport(
+            from: archiveURL,
+            config: .init(format: .movingBoxDatabase)
+        )
+        #expect(preview.requiresRestart == true)
+        #expect(preview.itemCount == 0)
+        #expect(preview.homeCount == 0)
+        #expect(preview.insurancePolicyCount == 0)
+    }
+
+    @Test("Database import stages restore and requires restart")
+    func databaseImportStagesRestoreAndRequiresRestart() async throws {
+        let dbURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("movingbox-stage-db-\(UUID().uuidString).sqlite")
+        let database = try makePersistentDatabase(at: dbURL)
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Stage Restore Item")
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportDatabaseArchive(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "database-import-stage")
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+            try? removeSQLiteSidecars(at: dbURL)
+            try? removeStagedRestoreArtifacts()
+        }
+
+        var completedResult: DataManager.ImportResult?
+        for try await progress in await DataManager.shared.importInventory(
+            from: archiveURL,
+            database: database,
+            config: .init(format: .movingBoxDatabase)
+        ) {
+            if case .completed(let result) = progress {
+                completedResult = result
+            }
+        }
+
+        #expect(completedResult?.requiresRestart == true)
+        #expect(completedResult?.itemCount == 0)
+    }
+
     @Test("Database archive export throws for in-memory database")
     func databaseArchiveExportThrowsForInMemoryDatabase() async throws {
         let database = try makeInMemoryDatabase()
@@ -1263,6 +1375,85 @@ struct DataManagerTests {
         return zipURL
     }
 
+    private func createFullParityImportFile() throws -> URL {
+        let documentsURL = try fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+
+        let workingDir = documentsURL.appendingPathComponent("test-full-parity-import-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: workingDir, withIntermediateDirectories: true)
+        let photosDir = workingDir.appendingPathComponent("photos")
+        try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
+
+        let homeID = UUID()
+        let locationID = UUID()
+        let itemID = UUID()
+        let policyID = UUID()
+
+        let homesCSV = """
+            HomeID,Name,Address1,Address2,City,State,Zip,Country,PurchaseDate,PurchasePrice,IsPrimary,ColorName,PhotoFilename
+            \(homeID.uuidString),Primary Home,123 Main St,,Nashville,TN,37201,US,2024-01-01T00:00:00Z,450000,true,green,home-photo.png
+            """
+        try homesCSV.write(
+            to: workingDir.appendingPathComponent("home-details.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let locationsCSV = """
+            Name,Description,PhotoFilename,Home,HomeID,LocationID
+            Garage,Storage area,location-photo.png,Primary Home,\(homeID.uuidString),\(locationID.uuidString)
+            """
+        try locationsCSV.write(
+            to: workingDir.appendingPathComponent("locations.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let labelsCSV = """
+            Name,Description,ColorHex,Emoji
+            Electronics,Devices,#00AAFF,📦
+            """
+        try labelsCSV.write(
+            to: workingDir.appendingPathComponent("labels.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let inventoryCSV = """
+            Title,Description,Location,Label,Home,QuantityString,QuantityInt,Serial,Model,Make,Price,Insured,AssetID,Notes,ReplacementCost,DepreciationRate,HasUsedAI,CreatedAt,PurchaseDate,WarrantyExpirationDate,PurchaseLocation,Condition,HasWarranty,AttachmentsJSON,DimensionLength,DimensionWidth,DimensionHeight,DimensionUnit,WeightValue,WeightUnit,Color,StorageRequirements,IsFragile,MovingPriority,RoomDestination,ItemID,LocationID,HomeID,PhotoFilename
+            Camera Kit,Mirrorless camera setup,Garage,Electronics,Primary Home,2 units,2,SER-123,X-T5,Fujifilm,1699.99,true,ASSET-42,Packed in hard case,1900.50,4.5,true,2024-01-01T00:00:00Z,2024-01-02T00:00:00Z,2026-01-02T00:00:00Z,Downtown Camera,Excellent,true,[],12,8,6,in,4.5,lb,Black,Dry,true,1,Office,\(itemID.uuidString),\(locationID.uuidString),\(homeID.uuidString),item-photo.png
+            """
+        try inventoryCSV.write(
+            to: workingDir.appendingPathComponent("inventory.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let insuranceCSV = """
+            PolicyID,ProviderName,PolicyNumber,DeductibleAmount,DwellingCoverageAmount,PersonalPropertyCoverageAmount,LossOfUseCoverageAmount,LiabilityCoverageAmount,MedicalPaymentsCoverageAmount,StartDate,EndDate,Homes,HomeIDs
+            \(policyID.uuidString),Acme Insurance,HO-12345,1000,300000,150000,30000,500000,5000,2024-01-01T00:00:00Z,2025-01-01T00:00:00Z,Primary Home,\(homeID.uuidString)
+            """
+        try insuranceCSV.write(
+            to: workingDir.appendingPathComponent("insurance-policy-details.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try createTestImage(named: "home-photo.png", in: photosDir)
+        try createTestImage(named: "location-photo.png", in: photosDir)
+        try createTestImage(named: "item-photo.png", in: photosDir)
+
+        let zipURL = documentsURL.appendingPathComponent("test-full-parity-import-\(UUID().uuidString).zip")
+        try? fileManager.removeItem(at: zipURL)
+        try fileManager.zipItem(at: workingDir, to: zipURL, shouldKeepParent: false)
+        try? fileManager.removeItem(at: workingDir)
+        return zipURL
+    }
+
     private func makePersistentDatabase(at url: URL) throws -> DatabaseQueue {
         try? fileManager.removeItem(at: url)
 
@@ -1368,5 +1559,18 @@ struct DataManagerTests {
 
     private func uniqueArchiveName(prefix: String) -> String {
         "\(prefix)-\(UUID().uuidString).zip"
+    }
+
+    private func removeStagedRestoreArtifacts() throws {
+        let appSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let stagedRestoreDirectory = appSupport.appendingPathComponent("PendingDatabaseRestore")
+        if fileManager.fileExists(atPath: stagedRestoreDirectory.path) {
+            try fileManager.removeItem(at: stagedRestoreDirectory)
+        }
     }
 }

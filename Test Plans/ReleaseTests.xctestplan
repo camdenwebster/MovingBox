@@ -30,7 +30,7 @@
         "ImportExportUITests\/testExportButtonDisabledWhenNoOptionsSelected()",
         "ImportExportUITests\/testImportButtonDisabledWhenNoOptionsSelected()",
         "ImportExportUITests\/testImportWarningAppears()",
-        "FamilySharingUITests\/testHomeAccessOverrideControlsAreInteractive()",
+        "FamilySharingUITests\/testScopingControlsAppearWhenFlagEnabled()",
         "InventoryItemUITests\/testAddItemFromPhotoViaListView()",
         "InventoryItemUITests\/testAddItemViaDashboard()",
         "InventoryListDeletionUITests\/testCancelDeletion()",

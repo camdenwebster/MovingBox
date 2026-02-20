@@ -1,19 +1,23 @@
+import SQLiteData
 import SwiftUI
 
 struct FamilySharingSettingsView: View {
+    @Environment(\.featureFlags) private var featureFlags
     @State private var viewModel = GlobalSharingSettingsViewModel()
-    @State private var showInviteSheet = false
-    @State private var showEnableConfirmation = false
+    @State private var shareRecord: SharedRecord?
 
     var body: some View {
         List {
             statusSection
 
             if viewModel.isSharingEnabled {
-                policySection
+                if featureFlags.familySharingScopingEnabled {
+                    policySection
+                }
                 membersSection
-                invitesSection
-                homesSummarySection
+                if featureFlags.familySharingScopingEnabled {
+                    homesSummarySection
+                }
             }
         }
         .navigationTitle("Family Sharing")
@@ -22,7 +26,14 @@ struct FamilySharingSettingsView: View {
             if viewModel.isSharingEnabled {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Invite", systemImage: "person.badge.plus") {
-                        showInviteSheet = true
+                        Task {
+                            do {
+                                shareRecord = try await viewModel.prepareShareRecord()
+                            } catch {
+                                viewModel.errorMessage =
+                                    "Failed to prepare sharing sheet: \(error.localizedDescription)"
+                            }
+                        }
                     }
                     .accessibilityIdentifier("family-sharing-invite-button")
                 }
@@ -31,21 +42,21 @@ struct FamilySharingSettingsView: View {
         .task {
             await viewModel.load()
         }
-        .sheet(isPresented: $showInviteSheet) {
-            InviteMemberSheet(viewModel: viewModel)
-        }
-        .alert(
-            "Enable Family Sharing?",
-            isPresented: $showEnableConfirmation
-        ) {
-            Button("Enable") {
-                Task {
-                    await viewModel.setSharingEnabled(true)
+        .sheet(item: $shareRecord) { sharedRecord in
+            SQLiteData.CloudSharingView(
+                sharedRecord: sharedRecord,
+                availablePermissions: [.allowReadWrite, .allowPrivate],
+                didFinish: { _ in
+                    Task {
+                        await viewModel.load()
+                    }
+                },
+                didStopSharing: {
+                    Task {
+                        await viewModel.handleCloudShareStopped()
+                    }
                 }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You can keep specific homes private and exclude them from automatic sharing.")
+            )
         }
         .alert(
             "Sharing Error",
@@ -69,14 +80,26 @@ struct FamilySharingSettingsView: View {
     @ViewBuilder
     private var statusSection: some View {
         Section("Status") {
-            HStack {
+            Toggle(
+                isOn: Binding(
+                    get: { viewModel.isSharingEnabled },
+                    set: { newValue in
+                        Task {
+                            await viewModel.setSharingEnabled(newValue)
+                        }
+                    }
+                )
+            ) {
                 Label("Family Sharing", systemImage: "person.2.fill")
-                Spacer()
-                if viewModel.isLoading {
+            }
+            .disabled(viewModel.isLoading)
+            .accessibilityIdentifier("family-sharing-toggle")
+
+            if viewModel.isLoading {
+                HStack {
+                    Spacer()
                     ProgressView()
-                } else {
-                    Text(viewModel.isSharingEnabled ? "Enabled" : "Disabled")
-                        .foregroundStyle(viewModel.isSharingEnabled ? .green : .secondary)
+                    Spacer()
                 }
             }
 
@@ -84,11 +107,9 @@ struct FamilySharingSettingsView: View {
                 Text(viewModel.shareStatusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else {
-                Button("Enable Family Sharing", systemImage: "person.2.badge.gearshape") {
-                    showEnableConfirmation = true
-                }
-                .accessibilityIdentifier("family-sharing-enable-button")
+                Text("Use the invite button to share your household with iCloud participants.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -128,24 +149,6 @@ struct FamilySharingSettingsView: View {
             }
         } header: {
             Text("Members")
-        }
-    }
-
-    @ViewBuilder
-    private var invitesSection: some View {
-        Section {
-            if viewModel.pendingInvites.isEmpty {
-                Text("No pending invites.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(viewModel.pendingInvites) { invite in
-                    inviteRow(invite)
-                }
-            }
-        } header: {
-            Text("Pending Invites")
-        } footer: {
-            Text("Invites become members automatically with access to non-private homes.")
         }
     }
 
@@ -190,77 +193,6 @@ struct FamilySharingSettingsView: View {
             .buttonStyle(.borderless)
         }
         .accessibilityIdentifier("family-sharing-member-\(member.id.uuidString)")
-    }
-
-    private func inviteRow(_ invite: SQLiteHouseholdInvite) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "envelope.badge")
-                .foregroundStyle(.orange)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(invite.displayName.isEmpty ? invite.email : invite.displayName)
-                Text(invite.email)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button("Mark Accepted") {
-                Task {
-                    await viewModel.acceptInvite(inviteID: invite.id)
-                }
-            }
-            .buttonStyle(.borderless)
-        }
-        .accessibilityIdentifier("family-sharing-invite-\(invite.id.uuidString)")
-    }
-}
-
-private struct InviteMemberSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Bindable var viewModel: GlobalSharingSettingsViewModel
-
-    @State private var displayName = ""
-    @State private var email = ""
-    @State private var isSubmitting = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Invite Details") {
-                    TextField("Name", text: $displayName)
-                        .textInputAutocapitalization(.words)
-
-                    TextField("Email", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.emailAddress)
-                }
-            }
-            .navigationTitle("Invite Member")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Send Invite") {
-                        isSubmitting = true
-                        Task {
-                            await viewModel.createInvite(displayName: displayName, email: email)
-                            isSubmitting = false
-                            dismiss()
-                        }
-                    }
-                    .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
-                    .bold()
-                }
-            }
-        }
     }
 }
 

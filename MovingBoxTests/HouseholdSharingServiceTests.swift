@@ -188,6 +188,59 @@ struct HouseholdSharingServiceTests {
         #expect(memberState.source == .overriddenAllow)
     }
 
+    @Test("Scoping-disabled mode ignores private homes and per-home overrides")
+    func scopingDisabledForcesGlobalAccess() async throws {
+        let db = try makeInMemoryDatabase()
+        let householdID = try await bootstrapHouseholdID(db)
+        let homeID = UUID()
+        let memberID = UUID()
+
+        try await db.write { db in
+            try SQLiteHousehold.find(householdID).update {
+                $0.defaultAccessPolicy = HouseholdDefaultAccessPolicy.ownerScopesHomes.rawValue
+            }.execute(db)
+
+            try SQLiteHome.insert {
+                SQLiteHome(
+                    id: homeID,
+                    name: "Private Home",
+                    householdID: householdID,
+                    isPrivate: true
+                )
+            }.execute(db)
+
+            try SQLiteHouseholdMember.insert {
+                SQLiteHouseholdMember(
+                    id: memberID,
+                    householdID: householdID,
+                    displayName: "Member",
+                    role: HouseholdMemberRole.member.rawValue
+                )
+            }.execute(db)
+
+            try SQLiteHomeAccessOverride.insert {
+                SQLiteHomeAccessOverride(
+                    id: UUID(),
+                    householdID: householdID,
+                    homeID: homeID,
+                    memberID: memberID,
+                    decision: HomeAccessOverrideDecision.deny.rawValue
+                )
+            }.execute(db)
+        }
+
+        let states = try await withService(
+            db,
+            featureFlags: FeatureFlags(showZoomControl: true, familySharingScopingEnabled: false)
+        ) { service in
+            try await service.loadHomeAccessStates(homeID: homeID)
+        }
+        let memberState = try #require(states.first(where: { $0.member.id == memberID }))
+
+        #expect(memberState.isAccessible == true)
+        #expect(memberState.source == .inherited)
+    }
+
     @Test("Invite acceptance creates member and excludes private homes from default access")
     func inviteAcceptanceHonorsPrivateHomes() async throws {
         let db = try makeInMemoryDatabase()
@@ -413,12 +466,13 @@ struct HouseholdSharingServiceTests {
 
     private func withService<T>(
         _ db: DatabaseQueue,
+        featureFlags: FeatureFlags = FeatureFlags(showZoomControl: true, familySharingScopingEnabled: true),
         operation: @escaping @Sendable (HouseholdSharingService) async throws -> T
     ) async throws -> T {
         try await withDependencies {
             $0.defaultDatabase = db
         } operation: {
-            try await operation(HouseholdSharingService())
+            try await operation(HouseholdSharingService(featureFlags: featureFlags))
         }
     }
 

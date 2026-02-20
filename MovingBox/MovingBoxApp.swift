@@ -68,7 +68,11 @@ struct MovingBoxApp: App {
             do {
                 let syncEngine = try SyncEngine(
                     for: configuredDatabase,
-                    tables: SQLiteHome.self,
+                    tables: SQLiteHousehold.self,
+                    SQLiteHouseholdMember.self,
+                    SQLiteHouseholdInvite.self,
+                    SQLiteHomeAccessOverride.self,
+                    SQLiteHome.self,
                     SQLiteInventoryLocation.self,
                     SQLiteInventoryItem.self,
                     SQLiteInventoryLabel.self,

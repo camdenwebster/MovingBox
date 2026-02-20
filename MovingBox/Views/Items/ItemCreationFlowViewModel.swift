@@ -468,6 +468,13 @@ class ItemCreationFlowViewModel: ObservableObject {
             // Save updated item to SQLite
             let updatedItem = item
             do {
+                let categoriesToMatch =
+                    imageDetails.categories.isEmpty
+                    ? [imageDetails.category] : imageDetails.categories
+                let matchedLabelIDs = categoriesToMatch.compactMap { categoryName in
+                    labels.first { $0.name.lowercased() == categoryName.lowercased() }?.id
+                }
+
                 try await database.write { db in
                     try SQLiteInventoryItem.find(updatedItem.id).update {
                         $0.title = updatedItem.title
@@ -493,24 +500,23 @@ class ItemCreationFlowViewModel: ObservableObject {
                         $0.weightUnit = updatedItem.weightUnit
                         $0.hasUsedAI = updatedItem.hasUsedAI
                         $0.locationID = updatedItem.locationID
+                        $0.labelIDs = matchedLabelIDs
                     }.execute(db)
 
                     // Save matched labels
-                    let categoriesToMatch =
-                        imageDetails.categories.isEmpty
-                        ? [imageDetails.category] : imageDetails.categories
-                    for categoryName in categoriesToMatch {
-                        if let matchedLabel = labels.first(where: {
-                            $0.name.lowercased() == categoryName.lowercased()
-                        }) {
-                            try SQLiteInventoryItemLabel.insert {
-                                SQLiteInventoryItemLabel(
-                                    id: UUID(),
-                                    inventoryItemID: updatedItem.id,
-                                    inventoryLabelID: matchedLabel.id
-                                )
-                            }.execute(db)
-                        }
+                    try SQLiteInventoryItemLabel
+                        .where { $0.inventoryItemID == updatedItem.id }
+                        .delete()
+                        .execute(db)
+
+                    for matchedLabelID in Set(matchedLabelIDs) {
+                        try SQLiteInventoryItemLabel.insert {
+                            SQLiteInventoryItemLabel(
+                                id: UUID(),
+                                inventoryItemID: updatedItem.id,
+                                inventoryLabelID: matchedLabelID
+                            )
+                        }.execute(db)
                     }
                 }
             } catch {
@@ -796,15 +802,22 @@ class ItemCreationFlowViewModel: ObservableObject {
             let existingLabelsSnapshot = existingLabels
             try await database.write { db in
                 for (index, item) in itemsToInsert.enumerated() {
-                    try SQLiteInventoryItem.insert { item }.execute(db)
+                    let detectedCategory = selectedItemsSnapshot[index].category
+                    let matchedLabelID = existingLabelsSnapshot.first(where: {
+                        $0.name.lowercased() == detectedCategory.lowercased()
+                    })?.id
+                    var persistedItem = item
+                    persistedItem.labelIDs = matchedLabelID.map { [$0] } ?? []
+
+                    try SQLiteInventoryItem.insert { persistedItem }.execute(db)
 
                     // Insert photo BLOBs
-                    if let photoEntries = photoDataByItemSnapshot[item.id] {
+                    if let photoEntries = photoDataByItemSnapshot[persistedItem.id] {
                         for (imageData, sortOrder) in photoEntries {
                             try SQLiteInventoryItemPhoto.insert {
                                 SQLiteInventoryItemPhoto(
                                     id: UUID(),
-                                    inventoryItemID: item.id,
+                                    inventoryItemID: persistedItem.id,
                                     data: imageData,
                                     sortOrder: sortOrder
                                 )
@@ -813,15 +826,12 @@ class ItemCreationFlowViewModel: ObservableObject {
                     }
 
                     // Match label for this item's category
-                    let detectedCategory = selectedItemsSnapshot[index].category
-                    if let existingLabel = existingLabelsSnapshot.first(where: {
-                        $0.name.lowercased() == detectedCategory.lowercased()
-                    }) {
+                    if let matchedLabelID {
                         try SQLiteInventoryItemLabel.insert {
                             SQLiteInventoryItemLabel(
                                 id: UUID(),
-                                inventoryItemID: item.id,
-                                inventoryLabelID: existingLabel.id
+                                inventoryItemID: persistedItem.id,
+                                inventoryLabelID: matchedLabelID
                             )
                         }.execute(db)
                     }

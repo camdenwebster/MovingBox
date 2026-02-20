@@ -622,6 +622,7 @@ final class MultiItemSelectionViewModel {
             locationID: locationID,
             homeID: resolvedHomeID
         )
+        inventoryItem.labelIDs = labels.map(\.id)
 
         if let enriched = enrichedDetails[detectedItem.id] {
             applyEnrichedDetails(

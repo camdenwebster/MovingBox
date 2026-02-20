@@ -2,11 +2,52 @@ import Dependencies
 import Foundation
 import OSLog
 import SQLiteData
+import ZIPFoundation
 
 private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "Database")
 
 let movingBoxCloudKitContainerIdentifier = "iCloud.com.mothersound.movingbox"
 private let isRunningXCTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+private let pendingDatabaseRestoreDirectoryName = "PendingDatabaseRestore"
+private let pendingDatabaseRestoreArchiveName = "database-restore.zip"
+private let pendingDatabaseRestoreManifestName = "manifest.json"
+
+private struct PendingDatabaseRestoreManifest: Codable, Sendable {
+    let archiveFileName: String
+    let createdAt: Date
+}
+
+enum PendingDatabaseRestoreError: LocalizedError {
+    case invalidArchive
+    case missingDatabaseFile
+    case multipleDatabaseFiles
+    case unsupportedDatabaseExtension
+    case unexpectedArchiveContents
+    case missingStagedArchive
+    case unableToStageArchive
+    case restoreFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidArchive:
+            return "The selected archive is not a valid database backup."
+        case .missingDatabaseFile:
+            return "The archive does not contain a SQLite database file."
+        case .multipleDatabaseFiles:
+            return "The archive contains multiple SQLite database files."
+        case .unsupportedDatabaseExtension:
+            return "The archive contains an unsupported database file type."
+        case .unexpectedArchiveContents:
+            return "The archive contains unsupported extra files."
+        case .missingStagedArchive:
+            return "The staged restore archive is missing."
+        case .unableToStageArchive:
+            return "Unable to stage the selected database archive."
+        case .restoreFailed:
+            return "Failed to apply the staged database restore."
+        }
+    }
+}
 
 /// Attempts to attach sqlite-data's CloudKit metadatabase to a database connection.
 /// This is best-effort so local-only/test flows keep working when CloudKit is unavailable.
@@ -30,6 +71,152 @@ func isMissingSyncMetadataTableError(_ error: Error) -> Bool {
     return message.contains("no such table")
         && (message.contains("sqlitedata_icloud_metadata")
             || message.contains("sqlitedata_icloud.sqlitedata_icloud_metadata"))
+}
+
+func defaultSQLiteDataDatabasePath() throws -> String {
+    let applicationSupportDirectory = try FileManager.default.url(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask,
+        appropriateFor: nil,
+        create: true
+    )
+    return applicationSupportDirectory.appendingPathComponent("SQLiteData.db").path
+}
+
+func validateDatabaseBackupArchive(at zipURL: URL) throws {
+    let workingDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("database-archive-validate-\(UUID().uuidString)", isDirectory: true)
+    defer {
+        try? FileManager.default.removeItem(at: workingDir)
+    }
+
+    try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
+    do {
+        try FileManager.default.unzipItem(at: zipURL, to: workingDir)
+    } catch {
+        throw PendingDatabaseRestoreError.invalidArchive
+    }
+
+    _ = try databaseFileSetForRestore(in: workingDir)
+}
+
+func stagePendingDatabaseRestoreArchive(from sourceArchiveURL: URL) throws {
+    try validateDatabaseBackupArchive(at: sourceArchiveURL)
+
+    let restoreDirectory = try pendingDatabaseRestoreDirectory()
+    do {
+        try? FileManager.default.removeItem(at: restoreDirectory)
+        try FileManager.default.createDirectory(at: restoreDirectory, withIntermediateDirectories: true)
+
+        let stagedArchiveURL = restoreDirectory.appendingPathComponent(pendingDatabaseRestoreArchiveName)
+        try FileManager.default.copyItem(at: sourceArchiveURL, to: stagedArchiveURL)
+
+        let manifest = PendingDatabaseRestoreManifest(
+            archiveFileName: pendingDatabaseRestoreArchiveName,
+            createdAt: Date()
+        )
+        let manifestData = try JSONEncoder().encode(manifest)
+        try manifestData.write(to: restoreDirectory.appendingPathComponent(pendingDatabaseRestoreManifestName))
+    } catch {
+        throw PendingDatabaseRestoreError.unableToStageArchive
+    }
+}
+
+func applyPendingDatabaseRestoreIfNeeded(targetDatabasePath: String) throws {
+    let restoreDirectory = try pendingDatabaseRestoreDirectory()
+    let manifestURL = restoreDirectory.appendingPathComponent(pendingDatabaseRestoreManifestName)
+    guard FileManager.default.fileExists(atPath: manifestURL.path) else { return }
+
+    let manifestData = try Data(contentsOf: manifestURL)
+    let manifest = try JSONDecoder().decode(PendingDatabaseRestoreManifest.self, from: manifestData)
+    let archiveURL = restoreDirectory.appendingPathComponent(manifest.archiveFileName)
+
+    guard FileManager.default.fileExists(atPath: archiveURL.path) else {
+        throw PendingDatabaseRestoreError.missingStagedArchive
+    }
+
+    let workingDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("database-restore-apply-\(UUID().uuidString)", isDirectory: true)
+    defer {
+        try? FileManager.default.removeItem(at: workingDir)
+    }
+
+    do {
+        try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
+        try FileManager.default.unzipItem(at: archiveURL, to: workingDir)
+        let fileSet = try databaseFileSetForRestore(in: workingDir)
+
+        let targetURL = URL(fileURLWithPath: targetDatabasePath)
+        try FileManager.default.createDirectory(
+            at: targetURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let sourceDatabase = try DatabaseQueue(path: fileSet.base.path)
+        let destinationDatabase = try DatabaseQueue(path: targetDatabasePath)
+        try sourceDatabase.backup(to: destinationDatabase)
+        try sourceDatabase.close()
+        try destinationDatabase.close()
+
+        try? FileManager.default.removeItem(at: restoreDirectory)
+    } catch {
+        throw PendingDatabaseRestoreError.restoreFailed
+    }
+}
+
+private func pendingDatabaseRestoreDirectory() throws -> URL {
+    let applicationSupportDirectory = try FileManager.default.url(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask,
+        appropriateFor: nil,
+        create: true
+    )
+    return applicationSupportDirectory.appendingPathComponent(pendingDatabaseRestoreDirectoryName, isDirectory: true)
+}
+
+private func databaseFileSetForRestore(in workingDirectory: URL) throws -> (base: URL, sidecars: [URL]) {
+    let enumerator = FileManager.default.enumerator(
+        at: workingDirectory,
+        includingPropertiesForKeys: [.isRegularFileKey]
+    )
+
+    var files: [URL] = []
+    while let value = enumerator?.nextObject() as? URL {
+        let resourceValues = try value.resourceValues(forKeys: [.isRegularFileKey])
+        if resourceValues.isRegularFile == true {
+            files.append(value)
+        }
+    }
+
+    let baseFiles = files.filter { fileURL in
+        let name = fileURL.lastPathComponent.lowercased()
+        return !name.hasSuffix("-wal") && !name.hasSuffix("-shm")
+    }
+
+    guard !baseFiles.isEmpty else { throw PendingDatabaseRestoreError.missingDatabaseFile }
+    guard baseFiles.count == 1 else { throw PendingDatabaseRestoreError.multipleDatabaseFiles }
+
+    let base = baseFiles[0]
+    let extensionLowercased = base.pathExtension.lowercased()
+    guard ["db", "sqlite", "sqlite3"].contains(extensionLowercased) else {
+        throw PendingDatabaseRestoreError.unsupportedDatabaseExtension
+    }
+
+    let allowedNames: Set<String> = [
+        base.lastPathComponent,
+        base.lastPathComponent + "-wal",
+        base.lastPathComponent + "-shm",
+    ]
+    let fileNames = Set(files.map(\.lastPathComponent))
+    guard fileNames.isSubset(of: allowedNames) else {
+        throw PendingDatabaseRestoreError.unexpectedArchiveContents
+    }
+
+    let sidecars = files.filter { fileURL in
+        let name = fileURL.lastPathComponent.lowercased()
+        return name.hasSuffix("-wal") || name.hasSuffix("-shm")
+    }
+    return (base, sidecars)
 }
 
 /// Registers all sqlite-data schema migrations on the given migrator.
@@ -111,7 +298,7 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
         )
         .execute(db)
 
-        // 5. inventoryItems (FK to inventoryLocations and homes)
+        // 5. inventoryItems (home FK; location stored as nullable UUID text)
         try #sql(
             """
             CREATE TABLE "inventoryItems" (
@@ -139,6 +326,7 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
                 "condition" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
                 "hasWarranty" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
                 "attachments" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '[]',
+                "labelIDs" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '[]',
                 "dimensionLength" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
                 "dimensionWidth" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
                 "dimensionHeight" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
@@ -150,7 +338,7 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
                 "isFragile" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
                 "movingPriority" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 3,
                 "roomDestination" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
-                "locationID" TEXT REFERENCES "inventoryLocations"("id") ON DELETE SET NULL,
+                "locationID" TEXT,
                 "homeID" TEXT REFERENCES "homes"("id") ON DELETE SET NULL
             ) STRICT
             """
@@ -644,6 +832,210 @@ func registerMigrations(_ migrator: inout DatabaseMigrator) {
             arguments: [defaultHouseholdID]
         )
     }
+
+    migrator.registerMigration("Add item label IDs and decouple location relationship") { db in
+        let itemColumns = try String.fetchAll(
+            db,
+            sql: "SELECT name FROM pragma_table_info('inventoryItems')"
+        )
+
+        if !itemColumns.contains("labelIDs") {
+            try #sql(
+                """
+                ALTER TABLE "inventoryItems" ADD COLUMN "labelIDs" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '[]'
+                """
+            )
+            .execute(db)
+        }
+
+        if itemColumns.contains("id") {
+            // Best-effort backfill from join rows so label assignments survive schema transition.
+            try db.execute(
+                sql:
+                    """
+                    UPDATE inventoryItems
+                    SET labelIDs = COALESCE(
+                        (
+                            SELECT json_group_array(inventoryLabelID)
+                            FROM inventoryItemLabels
+                            WHERE inventoryItemLabels.inventoryItemID = inventoryItems.id
+                        ),
+                        '[]'
+                    )
+                    WHERE labelIDs = '[]'
+                       OR labelIDs IS NULL
+                    """
+            )
+        }
+
+        let fkColumns = try String.fetchAll(
+            db,
+            sql: "SELECT \"from\" FROM pragma_foreign_key_list('inventoryItems')"
+        )
+        let hasLocationForeignKey = fkColumns.contains { $0.lowercased() == "locationid" }
+
+        guard hasLocationForeignKey else { return }
+
+        try #sql(
+            """
+            ALTER TABLE "inventoryItems" RENAME TO "inventoryItems_old"
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE TABLE "inventoryItems" (
+                "id" TEXT PRIMARY KEY NOT NULL ON CONFLICT REPLACE DEFAULT (uuid()),
+                "title" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "quantityString" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '1',
+                "quantityInt" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 1,
+                "desc" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "serial" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "model" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "make" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "price" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '0',
+                "insured" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
+                "assetId" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "notes" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "replacementCost" TEXT,
+                "depreciationRate" REAL,
+                "imageURL" TEXT,
+                "secondaryPhotoURLs" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '[]',
+                "hasUsedAI" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
+                "createdAt" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT CURRENT_TIMESTAMP,
+                "purchaseDate" TEXT,
+                "warrantyExpirationDate" TEXT,
+                "purchaseLocation" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "condition" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "hasWarranty" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
+                "attachments" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '[]',
+                "labelIDs" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '[]',
+                "dimensionLength" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "dimensionWidth" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "dimensionHeight" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "dimensionUnit" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'inches',
+                "weightValue" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "weightUnit" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT 'lbs',
+                "color" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "storageRequirements" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "isFragile" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 0,
+                "movingPriority" INTEGER NOT NULL ON CONFLICT REPLACE DEFAULT 3,
+                "roomDestination" TEXT NOT NULL ON CONFLICT REPLACE DEFAULT '',
+                "locationID" TEXT,
+                "homeID" TEXT REFERENCES "homes"("id") ON DELETE SET NULL
+            ) STRICT
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            INSERT INTO "inventoryItems" (
+                "id",
+                "title",
+                "quantityString",
+                "quantityInt",
+                "desc",
+                "serial",
+                "model",
+                "make",
+                "price",
+                "insured",
+                "assetId",
+                "notes",
+                "replacementCost",
+                "depreciationRate",
+                "imageURL",
+                "secondaryPhotoURLs",
+                "hasUsedAI",
+                "createdAt",
+                "purchaseDate",
+                "warrantyExpirationDate",
+                "purchaseLocation",
+                "condition",
+                "hasWarranty",
+                "attachments",
+                "labelIDs",
+                "dimensionLength",
+                "dimensionWidth",
+                "dimensionHeight",
+                "dimensionUnit",
+                "weightValue",
+                "weightUnit",
+                "color",
+                "storageRequirements",
+                "isFragile",
+                "movingPriority",
+                "roomDestination",
+                "locationID",
+                "homeID"
+            )
+            SELECT
+                "id",
+                "title",
+                "quantityString",
+                "quantityInt",
+                "desc",
+                "serial",
+                "model",
+                "make",
+                "price",
+                "insured",
+                "assetId",
+                "notes",
+                "replacementCost",
+                "depreciationRate",
+                "imageURL",
+                "secondaryPhotoURLs",
+                "hasUsedAI",
+                "createdAt",
+                "purchaseDate",
+                "warrantyExpirationDate",
+                "purchaseLocation",
+                "condition",
+                "hasWarranty",
+                "attachments",
+                COALESCE("labelIDs", '[]'),
+                "dimensionLength",
+                "dimensionWidth",
+                "dimensionHeight",
+                "dimensionUnit",
+                "weightValue",
+                "weightUnit",
+                "color",
+                "storageRequirements",
+                "isFragile",
+                "movingPriority",
+                "roomDestination",
+                "locationID",
+                "homeID"
+            FROM "inventoryItems_old"
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            DROP TABLE "inventoryItems_old"
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_inventoryItems_locationID" ON "inventoryItems"("locationID")
+            """
+        )
+        .execute(db)
+
+        try #sql(
+            """
+            CREATE INDEX IF NOT EXISTS "idx_inventoryItems_homeID" ON "inventoryItems"("homeID")
+            """
+        )
+        .execute(db)
+    }
 }
 
 func appDatabase() throws -> any DatabaseWriter {
@@ -663,7 +1055,14 @@ func appDatabase() throws -> any DatabaseWriter {
         #endif
     }
 
-    let database = try SQLiteData.defaultDatabase(configuration: configuration)
+    let databasePath = try defaultSQLiteDataDatabasePath()
+    do {
+        try applyPendingDatabaseRestoreIfNeeded(targetDatabasePath: databasePath)
+    } catch {
+        logger.error("Pending restore application failed: \(error.localizedDescription)")
+    }
+
+    let database = try SQLiteData.defaultDatabase(path: databasePath, configuration: configuration)
     logger.info("Opened database at '\(database.path)'")
 
     var migrator = DatabaseMigrator()

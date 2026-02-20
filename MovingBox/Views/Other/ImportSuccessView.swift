@@ -10,6 +10,10 @@ struct ImportSuccessView: View {
     @State private var showCheckmark = false
     @State private var showConfetti = false
 
+    private var isDatabaseRestore: Bool {
+        importResult.requiresRestart
+    }
+
     private var backgroundImage: String {
         colorScheme == .dark ? "background-dark" : "background-light"
     }
@@ -45,38 +49,66 @@ struct ImportSuccessView: View {
                         .scaleEffect(showCheckmark ? 1 : 0.5)
                         .opacity(showCheckmark ? 1 : 0)
 
-                    Text("Import Complete!")
+                    Text(isDatabaseRestore ? "Restore Staged!" : "Import Complete!")
                         .font(.title.bold())
 
-                    VStack(spacing: 12) {
-                        if importResult.itemCount > 0 {
-                            ResultRow(
-                                icon: "cube.box.fill",
-                                count: importResult.itemCount,
-                                label: importResult.itemCount == 1 ? "item" : "items"
-                            )
-                        }
+                    if isDatabaseRestore {
+                        Text("Restart the app to apply this database backup.")
+                            .font(.body)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                            .padding()
+                            .background {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(.ultraThinMaterial)
+                            }
+                    } else {
+                        VStack(spacing: 12) {
+                            if importResult.itemCount > 0 {
+                                ResultRow(
+                                    icon: "cube.box.fill",
+                                    count: importResult.itemCount,
+                                    label: importResult.itemCount == 1 ? "item" : "items"
+                                )
+                            }
 
-                        if importResult.locationCount > 0 {
-                            ResultRow(
-                                icon: "map.fill",
-                                count: importResult.locationCount,
-                                label: importResult.locationCount == 1 ? "location" : "locations"
-                            )
-                        }
+                            if importResult.locationCount > 0 {
+                                ResultRow(
+                                    icon: "map.fill",
+                                    count: importResult.locationCount,
+                                    label: importResult.locationCount == 1 ? "location" : "locations"
+                                )
+                            }
 
-                        if importResult.labelCount > 0 {
-                            ResultRow(
-                                icon: "tag.fill",
-                                count: importResult.labelCount,
-                                label: importResult.labelCount == 1 ? "label" : "labels"
-                            )
+                            if importResult.labelCount > 0 {
+                                ResultRow(
+                                    icon: "tag.fill",
+                                    count: importResult.labelCount,
+                                    label: importResult.labelCount == 1 ? "label" : "labels"
+                                )
+                            }
+
+                            if importResult.homeCount > 0 {
+                                ResultRow(
+                                    icon: "house.fill",
+                                    count: importResult.homeCount,
+                                    label: importResult.homeCount == 1 ? "home" : "homes"
+                                )
+                            }
+
+                            if importResult.insurancePolicyCount > 0 {
+                                ResultRow(
+                                    icon: "doc.text.fill",
+                                    count: importResult.insurancePolicyCount,
+                                    label: importResult.insurancePolicyCount == 1 ? "policy" : "policies"
+                                )
+                            }
                         }
-                    }
-                    .padding()
-                    .background {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(.ultraThinMaterial)
+                        .padding()
+                        .background {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(.ultraThinMaterial)
+                        }
                     }
                 }
                 .padding()
@@ -87,20 +119,52 @@ struct ImportSuccessView: View {
 
                 Spacer()
 
-                Button {
-                    navigateToDashboard()
-                } label: {
-                    Text("Go to Dashboard")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
+                Group {
+                    if isDatabaseRestore {
+                        VStack(spacing: 12) {
+                            Button {
+                                exit(0)
+                            } label: {
+                                Text("Restart Now")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                            }
+                            .tint(.green)
+                            .backport.glassProminentButtonStyle()
+                            .accessibilityIdentifier("import-success-restart-now-button")
+
+                            Button {
+                                navigateToDashboard()
+                            } label: {
+                                Text("Later")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                            }
+                            .tint(.secondary)
+                            .backport.glassProminentButtonStyle()
+                            .accessibilityIdentifier("import-success-later-button")
+                        }
+                    } else {
+                        Button {
+                            navigateToDashboard()
+                        } label: {
+                            Text("Go to Dashboard")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                        }
+                        .tint(.green)
+                        .backport.glassProminentButtonStyle()
+                        .accessibilityIdentifier("import-success-dashboard-button")
+                    }
                 }
-                .tint(.green)
-                .backport.glassProminentButtonStyle()
                 .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
                 .padding()
-                .accessibilityIdentifier("import-success-dashboard-button")
             }
             .padding(.horizontal, 60)
         }

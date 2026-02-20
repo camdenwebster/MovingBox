@@ -1069,6 +1069,7 @@ struct ExistingUserShareAcceptanceView: View {
         for joinerLabel in joinerLabels {
             let key = normalizedName(joinerLabel.name)
             guard let ownerLabel = ownerLabelByName[key], ownerLabel.id != joinerLabel.id else { continue }
+            var affectedItemIDs: Set<UUID> = []
 
             let associations =
                 try SQLiteInventoryItemLabel
@@ -1076,6 +1077,7 @@ struct ExistingUserShareAcceptanceView: View {
                 .fetchAll(db)
 
             for association in associations {
+                affectedItemIDs.insert(association.inventoryItemID)
                 let duplicateExists =
                     try SQLiteInventoryItemLabel
                     .where {
@@ -1091,6 +1093,17 @@ struct ExistingUserShareAcceptanceView: View {
                         $0.inventoryLabelID = ownerLabel.id
                     }.execute(db)
                 }
+            }
+
+            for itemID in affectedItemIDs {
+                let labelIDs =
+                    try SQLiteInventoryItemLabel
+                    .where { $0.inventoryItemID == itemID }
+                    .fetchAll(db)
+                    .map(\.inventoryLabelID)
+                try SQLiteInventoryItem.find(itemID).update {
+                    $0.labelIDs = labelIDs
+                }.execute(db)
             }
 
             try SQLiteInventoryLabel.find(joinerLabel.id).delete().execute(db)

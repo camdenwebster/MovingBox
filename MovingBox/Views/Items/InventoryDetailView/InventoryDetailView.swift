@@ -1653,9 +1653,17 @@ struct InventoryDetailView: View {
                     try SQLiteInventoryItemLabel
                     .where { $0.inventoryItemID == id }
                     .fetchAll(db)
-                let labels: [SQLiteInventoryLabel] = try joinRows.compactMap { join in
-                    try SQLiteInventoryLabel.find(join.inventoryLabelID).fetchOne(db)
-                }
+                let labelIDsFromItem = loadedItem?.labelIDs ?? []
+                let labels: [SQLiteInventoryLabel] =
+                    if !joinRows.isEmpty {
+                        try joinRows.compactMap { join in
+                            try SQLiteInventoryLabel.find(join.inventoryLabelID).fetchOne(db)
+                        }
+                    } else {
+                        try labelIDsFromItem.compactMap { labelID in
+                            try SQLiteInventoryLabel.find(labelID).fetchOne(db)
+                        }
+                    }
 
                 let aiCount =
                     try SQLiteInventoryItem
@@ -1712,6 +1720,7 @@ struct InventoryDetailView: View {
                 let exists = try SQLiteInventoryItem.find(id).fetchOne(db) != nil
 
                 if exists {
+                    let currentLabelIDs = currentLabels.map(\.id)
                     try SQLiteInventoryItem.find(id).update {
                         $0.title = currentItem.title
                         $0.quantityString = currentItem.quantityString
@@ -1746,10 +1755,14 @@ struct InventoryDetailView: View {
                         $0.roomDestination = currentItem.roomDestination
                         $0.locationID = currentItem.locationID
                         $0.homeID = currentItem.homeID
+                        $0.labelIDs = currentLabelIDs
                     }.execute(db)
                 } else {
+                    let currentLabelIDs = currentLabels.map(\.id)
+                    var itemToInsert = currentItem
+                    itemToInsert.labelIDs = currentLabelIDs
                     try SQLiteInventoryItem.insert {
-                        currentItem
+                        itemToInsert
                     }.execute(db)
                 }
 
