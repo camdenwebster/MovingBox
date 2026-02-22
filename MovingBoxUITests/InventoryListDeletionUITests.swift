@@ -55,9 +55,15 @@ final class InventoryListDeletionUITests: XCTestCase {
     }
 
     func testSelectAndDeleteSingleItem() throws {
-        // Given: We have items in the list
-        let initialItemCount = inventoryListScreen.getItemCount()
-        XCTAssertGreaterThan(initialItemCount, 0, "Should have items to test deletion")
+        // Given: Initial list order is deterministic in test data
+        XCTAssertTrue(
+            inventoryListScreen.waitForItem(named: "2-Slice Toaster", at: 0, timeout: 10),
+            "Expected first row to be 2-Slice Toaster before deletion"
+        )
+        XCTAssertTrue(
+            inventoryListScreen.waitForItem(named: "Air Fryer", at: 1, timeout: 10),
+            "Expected second row to be Air Fryer before deletion"
+        )
 
         // When: We enter selection mode
         inventoryListScreen.enterSelectionMode()
@@ -77,15 +83,15 @@ final class InventoryListDeletionUITests: XCTestCase {
         // When: We confirm deletion
         inventoryListScreen.confirmDeletion()
 
-        // Then: Item should be deleted and count should decrease
-        let expectedItemCount = initialItemCount - 1
+        // Then: Order should shift and Air Fryer should now be first
         XCTAssertTrue(
-            inventoryListScreen.waitForItemCount(expectedItemCount),
-            "Item count should decrease by 1 after deletion"
+            inventoryListScreen.waitForItem(named: "Air Fryer", at: 0, timeout: 10),
+            "Expected first row to become Air Fryer after deleting 2-Slice Toaster"
         )
-        let finalItemCount = inventoryListScreen.getItemCount()
-        XCTAssertEqual(
-            finalItemCount, expectedItemCount, "Item count should decrease by 1 after deletion")
+        XCTAssertFalse(
+            inventoryListScreen.isItem(named: "2-Slice Toaster", at: 0),
+            "2-Slice Toaster should no longer be first after deletion"
+        )
 
         // And: Selection mode should exit automatically
         XCTAssertFalse(

@@ -332,6 +332,10 @@ struct MovingBoxApp: App {
                     do {
                         @Dependency(\.defaultSyncEngine) var syncEngine
                         try await syncEngine.start()
+                        await processPendingFamilySharingUnshareIfNeeded(
+                            database: database,
+                            syncEngine: syncEngine
+                        )
                     } catch {
                         logger.error("SyncEngine start failed: \(error.localizedDescription)")
                     }
@@ -529,6 +533,43 @@ struct MovingBoxApp: App {
             .environmentObject(settings)
             .environmentObject(onboardingManager)
             .environmentObject(revenueCatManager)
+        }
+    }
+
+    private func processPendingFamilySharingUnshareIfNeeded(
+        database: any DatabaseWriter,
+        syncEngine: SyncEngine
+    ) async {
+        guard FamilySharingPendingActionStore.isPendingUnshare else { return }
+
+        do {
+            let preferredHouseholdID = FamilySharingPendingActionStore.pendingUnshareHouseholdID
+            let household = try await database.read { db in
+                if let preferredHouseholdID,
+                    let household = try SQLiteHousehold.find(preferredHouseholdID).fetchOne(db)
+                {
+                    return household as SQLiteHousehold?
+                }
+                return try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)
+            }
+
+            guard let household else {
+                FamilySharingPendingActionStore.clearPendingUnshare()
+                return
+            }
+
+            try await syncEngine.unshare(record: household)
+            try await database.write { db in
+                try SQLiteHousehold.find(household.id)
+                    .update {
+                        $0.sharingEnabled = false
+                    }
+                    .execute(db)
+            }
+            FamilySharingPendingActionStore.clearPendingUnshare()
+            logger.info("Processed pending family sharing unshare for household \(household.id.uuidString)")
+        } catch {
+            logger.error("Failed pending family sharing unshare: \(error.localizedDescription)")
         }
     }
 }

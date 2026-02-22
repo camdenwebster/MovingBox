@@ -173,6 +173,13 @@ class ItemCreationFlowViewModel: ObservableObject {
         return "Analyzing more frames..."
     }
 
+    var shouldKeepScreenAwakeForVideoAnalysis: Bool {
+        captureMode == .video
+            && processingImage
+            && isVideoAnalysisStreaming
+            && !isAppInBackground
+    }
+
     // MARK: - Initialization
 
     init(

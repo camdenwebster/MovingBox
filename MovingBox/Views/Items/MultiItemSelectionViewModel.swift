@@ -504,8 +504,14 @@ final class MultiItemSelectionViewModel {
     }
 
     /// Select all detected items
-    func selectAllItems() {
-        selectedItems = Set(detectedItems.map { $0.id })
+    func selectAllItems(avoidingPotentialDuplicates: Bool = false) {
+        selectedItems = selectAllTargetItemIDs(avoidingPotentialDuplicates: avoidingPotentialDuplicates)
+    }
+
+    /// Whether current selection satisfies the "select all" target set.
+    func hasSatisfiedSelectAll(avoidingPotentialDuplicates: Bool = false) -> Bool {
+        let targetIDs = selectAllTargetItemIDs(avoidingPotentialDuplicates: avoidingPotentialDuplicates)
+        return selectedItems.isSuperset(of: targetIDs)
     }
 
     /// Deselect all items
@@ -732,6 +738,20 @@ final class MultiItemSelectionViewModel {
             .trimmingCharacters(in: .whitespaces)
 
         return Decimal(string: cleanedString) ?? Decimal.zero
+    }
+
+    private func selectAllTargetItemIDs(avoidingPotentialDuplicates: Bool) -> Set<String> {
+        guard avoidingPotentialDuplicates else {
+            return Set(detectedItems.map(\.id))
+        }
+
+        var targetIDs = Set<String>()
+        for group in detectedItemGroups {
+            if let firstItem = group.items.first {
+                targetIDs.insert(firstItem.id)
+            }
+        }
+        return targetIDs
     }
 
     /// Format confidence as percentage string

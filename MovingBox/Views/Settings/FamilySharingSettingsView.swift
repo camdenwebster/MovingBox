@@ -34,6 +34,7 @@ struct FamilySharingSettingsView: View {
                             }
                         }
                     }
+                    .disabled(!viewModel.isICloudSyncEnabled)
                     .accessibilityIdentifier("family-sharing-invite-button")
                 }
             }
@@ -78,7 +79,7 @@ struct FamilySharingSettingsView: View {
 
     @ViewBuilder
     private var statusSection: some View {
-        Section("Status") {
+        Section {
             Toggle(
                 isOn: Binding(
                     get: { viewModel.isSharingEnabled },
@@ -91,7 +92,7 @@ struct FamilySharingSettingsView: View {
             ) {
                 Label("Family Sharing", systemImage: "person.2.fill")
             }
-            .disabled(viewModel.isLoading)
+            .disabled(viewModel.isLoading || (!viewModel.isICloudSyncEnabled && !viewModel.isSharingEnabled))
             .accessibilityIdentifier("family-sharing-toggle")
 
             if viewModel.isLoading {
@@ -102,13 +103,22 @@ struct FamilySharingSettingsView: View {
                 }
             }
 
+            if !viewModel.isICloudSyncEnabled {
+                Text("Family Sharing requires iCloud Sync. Re-enable Sync Data and restart the app.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            if viewModel.hasPendingCloudUnshare {
+                Text("A pending request will remove this household share from iCloud after Sync Data is re-enabled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Status")
+        } footer: {
             if viewModel.isSharingEnabled {
-                Text(viewModel.shareStatusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 Text("Use the invite button to share your household with iCloud participants.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }

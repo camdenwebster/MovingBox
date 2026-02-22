@@ -310,7 +310,7 @@ struct VideoItemSelectionListView: View {
 
                 Spacer()
 
-                if viewModel.selectedItemsCount == viewModel.detectedItems.count {
+                if viewModel.hasSatisfiedSelectAll(avoidingPotentialDuplicates: true) {
                     Button("Deselect All") {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.deselectAllItems()
@@ -321,7 +321,7 @@ struct VideoItemSelectionListView: View {
                 } else {
                     Button("Select All") {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.selectAllItems()
+                            viewModel.selectAllItems(avoidingPotentialDuplicates: true)
                         }
                     }
                     .backport.glassProminentButtonStyle()

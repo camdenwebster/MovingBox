@@ -5,6 +5,7 @@
 //  Created by Codex on 2/6/26.
 //
 
+import AVFoundation
 import PhotosUI
 import SQLiteData
 import SwiftUI
@@ -21,6 +22,8 @@ struct VideoLibrarySheetView: View {
     @State private var sharedVideo: SavedAnalysisVideo?
     @State private var processingVideo = false
     @State private var errorMessage: String?
+    @State private var videoThumbnails: [UUID: UIImage] = [:]
+    @State private var thumbnailLoadingIDs: Set<UUID> = []
 
     private var visibleVideos: [SavedAnalysisVideo] {
         guard let location else { return savedVideos }
@@ -44,9 +47,7 @@ struct VideoLibrarySheetView: View {
                     Section("Saved Videos") {
                         ForEach(visibleVideos) { video in
                             HStack(spacing: 12) {
-                                Image(systemName: "video.fill")
-                                    .foregroundStyle(.tint)
-                                    .frame(width: 24)
+                                videoThumbnailView(for: video)
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(video.fileName)
@@ -85,6 +86,9 @@ struct VideoLibrarySheetView: View {
                                 .accessibilityIdentifier("videoLibrary-share-\(video.id.uuidString)")
                             }
                             .padding(.vertical, 2)
+                            .task(id: video.id) {
+                                await loadThumbnailIfNeeded(for: video)
+                            }
                         }
                     }
                 }
@@ -163,6 +167,60 @@ struct VideoLibrarySheetView: View {
 
     private func reloadVideos() {
         savedVideos = SavedAnalysisVideoStore.allVideos()
+        let validIDs = Set(savedVideos.map(\.id))
+        videoThumbnails = videoThumbnails.filter { validIDs.contains($0.key) }
+        thumbnailLoadingIDs = Set(thumbnailLoadingIDs.filter { validIDs.contains($0) })
+    }
+
+    @ViewBuilder
+    private func videoThumbnailView(for video: SavedAnalysisVideo) -> some View {
+        Group {
+            if let thumbnail = videoThumbnails[video.id] {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.tertiarySystemFill))
+                    Image(systemName: "video.fill")
+                        .foregroundStyle(.tint)
+                }
+            }
+        }
+        .frame(width: 44, height: 44)
+        .clipShape(.rect(cornerRadius: 8))
+    }
+
+    @MainActor
+    private func loadThumbnailIfNeeded(for video: SavedAnalysisVideo) async {
+        guard videoThumbnails[video.id] == nil else { return }
+        guard !thumbnailLoadingIDs.contains(video.id) else { return }
+
+        thumbnailLoadingIDs.insert(video.id)
+        defer { thumbnailLoadingIDs.remove(video.id) }
+
+        if let thumbnail = await Self.generateThumbnail(from: video.url) {
+            videoThumbnails[video.id] = thumbnail
+        }
+    }
+
+    private static func generateThumbnail(from url: URL) async -> UIImage? {
+        await Task.detached(priority: .utility) {
+            let asset = AVAsset(url: url)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 240, height: 240)
+
+            do {
+                let firstFrameTime = CMTime(seconds: 0, preferredTimescale: 600)
+                let cgImage = try generator.copyCGImage(at: firstFrameTime, actualTime: nil)
+                return UIImage(cgImage: cgImage)
+            } catch {
+                print("⚠️ VideoLibrarySheetView - Failed to generate thumbnail: \(error.localizedDescription)")
+                return nil
+            }
+        }.value
     }
 
     @MainActor

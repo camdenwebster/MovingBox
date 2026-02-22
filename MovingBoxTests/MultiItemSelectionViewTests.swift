@@ -59,6 +59,48 @@ import UIKit
         )
     }
 
+    private func createDuplicateGroupingResponse() -> MultiItemAnalysisResponse {
+        let items = [
+            DetectedInventoryItem(
+                id: "duplicate-1",
+                title: "Apple MacBook Pro 14",
+                description: "Laptop",
+                category: "Electronics",
+                make: "Apple",
+                model: "MacBook Pro",
+                estimatedPrice: "$1,800.00",
+                confidence: 0.92
+            ),
+            DetectedInventoryItem(
+                id: "duplicate-2",
+                title: "Apple MacBook Pro",
+                description: "Laptop duplicate",
+                category: "Electronics",
+                make: "Apple",
+                model: "MacBook Pro",
+                estimatedPrice: "$1,700.00",
+                confidence: 0.89
+            ),
+            DetectedInventoryItem(
+                id: "single-1",
+                title: "Dining Chair",
+                description: "Chair",
+                category: "Furniture",
+                make: "IKEA",
+                model: "ODGER",
+                estimatedPrice: "$80.00",
+                confidence: 0.9
+            ),
+        ]
+
+        return MultiItemAnalysisResponse(
+            items: items,
+            detectedCount: items.count,
+            analysisType: "multi_item",
+            confidence: 0.9
+        )
+    }
+
     /// Creates a test location in the SQLite database and returns its UUID.
     private func createTestLocation(named name: String = "Test Room", in db: DatabaseQueue) throws -> UUID {
         let locationID = UUID()
@@ -238,6 +280,57 @@ import UIKit
         for item in viewModel.detectedItems {
             #expect(!viewModel.isItemSelected(item))
         }
+    }
+
+    @Test("duplicateAwareSelectAll_selectsFirstInDuplicateGroupOnly")
+    func duplicateAwareSelectAll_selectsFirstInDuplicateGroupOnly() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: createDuplicateGroupingResponse(),
+            images: createTestImages(),
+            locationID: nil
+        )
+
+        viewModel.selectAllItems(avoidingPotentialDuplicates: true)
+
+        #expect(viewModel.isItemSelected(viewModel.detectedItems[0]))
+        #expect(!viewModel.isItemSelected(viewModel.detectedItems[1]))
+        #expect(viewModel.hasSatisfiedSelectAll(avoidingPotentialDuplicates: true))
+    }
+
+    @Test("duplicateAwareSelectAll_stillIncludesSingletonItems")
+    func duplicateAwareSelectAll_stillIncludesSingletonItems() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: createDuplicateGroupingResponse(),
+            images: createTestImages(),
+            locationID: nil
+        )
+
+        viewModel.selectAllItems(avoidingPotentialDuplicates: true)
+
+        #expect(viewModel.selectedItems == Set(["duplicate-1", "single-1"]))
+    }
+
+    @Test("defaultSelectAll_behaviorUnchanged")
+    func defaultSelectAll_behaviorUnchanged() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: createDuplicateGroupingResponse(),
+            images: createTestImages(),
+            locationID: nil
+        )
+
+        viewModel.selectAllItems()
+
+        #expect(viewModel.selectedItems == Set(["duplicate-1", "duplicate-2", "single-1"]))
+        #expect(viewModel.hasSatisfiedSelectAll())
     }
 
     @Test("ViewModel creates inventory items correctly")

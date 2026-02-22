@@ -471,6 +471,57 @@ import UIKit
         #expect(viewModel.createdItems.isEmpty)
     }
 
+    @Test("shouldKeepScreenAwake_trueDuringActiveVideoStreamingAnalysis")
+    func shouldKeepScreenAwake_trueDuringActiveVideoStreamingAnalysis() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
+        let viewModel = ItemCreationFlowViewModel(
+            captureMode: .video,
+            locationID: nil
+        )
+
+        viewModel.processingImage = true
+        viewModel.isVideoAnalysisStreaming = true
+        viewModel.isAppInBackground = false
+
+        #expect(viewModel.shouldKeepScreenAwakeForVideoAnalysis)
+    }
+
+    @Test("shouldKeepScreenAwake_falseWhenBackgrounded")
+    func shouldKeepScreenAwake_falseWhenBackgrounded() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
+        let viewModel = ItemCreationFlowViewModel(
+            captureMode: .video,
+            locationID: nil
+        )
+
+        viewModel.processingImage = true
+        viewModel.isVideoAnalysisStreaming = true
+        viewModel.isAppInBackground = true
+
+        #expect(!viewModel.shouldKeepScreenAwakeForVideoAnalysis)
+    }
+
+    @Test("shouldKeepScreenAwake_falseWhenStreamingEnds")
+    func shouldKeepScreenAwake_falseWhenStreamingEnds() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
+        let viewModel = ItemCreationFlowViewModel(
+            captureMode: .video,
+            locationID: nil
+        )
+
+        viewModel.processingImage = true
+        viewModel.isVideoAnalysisStreaming = false
+        viewModel.isAppInBackground = false
+
+        #expect(!viewModel.shouldKeepScreenAwakeForVideoAnalysis)
+    }
+
     @Test("ViewModel handles step progression validation")
     func testStepProgressionValidation() throws {
         let db = try createTestDatabase()

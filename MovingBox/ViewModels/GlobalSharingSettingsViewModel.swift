@@ -7,6 +7,36 @@ import SQLiteData
     import UIKit
 #endif
 
+enum FamilySharingPendingActionStore {
+    private static let pendingUnshareKey = "familySharing.pendingUnshare"
+    private static let pendingUnshareHouseholdIDKey = "familySharing.pendingUnshare.householdID"
+
+    static var isPendingUnshare: Bool {
+        UserDefaults.standard.bool(forKey: pendingUnshareKey)
+    }
+
+    static var pendingUnshareHouseholdID: UUID? {
+        guard let raw = UserDefaults.standard.string(forKey: pendingUnshareHouseholdIDKey) else {
+            return nil
+        }
+        return UUID(uuidString: raw)
+    }
+
+    static func queueUnshare(for householdID: UUID?) {
+        UserDefaults.standard.set(true, forKey: pendingUnshareKey)
+        if let householdID {
+            UserDefaults.standard.set(householdID.uuidString, forKey: pendingUnshareHouseholdIDKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: pendingUnshareHouseholdIDKey)
+        }
+    }
+
+    static func clearPendingUnshare() {
+        UserDefaults.standard.removeObject(forKey: pendingUnshareKey)
+        UserDefaults.standard.removeObject(forKey: pendingUnshareHouseholdIDKey)
+    }
+}
+
 @Observable
 @MainActor
 final class GlobalSharingSettingsViewModel {
@@ -68,11 +98,8 @@ final class GlobalSharingSettingsViewModel {
         household?.sharingEnabled ?? false
     }
 
-    var shareStatusText: String {
-        if hasCloudShare {
-            return "System iCloud share configured"
-        }
-        return "\(nonOwnerMembers.count) members, \(pendingInvites.count) pending invites"
+    var hasPendingCloudUnshare: Bool {
+        FamilySharingPendingActionStore.isPendingUnshare
     }
 
     func load() async {
@@ -134,14 +161,30 @@ final class GlobalSharingSettingsViewModel {
     func setSharingEnabled(_ enabled: Bool) async {
         do {
             if enabled {
+                guard isICloudSyncEnabled else {
+                    errorMessage =
+                        "iCloud Sync is disabled. Enable Sync Data first, then restart the app to use Family Sharing."
+                    return
+                }
                 try await service.setSharingEnabled(true)
+                FamilySharingPendingActionStore.clearPendingUnshare()
                 await load()
             } else {
+                if !isICloudSyncEnabled {
+                    FamilySharingPendingActionStore.queueUnshare(for: household?.id)
+                    try await service.setSharingEnabled(false)
+                    hasCloudShare = false
+                    errorMessage =
+                        "Family Sharing was turned off locally. It will be fully removed from iCloud after Sync Data is re-enabled."
+                    await load()
+                    return
+                }
                 if hasCloudShare, let household {
                     try await syncEngine.unshare(record: household)
                 }
                 try await service.setSharingEnabled(false)
                 hasCloudShare = false
+                FamilySharingPendingActionStore.clearPendingUnshare()
                 await load()
             }
         } catch {

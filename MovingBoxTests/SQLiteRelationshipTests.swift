@@ -99,8 +99,8 @@ struct SQLiteRelationshipTests {
     @Suite("ON DELETE SET NULL")
     struct SetNullTests {
 
-        @Test("Deleting a location sets item.locationID to NULL")
-        func deleteLocationNullsItemLocation() throws {
+        @Test("Deleting a location leaves item.locationID unchanged when location FK is removed")
+        func deleteLocationLeavesItemLocationUnchanged() throws {
             let db = try makeInMemoryDatabase()
             let homeID = UUID()
             let locationID = UUID()
@@ -126,7 +126,7 @@ struct SQLiteRelationshipTests {
                 try SQLiteInventoryItem.find(itemID).fetchOne(db)
             }
             #expect(item != nil, "Item should survive location deletion")
-            #expect(item?.locationID == nil, "locationID should be NULL after location deleted")
+            #expect(item?.locationID == locationID, "locationID should remain unchanged after location deleted")
             #expect(item?.homeID == homeID, "homeID should be unchanged")
         }
 

@@ -164,6 +164,23 @@ class InventoryListScreen {
         return getItemCount() == expectedCount
     }
 
+    func isItem(named itemName: String, at index: Int) -> Bool {
+        let cell = app.cells.element(boundBy: index)
+        guard cell.exists else { return false }
+        return cell.staticTexts[itemName].exists
+    }
+
+    func waitForItem(named itemName: String, at index: Int, timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if isItem(named: itemName, at: index) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return isItem(named: itemName, at: index)
+    }
+
     func waitForItemsToLoad() -> Bool {
         app.cells.firstMatch.waitForExistence(timeout: 10)
     }

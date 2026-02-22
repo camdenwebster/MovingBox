@@ -110,3 +110,4 @@ fastlane/screenshots/dark/screenshots.html
 .tuist/
 # Nightshift plan artifacts (keep out of version control)
 .nightshift-plan
+/.artifacts

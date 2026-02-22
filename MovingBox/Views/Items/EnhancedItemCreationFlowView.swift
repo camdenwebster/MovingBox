@@ -122,9 +122,24 @@ struct EnhancedItemCreationFlowView: View {
                 hasBootstrappedInitialVideo = true
                 viewModel.handleSavedVideo(initialVideoURL, preparedAsset: initialVideoAsset)
             }
+
+            syncIdleTimerState()
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: scenePhase) { _, phase in
             viewModel.updateScenePhase(phase)
+            syncIdleTimerState()
+        }
+        .onChange(of: viewModel.processingImage) {
+            syncIdleTimerState()
+        }
+        .onChange(of: viewModel.isVideoAnalysisStreaming) {
+            syncIdleTimerState()
+        }
+        .onChange(of: viewModel.captureMode) {
+            syncIdleTimerState()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .multiItemAnalysisReadyNotificationTapped)
@@ -523,6 +538,10 @@ struct EnhancedItemCreationFlowView: View {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
         }
+    }
+
+    private func syncIdleTimerState() {
+        UIApplication.shared.isIdleTimerDisabled = viewModel.shouldKeepScreenAwakeForVideoAnalysis
     }
 
     private var resolvedLocation: SQLiteInventoryLocation? {

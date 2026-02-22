@@ -32,15 +32,11 @@ final class FamilySharingUITests: XCTestCase {
     func testFamilySharingUsesToggleAndNoCustomInviteSheet() throws {
         openFamilySharing()
         enableFamilySharingIfNeeded()
-        waitForSharingEnabledUI()
-
-        let inviteButtonByID = app.buttons["family-sharing-invite-button"]
-        let inviteButtonByLabel = app.buttons["Invite"]
-        XCTAssertTrue(
-            waitForAnyExistence([inviteButtonByID, inviteButtonByLabel], timeout: 20),
-            "Invite button should be visible"
-        )
-        let inviteButton = inviteButtonByID.exists ? inviteButtonByID : inviteButtonByLabel
+        let inviteButton = waitForInviteButton(timeout: 20)
+        XCTAssertNotNil(inviteButton, "Invite button should be visible and hittable")
+        guard let inviteButton else {
+            return
+        }
         inviteButton.tap()
 
         XCTAssertFalse(app.textFields["Name"].waitForExistence(timeout: 2), "Legacy invite sheet should not appear")
@@ -83,7 +79,6 @@ final class FamilySharingUITests: XCTestCase {
 
         openFamilySharing()
         enableFamilySharingIfNeeded()
-        waitForSharingEnabledUI()
         let pickerByID = app.segmentedControls["family-sharing-policy-picker"]
         let allHomesOption = app.buttons["All Homes"]
         let ownerScopedOption = app.buttons["Owner Scoped"]
@@ -110,49 +105,62 @@ final class FamilySharingUITests: XCTestCase {
     private func enableFamilySharingIfNeeded() {
         let sharingToggle = app.switches["family-sharing-toggle"]
         XCTAssertTrue(sharingToggle.waitForExistence(timeout: 8), "Family sharing toggle should be visible")
-        let deadline = Date().addingTimeInterval(15)
-        while !isSwitchOn(sharingToggle), Date() < deadline {
-            if sharingToggle.isHittable {
-                sharingToggle.tap()
+
+        let hittableDeadline = Date().addingTimeInterval(8)
+        while !sharingToggle.isHittable, Date() < hittableDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+
+        if waitForInviteAffordance(timeout: 5) {
+            return
+        }
+
+        if sharingToggle.isHittable {
+            sharingToggle.tap()
+        }
+
+        _ = waitForInviteAffordance(timeout: 15)
+    }
+
+    private func waitForInviteButton(timeout: TimeInterval) -> XCUIElement? {
+        let navBar = app.navigationBars["Family Sharing"]
+        let inviteButton = app.buttons["family-sharing-invite-button"]
+        let inviteLabelButton = app.buttons["Invite"]
+        let inviteSymbolButton = app.buttons["person.badge.plus"]
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let candidates: [XCUIElement] = {
+                var elements = [inviteButton, inviteLabelButton, inviteSymbolButton]
+                if navBar.exists {
+                    elements.append(contentsOf: navBar.buttons.allElementsBoundByIndex)
+                }
+                return elements
+            }()
+
+            for candidate in candidates where candidate.exists && candidate.isHittable {
+                let label = candidate.label.lowercased()
+                if label.contains("back") {
+                    continue
+                }
+                return candidate
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
+        return nil
     }
 
-    private func isSwitchOn(_ toggle: XCUIElement) -> Bool {
-        let value = String(describing: toggle.value).lowercased()
-        return value == "1" || value == "on" || value == "true"
-    }
-
-    private func waitForSharingEnabledUI() {
-        let sharingToggle = app.switches["family-sharing-toggle"]
-        let inviteButton = app.buttons["family-sharing-invite-button"]
-        let inviteLabelButton = app.buttons["Invite"]
+    private func waitForInviteAffordance(timeout: TimeInterval) -> Bool {
         let inviteHint = app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS[c] %@", "Use the invite button")
         ).firstMatch
-
-        let deadline = Date().addingTimeInterval(20)
-        while Date() < deadline {
-            if inviteButton.exists || inviteLabelButton.exists || inviteHint.exists {
-                return
-            }
-            if sharingToggle.exists, sharingToggle.isHittable, !isSwitchOn(sharingToggle) {
-                sharingToggle.tap()
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-    }
-
-    private func waitForAnyExistence(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if elements.contains(where: \.exists) {
+            if inviteHint.exists || waitForInviteButton(timeout: 0.1) != nil {
                 return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
-        return false
+        return inviteHint.exists || waitForInviteButton(timeout: 0.1) != nil
     }
 
     private func openMainHomeFromList() {
