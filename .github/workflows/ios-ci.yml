@@ -21,7 +21,7 @@ env:
 jobs:
   build_and_unit_tests:
     name: Build + Unit (${{ matrix.simulator.id }})
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted]
     strategy:
       fail-fast: false
       matrix:
