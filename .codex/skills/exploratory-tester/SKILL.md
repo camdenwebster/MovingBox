@@ -47,7 +47,35 @@ Example:
 
 Use the generalized workflow template in `references/generalized-playbook.md`.
 
+## Structured Reporting Artifacts (Required)
+1. Create `reports/test-results.json` at run start and append/update it as phases complete.
+2. Use `references/report-log-template.json` as the source format.
+3. Keep screenshot paths relative to run root using `screenshots/...` so they render in the HTML report.
+4. Record at minimum:
+- run metadata (mode, refs, simulator, bundle ID, timestamps),
+- verdict summary and gate checks,
+- phase-by-phase checks with evidence paths,
+- findings and defects with severity/priority.
+
+## Generate Static HTML Report
+1. After verdict is finalized, generate a static report site:
+```bash
+"$SKILL_DIR/scripts/create_report_site.sh" \
+  --run-root "<run-root>" \
+  --json "<run-root>/reports/test-results.json"
+```
+2. Output lives at `<run-root>/reports/site/index.html`.
+3. Serve locally when needed:
+```bash
+cd "<run-root>/reports/site" && python3 -m http.server 4173
+```
+4. Include this site path in the final summary output.
+
 ## Reporting Rules
 1. Mark release verdict `FAIL` for any data-loss discrepancy, migration crash/hang, FK violations, or unresolved P0/P1 defects.
 2. Mark `PASS` only when gates pass and evidence exists for each required check.
-3. Always include concrete artifact paths in final output.
+3. Always include concrete artifact paths in final output, including:
+- `reports/test-results.json`,
+- `reports/final-verdict.md`,
+- `reports/defects.md` (when present),
+- `reports/site/index.html`.

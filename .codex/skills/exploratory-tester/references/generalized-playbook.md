@@ -17,6 +17,11 @@ RUN_ROOT="<repo>/.build/exploratory-upgrade/${TS}"
 mkdir -p "${RUN_ROOT}"/{logs,screenshots,db,reports,commands}
 ```
 
+Initialize structured run log:
+```bash
+cp "<skill>/references/report-log-template.json" "${RUN_ROOT}/reports/test-results.json"
+```
+
 ## Environment Setup
 - Run `scripts/setup_simulator_env.sh`.
 - Start log capture for app subsystem.
@@ -79,6 +84,15 @@ ORDER BY i.title;
 - `PASS` only if all gates pass with complete evidence artifacts.
 
 ## Outputs
+- `reports/test-results.json`
 - `reports/final-verdict.md`
 - `reports/defects.md` (if failures)
+- `reports/site/index.html`
 - all DB, log, and screenshot artifacts under run root.
+
+Generate static report:
+```bash
+"<skill>/scripts/create_report_site.sh" \
+  --run-root "${RUN_ROOT}" \
+  --json "${RUN_ROOT}/reports/test-results.json"
+```
