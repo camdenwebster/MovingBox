@@ -13,6 +13,7 @@ struct FormTextFieldRow: View {
     @Binding var isEditing: Bool
     var placeholder: String = ""
     var textFieldIdentifier: String? = nil
+    var isFocused: FocusState<Bool>.Binding? = nil
 
     var body: some View {
         HStack {
@@ -26,9 +27,18 @@ struct FormTextFieldRow: View {
     private var textField: some View {
         let field = TextField(placeholder, text: $text)
             .multilineTextAlignment(.trailing)
-            .foregroundColor(isEditing ? .primary : .secondary)
+            .foregroundStyle(isEditing ? .primary : .secondary)
             .disabled(!isEditing)
 
+        if let isFocused {
+            identifiedField(field.focused(isFocused))
+        } else {
+            identifiedField(field)
+        }
+    }
+
+    @ViewBuilder
+    private func identifiedField<Field: View>(_ field: Field) -> some View {
         if let identifier = textFieldIdentifier {
             field.accessibilityIdentifier(identifier)
         } else {

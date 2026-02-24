@@ -27,6 +27,7 @@ struct EditLabelView: View {
     @State private var labelEmoji = "🏷️"
     @State private var isEditing = false
     @State private var showEmojiPicker = false
+    @FocusState private var isLabelNameFieldFocused: Bool
 
     init(
         labelID: UUID? = nil, isEditing: Bool = false, presentedInSheet: Bool = false,
@@ -54,7 +55,8 @@ struct EditLabelView: View {
             Section("Details") {
                 FormTextFieldRow(
                     label: "Name", text: $labelName, isEditing: $isEditing, placeholder: "Electronics",
-                    textFieldIdentifier: "label-name-field"
+                    textFieldIdentifier: "label-name-field",
+                    isFocused: $isLabelNameFieldFocused
                 )
                 .disabled(!isEditingEnabled)
                 ColorPicker("Color", selection: $labelColor, supportsOpacity: false)
@@ -133,6 +135,14 @@ struct EditLabelView: View {
         }
         .task(id: labelID) {
             await loadLabelData()
+        }
+        .onAppear {
+            focusLabelNameFieldIfNeeded()
+        }
+        .onChange(of: isEditingEnabled) { _, isEditingEnabled in
+            if isEditingEnabled {
+                focusLabelNameFieldIfNeeded()
+            }
         }
     }
 
@@ -214,6 +224,16 @@ struct EditLabelView: View {
             dismiss()
         } else {
             router.navigateBack()
+        }
+    }
+
+    private func focusLabelNameFieldIfNeeded() {
+        guard presentedInSheet, isEditingEnabled else { return }
+
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard presentedInSheet, isEditingEnabled else { return }
+            isLabelNameFieldFocused = true
         }
     }
 }

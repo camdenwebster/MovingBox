@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  checks: write
+
 concurrency:
   group: ios-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -21,7 +25,7 @@ env:
 jobs:
   build_and_unit_tests:
     name: Build + Unit (${{ matrix.simulator.id }})
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, macOS]
     strategy:
       fail-fast: false
       matrix:
@@ -95,12 +99,34 @@ jobs:
             -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "./.build/UnitTests-${{ matrix.simulator.id }}.xcresult"
 
+      - name: Publish unit test report
+        if: success() || failure()
+        uses: kishikawakatsumi/xcresulttool@v1
+        with:
+          path: ./.build/UnitTests-${{ matrix.simulator.id }}.xcresult
+          title: Unit Tests (${{ matrix.simulator.id }})
+          show-passed-tests: false
+          upload-bundles: never
+
+      - name: Pack unit test results
+        if: always()
+        run: |
+          set -euo pipefail
+          bundle="./.build/UnitTests-${{ matrix.simulator.id }}.xcresult"
+          archive="./.build/UnitTests-${{ matrix.simulator.id }}.xcresult.tar.gz"
+          if [[ -d "$bundle" ]]; then
+            tar -czf "$archive" -C "./.build" "UnitTests-${{ matrix.simulator.id }}.xcresult"
+          else
+            echo "No xcresult bundle found at $bundle"
+          fi
+
       - name: Upload unit test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-tests-${{ matrix.simulator.id }}
-          path: ./.build/UnitTests-${{ matrix.simulator.id }}.xcresult
+          path: ./.build/UnitTests-${{ matrix.simulator.id }}.xcresult.tar.gz
+          if-no-files-found: warn
 
   ui_smoke_tests:
     name: UI Smoke (${{ matrix.simulator.id }})
@@ -170,9 +196,31 @@ jobs:
             -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult"
 
+      - name: Publish UI smoke test report
+        if: success() || failure()
+        uses: kishikawakatsumi/xcresulttool@v1
+        with:
+          path: ./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult
+          title: UI Smoke Tests (${{ matrix.simulator.id }})
+          show-passed-tests: false
+          upload-bundles: never
+
+      - name: Pack UI smoke test results
+        if: always()
+        run: |
+          set -euo pipefail
+          bundle="./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult"
+          archive="./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult.tar.gz"
+          if [[ -d "$bundle" ]]; then
+            tar -czf "$archive" -C "./.build" "SmokeTests-${{ matrix.simulator.id }}.xcresult"
+          else
+            echo "No xcresult bundle found at $bundle"
+          fi
+
       - name: Upload UI smoke results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-smoke-${{ matrix.simulator.id }}
-          path: ./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult
+          path: ./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult.tar.gz
+          if-no-files-found: warn

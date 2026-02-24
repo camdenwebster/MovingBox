@@ -122,7 +122,6 @@ struct DashboardView: View {
                         router.navigate(to: .inventoryListView(locationID: nil, showAllHomes: false))
                     } label: {
                         DashboardSectionLabel(text: "All Inventory")
-                            .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
