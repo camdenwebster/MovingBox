@@ -90,23 +90,33 @@ jobs:
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath "$DERIVED_DATA_PATH"
 
-      - name: Run unit tests
+      - name: Ensure xcpretty is installed
         run: |
+          if ! command -v xcpretty >/dev/null 2>&1; then
+            gem install xcpretty --no-document
+          fi
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ./.build/junit
           xcodebuild test \
             -project "$XCODE_PROJECT" \
             -scheme "$UNIT_TEST_SCHEME" \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
-            -resultBundlePath "./.build/UnitTests-${{ matrix.simulator.id }}.xcresult"
+            -resultBundlePath "./.build/UnitTests-${{ matrix.simulator.id }}.xcresult" \
+            2>&1 | tee "./.build/UnitTests-${{ matrix.simulator.id }}.log" | xcpretty -r junit --output "./.build/junit/UnitTests-${{ matrix.simulator.id }}.xml"
 
-      - name: Publish unit test report
-        if: success() || failure()
-        uses: kishikawakatsumi/xcresulttool@v1
+      - name: Publish unit test report (JUnit)
+        if: ${{ always() && hashFiles(format('./.build/junit/UnitTests-{0}.xml', matrix.simulator.id)) != '' }}
+        uses: dorny/test-reporter@v1
         with:
-          path: ./.build/UnitTests-${{ matrix.simulator.id }}.xcresult
-          title: Unit Tests (${{ matrix.simulator.id }})
-          show-passed-tests: false
-          upload-bundles: never
+          name: Unit Tests (${{ matrix.simulator.id }})
+          path: ./.build/junit/UnitTests-${{ matrix.simulator.id }}.xml
+          reporter: java-junit
+          fail-on-error: false
 
       - name: Pack unit test results
         if: always()
@@ -126,6 +136,14 @@ jobs:
         with:
           name: unit-tests-${{ matrix.simulator.id }}
           path: ./.build/UnitTests-${{ matrix.simulator.id }}.xcresult.tar.gz
+          if-no-files-found: warn
+
+      - name: Upload unit JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-tests-junit-${{ matrix.simulator.id }}
+          path: ./.build/junit/UnitTests-${{ matrix.simulator.id }}.xml
           if-no-files-found: warn
 
   ui_smoke_tests:
@@ -186,24 +204,34 @@ jobs:
           echo "destination=platform=iOS Simulator,name=$selected,OS=latest" >> "$GITHUB_OUTPUT"
           echo "Using destination: platform=iOS Simulator,name=$selected,OS=latest"
 
-      - name: Run UI smoke tests
+      - name: Ensure xcpretty is installed
         run: |
+          if ! command -v xcpretty >/dev/null 2>&1; then
+            gem install xcpretty --no-document
+          fi
+
+      - name: Run UI smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ./.build/junit
           xcodebuild test \
             -project "$XCODE_PROJECT" \
             -scheme "$UI_TEST_SCHEME" \
             -testPlan SmokeTests \
             -destination "${{ steps.simulator.outputs.destination }}" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
-            -resultBundlePath "./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult"
+            -resultBundlePath "./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult" \
+            2>&1 | tee "./.build/SmokeTests-${{ matrix.simulator.id }}.log" | xcpretty -r junit --output "./.build/junit/SmokeTests-${{ matrix.simulator.id }}.xml"
 
-      - name: Publish UI smoke test report
-        if: success() || failure()
-        uses: kishikawakatsumi/xcresulttool@v1
+      - name: Publish UI smoke report (JUnit)
+        if: ${{ always() && hashFiles(format('./.build/junit/SmokeTests-{0}.xml', matrix.simulator.id)) != '' }}
+        uses: dorny/test-reporter@v1
         with:
-          path: ./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult
-          title: UI Smoke Tests (${{ matrix.simulator.id }})
-          show-passed-tests: false
-          upload-bundles: never
+          name: UI Smoke Tests (${{ matrix.simulator.id }})
+          path: ./.build/junit/SmokeTests-${{ matrix.simulator.id }}.xml
+          reporter: java-junit
+          fail-on-error: false
 
       - name: Pack UI smoke test results
         if: always()
@@ -223,4 +251,12 @@ jobs:
         with:
           name: ui-smoke-${{ matrix.simulator.id }}
           path: ./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult.tar.gz
+          if-no-files-found: warn
+
+      - name: Upload UI smoke JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-smoke-junit-${{ matrix.simulator.id }}
+          path: ./.build/junit/SmokeTests-${{ matrix.simulator.id }}.xml
           if-no-files-found: warn
