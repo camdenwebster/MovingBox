@@ -1,0 +1,47 @@
+# Nightshift Project Configuration
+# Location: nightshift.yaml (project root)
+#
+# This file configures nightshift for this specific project.
+# These settings override the global config (~/.config/nightshift/config.yaml).
+
+# Task configuration for this project
+tasks:
+  enabled:
+    - lint                       # Linter fixes
+    - docs                       # Documentation backfill
+    - security                   # Security scanning
+    - test-gaps                  # Test coverage gaps
+  priorities:
+    lint: 1
+    security: 2
+    docs: 3
+  disabled: []                   # Explicitly disabled tasks
+  # custom:                        # User-defined custom tasks
+  #   - type: my-review
+  #     name: "My Code Review"
+  #     description: |
+  #       Review open PRs and check for security issues.
+  #       Create issues for anything that needs follow-up.
+  #     category: analysis         # pr | analysis | options | safe | map | emergency
+  #     cost_tier: medium          # low | medium | high | very-high
+  #     risk_level: low            # low | medium | high
+  #     interval: "48h"            # Min time between runs
+
+# Integration points
+integrations:
+  claude_md: true                # Read claude.md for project context
+  agents_md: true                # Read agents.md for agent hints
+  task_sources:
+    - td:                        # td task management
+        enabled: true
+        teach_agent: true        # Include td usage in agent prompts
+    # - github_issues            # GitHub issues with "nightshift" label
+    # - file: TODO.md            # Custom task file
+
+# Optional: Override schedule for this project
+# schedule:
+#   cron: "0 3 * * *"            # Different time for this project
+
+# Optional: Override budget for this project
+# budget:
+#   max_percent: 5               # Lower budget for this project

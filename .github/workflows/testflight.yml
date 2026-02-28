@@ -1,0 +1,204 @@
+name: Publish to TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Optional CFBundleVersion override (defaults to GitHub run number)"
+        required: false
+        type: string
+      dry_run:
+        description: "If true, skip TestFlight upload (archive/export/signing only)"
+        required: false
+        default: true
+        type: boolean
+  push:
+    tags:
+      - "*.*.*"
+
+concurrency:
+  group: testflight-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  XCODE_PROJECT: MovingBox.xcodeproj
+  APP_SCHEME: MovingBox
+  APPLE_TEAM_ID: V7HLP74XY3
+  DERIVED_DATA_PATH: ./.build/DerivedData
+  ARCHIVE_PATH: ./.build/MovingBox.xcarchive
+  EXPORT_PATH: ./.build/export
+
+jobs:
+  publish:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          WISHKIT_API_KEY: ${{ secrets.WISHKIT_API_KEY }}
+          AIPROXY_DEVICE_CHECK_BYPASS: ${{ secrets.AIPROXY_DEVICE_CHECK_BYPASS }}
+        run: |
+          set -euo pipefail
+          required=(
+            APP_STORE_CONNECT_API_KEY_ID
+            APP_STORE_CONNECT_ISSUER_ID
+            APP_STORE_CONNECT_API_PRIVATE_KEY
+            TELEMETRY_DECK_APP_ID
+            REVENUE_CAT_API_KEY
+            SENTRY_DSN
+            WISHKIT_API_KEY
+            AIPROXY_DEVICE_CHECK_BYPASS
+          )
+          for var in "${required[@]}"; do
+            if [[ -z "${!var:-}" ]]; then
+              echo "::error::Missing required secret: $var"
+              exit 1
+            fi
+          done
+
+      - name: Generate xcconfig from secrets
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          WISHKIT_API_KEY: ${{ secrets.WISHKIT_API_KEY }}
+          AIPROXY_DEVICE_CHECK_BYPASS: ${{ secrets.AIPROXY_DEVICE_CHECK_BYPASS }}
+        run: |
+          bash ci_scripts/ci_post_clone.sh
+
+      - name: Prepare App Store Connect API key
+        id: asc
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+
+          # Support both raw .p8 key content and base64-encoded key content.
+          if echo "$APP_STORE_CONNECT_API_PRIVATE_KEY" | grep -q "BEGIN PRIVATE KEY"; then
+            printf '%s\n' "$APP_STORE_CONNECT_API_PRIVATE_KEY" > "$API_KEY_PATH"
+          else
+            echo -n "$APP_STORE_CONNECT_API_PRIVATE_KEY" | base64 --decode > "$API_KEY_PATH"
+          fi
+
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          cp "$API_KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+
+          echo "api_key_path=$API_KEY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Set build number
+        env:
+          INPUT_BUILD_NUMBER: ${{ github.event.inputs.build_number }}
+        run: |
+          set -euo pipefail
+          BUILD_NUMBER="${INPUT_BUILD_NUMBER:-$GITHUB_RUN_NUMBER}"
+          echo "Using build number: $BUILD_NUMBER"
+          xcrun agvtool new-version -all "$BUILD_NUMBER"
+
+      - name: Archive
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild clean archive \
+            -project "$XCODE_PROJECT" \
+            -scheme "$APP_SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "${{ steps.asc.outputs.api_key_path }}" \
+            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Create export options
+        id: export_options
+        run: |
+          set -euo pipefail
+          EXPORT_OPTIONS_PATH="$RUNNER_TEMP/ExportOptions.plist"
+          cat > "$EXPORT_OPTIONS_PATH" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+          echo "path=$EXPORT_OPTIONS_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Export IPA
+        id: export
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist "${{ steps.export_options.outputs.path }}" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "${{ steps.asc.outputs.api_key_path }}" \
+            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+          IPA_PATH="$(find "$EXPORT_PATH" -maxdepth 1 -name '*.ipa' | head -n 1)"
+          if [[ -z "$IPA_PATH" ]]; then
+            echo "::error::IPA was not generated"
+            exit 1
+          fi
+          echo "ipa_path=$IPA_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to TestFlight
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true' }}
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcrun altool \
+            --upload-app \
+            --type ios \
+            --file "${{ steps.export.outputs.ipa_path }}" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Dry run notice
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
+        run: 'echo "Dry run enabled: skipped TestFlight upload."'
+
+      - name: Upload IPA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: movingbox-testflight-ipa
+          path: ./.build/export/*.ipa

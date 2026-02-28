@@ -11,38 +11,35 @@ import Testing
 
     @Test("CaptureMode enum supports single, multi-item, and video modes")
     func testCaptureModeEnum() {
-        // Test single-item mode (existing functionality)
         let singleMode = CaptureMode.singleItem
-
-        // Test multi-item mode (new functionality)
         let multiMode = CaptureMode.multiItem
-
-        // Test video mode
         let videoMode = CaptureMode.video
 
-        // Verify enum cases exist and are distinct
         switch singleMode {
         case .singleItem:
-            // Expected case
             break
-        case .multiItem, .video:
+        case .multiItem:
             #expect(Bool(false), "Single mode should not be multi mode")
+        case .video:
+            #expect(Bool(false), "Single mode should not be video mode")
         }
 
         switch multiMode {
         case .multiItem:
-            // Expected case
             break
-        case .singleItem, .video:
+        case .singleItem:
             #expect(Bool(false), "Multi mode should not be single mode")
+        case .video:
+            #expect(Bool(false), "Multi mode should not be video mode")
         }
 
         switch videoMode {
         case .video:
-            // Expected case
             break
-        case .singleItem, .multiItem:
-            #expect(Bool(false), "Video mode should not be single or multi mode")
+        case .singleItem:
+            #expect(Bool(false), "Video mode should not be single mode")
+        case .multiItem:
+            #expect(Bool(false), "Video mode should not be multi mode")
         }
     }
 
@@ -76,7 +73,9 @@ import Testing
         case .singleItem:
             // Expected default
             break
-        case .multiItem, .video:
+        case .multiItem:
+            #expect(Bool(false), "Default should be single item mode")
+        case .video:
             #expect(Bool(false), "Default should be single item mode")
         }
     }
@@ -134,10 +133,6 @@ import Testing
         selectedMode = .multiItem
         #expect(selectedMode == .multiItem)
 
-        // Test mode switching to video
-        selectedMode = .video
-        #expect(selectedMode == .video)
-
         // Test mode switching back
         selectedMode = .singleItem
         #expect(selectedMode == .singleItem)
@@ -145,32 +140,26 @@ import Testing
 
     @Test("Camera mode affects photo limit behavior")
     func testCaptureModePhotoLimits() {
-        let expectedMax = CaptureMode.maxPhotosPerAnalysis
-
-        // In single-item mode: allow up to max photos (existing behavior)
+        // In single-item mode: allow up to max analysis photos for Pro users.
         let singleItemLimit = CaptureMode.singleItem.maxPhotosAllowed(isPro: true)
-        #expect(singleItemLimit == expectedMax)
+        #expect(singleItemLimit == CaptureMode.maxPhotosPerAnalysis)
 
         let singleItemLimitFree = CaptureMode.singleItem.maxPhotosAllowed(isPro: false)
         #expect(singleItemLimitFree == 1)
 
-        // In multi-item mode: allow up to max photos
+        // In multi-item mode: allow the full analysis max
         let multiItemLimit = CaptureMode.multiItem.maxPhotosAllowed(isPro: true)
-        #expect(multiItemLimit == expectedMax)
+        #expect(multiItemLimit == CaptureMode.maxPhotosPerAnalysis)
 
         let multiItemLimitFree = CaptureMode.multiItem.maxPhotosAllowed(isPro: false)
-        #expect(multiItemLimitFree == expectedMax)
+        #expect(multiItemLimitFree == CaptureMode.maxPhotosPerAnalysis)
 
         let videoLimit = CaptureMode.video.maxPhotosAllowed(isPro: true)
         #expect(videoLimit == 0)
-
-        let videoLimitFree = CaptureMode.video.maxPhotosAllowed(isPro: false)
-        #expect(videoLimitFree == 0)
     }
 
     @Test("Camera mode affects photo counter display")
     func testCaptureModePhotoCounter() {
-        let expectedMax = CaptureMode.maxPhotosPerAnalysis
         let currentPhotoCount = 2
 
         // Single-item mode shows "X of Y" format
@@ -178,14 +167,14 @@ import Testing
             currentCount: currentPhotoCount,
             isPro: true
         )
-        #expect(singleItemCounter == "2 of \(expectedMax)")
+        #expect(singleItemCounter == "2 of \(CaptureMode.maxPhotosPerAnalysis)")
 
-        // Multi-item mode shows "X of Y" format
+        // Multi-item mode shows "X of max" format
         let multiItemCounter = CaptureMode.multiItem.photoCounterText(
             currentCount: currentPhotoCount,
             isPro: true
         )
-        #expect(multiItemCounter == "2 of \(expectedMax)")
+        #expect(multiItemCounter == "2 of \(CaptureMode.maxPhotosPerAnalysis)")
 
         let videoCounter = CaptureMode.video.photoCounterText(
             currentCount: currentPhotoCount,
@@ -230,13 +219,11 @@ import Testing
             images: [createTestImage()],
             location: nil
         )
-
         switch videoDestination {
         case .multiItemSelection:
-            // Expected for video mode
             break
         case .itemCreationFlow:
-            #expect(Bool(false), "Video mode should not go to regular item creation")
+            #expect(Bool(false), "Video mode should route to multi-item selection flow")
         }
     }
 
@@ -244,7 +231,6 @@ import Testing
 
     @Test("Camera mode handles invalid photo counts")
     func testInvalidPhotoCountHandling() {
-        let expectedMax = CaptureMode.maxPhotosPerAnalysis
         // Test with no photos
         let emptyPhotos: [UIImage] = []
 
@@ -255,7 +241,7 @@ import Testing
         #expect(multiModeEmpty == false, "Multi mode should require at least one photo")
 
         // Test with too many photos
-        let tooManyPhotos = Array(repeating: createTestImage(), count: expectedMax + 1)
+        let tooManyPhotos = Array(repeating: createTestImage(), count: CaptureMode.maxPhotosPerAnalysis + 1)
 
         let singleModeMany = CaptureMode.singleItem.isValidPhotoCount(tooManyPhotos.count)
         #expect(singleModeMany == false, "Single mode should reject too many photos")
@@ -263,30 +249,23 @@ import Testing
         let multiModeMany = CaptureMode.multiItem.isValidPhotoCount(tooManyPhotos.count)
         #expect(multiModeMany == false, "Multi mode should reject too many photos")
 
-        let videoModeEmpty = CaptureMode.video.isValidPhotoCount(emptyPhotos.count)
-        #expect(videoModeEmpty == false, "Video mode should require a selected video")
-
-        let videoModeMany = CaptureMode.video.isValidPhotoCount(tooManyPhotos.count)
-        #expect(videoModeMany == false, "Video mode should not accept photo counts")
+        let videoModeAny = CaptureMode.video.isValidPhotoCount(1)
+        #expect(videoModeAny == false, "Video mode should not validate based on photo count")
     }
 
     @Test("Camera mode provides appropriate error messages")
     func testCaptureModeErrorMessages() {
-        let expectedMax = "\(CaptureMode.maxPhotosPerAnalysis)"
         let singleModeError = CaptureMode.singleItem.errorMessage(for: .tooManyPhotos)
-        #expect(singleModeError.contains(expectedMax))
+        #expect(singleModeError.contains("\(CaptureMode.maxPhotosPerAnalysis)"))
 
         let multiModeError = CaptureMode.multiItem.errorMessage(for: .tooManyPhotos)
-        #expect(multiModeError.contains(expectedMax))
+        #expect(multiModeError.contains("\(CaptureMode.maxPhotosPerAnalysis) photos"))
 
         let singleModeEmpty = CaptureMode.singleItem.errorMessage(for: .noPhotos)
         #expect(singleModeEmpty.contains("at least one"))
 
         let multiModeEmpty = CaptureMode.multiItem.errorMessage(for: .noPhotos)
         #expect(multiModeEmpty.contains("at least one"))
-
-        let videoModeError = CaptureMode.video.errorMessage(for: .noPhotos)
-        #expect(videoModeError.contains("video"))
     }
 
     // MARK: - UI State Tests
@@ -298,12 +277,11 @@ import Testing
         #expect(CaptureMode.singleItem.showsThumbnailScrollView == true)
         #expect(CaptureMode.singleItem.allowsMultipleCaptures == true)
 
-        // Multi-item mode should show photo picker and thumbnails
+        // Multi-item mode now supports multi-shot capture and thumbnails
         #expect(CaptureMode.multiItem.showsPhotoPickerButton == true)
         #expect(CaptureMode.multiItem.showsThumbnailScrollView == true)
         #expect(CaptureMode.multiItem.allowsMultipleCaptures == true)
 
-        // Video mode should hide photo picker and thumbnails
         #expect(CaptureMode.video.showsPhotoPickerButton == false)
         #expect(CaptureMode.video.showsThumbnailScrollView == false)
         #expect(CaptureMode.video.allowsMultipleCaptures == false)

@@ -17,7 +17,7 @@ Analyze the provided inputs to understand implementation scope:
 ### 2. Phase 1: Generate Parent Tasks
 Create 5-7 high-level implementation areas based on MovingBox's typical feature structure:
 - SwiftUI View Implementation
-- SwiftData Model Changes
+- sqlite-data Table Changes
 - Service Layer Integration  
 - Navigation and Routing
 - Testing Implementation
@@ -52,7 +52,7 @@ Save as `tasks-[feature-name].md` in the project root directory.
 - Light/dark mode support
 
 ### Data Layer Tasks
-- SwiftData model modifications or additions
+- sqlite-data table modifications or additions
 - Migration strategy implementation
 - Model relationship updates
 - Data validation logic
@@ -119,7 +119,7 @@ Feature Plan: `plan.md` (or reference to feature planning session)
   - [ ] 1.7 Add SwiftUI previews with test data
 
 - [ ] 2.0 **Data Layer Implementation**
-  - [ ] 2.1 Create or modify SwiftData models as needed
+  - [ ] 2.1 Create or modify sqlite-data tables as needed
   - [ ] 2.2 Implement model relationships and constraints
   - [ ] 2.3 Add data validation logic
   - [ ] 2.4 Create migration strategy if schema changes required

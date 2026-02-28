@@ -1,11 +1,9 @@
-import SwiftData
 import SwiftUI
 
 struct OnboardingView: View {
     @StateObject private var manager = OnboardingManager()
     @Binding var isPresented: Bool
     @State private var hasCheckedOnboarding = false
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var settings: SettingsManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
 

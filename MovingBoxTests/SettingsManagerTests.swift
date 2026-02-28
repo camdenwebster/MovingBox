@@ -165,7 +165,8 @@ import Testing
         manager.isPro = true
         #expect(manager.shouldShowPaywall() == false)
         #expect(manager.shouldShowPaywallForAiScan(currentCount: 50) == false)  // Pro users never see paywall
-        #expect(manager.shouldShowPaywallForAiScan(currentCount: 100) == false)  // Pro users never see paywall, even with high count
+        // Pro users never see paywall, even with high scan count.
+        #expect(manager.shouldShowPaywallForAiScan(currentCount: 100) == false)
     }
 
     @Test("Test reset functionality")

@@ -5,76 +5,112 @@
 //  Created by Camden Webster on 5/14/24.
 //
 
+import CloudKit
+import Dependencies
+import OSLog
 import RevenueCat
+import SQLiteData
 import Sentry
-import SwiftData
 import SwiftUI
 import TelemetryDeck
-import TipKit
 import UIKit
-import UserNotifications
 import WhatsNewKit
 import WishKit
 
-enum AnalysisNotificationConstants {
-    static let multiItemAnalysisReadyIdentifier = "multiItemAnalysisReady"
-    static let multiItemAnalysisTappedNotificationName = "multiItemAnalysisReadyNotificationTapped"
-}
+private let logger = Logger(subsystem: "com.mothersound.movingbox", category: "App")
 
-extension Notification.Name {
-    static let multiItemAnalysisReadyNotificationTapped = Notification.Name(
-        AnalysisNotificationConstants.multiItemAnalysisTappedNotificationName
+private func makeAppSyncEngine(
+    for database: any DatabaseWriter,
+    startImmediately: Bool
+) throws -> SyncEngine {
+    try SyncEngine(
+        for: database,
+        tables: SQLiteHousehold.self,
+        SQLiteHouseholdMember.self,
+        SQLiteHouseholdInvite.self,
+        SQLiteHome.self,
+        SQLiteInventoryLocation.self,
+        SQLiteInventoryItem.self,
+        SQLiteInventoryLabel.self,
+        SQLiteInsurancePolicy.self,
+        SQLiteInventoryItemLabel.self,
+        SQLiteHomeInsurancePolicy.self,
+        SQLiteInventoryItemPhoto.self,
+        SQLiteHomePhoto.self,
+        SQLiteInventoryLocationPhoto.self,
+        startImmediately: startImmediately
     )
-}
-
-final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
-    ) -> Bool {
-        UNUserNotificationCenter.current().delegate = self
-        return true
-    }
-
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
-    ) {
-        let identifier = response.notification.request.identifier
-        if identifier == AnalysisNotificationConstants.multiItemAnalysisReadyIdentifier {
-            NotificationCenter.default.post(
-                name: .multiItemAnalysisReadyNotificationTapped,
-                object: nil,
-                userInfo: response.notification.request.content.userInfo
-            )
-        }
-        completionHandler()
-    }
 }
 
 @main
 struct MovingBoxApp: App {
-    @UIApplicationDelegateAdaptor(NotificationDelegate.self) private var notificationDelegate
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject var router = Router()
     @StateObject private var settings = SettingsManager()
     @StateObject private var onboardingManager = OnboardingManager()
-    @State private var containerManager = ModelContainerManager.shared
     @StateObject private var revenueCatManager = RevenueCatManager.shared
-    @State private var appState: AppState = .splash
+    @State private var appState: AppState = .loading
+    @State private var splashShownAt: Date?
+    @State private var showRecoveryAlert = false
+    @State private var strandedItemCount = 0
+    @State private var isRecovering = false
+    @State private var recoveryActionTaken = false
+    @State private var recoveryContinuation: CheckedContinuation<Void, Never>?
+    @State private var migrationErrorMessage: String?
 
     private enum AppState {
+        case loading
         case splash
         case onboarding
+        case joiningShare(CKShare.Metadata)
+        case acceptingShareExistingUser(CKShare.Metadata)
         case main
     }
 
-    static func registerTransformers() {
-        UIColorValueTransformer.register()
-    }
-
     init() {
-        Self.registerTransformers()
+        // Prepare sqlite-data database (runs schema migrations)
+        prepareDependencies {
+            #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                    $0.defaultDatabase = try! makeSeededTestDatabase()
+                    return
+                } else if ProcessInfo.processInfo.arguments.contains("Disable-Persistence") {
+                    $0.defaultDatabase = try! makeInMemoryDatabase()
+                    return
+                }
+            #endif
+
+            do {
+                $0.defaultDatabase = try appDatabase()
+            } catch {
+                logger.error("appDatabase() failed, falling back to in-memory: \(error.localizedDescription)")
+                $0.defaultDatabase = try! makeInMemoryDatabase()
+            }
+
+            let configuredDatabase = $0.defaultDatabase
+            do {
+                let syncEngine = try makeAppSyncEngine(
+                    for: configuredDatabase,
+                    startImmediately: false
+                )
+                $0.defaultSyncEngine = syncEngine
+            } catch {
+                logger.error("SyncEngine initialization failed: \(error.localizedDescription)")
+                do {
+                    $0.defaultSyncEngine = try withDependencies {
+                        $0.context = .preview
+                    } operation: {
+                        try makeAppSyncEngine(
+                            for: configuredDatabase,
+                            startImmediately: false
+                        )
+                    }
+                    logger.warning("Configured preview-context fallback SyncEngine")
+                } catch {
+                    logger.fault("Failed to configure any SyncEngine fallback: \(error.localizedDescription)")
+                }
+            }
+        }
 
         // Configure TelemetryDeck
         let appId = AppConfig.telemetryDeckAppId
@@ -92,10 +128,6 @@ struct MovingBoxApp: App {
 
         // Configure WishKit
         WishKit.configure(with: AppConfig.wishKitAPIKey)
-
-        if #available(iOS 17.0, *) {
-            try? Tips.configure()
-        }
 
         let dsn = "https://\(AppConfig.sentryDsn)"
         guard dsn != "https://missing-sentry-dsn" else {
@@ -168,7 +200,7 @@ struct MovingBoxApp: App {
                 options.enableAppHangTracking = !isRunningTests
             }
 
-            // Network Tracking - limit to AIProxy API only for privacy (all configs)
+            // Network Tracking - limit to OpenAI API only for privacy (all configs)
             options.tracePropagationTargets = ["api.aiproxy.com"]
 
             #if DEBUG
@@ -183,77 +215,33 @@ struct MovingBoxApp: App {
         ProcessInfo.processInfo.arguments.contains("Disable-Animations")
     }
 
-    private func destinationView(
-        for destination: Router.Destination, navigationPath: Binding<NavigationPath>
-    ) -> AnyView {
-        AnyView(
-            Group {
-                switch destination {
-                case .dashboardView:
-                    DashboardView()
-                case .locationsListView(let showAllHomes):
-                    LocationsListView(showAllHomes: showAllHomes)
-                case .labelsListView(let showAllHomes):
-                    LabelsListView(showAllHomes: showAllHomes)
-                case .settingsView:
-                    SettingsView()
-                case .aISettingsView:
-                    AISettingsView()
-                case .inventoryListView(let location, let showAllHomes):
-                    InventoryListView(location: location, showAllHomes: showAllHomes)
-                case .inventoryListViewForLabel(let label):
-                    InventoryListView(location: nil, filterLabel: label)
-                case .editLocationView(let location, let isEditing):
-                    EditLocationView(location: location, isEditing: isEditing)
-                case .editLabelView(let label, let isEditing):
-                    EditLabelView(label: label, isEditing: isEditing)
-                case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
-                    InventoryDetailView(
-                        inventoryItemToDisplay: item, navigationPath: navigationPath,
-                        showSparklesButton: showSparklesButton, isEditing: isEditing)
-                case .locationsSettingsView:
-                    LocationSettingsView()
-                case .subscriptionSettingsView:
-                    SubscriptionSettingsView()
-                case .syncDataSettingsView:
-                    SyncDataSettingsView()
-                case .importDataView:
-                    ImportDataView()
-                case .exportDataView:
-                    ExportDataView()
-                case .deleteDataView:
-                    DataDeletionView()
-                case .aboutView:
-                    AboutView()
-                case .featureRequestView:
-                    FeatureRequestView()
-                case .homeListView:
-                    HomeListView()
-                case .addHomeView:
-                    AddHomeView()
-                case .globalLabelSettingsView:
-                    GlobalLabelSettingsView()
-                case .insurancePolicyListView:
-                    InsurancePolicyListView()
-                case .insurancePolicyDetailView(let policy):
-                    InsurancePolicyDetailView(policy: policy)
-                }
-            }
-        )
-    }
-
     var body: some Scene {
         WindowGroup {
             Group {
                 switch appState {
+                case .loading:
+                    Color(uiColor: .systemBackground)
+                        .ignoresSafeArea()
                 case .splash:
                     SplashView()
                 case .onboarding:
                     OnboardingView(
                         isPresented: .init(
-                            get: { appState == .onboarding },
+                            get: { if case .onboarding = appState { true } else { false } },
                             set: { _ in appState = .main }
                         )
+                    )
+                    .environment(\.disableAnimations, disableAnimations)
+                case .joiningShare(let metadata):
+                    JoiningShareView(
+                        shareMetadata: metadata,
+                        onComplete: { appState = .main }
+                    )
+                    .environment(\.disableAnimations, disableAnimations)
+                case .acceptingShareExistingUser(let metadata):
+                    ExistingUserShareAcceptanceView(
+                        shareMetadata: metadata,
+                        onComplete: { appState = .main }
                     )
                     .environment(\.disableAnimations, disableAnimations)
                 case .main:
@@ -265,36 +253,180 @@ struct MovingBoxApp: App {
                 .toolbar(removing: .title)
             #endif
             .task {
-                // Initialize container (waits for initial CloudKit sync to complete)
-                await containerManager.initialize()
+                #if DEBUG
+                    // When test data is pre-seeded in init(), skip migration & RevenueCat
+                    if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
+                        settings.hasLaunched = true
+                        appState = .main
+                        return
+                    }
+                #endif
+
+                // Show the splash screen only if startup takes longer than 1s
+                let splashTimer = Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    if case .loading = appState {
+                        appState = .splash
+                        splashShownAt = Date()
+                    }
+                }
+
+                // Migrate SwiftData store to sqlite-data (runs once, silently)
+                @Dependency(\.defaultDatabase) var database
+                let migrationResult = SQLiteMigrationCoordinator.migrateIfNeeded(database: database)
+                switch migrationResult {
+                case .freshInstall:
+                    TelemetryDeck.signal("Migration.freshInstall")
+                    logger.info("sqlite-data: Fresh install — no migration needed")
+                    // Check for stranded CoreData records in CloudKit
+                    if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
+                        strandedItemCount = count
+                        showRecoveryAlert = true
+                        await withCheckedContinuation { continuation in
+                            recoveryContinuation = continuation
+                        }
+                    }
+                case .alreadyCompleted:
+                    // Skip the CloudKit probe if we already have local data (migration
+                    // succeeded on a previous launch). Only probe when the local DB is
+                    // empty, which means recovery may still be needed.
+                    let localItemCount =
+                        (try? await database.read { db in
+                            try SQLiteInventoryItem.count().fetchOne(db)
+                        }) ?? 0
+                    if localItemCount == 0 {
+                        if let count = await CloudKitRecoveryCoordinator.probeForStrandedRecords() {
+                            strandedItemCount = count
+                            showRecoveryAlert = true
+                            await withCheckedContinuation { continuation in
+                                recoveryContinuation = continuation
+                            }
+                        }
+                    }
+                case .success(let stats):
+                    TelemetryDeck.signal("Migration.success", parameters: ["stats": "\(stats)"])
+                    logger.info("sqlite-data: Migration succeeded — \(stats.description)")
+                case .error(let message):
+                    TelemetryDeck.signal("Migration.error", parameters: ["message": message])
+                    logger.error("sqlite-data: Migration failed — \(message)")
+                    migrationErrorMessage = message
+                }
+
+                // Migrate photo files to BLOB storage (runs once, after schema migration)
+                let photoResult = await PhotoBlobMigrationCoordinator.migrateIfNeeded(database: database)
+                switch photoResult {
+                case .success(let stats):
+                    TelemetryDeck.signal("PhotoMigration.success", parameters: ["stats": "\(stats)"])
+                    logger.info("Photo BLOB migration succeeded — \(stats.description)")
+                case .error(let message):
+                    TelemetryDeck.signal("PhotoMigration.error", parameters: ["message": message])
+                    logger.error("Photo BLOB migration failed — \(message)")
+                case .noPhotos, .alreadyCompleted:
+                    break
+                }
+
+                // Start SyncEngine after migration/recovery to prevent sync from
+                // racing with data writes during migration.
+                let syncEnabled = UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool ?? true
+                if syncEnabled {
+                    do {
+                        @Dependency(\.defaultSyncEngine) var syncEngine
+                        try await syncEngine.start()
+                        await processPendingFamilySharingUnshareIfNeeded(
+                            database: database,
+                            syncEngine: syncEngine
+                        )
+                    } catch {
+                        logger.error("SyncEngine start failed: \(error.localizedDescription)")
+                    }
+                }
+
+                // Cull empty phantom homes from pre-2.2.0 onboarding re-runs (one-time).
+                // Pre-2.2.0 used `homes.last` so extra homes were invisible; with multi-home
+                // they'd suddenly appear in the sidebar.
+                if let replacementId = await HomeCullingManager.cullIfNeeded(
+                    database: database,
+                    activeHomeId: settings.activeHomeId
+                ) {
+                    settings.activeHomeId = replacementId
+                }
+
+                // Ensure at least one home exists (safety net for users who
+                // deleted all data without re-onboarding).
+                // Uses deterministic IDs so CloudKit sync won't create duplicates
+                // when a user reinstalls or sets up a new device.
+                do {
+                    let homeCount = try await database.read { db in
+                        try SQLiteHome.count().fetchOne(db)
+                    }
+                    if homeCount == 0 && ShareMetadataStore.shared.pendingShareMetadata == nil {
+                        let newHomeID = DefaultSeedID.home
+                        let defaultRooms = TestData.defaultRooms
+                        try await database.write { db in
+                            try SQLiteHome.insert {
+                                SQLiteHome(
+                                    id: newHomeID,
+                                    name: "My Home",
+                                    isPrimary: true,
+                                    colorName: "green"
+                                )
+                            }.execute(db)
+
+                            for (index, roomData) in defaultRooms.enumerated() {
+                                try SQLiteInventoryLocation.insert {
+                                    SQLiteInventoryLocation(
+                                        id: DefaultSeedID.roomIDs[index],
+                                        name: roomData.name,
+                                        desc: roomData.desc,
+                                        sfSymbolName: roomData.sfSymbol,
+                                        homeID: newHomeID
+                                    )
+                                }.execute(db)
+                            }
+                        }
+                        settings.activeHomeId = newHomeID.uuidString
+                        logger.info("Created default home (no homes found in database)")
+                    }
+                } catch {
+                    logger.warning("Error ensuring default home exists: \(error.localizedDescription)")
+                }
 
                 // Check RevenueCat subscription status
                 do {
                     try await revenueCatManager.updateCustomerInfo()
                 } catch {
-                    print("⚠️ MovingBoxApp - Error checking RevenueCat status: \(error)")
+                    logger.warning("Error checking RevenueCat status: \(error.localizedDescription)")
                 }
 
-                // Load Test Data if launch argument is set
-                if ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
-                    print("📱 MovingBoxApp - Loading test data...")
-                    await TestData.loadTestData(modelContext: containerManager.container.mainContext)
-                    print("📱 MovingBoxApp - Test data loaded")
+                // If splash was shown, ensure it stays visible for at least 1s
+                if let shownAt = splashShownAt {
+                    let elapsed = Date().timeIntervalSince(shownAt)
+                    if elapsed < 1.0 {
+                        try? await Task.sleep(for: .seconds(1.0 - elapsed))
+                    }
+                }
+                splashTimer.cancel()
 
-                    // Run orphaned items migration after test data loads
-                    // This ensures test data items/locations/labels are assigned to homes
-                    // Force=true allows it to run even if already completed (for test data scenarios)
-                    print("📱 MovingBoxApp - Running post-test-data migration...")
-                    try? await containerManager.performOrphanedItemsMigration(force: true)
-                    print("📱 MovingBoxApp - Post-test-data migration complete")
+                // Determine if we should show the welcome screen
+                logger.info("Startup complete, transitioning to app")
 
+                // If launching from a share link on first launch, route to abbreviated joining flow
+                if OnboardingManager.shouldShowWelcome(),
+                    let shareMetadata = ShareMetadataStore.shared.consumeMetadata()
+                {
+                    appState = .joiningShare(shareMetadata)
                     settings.hasLaunched = true
-                    appState = .main
-                } else {
-                    // Determine if we should show the welcome screen
-                    print("📱 MovingBoxApp - CloudKit sync complete, transitioning to app")
-                    appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
+                    TelemetryDeck.signal("appLaunched.joiningShare")
+                    return
                 }
+
+                if let shareMetadata = ShareMetadataStore.shared.consumeExistingUserMetadata() {
+                    appState = .acceptingShareExistingUser(shareMetadata)
+                    TelemetryDeck.signal("appLaunched.acceptingShareExistingUser")
+                    return
+                }
+
+                appState = OnboardingManager.shouldShowWelcome() ? .onboarding : .main
 
                 // Record that we've launched
                 settings.hasLaunched = true
@@ -302,14 +434,142 @@ struct MovingBoxApp: App {
                 // Send launched signal to TD
                 TelemetryDeck.signal("appLaunched")
             }
-            .modelContainer(containerManager.container)
+            .overlay {
+                if isRecovering {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .controlSize(.large)
+                            Text("Recovering your data...")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                        }
+                        .padding(32)
+                        .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+                    }
+                }
+            }
+            .alert("Recover Your Data?", isPresented: $showRecoveryAlert) {
+                Button("Recover Data") {
+                    recoveryActionTaken = true
+                    Task {
+                        isRecovering = true
+                        @Dependency(\.defaultDatabase) var database
+                        let result = await CloudKitRecoveryCoordinator.recoverAllRecords(
+                            database: database)
+                        switch result {
+                        case .recovered(let stats):
+                            TelemetryDeck.signal(
+                                "CloudKitRecovery.success",
+                                parameters: ["stats": "\(stats)"])
+                            logger.info("CloudKit recovery succeeded — \(stats.description)")
+                            await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
+                        case .error(let message):
+                            TelemetryDeck.signal(
+                                "CloudKitRecovery.error",
+                                parameters: ["message": message])
+                            logger.error("CloudKit recovery failed — \(message)")
+                        default:
+                            break
+                        }
+                        isRecovering = false
+                        recoveryContinuation?.resume()
+                        recoveryContinuation = nil
+                    }
+                }
+                Button("Start Fresh", role: .destructive) {
+                    recoveryActionTaken = true
+                    Task {
+                        CloudKitRecoveryCoordinator.markComplete()
+                        await CloudKitRecoveryCoordinator.deleteOldCoreDataZone()
+                        TelemetryDeck.signal("CloudKitRecovery.skipped")
+                        recoveryContinuation?.resume()
+                        recoveryContinuation = nil
+                    }
+                }
+            } message: {
+                Text(
+                    "Found \(strandedItemCount) item(s) from a previous installation in iCloud. Would you like to recover them?"
+                )
+            }
+            .onChange(of: showRecoveryAlert) { _, isShowing in
+                // Safety net: if alert is dismissed without a button tap (e.g. system
+                // interruption), resume the continuation to prevent a deadlock.
+                // Skip when a button action was taken — those handle their own cleanup.
+                if !isShowing, !recoveryActionTaken, let continuation = recoveryContinuation {
+                    CloudKitRecoveryCoordinator.markComplete()
+                    continuation.resume()
+                    recoveryContinuation = nil
+                }
+            }
+            .alert(
+                "Data Migration Issue",
+                isPresented: Binding(
+                    get: { migrationErrorMessage != nil },
+                    set: { if !$0 { migrationErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(migrationErrorMessage ?? "")
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: ShareMetadataStore.existingUserShareMetadataDidChange
+                )
+            ) { _ in
+                guard !OnboardingManager.shouldShowWelcome(),
+                    let shareMetadata = ShareMetadataStore.shared.consumeExistingUserMetadata()
+                else { return }
+
+                appState = .acceptingShareExistingUser(shareMetadata)
+                TelemetryDeck.signal("shareInvite.acceptingShareExistingUser")
+            }
             .environment(\.featureFlags, FeatureFlags(distribution: .current))
             .environment(\.whatsNew, .forMovingBox())
-            .environment(containerManager)
             .environmentObject(router)
             .environmentObject(settings)
             .environmentObject(onboardingManager)
             .environmentObject(revenueCatManager)
+        }
+    }
+
+    private func processPendingFamilySharingUnshareIfNeeded(
+        database: any DatabaseWriter,
+        syncEngine: SyncEngine
+    ) async {
+        guard FamilySharingPendingActionStore.isPendingUnshare else { return }
+
+        do {
+            let preferredHouseholdID = FamilySharingPendingActionStore.pendingUnshareHouseholdID
+            let household = try await database.read { db in
+                if let preferredHouseholdID,
+                    let household = try SQLiteHousehold.find(preferredHouseholdID).fetchOne(db)
+                {
+                    return household as SQLiteHousehold?
+                }
+                return try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)
+            }
+
+            guard let household else {
+                FamilySharingPendingActionStore.clearPendingUnshare()
+                return
+            }
+
+            try await syncEngine.unshare(record: household)
+            try await database.write { db in
+                try SQLiteHousehold.find(household.id)
+                    .update {
+                        $0.sharingEnabled = false
+                    }
+                    .execute(db)
+            }
+            FamilySharingPendingActionStore.clearPendingUnshare()
+            logger.info("Processed pending family sharing unshare for household \(household.id.uuidString)")
+        } catch {
+            logger.error("Failed pending family sharing unshare: \(error.localizedDescription)")
         }
     }
 }

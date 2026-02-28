@@ -1,12 +1,12 @@
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct OnboardingItemView: View {
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var router: Router
     @EnvironmentObject private var settings: SettingsManager
-    @Environment(\.modelContext) var modelContext
-    @Query private var locations: [InventoryLocation]
+    @FetchAll(SQLiteInventoryLocation.all, animation: .default) var locations
 
     @State private var showPrivacyAlert = false
     @State private var showItemCreationFlow = false
@@ -93,7 +93,7 @@ struct OnboardingItemView: View {
         .fullScreenCover(isPresented: $showItemCreationFlow) {
             EnhancedItemCreationFlowView(
                 captureMode: .singleItem,
-                location: locations.first
+                locationID: locations.first?.id
             ) {
                 manager.moveToNext()
             }
@@ -115,6 +115,10 @@ struct OnboardingItemView: View {
 }
 
 #Preview {
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+
     OnboardingItemView()
         .environmentObject(OnboardingManager())
         .environmentObject(Router())

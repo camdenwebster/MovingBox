@@ -24,6 +24,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
             "Disable-Persistence",
         ]
 
@@ -131,6 +132,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -184,6 +187,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -224,6 +229,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -253,6 +260,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -282,6 +291,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -329,8 +340,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
         )
 
         // - And enters item name "Test Item" without selecting a location
-        inventoryDetailScreen.titleField.tap()
-        inventoryDetailScreen.titleField.typeText("Test Item From Camera")
+        enterItemTitle("Test Item From Camera")
 
         // - And taps Save
         inventoryDetailScreen.saveItem()
@@ -363,6 +373,9 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Is-Pro",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -389,8 +402,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
         )
 
         // - And enters item name "New Item With Location"
-        inventoryDetailScreen.titleField.tap()
-        inventoryDetailScreen.titleField.typeText("New Item With Location")
+        enterItemTitle("New Item With Location")
 
         // - Then the item can be saved (with or without location selection)
         // Note: Full location picker interaction would require knowing the exact picker UI
@@ -433,8 +445,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             inventoryDetailScreen.titleField.waitForExistence(timeout: 10),
             "Item detail screen should appear"
         )
-        inventoryDetailScreen.titleField.tap()
-        inventoryDetailScreen.titleField.typeText("Test Blender")
+        enterItemTitle("Test Blender")
         inventoryDetailScreen.saveItem()
 
         XCTAssertTrue(
@@ -452,8 +463,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             inventoryDetailScreen.titleField.waitForExistence(timeout: 10),
             "Item detail screen should appear"
         )
-        inventoryDetailScreen.titleField.tap()
-        inventoryDetailScreen.titleField.typeText("Test Toaster")
+        enterItemTitle("Test Toaster")
         inventoryDetailScreen.saveItem()
 
         XCTAssertTrue(
@@ -471,8 +481,7 @@ final class MultiHomeNavigationUITests: XCTestCase {
             inventoryDetailScreen.titleField.waitForExistence(timeout: 10),
             "Item detail screen should appear"
         )
-        inventoryDetailScreen.titleField.tap()
-        inventoryDetailScreen.titleField.typeText("Test Coffee Maker")
+        enterItemTitle("Test Coffee Maker")
         inventoryDetailScreen.saveItem()
 
         // - Then all three items should appear in the Dashboard
@@ -514,6 +523,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -556,6 +567,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -703,6 +716,9 @@ final class MultiHomeNavigationUITests: XCTestCase {
         // Wait for home detail view
         sleep(1)
 
+        // Tap "Edit" button
+        homeManagementScreen.tapEdit()
+
         // Verify Delete Home button exists (we won't actually delete to keep tests stable)
         XCTAssertTrue(
             homeManagementScreen.deleteButton.waitForExistence(timeout: 5)
@@ -722,6 +738,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -749,6 +767,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -798,6 +818,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -853,6 +875,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -934,6 +958,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -1030,6 +1056,8 @@ final class MultiHomeNavigationUITests: XCTestCase {
             "Disable-Animations",
             "Skip-Onboarding",
             "UI-Testing-Mock-Camera",
+            "Mock-AI",
+            "Disable-Persistence",
         ]
         app.launch()
         XCTAssertTrue(dashboardScreen.isDisplayed(), "Dashboard should be visible after launch")
@@ -1158,5 +1186,20 @@ final class MultiHomeNavigationUITests: XCTestCase {
             movedItemText.waitForExistence(timeout: 10),
             "The moved item '\(itemTitle)' should appear in Beach House inventory list"
         )
+    }
+
+    private func enterItemTitle(_ title: String) {
+        XCTAssertTrue(
+            inventoryDetailScreen.titleField.waitForExistence(timeout: 10),
+            "Title field should be visible before typing"
+        )
+
+        inventoryDetailScreen.titleField.tap()
+        if !app.keyboards.firstMatch.waitForExistence(timeout: 2) {
+            inventoryDetailScreen.titleField.tap()
+            _ = app.keyboards.firstMatch.waitForExistence(timeout: 2)
+        }
+
+        app.typeText(title)
     }
 }

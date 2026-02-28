@@ -4,6 +4,7 @@ import Combine
 import Foundation
 import MovingBoxAIAnalysis
 import PhotosUI
+import SQLiteData
 import SwiftUI
 import UIKit
 
@@ -136,7 +137,7 @@ enum CaptureMode: CaseIterable {
 
     // MARK: - Navigation
 
-    func postCaptureDestination(images: [UIImage], location: InventoryLocation?)
+    func postCaptureDestination(images: [UIImage], location: SQLiteInventoryLocation?)
         -> PostCaptureDestination
     {
         switch self {
@@ -153,8 +154,8 @@ enum CaptureMode: CaseIterable {
 // MARK: - Supporting Types
 
 enum PostCaptureDestination {
-    case itemCreationFlow(images: [UIImage], location: InventoryLocation?)
-    case multiItemSelection(images: [UIImage], location: InventoryLocation?)
+    case itemCreationFlow(images: [UIImage], location: SQLiteInventoryLocation?)
+    case multiItemSelection(images: [UIImage], location: SQLiteInventoryLocation?)
 }
 
 enum CaptureModeError {
@@ -165,7 +166,6 @@ enum CaptureModeError {
 struct MultiPhotoCameraView: View {
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
-    @Environment(ModelContainerManager.self) private var containerManager
     @StateObject private var model = MultiPhotoCameraViewModel()
     @Binding var capturedImages: [UIImage]
     let captureMode: CaptureMode
@@ -420,7 +420,7 @@ struct MultiPhotoCameraView: View {
                     onDone: {},
                     isMultiItemPreviewShowing: true,
                     hasPhotoCaptured: false,
-                    isSyncingData: containerManager.isCloudKitSyncing
+                    isSyncingData: false
                 )
 
                 Spacer()
@@ -462,7 +462,7 @@ struct MultiPhotoCameraView: View {
                     },
                     isMultiItemPreviewShowing: false,
                     hasPhotoCaptured: !model.capturedImages.isEmpty,
-                    isSyncingData: containerManager.isCloudKitSyncing
+                    isSyncingData: false
                 )
 
                 Spacer()
@@ -769,6 +769,5 @@ private struct PreviewContainer<Content: View>: View {
             .environment(\.isPreview, true)
             .environmentObject(SettingsManager())
             .environmentObject(RevenueCatManager.shared)
-            .environment(ModelContainerManager.shared)
     }
 }

@@ -73,7 +73,6 @@ struct ImportLoadingView: View {
                                 Spacer()
 
                                 Button("Close") {
-                                    print(" Error view close button tapped")
                                     isComplete = false
                                 }
                                 .font(.headline)
@@ -86,7 +85,6 @@ struct ImportLoadingView: View {
                             }
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                            .onAppear { print(" Error view appeared with: \(error.localizedDescription)") }
 
                         } else if !showFinishButton {
                             // Loading state
@@ -118,7 +116,6 @@ struct ImportLoadingView: View {
                                 .padding(.horizontal, 40)
                                 .padding(.bottom, 40)
                             }
-                            .onAppear { print(" Loading view appeared") }
 
                         } else {
                             // Success state
@@ -139,7 +136,6 @@ struct ImportLoadingView: View {
                                 }
                                 Spacer()
                                 Button {
-                                    print("Success view done button tapped")
                                     isComplete = false
                                 } label: {
                                     Text("Done")
@@ -154,7 +150,6 @@ struct ImportLoadingView: View {
                             }
                             .padding(.horizontal)
                             .frame(maxWidth: min(UIScreen.main.bounds.width - 32, 600))
-                            .onAppear { print(" Success view appeared") }
                         }
                     }
                     .transition(.opacity)
@@ -170,13 +165,7 @@ struct ImportLoadingView: View {
                 }
             }
         }
-        .onAppear {
-            print(
-                " ImportLoadingView appeared with - Error: \(String(describing: error)), Completed: \(importCompleted), Progress: \(progress)"
-            )
-        }
         .onChange(of: importCompleted) { _, completed in
-            print(" Import completed changed to: \(completed)")
             if completed {
                 withAnimation {
                     showFinishButton = true
@@ -193,9 +182,6 @@ struct ImportLoadingView: View {
         while !showFinishButton && error == nil {
             try? await Task.sleep(for: .seconds(2))
             guard !showFinishButton && error == nil else {
-                print(
-                    " Stopping message animation - ShowFinish: \(showFinishButton), Error: \(String(describing: error))"
-                )
                 break
             }
 

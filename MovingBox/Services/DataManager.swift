@@ -6,55 +6,56 @@
 //
 
 import Foundation
-import SwiftData
+import GRDB
+import SQLiteData
 import SwiftUI
 import ZIPFoundation
 
 /// # DataManager: Swift Concurrency-Safe Import/Export Actor
 ///
-/// Handles bulk import and export of inventory data with proper Swift Concurrency patterns
-/// and SwiftData best practices as outlined in Paul Hudson's "SwiftData by Example".
+/// Handles bulk import and export of inventory data using sqlite-data (StructuredQueries + GRDB).
 ///
 /// ## Architecture Overview
 ///
-/// This actor implements a **ModelContainer → ModelContext** pattern where:
-/// - Views pass `ModelContainer` (Sendable) to export/import functions
-/// - Functions create local `ModelContext` instances for SwiftData operations
-/// - This approach is ~10x faster than accessing actor properties (per Hudson, p.218)
+/// This actor implements a **DatabaseReader/DatabaseWriter** pattern where:
+/// - Views pass `any DatabaseWriter` (Sendable) to export/import functions
+/// - Functions use `database.read {}` and `database.write {}` for all SQL operations
+/// - sqlite-data value types (`SQLiteInventoryItem`, etc.) are `Sendable` structs,
+///   eliminating the MainActor dance required by SwiftData's `@Model` classes
 ///
 /// ## Key Design Decisions
 ///
 /// ### 1. Actor Isolation
 /// All export/import functions are marked `nonisolated` to allow returning `AsyncStream`
-/// without actor hopping. However, all SwiftData operations happen on `@MainActor` per
-/// Apple's requirements.
+/// without actor hopping. Since sqlite-data models are value-type structs, no MainActor
+/// isolation is required for property access.
 ///
 /// ### 2. Swift Concurrency Safety
-/// - `ModelContainer` and `PersistentIdentifier` are Sendable and safe to pass across actors
-/// - `ModelContext` and model objects are NOT Sendable and must stay on MainActor
-/// - Plain data (tuples, structs) is extracted on MainActor then passed between actors
+/// - `DatabaseReader`/`DatabaseWriter` are Sendable (GRDB protocol requirement)
+/// - `SQLiteInventoryItem` and friends are `nonisolated struct` — fully Sendable
+/// - No MainActor wrappers needed for data extraction
 ///
 /// ### 3. Batch Processing Strategy
 /// - Dynamic batch sizes based on device memory (50-300 items per batch)
-/// - Explicit `save()` calls after each batch to control memory usage
-/// - Background parsing with MainActor for SwiftData operations
+/// - sqlite-data handles transaction management internally via `database.write {}`
+/// - Background file operations for photo copying and archive creation
 /// - Progress reporting via AsyncStream for responsive UI
 ///
 /// ### 4. Performance Optimizations
-/// - Local ModelContext creation (10x faster than actor property)
-/// - Pre-fetching and caching for relationship lookups
+/// - Direct SQL reads without MainActor overhead
+/// - Pre-fetching and caching for relationship lookups during import
 /// - Streaming data processing to minimize memory peaks
-/// - Background file operations with MainActor for database access
+/// - Background file operations with concurrent photo copying
 ///
 /// ## Usage Example
 ///
 /// ```swift
 /// // In a SwiftUI view:
-/// @EnvironmentObject private var containerManager: ModelContainerManager
+/// @Dependency(\.defaultDatabase) var database
 ///
 /// func exportData() async {
 ///     for await progress in DataManager.shared.exportInventoryWithProgress(
-///         modelContainer: containerManager.container,
+///         database: database,
 ///         fileName: "export.zip",
 ///         config: .init(includeItems: true, includeLocations: true, includeLabels: true)
 ///     ) {
@@ -69,25 +70,14 @@ import ZIPFoundation
 /// }
 /// ```
 ///
-/// ## Swift 6 Concurrency Notes
-///
-/// Remaining warnings about `ModelContainer` being passed to nonisolated functions are
-/// expected and safe. The architecture ensures:
-/// 1. Only Sendable types cross actor boundaries
-/// 2. Non-Sendable types stay isolated on MainActor
-/// 3. All SwiftData operations run on MainActor per Apple's requirements
-///
-/// ## References
-/// - Paul Hudson, "SwiftData by Example" (2023), Architecture chapter
-/// - Apple Swift Concurrency Documentation
-/// - SWIFT6_CONCURRENCY_FIXES.md in Services directory
-///
 actor DataManager {
     enum DataError: LocalizedError, Sendable {
         case nothingToExport
         case failedCreateZip
         case invalidZipFile
         case invalidCSVFormat
+        case invalidDatabaseArchive
+        case restoreStagingFailed
         case photoNotFound
         case fileAccessDenied
         case fileTooLarge
@@ -96,8 +86,6 @@ actor DataManager {
     }
 
     // MARK: - Properties
-
-    private let modelContainer: ModelContainer?
 
     /// Sendable wrapper for arbitrary errors that cross actor boundaries via AsyncStream
     struct SendableError: Sendable {
@@ -129,6 +117,10 @@ actor DataManager {
             } else if description.contains("invalidCSVFormat") {
                 return
                     "This doesn't appear to be a MovingBox export file. Please use a ZIP file that was exported from MovingBox."
+            } else if description.contains("invalidDatabaseArchive") {
+                return "This database backup archive is invalid. Use a backup exported from MovingBox."
+            } else if description.contains("restoreStagingFailed") {
+                return "Unable to stage the database restore. Please try selecting the backup again."
             } else if description.contains("photoNotFound") {
                 return "Some photos could not be found during the import process."
             } else if description.contains("fileAccessDenied") {
@@ -137,6 +129,8 @@ actor DataManager {
                 return "One or more images exceed the 100MB size limit and cannot be imported."
             } else if description.contains("invalidFileType") {
                 return "Invalid image file type detected. Only JPG, PNG, and HEIC formats are supported."
+            } else if description.contains("containerNotConfigured") {
+                return "Database export is only available when MovingBox is using an on-device SQLite file."
             }
             return localizedDescription
         }
@@ -151,6 +145,10 @@ actor DataManager {
             } else if description.contains("invalidCSVFormat") {
                 return
                     "MovingBox can only import files that were exported from the app. If you have data from another app, you'll need to manually add it."
+            } else if description.contains("invalidDatabaseArchive") {
+                return "Select a ZIP archive created by MovingBox's Database export option."
+            } else if description.contains("restoreStagingFailed") {
+                return "Ensure the archive is still available and you have free storage, then try again."
             } else if description.contains("photoNotFound") {
                 return "The import will continue, but some images may be missing from your inventory."
             } else if description.contains("fileAccessDenied") {
@@ -159,6 +157,8 @@ actor DataManager {
                 return "Try compressing the images before exporting, or remove some items from the export."
             } else if description.contains("invalidFileType") {
                 return "Convert unsupported images to JPG, PNG, or HEIC format before importing."
+            } else if description.contains("containerNotConfigured") {
+                return "Switch to a persistent database (not in-memory test mode) and try exporting again."
             }
             return nil
         }
@@ -168,52 +168,34 @@ actor DataManager {
 
     // MARK: - Initialization
 
-    private init() {
-        self.modelContainer = nil
-    }
-
-    /// Creates a DataManager with a specific ModelContainer for dependency injection.
-    /// Used primarily for testing or when you need a non-shared instance.
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-    }
-
-    /// Helper to safely get the ModelContainer, throwing if not configured.
-    /// In production, views should pass the container explicitly via parameters.
-    private func getContainer() throws -> ModelContainer {
-        guard let container = modelContainer else {
-            throw DataError.containerNotConfigured
-        }
-        return container
-    }
+    private init() {}
 
     /// Exports inventory with progress reporting via AsyncStream.
     ///
-    /// Creates a local ModelContext from the container for optimal performance.
-    /// Per Paul Hudson: Creating context inside method is 10x faster than actor property access.
+    /// Uses `database.read {}` to fetch all data as value-type structs.
+    /// Since sqlite-data models are Sendable structs, no MainActor isolation is needed.
     ///
     /// - Parameters:
-    ///   - modelContainer: The app's ModelContainer (Sendable, safe to pass across actors)
+    ///   - database: A DatabaseWriter (Sendable, safe to pass across actors)
     ///   - fileName: Optional custom filename (defaults to timestamped name)
     ///   - config: What data types to include (items, locations, labels)
     /// - Returns: AsyncStream yielding ExportProgress updates
     nonisolated func exportInventoryWithProgress(
-        modelContainer: ModelContainer,
+        database: any DatabaseWriter,
         fileName: String? = nil,
-        config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+        config: ExportConfig = ExportConfig()
     ) -> AsyncStream<ExportProgress> {
         AsyncStream { continuation in
-            Task { @MainActor in
+            Task {
                 do {
                     continuation.yield(.preparing)
-
-                    // Create local ModelContext for optimal performance (10x faster per Hudson)
-                    let modelContext = ModelContext(modelContainer)
 
                     var itemData: [ItemData] = []
                     var locationData: [LocationData] = []
                     var labelData: [LabelData] = []
-                    var allPhotoURLs: [URL] = []
+                    var homeData: [HomeData] = []
+                    var insurancePolicyData: [InsurancePolicyData] = []
+                    var allPhotoFiles: [ExportPhotoFile] = []
 
                     var totalSteps = 0
                     var completedSteps = 0
@@ -221,15 +203,21 @@ actor DataManager {
                     if config.includeItems { totalSteps += 1 }
                     if config.includeLocations { totalSteps += 1 }
                     if config.includeLabels { totalSteps += 1 }
-                    totalSteps += 3  // CSV writing, photo copying, archiving
+                    if config.includeHomes { totalSteps += 1 }
+                    if config.includeInsurancePolicies { totalSteps += 1 }
+                    totalSteps += 2  // CSV writing + archiving
+                    if config.includePhotos { totalSteps += 1 }  // photo copying
 
-                    // Fetch data in batches with progress
+                    // Fetch data with progress
                     if config.includeItems {
                         continuation.yield(.fetchingData(phase: "items", progress: 0.0))
-                        let result = try await fetchItemsInBatches(modelContext: modelContext)
-                        guard !result.items.isEmpty else { throw DataError.nothingToExport }
+                        let result = try await self.fetchItemsForExport(
+                            database: database,
+                            includedHomeIDs: config.includedHomeIDs,
+                            includePhotos: config.includePhotos
+                        )
                         itemData = result.items
-                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        allPhotoFiles.append(contentsOf: result.photos)
 
                         completedSteps += 1
                         continuation.yield(
@@ -246,9 +234,13 @@ actor DataManager {
                     if config.includeLocations {
                         continuation.yield(
                             .fetchingData(phase: "locations", progress: Double(completedSteps) / Double(totalSteps)))
-                        let result = try await fetchLocationsInBatches(modelContext: modelContext)
+                        let result = try await self.fetchLocationsForExport(
+                            database: database,
+                            includedHomeIDs: config.includedHomeIDs,
+                            includePhotos: config.includePhotos
+                        )
                         locationData = result.locations
-                        allPhotoURLs.append(contentsOf: result.photoURLs)
+                        allPhotoFiles.append(contentsOf: result.photos)
 
                         completedSteps += 1
                         continuation.yield(
@@ -258,14 +250,48 @@ actor DataManager {
                     if config.includeLabels {
                         continuation.yield(
                             .fetchingData(phase: "labels", progress: Double(completedSteps) / Double(totalSteps)))
-                        labelData = try await fetchLabelsInBatches(modelContext: modelContext)
+                        labelData = try await self.fetchLabelsForExport(database: database)
 
                         completedSteps += 1
                         continuation.yield(
                             .fetchingData(phase: "labels", progress: Double(completedSteps) / Double(totalSteps)))
                     }
 
-                    guard !itemData.isEmpty || !locationData.isEmpty || !labelData.isEmpty else {
+                    if config.includeHomes {
+                        continuation.yield(
+                            .fetchingData(phase: "homes", progress: Double(completedSteps) / Double(totalSteps)))
+                        let result = try await self.fetchHomesForExport(
+                            database: database,
+                            includedHomeIDs: config.includedHomeIDs,
+                            includePhotos: config.includePhotos
+                        )
+                        homeData = result.homes
+                        allPhotoFiles.append(contentsOf: result.photos)
+
+                        completedSteps += 1
+                        continuation.yield(
+                            .fetchingData(phase: "homes", progress: Double(completedSteps) / Double(totalSteps)))
+                    }
+
+                    if config.includeInsurancePolicies {
+                        continuation.yield(
+                            .fetchingData(
+                                phase: "insurance policies", progress: Double(completedSteps) / Double(totalSteps)))
+                        insurancePolicyData = try await self.fetchInsurancePoliciesForExport(
+                            database: database,
+                            includedHomeIDs: config.includedHomeIDs
+                        )
+
+                        completedSteps += 1
+                        continuation.yield(
+                            .fetchingData(
+                                phase: "insurance policies", progress: Double(completedSteps) / Double(totalSteps)))
+                    }
+
+                    guard
+                        !itemData.isEmpty || !locationData.isEmpty || !labelData.isEmpty || !homeData.isEmpty
+                            || !insurancePolicyData.isEmpty
+                    else {
                         throw DataError.nothingToExport
                     }
 
@@ -276,53 +302,73 @@ actor DataManager {
                     // Working directory in tmp
                     let workingRoot = FileManager.default.temporaryDirectory
                         .appendingPathComponent("export-\(UUID().uuidString)", isDirectory: true)
+                    try FileManager.default.createDirectory(at: workingRoot, withIntermediateDirectories: true)
+
                     let photosDir = workingRoot.appendingPathComponent("photos", isDirectory: true)
-                    try FileManager.default.createDirectory(
-                        at: photosDir,
-                        withIntermediateDirectories: true)
-                    try FileManager.default.setAttributes(
-                        [
-                            .posixPermissions: 0o755
-                        ], ofItemAtPath: photosDir.path)
+                    if config.includePhotos {
+                        try FileManager.default.createDirectory(
+                            at: photosDir,
+                            withIntermediateDirectories: true)
+                        try FileManager.default.setAttributes(
+                            [
+                                .posixPermissions: 0o755
+                            ], ofItemAtPath: photosDir.path)
+                    }
 
                     // Write CSV files
                     continuation.yield(.writingCSV(progress: Double(completedSteps) / Double(totalSteps)))
 
                     if config.includeItems {
                         let itemsCSVURL = workingRoot.appendingPathComponent("inventory.csv")
-                        try await writeCSV(items: itemData, to: itemsCSVURL)
+                        try await self.writeCSV(items: itemData, to: itemsCSVURL)
                     }
 
                     if config.includeLocations {
                         let locationsCSVURL = workingRoot.appendingPathComponent("locations.csv")
-                        try await writeLocationsCSV(locations: locationData, to: locationsCSVURL)
+                        try await self.writeLocationsCSV(locations: locationData, to: locationsCSVURL)
                     }
 
                     if config.includeLabels {
                         let labelsCSVURL = workingRoot.appendingPathComponent("labels.csv")
-                        try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
+                        try await self.writeLabelsCSV(labels: labelData, to: labelsCSVURL)
+                    }
+
+                    if config.includeHomes {
+                        let homesCSVURL = workingRoot.appendingPathComponent("home-details.csv")
+                        try await self.writeHomesCSV(homes: homeData, to: homesCSVURL)
+                    }
+
+                    if config.includeInsurancePolicies {
+                        let insurancePoliciesCSVURL = workingRoot.appendingPathComponent(
+                            "insurance-policy-details.csv")
+                        try await self.writeInsurancePoliciesCSV(
+                            policies: insurancePolicyData,
+                            to: insurancePoliciesCSVURL
+                        )
                     }
 
                     completedSteps += 1
                     continuation.yield(.writingCSV(progress: Double(completedSteps) / Double(totalSteps)))
 
                     // Copy photos with progress
-                    if !allPhotoURLs.isEmpty {
-                        try await copyPhotosToDirectoryWithProgress(
-                            photoURLs: allPhotoURLs,
-                            destinationDir: photosDir,
-                            progressHandler: { current, total in
-                                continuation.yield(.copyingPhotos(current: current, total: total))
-                            }
-                        )
-                    }
+                    if config.includePhotos {
+                        if !allPhotoFiles.isEmpty {
+                            try await self.writePhotosToDirectoryWithProgress(
+                                photos: allPhotoFiles,
+                                destinationDir: photosDir,
+                                progressHandler: { current, total in
+                                    continuation.yield(.copyingPhotos(current: current, total: total))
+                                }
+                            )
+                        }
 
-                    completedSteps += 1
+                        completedSteps += 1
+                    }
 
                     // Create archive using unified helper with progress reporting
                     continuation.yield(.creatingArchive(progress: Double(completedSteps) / Double(totalSteps)))
 
-                    let archiveURL = try await createArchive(
+                    let archiveURL = try await self.createArchive(
                         from: workingRoot,
                         archiveName: archiveName,
                         progressHandler: { filesProcessed, totalFiles in
@@ -352,7 +398,9 @@ actor DataManager {
                         itemCount: itemData.count,
                         locationCount: locationData.count,
                         labelCount: labelData.count,
-                        photoCount: allPhotoURLs.count
+                        homeCount: homeData.count,
+                        insurancePolicyCount: insurancePolicyData.count,
+                        photoCount: allPhotoFiles.count
                     )
 
                     continuation.yield(.completed(result))
@@ -366,31 +414,30 @@ actor DataManager {
         }
     }
 
-    /// Exports all `InventoryItem`s (and their photos) into a single **zip** file that also
+    /// Exports all inventory items (and their photos) into a single **zip** file that also
     /// contains `inventory.csv`.  The returned `URL` points to the finished archive
-    /// inside the temporary directory – caller is expected to share / move / delete.
+    /// inside the temporary directory -- caller is expected to share / move / delete.
     /// For progress reporting, use `exportInventoryWithProgress` instead.
-    ///
-    /// Creates a local ModelContext from the container for optimal performance.
     func exportInventory(
-        modelContainer: ModelContainer, fileName: String? = nil,
-        config: ExportConfig = ExportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+        database: any DatabaseWriter, fileName: String? = nil,
+        config: ExportConfig = ExportConfig()
     ) async throws -> URL {
-        // Create local ModelContext for optimal performance (10x faster per Hudson)
-        let modelContext = await MainActor.run { ModelContext(modelContainer) }
-
         var itemData: [ItemData] = []
         var locationData: [LocationData] = []
         var labelData: [LabelData] = []
-        var allPhotoURLs: [URL] = []
+        var homeData: [HomeData] = []
+        var insurancePolicyData: [InsurancePolicyData] = []
+        var allPhotoFiles: [ExportPhotoFile] = []
 
-        // Fetch data in batches to reduce memory pressure
-        // SwiftData operations run on MainActor
+        // Fetch data — sqlite-data structs are value types, no MainActor needed
         if config.includeItems {
-            let result = try await fetchItemsInBatches(modelContext: modelContext)
-            guard !result.items.isEmpty else { throw DataError.nothingToExport }
+            let result = try await fetchItemsForExport(
+                database: database,
+                includedHomeIDs: config.includedHomeIDs,
+                includePhotos: config.includePhotos
+            )
             itemData = result.items
-            allPhotoURLs.append(contentsOf: result.photoURLs)
+            allPhotoFiles.append(contentsOf: result.photos)
 
             let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824.0
             TelemetryManager.shared.trackExportBatchSize(
@@ -401,17 +448,41 @@ actor DataManager {
         }
 
         if config.includeLocations {
-            let result = try await fetchLocationsInBatches(modelContext: modelContext)
+            let result = try await fetchLocationsForExport(
+                database: database,
+                includedHomeIDs: config.includedHomeIDs,
+                includePhotos: config.includePhotos
+            )
             locationData = result.locations
-            allPhotoURLs.append(contentsOf: result.photoURLs)
+            allPhotoFiles.append(contentsOf: result.photos)
         }
 
         if config.includeLabels {
-            labelData = try await fetchLabelsInBatches(modelContext: modelContext)
+            labelData = try await fetchLabelsForExport(database: database)
+        }
+
+        if config.includeHomes {
+            let result = try await fetchHomesForExport(
+                database: database,
+                includedHomeIDs: config.includedHomeIDs,
+                includePhotos: config.includePhotos
+            )
+            homeData = result.homes
+            allPhotoFiles.append(contentsOf: result.photos)
+        }
+
+        if config.includeInsurancePolicies {
+            insurancePolicyData = try await fetchInsurancePoliciesForExport(
+                database: database,
+                includedHomeIDs: config.includedHomeIDs
+            )
         }
 
         // Don't export if nothing is selected
-        guard !itemData.isEmpty || !locationData.isEmpty || !labelData.isEmpty else {
+        guard
+            !itemData.isEmpty || !locationData.isEmpty || !labelData.isEmpty || !homeData.isEmpty
+                || !insurancePolicyData.isEmpty
+        else {
             throw DataError.nothingToExport
         }
 
@@ -422,14 +493,20 @@ actor DataManager {
         // Working directory in tmp
         let workingRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("export-\(UUID().uuidString)", isDirectory: true)
-        let photosDir = workingRoot.appendingPathComponent("photos", isDirectory: true)
         try FileManager.default.createDirectory(
-            at: photosDir,
+            at: workingRoot,
             withIntermediateDirectories: true)
-        try FileManager.default.setAttributes(
-            [
-                .posixPermissions: 0o755
-            ], ofItemAtPath: photosDir.path)
+
+        let photosDir = workingRoot.appendingPathComponent("photos", isDirectory: true)
+        if config.includePhotos {
+            try FileManager.default.createDirectory(
+                at: photosDir,
+                withIntermediateDirectories: true)
+            try FileManager.default.setAttributes(
+                [
+                    .posixPermissions: 0o755
+                ], ofItemAtPath: photosDir.path)
+        }
 
         // Write CSV files only for enabled types
         if config.includeItems {
@@ -447,9 +524,24 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos in background to avoid blocking main thread
-        // Photo URLs were already collected during batched fetching
-        try await copyPhotosToDirectory(photoURLs: allPhotoURLs, destinationDir: photosDir)
+        if config.includeHomes {
+            let homesCSVURL = workingRoot.appendingPathComponent("home-details.csv")
+            try await writeHomesCSV(homes: homeData, to: homesCSVURL)
+        }
+
+        if config.includeInsurancePolicies {
+            let insurancePoliciesCSVURL = workingRoot.appendingPathComponent("insurance-policy-details.csv")
+            try await writeInsurancePoliciesCSV(
+                policies: insurancePolicyData,
+                to: insurancePoliciesCSVURL
+            )
+        }
+
+        // Write photo BLOB payloads into the ZIP staging directory.
+        if config.includePhotos {
+            let uniquePhotoFiles = Array(Set(allPhotoFiles))
+            try await writePhotosToDirectory(photos: uniquePhotoFiles, destinationDir: photosDir)
+        }
 
         // Create ZIP archive using unified helper
         let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)
@@ -469,16 +561,95 @@ actor DataManager {
         return archiveURL
     }
 
+    func exportDatabaseArchive(
+        database: any DatabaseWriter,
+        fileName: String? = nil
+    ) async throws -> URL {
+        let sqliteFiles = try await fetchSQLiteFilesForExport(database: database)
+
+        let archiveName =
+            fileName ?? "MovingBox-database-\(DateFormatter.exportDateFormatter.string(from: .init()))"
+            .replacingOccurrences(of: " ", with: "-") + ".zip"
+
+        let workingRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("database-export-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workingRoot, withIntermediateDirectories: true)
+
+        for sourceURL in sqliteFiles {
+            let destinationURL = workingRoot.appendingPathComponent(sourceURL.lastPathComponent)
+            try? FileManager.default.removeItem(at: destinationURL)
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        }
+
+        let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)
+
+        Task.detached {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)  // 2 seconds
+            try? FileManager.default.removeItem(at: workingRoot)
+        }
+
+        guard FileManager.default.fileExists(atPath: archiveURL.path)
+        else { throw DataError.failedCreateZip }
+
+        return archiveURL
+    }
+
     struct ExportConfig {
         let includeItems: Bool
         let includeLocations: Bool
         let includeLabels: Bool
+        let includeHomes: Bool
+        let includeInsurancePolicies: Bool
+        let includePhotos: Bool
+        let includedHomeIDs: Set<UUID>?
+
+        init(
+            includeItems: Bool = true,
+            includeLocations: Bool = true,
+            includeLabels: Bool = true,
+            includeHomes: Bool = true,
+            includeInsurancePolicies: Bool = true,
+            includePhotos: Bool = true,
+            includedHomeIDs: Set<UUID>? = nil
+        ) {
+            self.includeItems = includeItems
+            self.includeLocations = includeLocations
+            self.includeLabels = includeLabels
+            self.includeHomes = includeHomes
+            self.includeInsurancePolicies = includeInsurancePolicies
+            self.includePhotos = includePhotos
+            self.includedHomeIDs = includedHomeIDs
+        }
     }
 
     struct ImportConfig {
+        let format: ImportFormat
         let includeItems: Bool
         let includeLocations: Bool
         let includeLabels: Bool
+        let includeHomes: Bool
+        let includeInsurancePolicies: Bool
+
+        init(
+            format: ImportFormat = .csvArchive,
+            includeItems: Bool = true,
+            includeLocations: Bool = true,
+            includeLabels: Bool = true,
+            includeHomes: Bool = true,
+            includeInsurancePolicies: Bool = true
+        ) {
+            self.format = format
+            self.includeItems = includeItems
+            self.includeLocations = includeLocations
+            self.includeLabels = includeLabels
+            self.includeHomes = includeHomes
+            self.includeInsurancePolicies = includeInsurancePolicies
+        }
+    }
+
+    enum ImportFormat: String, CaseIterable, Sendable {
+        case csvArchive
+        case movingBoxDatabase
     }
 
     enum ImportProgress: Sendable {
@@ -491,13 +662,32 @@ actor DataManager {
         let itemCount: Int
         let locationCount: Int
         let labelCount: Int
+        let homeCount: Int
+        let insurancePolicyCount: Int
+        let requiresRestart: Bool
+
+        init(
+            itemCount: Int,
+            locationCount: Int,
+            labelCount: Int,
+            homeCount: Int = 0,
+            insurancePolicyCount: Int = 0,
+            requiresRestart: Bool = false
+        ) {
+            self.itemCount = itemCount
+            self.locationCount = locationCount
+            self.labelCount = labelCount
+            self.homeCount = homeCount
+            self.insurancePolicyCount = insurancePolicyCount
+            self.requiresRestart = requiresRestart
+        }
     }
 
     /// Progress updates during export operations
     ///
     /// Progress phases and their typical duration:
     /// - **preparing**: Instant - setting up export directory
-    /// - **fetchingData**: 0-30% - Batched fetching from SwiftData (scales with item count)
+    /// - **fetchingData**: 0-30% - Fetching from sqlite-data (scales with item count)
     /// - **writingCSV**: 30-50% - Fast, typically <1s for most exports
     /// - **copyingPhotos**: 50-80% - Longest phase, scales with photo count and sizes
     /// - **creatingArchive**: 80-100% - Scales with total data size (compression)
@@ -520,6 +710,8 @@ actor DataManager {
         let itemCount: Int
         let locationCount: Int
         let labelCount: Int
+        let homeCount: Int
+        let insurancePolicyCount: Int
         let photoCount: Int
     }
 
@@ -541,666 +733,227 @@ actor DataManager {
         }
     }
 
-    private typealias ItemData = (
-        title: String,
-        desc: String,
-        locationName: String,
-        labelName: String,
-        homeName: String,
-        quantity: Int,
-        serial: String,
-        model: String,
-        make: String,
-        price: Decimal,
-        insured: Bool,
-        notes: String,
-        imageURL: URL?,
-        hasUsedAI: Bool
-    )
+    private struct ItemData: Sendable {
+        let id: UUID
+        let title: String
+        let quantityString: String
+        let quantityInt: Int
+        let desc: String
+        let serial: String
+        let model: String
+        let make: String
+        let price: Decimal
+        let insured: Bool
+        let assetId: String
+        let notes: String
+        let replacementCost: Decimal?
+        let depreciationRate: Double?
+        let hasUsedAI: Bool
+        let createdAt: Date
+        let purchaseDate: Date?
+        let warrantyExpirationDate: Date?
+        let purchaseLocation: String
+        let condition: String
+        let hasWarranty: Bool
+        let attachmentsJSON: String
+        let dimensionLength: String
+        let dimensionWidth: String
+        let dimensionHeight: String
+        let dimensionUnit: String
+        let weightValue: String
+        let weightUnit: String
+        let color: String
+        let storageRequirements: String
+        let isFragile: Bool
+        let movingPriority: Int
+        let roomDestination: String
+        let locationID: UUID?
+        let locationName: String
+        let homeID: UUID?
+        let homeName: String
+        let labelNames: [String]
+        let photoFilenames: [String]
+    }
 
-    private typealias LocationData = (
-        name: String,
-        desc: String,
-        imageURL: URL?
-    )
+    private struct LocationData: Sendable {
+        let id: UUID
+        let name: String
+        let desc: String
+        let homeID: UUID?
+        let homeName: String
+        let photoFilename: String?
+    }
 
-    private typealias LabelData = (
-        name: String,
-        desc: String,
-        color: UIColor?,
-        emoji: String
-    )
+    private struct HomeData: Sendable {
+        let id: UUID
+        let name: String
+        let address1: String
+        let address2: String
+        let city: String
+        let state: String
+        let zip: String
+        let country: String
+        let purchaseDate: Date
+        let purchasePrice: Decimal
+        let isPrimary: Bool
+        let colorName: String
+        let photoFilename: String?
+    }
+
+    private struct ExportPhotoFile: Sendable, Hashable {
+        let filename: String
+        let data: Data
+    }
+
+    private struct LabelData: Sendable {
+        let name: String
+        let desc: String
+        let color: UIColor?
+        let emoji: String
+    }
+
+    private struct InsurancePolicyData: Sendable {
+        let id: UUID
+        let providerName: String
+        let policyNumber: String
+        let deductibleAmount: Decimal
+        let dwellingCoverageAmount: Decimal
+        let personalPropertyCoverageAmount: Decimal
+        let lossOfUseCoverageAmount: Decimal
+        let liabilityCoverageAmount: Decimal
+        let medicalPaymentsCoverageAmount: Decimal
+        let startDate: Date
+        let endDate: Date
+        let homeIDs: [UUID]
+        let homeNames: [String]
+    }
 
     /// Preview import without actually creating objects - just validates and counts
     func previewImport(
         from zipURL: URL,
-        config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+        config: ImportConfig = ImportConfig()
     ) async throws -> ImportResult {
-        return try await Task.detached(priority: .userInitiated) {
-            let workingDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("preview-\(UUID().uuidString)", isDirectory: true)
-
-            defer {
-                try? FileManager.default.removeItem(at: workingDir)
-            }
-
-            let localZipURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(zipURL.lastPathComponent)
-            try? FileManager.default.removeItem(at: localZipURL)
-
+        try await Task.detached(priority: .userInitiated) {
             guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
                 throw DataError.fileAccessDenied
             }
 
-            try FileManager.default.copyItem(at: zipURL, to: localZipURL)
-            try FileManager.default.setAttributes(
-                [
-                    .posixPermissions: 0o644
-                ], ofItemAtPath: localZipURL.path)
+            switch config.format {
+            case .csvArchive:
+                let workingDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("preview-\(UUID().uuidString)", isDirectory: true)
+                defer {
+                    try? FileManager.default.removeItem(at: workingDir)
+                }
 
-            try FileManager.default.createDirectory(
-                at: workingDir,
-                withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o755]
-            )
+                do {
+                    try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
+                    try FileManager.default.unzipItem(at: zipURL, to: workingDir)
+                } catch {
+                    throw DataError.invalidZipFile
+                }
 
-            try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
+                let itemCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("inventory.csv"),
+                    enabled: config.includeItems
+                )
+                let locationCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("locations.csv"),
+                    enabled: config.includeLocations
+                )
+                let labelCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("labels.csv"),
+                    enabled: config.includeLabels
+                )
+                let homeCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("home-details.csv"),
+                    enabled: config.includeHomes
+                )
+                let insurancePolicyCount = try self.previewCSVCount(
+                    at: workingDir.appendingPathComponent("insurance-policy-details.csv"),
+                    enabled: config.includeInsurancePolicies
+                )
 
-            let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
-            let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
-            let labelsCSVURL = workingDir.appendingPathComponent("labels.csv")
+                return ImportResult(
+                    itemCount: itemCount,
+                    locationCount: locationCount,
+                    labelCount: labelCount,
+                    homeCount: homeCount,
+                    insurancePolicyCount: insurancePolicyCount,
+                    requiresRestart: false
+                )
 
-            var itemCount = 0
-            var locationCount = 0
-            var labelCount = 0
-
-            if config.includeItems, FileManager.default.fileExists(atPath: itemsCSVURL.path) {
-                let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
-                let rows = csvString.components(separatedBy: .newlines)
-                    .filter { !$0.isEmpty }
-                itemCount = max(0, rows.count - 1)
+            case .movingBoxDatabase:
+                do {
+                    try validateDatabaseBackupArchive(at: zipURL)
+                } catch {
+                    throw DataError.invalidDatabaseArchive
+                }
+                return ImportResult(
+                    itemCount: 0,
+                    locationCount: 0,
+                    labelCount: 0,
+                    homeCount: 0,
+                    insurancePolicyCount: 0,
+                    requiresRestart: true
+                )
             }
-
-            if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
-                let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
-                let rows = csvString.components(separatedBy: .newlines)
-                    .filter { !$0.isEmpty }
-                locationCount = max(0, rows.count - 1)
-            }
-
-            if config.includeLabels, FileManager.default.fileExists(atPath: labelsCSVURL.path) {
-                let csvString = try String(contentsOf: labelsCSVURL, encoding: .utf8)
-                let rows = csvString.components(separatedBy: .newlines)
-                    .filter { !$0.isEmpty }
-                labelCount = max(0, rows.count - 1)
-            }
-
-            return ImportResult(
-                itemCount: itemCount,
-                locationCount: locationCount,
-                labelCount: labelCount
-            )
         }.value
     }
 
     /// Imports inventory from a zip file and reports progress through an async sequence.
-    ///
-    /// Creates a local ModelContext from the container for optimal performance.
-    /// Per Paul Hudson: Creating context inside method is 10x faster than actor property access.
-    ///
-    /// - Parameters:
-    ///   - zipURL: URL to the zip file containing exported data
-    ///   - modelContainer: The app's ModelContainer (Sendable, safe to pass across actors)
-    ///   - config: What data types to import (items, locations, labels)
-    /// - Returns: AsyncStream yielding ImportProgress updates
     func importInventory(
         from zipURL: URL,
-        modelContainer: ModelContainer,
-        config: ImportConfig = ImportConfig(includeItems: true, includeLocations: true, includeLabels: true)
+        database: any DatabaseWriter,
+        config: ImportConfig = ImportConfig()
     ) -> AsyncStream<ImportProgress> {
         AsyncStream { continuation in
             Task.detached(priority: .userInitiated) {
                 do {
-                    let workingDir = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
-
-                    defer {
-                        try? FileManager.default.removeItem(at: workingDir)
-                    }
-
-                    let localZipURL = FileManager.default.temporaryDirectory
-                        .appendingPathComponent(zipURL.lastPathComponent)
-                    try? FileManager.default.removeItem(at: localZipURL)
-
-                    // Check if we can access the file
                     guard FileManager.default.isReadableFile(atPath: zipURL.path) else {
-                        continuation.yield(.error(SendableError(DataError.fileAccessDenied)))
+                        throw DataError.fileAccessDenied
+                    }
+
+                    switch config.format {
+                    case .movingBoxDatabase:
+                        do {
+                            try stagePendingDatabaseRestoreArchive(from: zipURL)
+                        } catch let error as PendingDatabaseRestoreError {
+                            switch error {
+                            case .invalidArchive, .missingDatabaseFile, .multipleDatabaseFiles,
+                                .unsupportedDatabaseExtension, .unexpectedArchiveContents:
+                                throw DataError.invalidDatabaseArchive
+                            default:
+                                throw DataError.restoreStagingFailed
+                            }
+                        } catch {
+                            throw DataError.restoreStagingFailed
+                        }
+                        continuation.yield(
+                            .completed(
+                                ImportResult(
+                                    itemCount: 0,
+                                    locationCount: 0,
+                                    labelCount: 0,
+                                    homeCount: 0,
+                                    insurancePolicyCount: 0,
+                                    requiresRestart: true
+                                )
+                            )
+                        )
                         continuation.finish()
-                        return
-                    }
 
-                    try FileManager.default.copyItem(at: zipURL, to: localZipURL)
-                    try FileManager.default.setAttributes(
-                        [
-                            .posixPermissions: 0o644
-                        ], ofItemAtPath: localZipURL.path)
-
-                    try FileManager.default.createDirectory(
-                        at: workingDir,
-                        withIntermediateDirectories: true,
-                        attributes: [.posixPermissions: 0o755]
-                    )
-
-                    try FileManager.default.unzipItem(at: localZipURL, to: workingDir)
-
-                    // Get CSV files
-                    let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
-                    let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
-                    let labelsCSVURL = workingDir.appendingPathComponent("labels.csv")
-                    let photosDir = workingDir.appendingPathComponent("photos")
-
-                    // Calculate total rows based on enabled types
-                    var totalRows = 0
-                    var processedRows = 0
-
-                    if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
-                        let locationCSV = try String(contentsOf: locationsCSVURL, encoding: .utf8)
-                        let locationCount =
-                            locationCSV.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-                            .count - 1
-                        totalRows += locationCount
-                    }
-
-                    if config.includeLabels, FileManager.default.fileExists(atPath: labelsCSVURL.path) {
-                        let labelsCSV = try String(contentsOf: labelsCSVURL, encoding: .utf8)
-                        let labelCount =
-                            labelsCSV.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-                            .count - 1
-                        totalRows += labelCount
-                    }
-
-                    if config.includeItems, FileManager.default.fileExists(atPath: itemsCSVURL.path) {
-                        let itemsCSV = try String(contentsOf: itemsCSVURL, encoding: .utf8)
-                        let itemCount =
-                            itemsCSV.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-                            .count - 1
-                        totalRows += itemCount
-                    }
-
-                    guard totalRows > 0 else {
-                        continuation.yield(.error(SendableError(DataError.invalidCSVFormat)))
+                    case .csvArchive:
+                        let result = try await self.importCSVArchive(
+                            from: zipURL,
+                            database: database,
+                            config: config
+                        ) { progress in
+                            continuation.yield(.progress(progress))
+                        }
+                        continuation.yield(.completed(result))
                         continuation.finish()
-                        throw DataError.invalidCSVFormat
                     }
-
-                    var locationCount = 0
-                    var labelCount = 0
-                    var itemCount = 0
-
-                    let batchSize = 50
-
-                    // Create local ModelContext for optimal performance (10x faster per Hudson)
-                    let modelContext = await MainActor.run { ModelContext(modelContainer) }
-
-                    // Pre-fetch existing locations and labels for caching (MainActor required for SwiftData)
-                    var locationCache: [String: InventoryLocation] = [:]
-                    var labelCache: [String: InventoryLabel] = [:]
-
-                    await MainActor.run {
-                        if config.includeLocations {
-                            if let existingLocations = try? modelContext.fetch(FetchDescriptor<InventoryLocation>()) {
-                                for location in existingLocations {
-                                    locationCache[location.name] = location
-                                }
-                            }
-                        }
-
-                        if config.includeLabels {
-                            if let existingLabels = try? modelContext.fetch(FetchDescriptor<InventoryLabel>()) {
-                                for label in existingLabels {
-                                    labelCache[label.name] = label
-                                }
-                            }
-                        }
-                    }
-
-                    // Collect image copy tasks for concurrent processing
-                    struct ImageCopyTask: Sendable {
-                        let sourceURL: URL
-                        let destinationFilename: String
-                        let targetName: String
-                        let isLocation: Bool
-                    }
-                    var imageCopyTasks: [ImageCopyTask] = []
-
-                    // Import locations if enabled
-                    if config.includeLocations, FileManager.default.fileExists(atPath: locationsCSVURL.path) {
-                        let csvString = try String(contentsOf: locationsCSVURL, encoding: .utf8)
-                        let rows = csvString.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-
-                        if rows.count > 1 {
-                            // Parse CSV off main thread
-                            struct LocationData {
-                                let name: String
-                                let desc: String
-                                let photoFilename: String
-                                let photoURL: URL?
-                            }
-
-                            var locationDataBatch: [LocationData] = []
-
-                            for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
-                                guard values.count >= 3 else { continue }
-
-                                var photoURL: URL? = nil
-                                if !values[2].isEmpty {
-                                    let sanitizedFilename = self.sanitizeFilename(values[2])
-                                    let url = photosDir.appendingPathComponent(sanitizedFilename)
-                                    if FileManager.default.fileExists(atPath: url.path) {
-                                        photoURL = url
-                                    }
-                                }
-
-                                locationDataBatch.append(
-                                    LocationData(
-                                        name: values[0],
-                                        desc: values[1],
-                                        photoFilename: values[2],
-                                        photoURL: photoURL
-                                    ))
-
-                                processedRows += 1
-
-                                // Process batch on MainActor when full
-                                if locationDataBatch.count >= batchSize {
-                                    let batchToProcess = locationDataBatch
-                                    locationDataBatch.removeAll()
-
-                                    for data in batchToProcess {
-                                        let location = await self.createAndConfigureLocation(
-                                            name: data.name, desc: data.desc)
-
-                                        if let photoURL = data.photoURL {
-                                            await MainActor.run {
-                                                imageCopyTasks.append(
-                                                    ImageCopyTask(
-                                                        sourceURL: photoURL,
-                                                        destinationFilename: data.photoFilename,
-                                                        targetName: location.name,
-                                                        isLocation: true
-                                                    ))
-                                            }
-                                        }
-
-                                        await MainActor.run {
-                                            locationCache[location.name] = location
-                                            modelContext.insert(location)
-                                            locationCount += 1
-                                        }
-                                    }
-
-                                    await MainActor.run {
-                                        try? modelContext.save()
-                                    }
-                                }
-
-                                if processedRows % 50 == 0 || processedRows == totalRows {
-                                    let progress = Double(processedRows) / Double(totalRows)
-                                    continuation.yield(.progress(progress))
-                                }
-                            }
-
-                            // Process remaining locations
-                            if !locationDataBatch.isEmpty {
-                                let batchToProcess = locationDataBatch
-
-                                await Task { @MainActor in
-                                    for data in batchToProcess {
-                                        let location = await self.createAndConfigureLocation(
-                                            name: data.name, desc: data.desc)
-
-                                        if let photoURL = data.photoURL {
-                                            imageCopyTasks.append(
-                                                ImageCopyTask(
-                                                    sourceURL: photoURL,
-                                                    destinationFilename: data.photoFilename,
-                                                    targetName: location.name,
-                                                    isLocation: true
-                                                ))
-                                        }
-
-                                        locationCache[location.name] = location
-                                        modelContext.insert(location)
-                                        locationCount += 1
-                                    }
-                                    try? modelContext.save()
-                                }
-                            }
-                        }
-                    }
-
-                    // Import labels if enabled
-                    if config.includeLabels, FileManager.default.fileExists(atPath: labelsCSVURL.path) {
-                        let csvString = try String(contentsOf: labelsCSVURL, encoding: .utf8)
-                        let rows = csvString.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-
-                        if rows.count > 1 {
-                            // Parse CSV off main thread
-                            struct LabelData {
-                                let name: String
-                                let desc: String
-                                let colorHex: String
-                                let emoji: String
-                            }
-
-                            var labelDataBatch: [LabelData] = []
-
-                            for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
-                                guard values.count >= 4 else { continue }
-
-                                labelDataBatch.append(
-                                    LabelData(
-                                        name: values[0],
-                                        desc: values[1],
-                                        colorHex: values[2],
-                                        emoji: values[3]
-                                    ))
-
-                                processedRows += 1
-
-                                // Process batch on MainActor when full
-                                if labelDataBatch.count >= batchSize {
-                                    let batchToProcess = labelDataBatch
-                                    labelDataBatch.removeAll()
-
-                                    await MainActor.run {
-                                        for data in batchToProcess {
-                                            let label = self.createAndConfigureLabel(
-                                                name: data.name,
-                                                desc: data.desc,
-                                                colorHex: data.colorHex,
-                                                emoji: data.emoji
-                                            )
-
-                                            labelCache[label.name] = label
-                                            modelContext.insert(label)
-                                            labelCount += 1
-                                        }
-                                        try? modelContext.save()
-                                    }
-                                }
-
-                                if processedRows % 50 == 0 || processedRows == totalRows {
-                                    let progress = Double(processedRows) / Double(totalRows)
-                                    continuation.yield(.progress(progress))
-                                }
-                            }
-
-                            // Process remaining labels
-                            if !labelDataBatch.isEmpty {
-                                let batchToProcess = labelDataBatch
-
-                                await MainActor.run {
-                                    for data in batchToProcess {
-                                        let label = self.createAndConfigureLabel(
-                                            name: data.name,
-                                            desc: data.desc,
-                                            colorHex: data.colorHex,
-                                            emoji: data.emoji
-                                        )
-
-                                        labelCache[label.name] = label
-                                        modelContext.insert(label)
-                                        labelCount += 1
-                                    }
-                                    try? modelContext.save()
-                                }
-                            }
-                        }
-                    }
-
-                    // Import items if enabled
-                    if config.includeItems, FileManager.default.fileExists(atPath: itemsCSVURL.path) {
-                        let csvString = try String(contentsOf: itemsCSVURL, encoding: .utf8)
-                        let rows = csvString.components(separatedBy: .newlines)
-                            .filter { !$0.isEmpty }
-
-                        if rows.count > 1 {
-                            // Parse CSV data off main thread
-                            struct ItemData {
-                                let title: String
-                                let desc: String
-                                let locationName: String
-                                let labelName: String
-                                let photoFilename: String
-                                let photoURL: URL?
-                            }
-
-                            var itemDataBatch: [ItemData] = []
-
-                            for row in rows.dropFirst() {
-                                let values = await self.parseCSVRow(row)
-                                guard values.count >= 13 else { continue }
-
-                                let photoFilename = values[11]
-                                var photoURL: URL? = nil
-                                if !photoFilename.isEmpty {
-                                    let sanitizedFilename = self.sanitizeFilename(photoFilename)
-                                    let url = photosDir.appendingPathComponent(sanitizedFilename)
-                                    if FileManager.default.fileExists(atPath: url.path) {
-                                        photoURL = url
-                                    }
-                                }
-
-                                itemDataBatch.append(
-                                    ItemData(
-                                        title: values[0],
-                                        desc: values[1],
-                                        locationName: values[2],
-                                        labelName: values[3],
-                                        photoFilename: photoFilename,
-                                        photoURL: photoURL
-                                    ))
-
-                                processedRows += 1
-
-                                // Process batch on MainActor when full
-                                if itemDataBatch.count >= batchSize {
-                                    let batchToProcess = itemDataBatch
-                                    itemDataBatch.removeAll()
-
-                                    await MainActor.run {
-                                        for data in batchToProcess {
-                                            let item = self.createAndConfigureItem(title: data.title, desc: data.desc)
-
-                                            if config.includeLocations && !data.locationName.isEmpty {
-                                                if let cachedLocation = locationCache[data.locationName] {
-                                                    item.location = cachedLocation
-                                                } else {
-                                                    let location = self.createAndConfigureLocation(
-                                                        name: data.locationName, desc: "")
-                                                    modelContext.insert(location)
-                                                    locationCache[data.locationName] = location
-                                                    item.location = location
-                                                }
-                                            }
-
-                                            if config.includeLabels && !data.labelName.isEmpty {
-                                                // Support comma-separated label names
-                                                let labelNames = data.labelName.split(separator: ",").map {
-                                                    $0.trimmingCharacters(in: .whitespaces)
-                                                }
-                                                for labelName in labelNames.prefix(5) {
-                                                    if let cachedLabel = labelCache[labelName] {
-                                                        if !item.labels.contains(where: { $0.id == cachedLabel.id }) {
-                                                            item.labels.append(cachedLabel)
-                                                        }
-                                                    } else {
-                                                        let label = self.createAndConfigureLabel(
-                                                            name: labelName, desc: "", colorHex: "", emoji: "")
-                                                        modelContext.insert(label)
-                                                        labelCache[labelName] = label
-                                                        item.labels.append(label)
-                                                    }
-                                                }
-                                            }
-
-                                            if let photoURL = data.photoURL {
-                                                imageCopyTasks.append(
-                                                    ImageCopyTask(
-                                                        sourceURL: photoURL,
-                                                        destinationFilename: data.photoFilename,
-                                                        targetName: item.title,
-                                                        isLocation: false
-                                                    ))
-                                            }
-
-                                            modelContext.insert(item)
-                                            itemCount += 1
-                                        }
-                                        try? modelContext.save()
-                                    }
-                                }
-
-                                if processedRows % 50 == 0 || processedRows == totalRows {
-                                    let progress = Double(processedRows) / Double(totalRows)
-                                    continuation.yield(.progress(progress))
-                                }
-                            }
-
-                            // Process remaining items
-                            if !itemDataBatch.isEmpty {
-                                let batchToProcess = itemDataBatch
-
-                                await MainActor.run {
-                                    for data in batchToProcess {
-                                        let item = self.createAndConfigureItem(title: data.title, desc: data.desc)
-
-                                        if config.includeLocations && !data.locationName.isEmpty {
-                                            if let cachedLocation = locationCache[data.locationName] {
-                                                item.location = cachedLocation
-                                            } else {
-                                                let location = self.createAndConfigureLocation(
-                                                    name: data.locationName, desc: "")
-                                                modelContext.insert(location)
-                                                locationCache[data.locationName] = location
-                                                item.location = location
-                                            }
-                                        }
-
-                                        if config.includeLabels && !data.labelName.isEmpty {
-                                            // Support comma-separated label names
-                                            let labelNames = data.labelName.split(separator: ",").map {
-                                                $0.trimmingCharacters(in: .whitespaces)
-                                            }
-                                            for labelName in labelNames.prefix(5) {
-                                                if let cachedLabel = labelCache[labelName] {
-                                                    if !item.labels.contains(where: { $0.id == cachedLabel.id }) {
-                                                        item.labels.append(cachedLabel)
-                                                    }
-                                                } else {
-                                                    let label = self.createAndConfigureLabel(
-                                                        name: labelName, desc: "", colorHex: "", emoji: "")
-                                                    modelContext.insert(label)
-                                                    labelCache[labelName] = label
-                                                    item.labels.append(label)
-                                                }
-                                            }
-                                        }
-
-                                        if let photoURL = data.photoURL {
-                                            imageCopyTasks.append(
-                                                ImageCopyTask(
-                                                    sourceURL: photoURL,
-                                                    destinationFilename: data.photoFilename,
-                                                    targetName: item.title,
-                                                    isLocation: false
-                                                ))
-                                        }
-
-                                        modelContext.insert(item)
-                                        itemCount += 1
-                                    }
-                                    try? modelContext.save()
-                                }
-                            }
-                        }
-                    }
-
-                    // Copy images sequentially in small batches to avoid memory issues with large imports
-                    if !imageCopyTasks.isEmpty {
-                        print("📸 Copying \(imageCopyTasks.count) images...")
-
-                        let imageBatchSize = 20
-                        for batchStart in stride(from: 0, to: imageCopyTasks.count, by: imageBatchSize) {
-                            let batchEnd = min(batchStart + imageBatchSize, imageCopyTasks.count)
-                            let batch = Array(imageCopyTasks[batchStart..<batchEnd])
-
-                            let copyResults = try await withThrowingTaskGroup(of: (Int, URL?, URL?).self) { group in
-                                for (index, task) in batch.enumerated() {
-                                    group.addTask {
-                                        do {
-                                            let copiedURL = try self.copyImageToDocuments(
-                                                task.sourceURL, filename: task.destinationFilename)
-                                            return (batchStart + index, task.sourceURL, copiedURL)
-                                        } catch {
-                                            return (batchStart + index, task.sourceURL, nil)
-                                        }
-                                    }
-                                }
-
-                                var results: [(Int, URL?, URL?)] = []
-                                for try await result in group {
-                                    results.append(result)
-                                }
-                                return results
-                            }
-
-                            // Update image URLs on objects (MainActor required for model updates)
-                            await MainActor.run {
-                                for (originalIndex, _, copiedURL) in copyResults {
-                                    guard let copiedURL = copiedURL else { continue }
-
-                                    let task = imageCopyTasks[originalIndex]
-                                    let targetName = task.targetName
-
-                                    if task.isLocation {
-                                        var descriptor = FetchDescriptor<InventoryLocation>()
-                                        descriptor.predicate = #Predicate { $0.name == targetName }
-                                        if let location = try? modelContext.fetch(descriptor).first {
-                                            location.imageURL = copiedURL
-                                        }
-                                    } else {
-                                        var descriptor = FetchDescriptor<InventoryItem>()
-                                        descriptor.predicate = #Predicate { $0.title == targetName }
-                                        if let item = try? modelContext.fetch(descriptor).first {
-                                            item.imageURL = copiedURL
-                                        }
-                                    }
-                                }
-
-                                // Save image URL updates for this batch
-                                try? modelContext.save()
-                            }
-                        }
-                    }
-
-                    continuation.yield(
-                        .completed(
-                            ImportResult(
-                                itemCount: itemCount,
-                                locationCount: locationCount,
-                                labelCount: labelCount
-                            )))
-                    continuation.finish()
-
                 } catch {
                     continuation.yield(.error(SendableError(error)))
                     continuation.finish()
@@ -1209,288 +962,1133 @@ actor DataManager {
         }
     }
 
+    private enum PhotoImportTarget: Sendable {
+        case item(UUID)
+        case location(UUID)
+        case home(UUID)
+    }
+
+    private struct ImageImportTask: Sendable {
+        let sourceURL: URL
+        let target: PhotoImportTarget
+        let sortOrder: Int
+    }
+
+    private struct ItemImportEntry: Sendable {
+        let item: SQLiteInventoryItem
+        let labelIDs: [UUID]
+        let photoURLs: [URL]
+    }
+
+    private struct GeneratedLabelEntry: Sendable {
+        let id: UUID
+        let householdID: UUID?
+        let name: String
+    }
+
+    private struct PolicyImportEntry: Sendable {
+        let policy: SQLiteInsurancePolicy
+        let homeIDs: [UUID]
+    }
+
+    private func importCSVArchive(
+        from zipURL: URL,
+        database: any DatabaseWriter,
+        config: ImportConfig,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> ImportResult {
+        let workingDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("import-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: workingDir)
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: workingDir, withIntermediateDirectories: true)
+            try FileManager.default.unzipItem(at: zipURL, to: workingDir)
+        } catch {
+            throw DataError.invalidZipFile
+        }
+
+        let itemsCSVURL = workingDir.appendingPathComponent("inventory.csv")
+        let locationsCSVURL = workingDir.appendingPathComponent("locations.csv")
+        let labelsCSVURL = workingDir.appendingPathComponent("labels.csv")
+        let homesCSVURL = workingDir.appendingPathComponent("home-details.csv")
+        let insurancePoliciesCSVURL = workingDir.appendingPathComponent("insurance-policy-details.csv")
+        let photosDir = workingDir.appendingPathComponent("photos")
+
+        let itemRows = try readCSVRowsIfExists(at: itemsCSVURL)
+        let locationRows = try readCSVRowsIfExists(at: locationsCSVURL)
+        let labelRows = try readCSVRowsIfExists(at: labelsCSVURL)
+        let homeRows = try readCSVRowsIfExists(at: homesCSVURL)
+        let insuranceRows = try readCSVRowsIfExists(at: insurancePoliciesCSVURL)
+
+        var totalRows = 0
+        if config.includeHomes { totalRows += max(0, homeRows.count - 1) }
+        if config.includeLocations { totalRows += max(0, locationRows.count - 1) }
+        if config.includeLabels { totalRows += max(0, labelRows.count - 1) }
+        if config.includeItems { totalRows += max(0, itemRows.count - 1) }
+        if config.includeInsurancePolicies { totalRows += max(0, insuranceRows.count - 1) }
+        guard totalRows > 0 else { throw DataError.invalidCSVFormat }
+
+        var processedRows = 0
+        func updateProgress() {
+            let current = min(max(Double(processedRows) / Double(totalRows), 0), 1)
+            progress(current)
+        }
+
+        var locationCount = 0
+        var labelCount = 0
+        var itemCount = 0
+        var homeCount = 0
+        var insurancePolicyCount = 0
+
+        let householdID = try await database.read { db in
+            try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
+        }
+
+        let existingHomes = try await database.read { db in
+            try SQLiteHome.fetchAll(db)
+        }
+        var homeCacheBySourceID: [String: UUID] = Dictionary(
+            uniqueKeysWithValues: existingHomes.map { ($0.id.uuidString.lowercased(), $0.id) }
+        )
+        var homeCacheByName: [String: UUID] = [:]
+        for home in existingHomes where !home.name.isEmpty {
+            homeCacheByName[home.name.lowercased()] = home.id
+        }
+
+        let existingLocations = try await database.read { db in
+            try SQLiteInventoryLocation.fetchAll(db)
+        }
+        var locationCacheBySourceID: [String: UUID] = Dictionary(
+            uniqueKeysWithValues: existingLocations.map { ($0.id.uuidString.lowercased(), $0.id) }
+        )
+        var locationCacheByName: [String: UUID] = [:]
+        var locationHomeCache: [UUID: UUID] = [:]
+        for location in existingLocations where !location.name.isEmpty {
+            locationCacheByName[location.name.lowercased()] = location.id
+            if let homeID = location.homeID {
+                locationHomeCache[location.id] = homeID
+            }
+        }
+
+        let existingLabels = try await database.read { db in
+            try SQLiteInventoryLabel.fetchAll(db)
+        }
+        var labelCache: [String: UUID] = [:]
+        for label in existingLabels where !label.name.isEmpty {
+            labelCache[label.name.lowercased()] = label.id
+        }
+
+        var imageImportTasks: [ImageImportTask] = []
+
+        func normalize(_ value: String) -> String {
+            value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+
+        func value(
+            for keys: [String],
+            values: [String],
+            index: [String: Int]
+        ) -> String {
+            for key in keys {
+                if let headerIndex = index[key], headerIndex < values.count {
+                    return values[headerIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+            return ""
+        }
+
+        func splitList(_ value: String) -> [String] {
+            value
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+
+        func resolveHomeID(homeIDString: String, homeName: String) -> UUID? {
+            let normalizedID = normalize(homeIDString)
+            if !normalizedID.isEmpty, let cached = homeCacheBySourceID[normalizedID] {
+                return cached
+            }
+            let normalizedName = normalize(homeName)
+            if !normalizedName.isEmpty, let cached = homeCacheByName[normalizedName] {
+                return cached
+            }
+            return nil
+        }
+
+        if config.includeHomes, homeRows.count > 1 {
+            let headers = homeRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var homesToInsert: [(sourceID: String, home: SQLiteHome, photoURL: URL?)] = []
+            homesToInsert.reserveCapacity(homeRows.count - 1)
+
+            for row in homeRows.dropFirst() {
+                let sourceHomeID = normalize(value(for: ["homeid"], values: row, index: index))
+                let name = value(for: ["name"], values: row, index: index)
+                let homeID = UUID()
+                let photoFilename = value(for: ["photofilename"], values: row, index: index)
+                var photoURL: URL?
+                if !photoFilename.isEmpty {
+                    let candidate = photosDir.appendingPathComponent(self.sanitizeFilename(photoFilename))
+                    if FileManager.default.fileExists(atPath: candidate.path) {
+                        photoURL = candidate
+                    }
+                }
+
+                homesToInsert.append(
+                    (
+                        sourceID: sourceHomeID,
+                        home: SQLiteHome(
+                            id: homeID,
+                            name: name,
+                            address1: value(for: ["address1"], values: row, index: index),
+                            address2: value(for: ["address2"], values: row, index: index),
+                            city: value(for: ["city"], values: row, index: index),
+                            state: value(for: ["state"], values: row, index: index),
+                            zip: value(for: ["zip"], values: row, index: index),
+                            country: value(for: ["country"], values: row, index: index),
+                            purchaseDate: self.parseCSVDate(value(for: ["purchasedate"], values: row, index: index))
+                                ?? Date(),
+                            purchasePrice: self.parseDecimal(value(for: ["purchaseprice"], values: row, index: index))
+                                ?? 0,
+                            isPrimary: self.parseBool(value(for: ["isprimary"], values: row, index: index)),
+                            colorName: value(for: ["colorname"], values: row, index: index).isEmpty
+                                ? "green" : value(for: ["colorname"], values: row, index: index),
+                            householdID: householdID,
+                            isPrivate: false
+                        ),
+                        photoURL: photoURL
+                    )
+                )
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for entry in homesToInsert {
+                    try SQLiteHome.insert { entry.home }.execute(db)
+                }
+            }
+
+            for entry in homesToInsert {
+                if !entry.sourceID.isEmpty {
+                    homeCacheBySourceID[entry.sourceID] = entry.home.id
+                }
+                if !entry.home.name.isEmpty {
+                    homeCacheByName[entry.home.name.lowercased()] = entry.home.id
+                }
+                if let photoURL = entry.photoURL {
+                    imageImportTasks.append(
+                        ImageImportTask(
+                            sourceURL: photoURL,
+                            target: .home(entry.home.id),
+                            sortOrder: 0
+                        )
+                    )
+                }
+                homeCount += 1
+            }
+        }
+
+        if config.includeLocations, locationRows.count > 1 {
+            let headers = locationRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var locationsToInsert: [(sourceID: String, location: SQLiteInventoryLocation, photoURL: URL?)] = []
+            locationsToInsert.reserveCapacity(locationRows.count - 1)
+
+            for row in locationRows.dropFirst() {
+                let sourceLocationID = normalize(value(for: ["locationid"], values: row, index: index))
+                let locationID = UUID()
+                let name = value(for: ["name"], values: row, index: index)
+                let homeID = resolveHomeID(
+                    homeIDString: value(for: ["homeid"], values: row, index: index),
+                    homeName: value(for: ["home"], values: row, index: index)
+                )
+                let photoFilename = value(for: ["photofilename"], values: row, index: index)
+                var photoURL: URL?
+                if !photoFilename.isEmpty {
+                    let candidate = photosDir.appendingPathComponent(self.sanitizeFilename(photoFilename))
+                    if FileManager.default.fileExists(atPath: candidate.path) {
+                        photoURL = candidate
+                    }
+                }
+
+                let location = SQLiteInventoryLocation(
+                    id: locationID,
+                    name: name,
+                    desc: value(for: ["description", "desc"], values: row, index: index),
+                    sfSymbolName: nil,
+                    homeID: homeID
+                )
+                locationsToInsert.append((sourceID: sourceLocationID, location: location, photoURL: photoURL))
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for entry in locationsToInsert {
+                    try SQLiteInventoryLocation.insert { entry.location }.execute(db)
+                }
+            }
+
+            for entry in locationsToInsert {
+                if !entry.sourceID.isEmpty {
+                    locationCacheBySourceID[entry.sourceID] = entry.location.id
+                }
+                if !entry.location.name.isEmpty {
+                    locationCacheByName[entry.location.name.lowercased()] = entry.location.id
+                }
+                if let homeID = entry.location.homeID {
+                    locationHomeCache[entry.location.id] = homeID
+                }
+                if let photoURL = entry.photoURL {
+                    imageImportTasks.append(
+                        ImageImportTask(
+                            sourceURL: photoURL,
+                            target: .location(entry.location.id),
+                            sortOrder: 0
+                        )
+                    )
+                }
+                locationCount += 1
+            }
+        }
+
+        if config.includeLabels, labelRows.count > 1 {
+            let headers = labelRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var labelsToInsert: [SQLiteInventoryLabel] = []
+            labelsToInsert.reserveCapacity(labelRows.count - 1)
+            for row in labelRows.dropFirst() {
+                let name = value(for: ["name"], values: row, index: index)
+                let label = SQLiteInventoryLabel(
+                    id: UUID(),
+                    householdID: householdID,
+                    name: name,
+                    desc: value(for: ["description", "desc"], values: row, index: index),
+                    color: Self.parseHexColor(value(for: ["colorhex"], values: row, index: index)),
+                    emoji: value(for: ["emoji"], values: row, index: index)
+                )
+                labelsToInsert.append(label)
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for label in labelsToInsert {
+                    try SQLiteInventoryLabel.insert { label }.execute(db)
+                }
+            }
+
+            for label in labelsToInsert {
+                if !label.name.isEmpty {
+                    labelCache[label.name.lowercased()] = label.id
+                }
+                labelCount += 1
+            }
+        }
+
+        if config.includeItems, itemRows.count > 1 {
+            let headers = itemRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            let photoColumnIndices: [Int] = headers.enumerated().compactMap { headerIndex, value in
+                let normalized = value.lowercased().replacingOccurrences(of: " ", with: "")
+                return normalized.hasPrefix("photofilename") ? headerIndex : nil
+            }
+
+            var itemsToInsert: [ItemImportEntry] = []
+            var generatedLocations: [SQLiteInventoryLocation] = []
+            var generatedLabels: [GeneratedLabelEntry] = []
+
+            for row in itemRows.dropFirst() {
+                let title = value(for: ["title"], values: row, index: index)
+                guard !title.isEmpty else { continue }
+
+                let locationName = value(for: ["location"], values: row, index: index)
+                let sourceLocationID = normalize(value(for: ["locationid"], values: row, index: index))
+                var resolvedHomeID = resolveHomeID(
+                    homeIDString: value(for: ["homeid"], values: row, index: index),
+                    homeName: value(for: ["home"], values: row, index: index)
+                )
+
+                var locationID: UUID?
+                if config.includeLocations {
+                    if !sourceLocationID.isEmpty, let cached = locationCacheBySourceID[sourceLocationID] {
+                        locationID = cached
+                    } else if let cached = locationCacheByName[locationName.lowercased()] {
+                        locationID = cached
+                    } else if !locationName.isEmpty {
+                        let generatedLocationID = UUID()
+                        let generatedLocation = SQLiteInventoryLocation(
+                            id: generatedLocationID,
+                            name: locationName,
+                            desc: "",
+                            sfSymbolName: nil,
+                            homeID: resolvedHomeID
+                        )
+                        generatedLocations.append(generatedLocation)
+                        locationCacheByName[locationName.lowercased()] = generatedLocationID
+                        locationID = generatedLocationID
+                    }
+                }
+
+                if resolvedHomeID == nil, let locationID, let homeID = locationHomeCache[locationID] {
+                    resolvedHomeID = homeID
+                }
+
+                let labelNames = splitList(value(for: ["label"], values: row, index: index))
+                var labelIDs: [UUID] = []
+                if config.includeLabels {
+                    var seenLabelIDs: Set<UUID> = []
+                    for labelName in labelNames.prefix(5) {
+                        let key = labelName.lowercased()
+                        let labelID: UUID
+                        if let cached = labelCache[key] {
+                            labelID = cached
+                        } else {
+                            let generatedLabelID = UUID()
+                            labelCache[key] = generatedLabelID
+                            generatedLabels.append(
+                                GeneratedLabelEntry(
+                                    id: generatedLabelID,
+                                    householdID: householdID,
+                                    name: labelName
+                                )
+                            )
+                            labelID = generatedLabelID
+                        }
+                        if !seenLabelIDs.contains(labelID) {
+                            seenLabelIDs.insert(labelID)
+                            labelIDs.append(labelID)
+                        }
+                    }
+                }
+
+                let photoURLs: [URL] = photoColumnIndices.compactMap { photoIndex in
+                    guard photoIndex < row.count else { return nil }
+                    let filename = row[photoIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !filename.isEmpty else { return nil }
+                    let candidate = photosDir.appendingPathComponent(self.sanitizeFilename(filename))
+                    return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+                }
+
+                var parsedItem = SQLiteInventoryItem(
+                    id: UUID(),
+                    title: title,
+                    quantityString: value(for: ["quantitystring"], values: row, index: index).isEmpty
+                        ? "1" : value(for: ["quantitystring"], values: row, index: index),
+                    quantityInt: self.parseInt(value(for: ["quantityint"], values: row, index: index)) ?? 1,
+                    desc: value(for: ["description", "desc"], values: row, index: index),
+                    serial: value(for: ["serial"], values: row, index: index),
+                    model: value(for: ["model"], values: row, index: index),
+                    make: value(for: ["make"], values: row, index: index),
+                    price: self.parseDecimal(value(for: ["price"], values: row, index: index)) ?? 0,
+                    insured: self.parseBool(value(for: ["insured"], values: row, index: index)),
+                    assetId: value(for: ["assetid"], values: row, index: index),
+                    notes: value(for: ["notes"], values: row, index: index),
+                    replacementCost: self.parseDecimal(value(for: ["replacementcost"], values: row, index: index)),
+                    depreciationRate: self.parseDouble(value(for: ["depreciationrate"], values: row, index: index)),
+                    hasUsedAI: self.parseBool(value(for: ["hasusedai"], values: row, index: index)),
+                    createdAt: self.parseCSVDate(value(for: ["createdat"], values: row, index: index)) ?? Date(),
+                    purchaseDate: self.parseCSVDate(value(for: ["purchasedate"], values: row, index: index)),
+                    warrantyExpirationDate: self.parseCSVDate(
+                        value(for: ["warrantyexpirationdate"], values: row, index: index)
+                    ),
+                    purchaseLocation: value(for: ["purchaselocation"], values: row, index: index),
+                    condition: value(for: ["condition"], values: row, index: index),
+                    hasWarranty: self.parseBool(value(for: ["haswarranty"], values: row, index: index)),
+                    attachments: self.decodeAttachments(
+                        from: value(for: ["attachmentsjson"], values: row, index: index)),
+                    dimensionLength: value(for: ["dimensionlength"], values: row, index: index),
+                    dimensionWidth: value(for: ["dimensionwidth"], values: row, index: index),
+                    dimensionHeight: value(for: ["dimensionheight"], values: row, index: index),
+                    dimensionUnit: value(for: ["dimensionunit"], values: row, index: index).isEmpty
+                        ? "inches" : value(for: ["dimensionunit"], values: row, index: index),
+                    weightValue: value(for: ["weightvalue"], values: row, index: index),
+                    weightUnit: value(for: ["weightunit"], values: row, index: index).isEmpty
+                        ? "lbs" : value(for: ["weightunit"], values: row, index: index),
+                    color: value(for: ["color"], values: row, index: index),
+                    storageRequirements: value(for: ["storagerequirements"], values: row, index: index),
+                    isFragile: self.parseBool(value(for: ["isfragile"], values: row, index: index)),
+                    movingPriority: self.parseInt(value(for: ["movingpriority"], values: row, index: index)) ?? 3,
+                    roomDestination: value(for: ["roomdestination"], values: row, index: index),
+                    locationID: locationID,
+                    homeID: resolvedHomeID
+                )
+                parsedItem.labelIDs = labelIDs
+
+                itemsToInsert.append(
+                    ItemImportEntry(
+                        item: parsedItem,
+                        labelIDs: labelIDs,
+                        photoURLs: photoURLs
+                    )
+                )
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for location in generatedLocations {
+                    try SQLiteInventoryLocation.insert { location }.execute(db)
+                }
+                for generatedLabel in generatedLabels {
+                    try SQLiteInventoryLabel.insert {
+                        SQLiteInventoryLabel(
+                            id: generatedLabel.id,
+                            householdID: generatedLabel.householdID,
+                            name: generatedLabel.name,
+                            desc: "",
+                            color: nil,
+                            emoji: ""
+                        )
+                    }.execute(db)
+                }
+                for entry in itemsToInsert {
+                    try SQLiteInventoryItem.insert { entry.item }.execute(db)
+                    for labelID in entry.labelIDs {
+                        try SQLiteInventoryItemLabel.insert {
+                            SQLiteInventoryItemLabel(
+                                id: UUID(),
+                                inventoryItemID: entry.item.id,
+                                inventoryLabelID: labelID
+                            )
+                        }.execute(db)
+                    }
+                }
+            }
+
+            for location in generatedLocations {
+                if let homeID = location.homeID {
+                    locationHomeCache[location.id] = homeID
+                }
+                locationCount += 1
+            }
+            labelCount += generatedLabels.count
+            itemCount += itemsToInsert.count
+
+            for entry in itemsToInsert {
+                for (sortOrder, photoURL) in entry.photoURLs.enumerated() {
+                    imageImportTasks.append(
+                        ImageImportTask(
+                            sourceURL: photoURL,
+                            target: .item(entry.item.id),
+                            sortOrder: sortOrder
+                        )
+                    )
+                }
+            }
+        }
+
+        if config.includeInsurancePolicies, insuranceRows.count > 1 {
+            let headers = insuranceRows[0]
+            let index = Dictionary(
+                uniqueKeysWithValues: headers.enumerated().map {
+                    ($1.lowercased().replacingOccurrences(of: " ", with: ""), $0)
+                }
+            )
+
+            var policiesToInsert: [PolicyImportEntry] = []
+            policiesToInsert.reserveCapacity(insuranceRows.count - 1)
+            for row in insuranceRows.dropFirst() {
+                let policyID = UUID()
+                let homeIDTokens = splitList(value(for: ["homeids"], values: row, index: index))
+                let homeNameTokens = splitList(value(for: ["homes"], values: row, index: index))
+
+                var resolvedHomeIDs: [UUID] = []
+                for token in homeIDTokens {
+                    if let cached = homeCacheBySourceID[token.lowercased()] {
+                        resolvedHomeIDs.append(cached)
+                    }
+                }
+                if resolvedHomeIDs.isEmpty {
+                    for homeName in homeNameTokens {
+                        if let cached = homeCacheByName[homeName.lowercased()] {
+                            resolvedHomeIDs.append(cached)
+                        }
+                    }
+                }
+
+                let policy = SQLiteInsurancePolicy(
+                    id: policyID,
+                    providerName: value(for: ["providername"], values: row, index: index),
+                    policyNumber: value(for: ["policynumber"], values: row, index: index),
+                    deductibleAmount: self.parseDecimal(
+                        value(for: ["deductibleamount"], values: row, index: index)
+                    ) ?? 0,
+                    dwellingCoverageAmount: self.parseDecimal(
+                        value(for: ["dwellingcoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    personalPropertyCoverageAmount: self.parseDecimal(
+                        value(for: ["personalpropertycoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    lossOfUseCoverageAmount: self.parseDecimal(
+                        value(for: ["lossofusecoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    liabilityCoverageAmount: self.parseDecimal(
+                        value(for: ["liabilitycoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    medicalPaymentsCoverageAmount: self.parseDecimal(
+                        value(for: ["medicalpaymentscoverageamount"], values: row, index: index)
+                    ) ?? 0,
+                    startDate: self.parseCSVDate(value(for: ["startdate"], values: row, index: index))
+                        ?? Date(),
+                    endDate: self.parseCSVDate(value(for: ["enddate"], values: row, index: index))
+                        ?? Date()
+                )
+                policiesToInsert.append(
+                    PolicyImportEntry(
+                        policy: policy,
+                        homeIDs: Array(Set(resolvedHomeIDs))
+                    )
+                )
+
+                processedRows += 1
+                if processedRows % 25 == 0 || processedRows == totalRows { updateProgress() }
+            }
+
+            try await database.write { db in
+                for entry in policiesToInsert {
+                    try SQLiteInsurancePolicy.insert { entry.policy }.execute(db)
+                    for homeID in entry.homeIDs {
+                        try SQLiteHomeInsurancePolicy.insert {
+                            SQLiteHomeInsurancePolicy(
+                                id: UUID(),
+                                homeID: homeID,
+                                insurancePolicyID: entry.policy.id
+                            )
+                        }.execute(db)
+                    }
+                }
+            }
+
+            insurancePolicyCount += policiesToInsert.count
+        }
+
+        if !imageImportTasks.isEmpty {
+            let imageBatchSize = 20
+            for batchStart in stride(from: 0, to: imageImportTasks.count, by: imageBatchSize) {
+                let batchEnd = min(batchStart + imageBatchSize, imageImportTasks.count)
+                let batch = Array(imageImportTasks[batchStart..<batchEnd])
+
+                let payloads: [(ImageImportTask, Data)] = try await withThrowingTaskGroup(
+                    of: (ImageImportTask, Data).self
+                ) { group in
+                    for task in batch {
+                        group.addTask {
+                            try self.validateImageFile(task.sourceURL)
+                            let data = try Data(contentsOf: task.sourceURL)
+                            return (task, data)
+                        }
+                    }
+
+                    var allPayloads: [(ImageImportTask, Data)] = []
+                    for try await payload in group {
+                        allPayloads.append(payload)
+                    }
+                    return allPayloads
+                }
+
+                try await database.write { db in
+                    for (task, imageData) in payloads {
+                        switch task.target {
+                        case .item(let itemID):
+                            try SQLiteInventoryItemPhoto.insert {
+                                SQLiteInventoryItemPhoto(
+                                    id: UUID(),
+                                    inventoryItemID: itemID,
+                                    data: imageData,
+                                    sortOrder: task.sortOrder
+                                )
+                            }.execute(db)
+                        case .location(let locationID):
+                            try SQLiteInventoryLocationPhoto.insert {
+                                SQLiteInventoryLocationPhoto(
+                                    id: UUID(),
+                                    inventoryLocationID: locationID,
+                                    data: imageData,
+                                    sortOrder: task.sortOrder
+                                )
+                            }.execute(db)
+                        case .home(let homeID):
+                            try SQLiteHomePhoto.insert {
+                                SQLiteHomePhoto(
+                                    id: UUID(),
+                                    homeID: homeID,
+                                    data: imageData,
+                                    sortOrder: task.sortOrder
+                                )
+                            }.execute(db)
+                        }
+                    }
+                }
+            }
+        }
+
+        progress(1.0)
+        return ImportResult(
+            itemCount: itemCount,
+            locationCount: locationCount,
+            labelCount: labelCount,
+            homeCount: homeCount,
+            insurancePolicyCount: insurancePolicyCount,
+            requiresRestart: false
+        )
+    }
+
     // MARK: - Helper Functions
 
-    /// Creates and configures a new InventoryLocation with the given properties.
-    /// - Note: Must be called on MainActor since it creates SwiftData model objects
-    @MainActor
-    private func createAndConfigureLocation(name: String, desc: String) -> InventoryLocation {
-        let location = InventoryLocation(name: name)
-        location.desc = desc
-        return location
-    }
+    /// Parses a hex color string into a UIColor.
+    /// Supports formats: "#RRGGBB" or "RRGGBB"
+    private static func parseHexColor(_ colorHex: String) -> UIColor? {
+        guard !colorHex.isEmpty else { return nil }
 
-    /// Creates and configures a new InventoryItem with the given properties.
-    /// - Note: Must be called on MainActor since it creates SwiftData model objects
-    @MainActor
-    private func createAndConfigureItem(title: String, desc: String) -> InventoryItem {
-        let item = InventoryItem()
-        item.title = title
-        item.desc = desc
-        return item
-    }
-
-    /// Creates and configures a new InventoryLabel with the given properties.
-    /// Converts hex color string to UIColor if provided.
-    /// - Note: Must be called on MainActor since it creates SwiftData model objects
-    @MainActor
-    private func createAndConfigureLabel(name: String, desc: String, colorHex: String, emoji: String) -> InventoryLabel
-    {
-        let label = InventoryLabel(name: name, desc: desc)
-        label.emoji = emoji
-
-        // Convert hex to UIColor if provided
-        if !colorHex.isEmpty {
-            var hexString = colorHex.trimmingCharacters(in: .whitespacesAndNewlines)
-            if hexString.hasPrefix("#") {
-                hexString.remove(at: hexString.startIndex)
-            }
-
-            if hexString.count == 6 {
-                var rgbValue: UInt64 = 0
-                Scanner(string: hexString).scanHexInt64(&rgbValue)
-
-                label.color = UIColor(
-                    red: CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0,
-                    green: CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0,
-                    blue: CGFloat(rgbValue & 0x0000FF) / 255.0,
-                    alpha: 1.0
-                )
-            }
+        var hexString = colorHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hexString.hasPrefix("#") {
+            hexString.remove(at: hexString.startIndex)
         }
 
-        return label
+        guard hexString.count == 6 else { return nil }
+
+        var rgbValue: UInt64 = 0
+        Scanner(string: hexString).scanHexInt64(&rgbValue)
+
+        return UIColor(
+            red: CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0,
+            green: CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0,
+            blue: CGFloat(rgbValue & 0x0000FF) / 255.0,
+            alpha: 1.0
+        )
     }
 
-    /// Finds an existing location by name or creates a new one if not found.
-    /// - Note: Must be called on MainActor since it accesses SwiftData model context
-    @MainActor
-    private func findOrCreateLocation(name: String, modelContext: ModelContext) -> InventoryLocation {
-        if let existing = try? modelContext.fetch(
-            FetchDescriptor<InventoryLocation>(
-                predicate: #Predicate<InventoryLocation> { $0.name == name }
-            )
-        ).first {
-            return existing
-        } else {
-            let location = InventoryLocation(name: name)
-            modelContext.insert(location)
-            return location
+    private nonisolated func previewCSVCount(at url: URL, enabled: Bool) throws -> Int {
+        guard enabled, FileManager.default.fileExists(atPath: url.path) else { return 0 }
+        let rows = try readCSVRowsIfExists(at: url)
+        return max(0, rows.count - 1)
+    }
+
+    private nonisolated func readCSVRowsIfExists(at url: URL) throws -> [[String]] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        let csvString = try String(contentsOf: url, encoding: .utf8)
+        let lines =
+            csvString
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return lines.map(parseCSVRow)
+    }
+
+    private nonisolated func parseBool(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "true" || normalized == "1" || normalized == "yes"
+    }
+
+    private nonisolated func parseInt(_ value: String) -> Int? {
+        Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private nonisolated func parseDouble(_ value: String) -> Double? {
+        Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private nonisolated func parseDecimal(_ value: String) -> Decimal? {
+        Decimal(string: value.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private nonisolated func parseCSVDate(_ value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let date = Self.csvISO8601DateFormatter.date(from: trimmed) {
+            return date
         }
+        return Self.csvISO8601FallbackDateFormatter.date(from: trimmed)
     }
 
-    /// Finds an existing label by name or creates a new one if not found.
-    /// - Note: Must be called on MainActor since it accesses SwiftData model context
-    @MainActor
-    private func findOrCreateLabel(name: String, modelContext: ModelContext) -> InventoryLabel {
-        if let existing = try? modelContext.fetch(
-            FetchDescriptor<InventoryLabel>(
-                predicate: #Predicate<InventoryLabel> { $0.name == name }
-            )
-        ).first {
-            return existing
-        } else {
-            let label = InventoryLabel(name: name)
-            modelContext.insert(label)
-            return label
-        }
+    private nonisolated func decodeAttachments(from json: String) -> [AttachmentInfo] {
+        let trimmed = json.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        guard let data = trimmed.data(using: .utf8) else { return [] }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode([AttachmentInfo].self, from: data)) ?? []
     }
 
-    // MARK: - Batch Fetching Helpers
+    // MARK: - Fetch Helpers (Export)
 
-    /// Fetches inventory items in batches to minimize memory pressure.
+    /// Fetches all inventory items with their related location/label/home names for export.
     ///
-    /// Uses dynamic batch sizing based on device memory (50-300 items per batch).
-    /// Explicitly saves after each batch per Paul Hudson's recommendations (p. 217).
+    /// Since sqlite-data models are value-type structs, no MainActor isolation is needed.
+    /// Related data (location name, label name, home name) is fetched via separate queries
+    /// using foreign key IDs.
     ///
-    /// **Performance Note:** Must be called with locally-created ModelContext, not actor property.
-    /// Creating context locally is ~10x faster than accessing actor properties.
-    ///
-    /// - Parameter modelContext: Local context created by caller for optimal performance
-    /// - Returns: Tuple of (item data array, photo URLs array)
+    /// - Parameter database: DatabaseReader to read from
+    /// - Returns: Tuple of (item data array, photo blobs to embed in ZIP)
     /// - Throws: DataError if fetch fails
-    ///
-    /// - Note: All SwiftData operations run on MainActor per Apple's requirements.
-    ///         Item property access must happen on MainActor where model objects are bound.
-    private func fetchItemsInBatches(
-        modelContext: ModelContext
-    ) async throws -> (items: [ItemData], photoURLs: [URL]) {
-        var allItemData: [ItemData] = []
-        var allPhotoURLs: [URL] = []
-        var offset = 0
+    private func fetchItemsForExport(
+        database: any DatabaseReader,
+        includedHomeIDs: Set<UUID>?,
+        includePhotos: Bool
+    ) async throws -> (items: [ItemData], photos: [ExportPhotoFile]) {
+        try await database.read { db in
+            let items =
+                try SQLiteInventoryItem
+                .order(by: \.title)
+                .fetchAll(db)
 
-        while true {
-            // SwiftData fetch must run on MainActor
-            let batch = try await MainActor.run {
-                var descriptor = FetchDescriptor<InventoryItem>(
-                    sortBy: [SortDescriptor(\.title)]
-                )
-                descriptor.fetchLimit = Self.batchSize
-                descriptor.fetchOffset = offset
+            // Pre-fetch all related data into lookup dictionaries
+            let allLocations = try SQLiteInventoryLocation.fetchAll(db)
+            let locationsByID = Dictionary(uniqueKeysWithValues: allLocations.map { ($0.id, $0) })
 
-                return try modelContext.fetch(descriptor)
-            }
+            let allHomes = try SQLiteHome.fetchAll(db)
+            let homesByID = Dictionary(uniqueKeysWithValues: allHomes.map { ($0.id, $0) })
 
-            if batch.isEmpty {
-                break
-            }
+            let allItemLabels = try SQLiteInventoryItemLabel.fetchAll(db)
+            let itemLabelsByItemID = Dictionary(grouping: allItemLabels, by: \.inventoryItemID)
 
-            // Process batch data on MainActor since we're accessing model properties
-            let batchResult = await MainActor.run {
-                var batchData: [ItemData] = []
-                var batchPhotoURLs: [URL] = []
+            let allLabels = try SQLiteInventoryLabel.fetchAll(db)
+            let labelsByID = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
 
-                for item in batch {
-                    let itemData = (
+            let allItemPhotos =
+                try SQLiteInventoryItemPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let itemPhotosByItemID = Dictionary(
+                grouping: allItemPhotos,
+                by: \.inventoryItemID
+            )
+
+            var allItemData: [ItemData] = []
+            var allPhotoFiles: [ExportPhotoFile] = []
+
+            for item in items {
+                let location = item.locationID.flatMap { locationsByID[$0] }
+                let resolvedHomeID = item.homeID ?? location?.homeID
+
+                if let includedHomeIDs,
+                    let resolvedHomeID,
+                    !includedHomeIDs.contains(resolvedHomeID)
+                {
+                    continue
+                }
+
+                let locationName = location?.name ?? ""
+                let homeName = resolvedHomeID.flatMap { homesByID[$0]?.name } ?? ""
+
+                let labelNames: [String] = (itemLabelsByItemID[item.id] ?? [])
+                    .compactMap { labelsByID[$0.inventoryLabelID]?.name }
+                    .sorted()
+
+                var photoFilenames: [String] = []
+                if let photos = itemPhotosByItemID[item.id] {
+                    for photo in photos {
+                        let ext = self.photoFileExtension(for: photo.data)
+                        let filename =
+                            "item-\(item.id.uuidString.lowercased())-\(photo.id.uuidString.lowercased()).\(ext)"
+                        photoFilenames.append(filename)
+                        if includePhotos {
+                            allPhotoFiles.append(.init(filename: filename, data: photo.data))
+                        }
+                    }
+                }
+
+                allItemData.append(
+                    ItemData(
+                        id: item.id,
                         title: item.title,
+                        quantityString: item.quantityString,
+                        quantityInt: item.quantityInt,
                         desc: item.desc,
-                        locationName: item.location?.name ?? "",
-                        labelName: item.labels.first?.name ?? "",
-                        homeName: item.location?.home?.name ?? "",
-                        quantity: item.quantityInt,
                         serial: item.serial,
                         model: item.model,
                         make: item.make,
                         price: item.price,
                         insured: item.insured,
+                        assetId: item.assetId,
                         notes: item.notes,
-                        imageURL: item.imageURL,
-                        hasUsedAI: item.hasUsedAI
-                    )
-                    batchData.append(itemData)
+                        replacementCost: item.replacementCost,
+                        depreciationRate: item.depreciationRate,
+                        hasUsedAI: item.hasUsedAI,
+                        createdAt: item.createdAt,
+                        purchaseDate: item.purchaseDate,
+                        warrantyExpirationDate: item.warrantyExpirationDate,
+                        purchaseLocation: item.purchaseLocation,
+                        condition: item.condition,
+                        hasWarranty: item.hasWarranty,
+                        attachmentsJSON: Self.encodeAttachmentsAsJSONString(item.attachments),
+                        dimensionLength: item.dimensionLength,
+                        dimensionWidth: item.dimensionWidth,
+                        dimensionHeight: item.dimensionHeight,
+                        dimensionUnit: item.dimensionUnit,
+                        weightValue: item.weightValue,
+                        weightUnit: item.weightUnit,
+                        color: item.color,
+                        storageRequirements: item.storageRequirements,
+                        isFragile: item.isFragile,
+                        movingPriority: item.movingPriority,
+                        roomDestination: item.roomDestination,
+                        locationID: item.locationID,
+                        locationName: locationName,
+                        homeID: resolvedHomeID,
+                        homeName: homeName,
+                        labelNames: labelNames,
+                        photoFilenames: photoFilenames
+                    ))
+            }
 
-                    if let imageURL = item.imageURL {
-                        batchPhotoURLs.append(imageURL)
+            return (allItemData, allPhotoFiles)
+        }
+    }
+
+    /// Fetches all location data for export.
+    ///
+    /// - Parameter database: DatabaseReader to read from
+    /// - Returns: Tuple of (location data array, photo blobs to embed in ZIP)
+    /// - Throws: DataError if fetch fails
+    private func fetchLocationsForExport(
+        database: any DatabaseReader,
+        includedHomeIDs: Set<UUID>?,
+        includePhotos: Bool
+    ) async throws -> (locations: [LocationData], photos: [ExportPhotoFile]) {
+        try await database.read { db in
+            let locations =
+                try SQLiteInventoryLocation
+                .order(by: \.name)
+                .fetchAll(db)
+
+            let allHomes = try SQLiteHome.fetchAll(db)
+            let homesByID = Dictionary(uniqueKeysWithValues: allHomes.map { ($0.id, $0) })
+
+            let allLocationPhotos =
+                try SQLiteInventoryLocationPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+            let primaryLocationPhotoByLocationID = Dictionary(
+                grouping: allLocationPhotos,
+                by: \.inventoryLocationID
+            ).compactMapValues(\.first)
+
+            var allLocationData: [LocationData] = []
+            var allPhotoFiles: [ExportPhotoFile] = []
+
+            for location in locations {
+                if let includedHomeIDs,
+                    let homeID = location.homeID,
+                    !includedHomeIDs.contains(homeID)
+                {
+                    continue
+                }
+
+                var photoFilename: String?
+                if let primaryPhoto = primaryLocationPhotoByLocationID[location.id] {
+                    let ext = self.photoFileExtension(for: primaryPhoto.data)
+                    let fileName =
+                        "location-\(location.id.uuidString.lowercased())-\(primaryPhoto.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = fileName
+                    if includePhotos {
+                        allPhotoFiles.append(.init(filename: fileName, data: primaryPhoto.data))
                     }
                 }
 
-                return (batchData, batchPhotoURLs)
-            }
-
-            allItemData.append(contentsOf: batchResult.0)
-            allPhotoURLs.append(contentsOf: batchResult.1)
-
-            offset += batch.count
-
-            if batch.count < Self.batchSize {
-                break
-            }
-        }
-
-        return (allItemData, allPhotoURLs)
-    }
-
-    /// Fetches location data in batches with the same performance optimizations as items.
-    ///
-    /// - Parameter modelContext: Local context created by caller
-    /// - Returns: Tuple of (location data array, photo URLs array)
-    /// - Throws: DataError if fetch fails
-    private func fetchLocationsInBatches(
-        modelContext: ModelContext
-    ) async throws -> (locations: [LocationData], photoURLs: [URL]) {
-        var allLocationData: [LocationData] = []
-        var allPhotoURLs: [URL] = []
-        var offset = 0
-
-        while true {
-            // SwiftData fetch must run on MainActor
-            let batch = try await MainActor.run {
-                var descriptor = FetchDescriptor<InventoryLocation>(
-                    sortBy: [SortDescriptor(\.name)]
-                )
-                descriptor.fetchLimit = Self.batchSize
-                descriptor.fetchOffset = offset
-
-                return try modelContext.fetch(descriptor)
-            }
-
-            if batch.isEmpty {
-                break
-            }
-
-            // Process batch data on MainActor since we're accessing model properties
-            let batchResult = await MainActor.run {
-                var batchData: [LocationData] = []
-                var batchPhotoURLs: [URL] = []
-
-                for location in batch {
-                    let locationData = (
+                allLocationData.append(
+                    LocationData(
+                        id: location.id,
                         name: location.name,
                         desc: location.desc,
-                        imageURL: location.imageURL
-                    )
-                    batchData.append(locationData)
+                        homeID: location.homeID,
+                        homeName: location.homeID.flatMap { homesByID[$0]?.name } ?? "",
+                        photoFilename: photoFilename
+                    ))
+            }
 
-                    if let imageURL = location.imageURL {
-                        batchPhotoURLs.append(imageURL)
+            return (allLocationData, allPhotoFiles)
+        }
+    }
+
+    /// Fetches all label data for export.
+    ///
+    /// - Parameter database: DatabaseReader to read from
+    /// - Returns: Array of label data
+    /// - Throws: DataError if fetch fails
+    private func fetchLabelsForExport(
+        database: any DatabaseReader
+    ) async throws -> [LabelData] {
+        try await database.read { db in
+            let labels =
+                try SQLiteInventoryLabel
+                .order(by: \.name)
+                .fetchAll(db)
+
+            return labels.map { label in
+                LabelData(
+                    name: label.name,
+                    desc: label.desc,
+                    color: label.color,
+                    emoji: label.emoji
+                )
+            }
+        }
+    }
+
+    private func fetchHomesForExport(
+        database: any DatabaseReader,
+        includedHomeIDs: Set<UUID>?,
+        includePhotos: Bool
+    ) async throws -> (homes: [HomeData], photos: [ExportPhotoFile]) {
+        try await database.read { db in
+            let homes = try SQLiteHome.order(by: \.name).fetchAll(db)
+            let homePhotos = try SQLiteHomePhoto.order(by: \.sortOrder).fetchAll(db)
+            let primaryHomePhotoByHomeID = Dictionary(
+                grouping: homePhotos,
+                by: \.homeID
+            ).compactMapValues(\.first)
+
+            var exportHomes: [HomeData] = []
+            var exportPhotos: [ExportPhotoFile] = []
+
+            for home in homes {
+                if let includedHomeIDs, !includedHomeIDs.contains(home.id) {
+                    continue
+                }
+
+                var photoFilename: String?
+                if let photo = primaryHomePhotoByHomeID[home.id] {
+                    let ext = self.photoFileExtension(for: photo.data)
+                    let filename =
+                        "home-\(home.id.uuidString.lowercased())-\(photo.id.uuidString.lowercased()).\(ext)"
+                    photoFilename = filename
+                    if includePhotos {
+                        exportPhotos.append(.init(filename: filename, data: photo.data))
                     }
                 }
 
-                return (batchData, batchPhotoURLs)
+                exportHomes.append(
+                    HomeData(
+                        id: home.id,
+                        name: home.name,
+                        address1: home.address1,
+                        address2: home.address2,
+                        city: home.city,
+                        state: home.state,
+                        zip: home.zip,
+                        country: home.country,
+                        purchaseDate: home.purchaseDate,
+                        purchasePrice: home.purchasePrice,
+                        isPrimary: home.isPrimary,
+                        colorName: home.colorName,
+                        photoFilename: photoFilename
+                    ))
             }
 
-            allLocationData.append(contentsOf: batchResult.0)
-            allPhotoURLs.append(contentsOf: batchResult.1)
-
-            offset += batch.count
-
-            if batch.count < Self.batchSize {
-                break
-            }
+            return (exportHomes, exportPhotos)
         }
-
-        return (allLocationData, allPhotoURLs)
     }
 
-    /// Fetches label data in batches with color and emoji information.
-    ///
-    /// - Parameter modelContext: Local context created by caller
-    /// - Returns: Array of label data
-    /// - Throws: DataError if fetch fails
-    private func fetchLabelsInBatches(
-        modelContext: ModelContext
-    ) async throws -> [LabelData] {
-        var allLabelData: [LabelData] = []
-        var offset = 0
+    private func fetchInsurancePoliciesForExport(
+        database: any DatabaseReader,
+        includedHomeIDs: Set<UUID>?
+    ) async throws -> [InsurancePolicyData] {
+        try await database.read { db in
+            let policies = try SQLiteInsurancePolicy.order(by: \.providerName).fetchAll(db)
+            let policyLinks = try SQLiteHomeInsurancePolicy.fetchAll(db)
+            let policyLinksByPolicyID = Dictionary(grouping: policyLinks, by: \.insurancePolicyID)
+            let homes = try SQLiteHome.fetchAll(db)
+            let homesByID = Dictionary(uniqueKeysWithValues: homes.map { ($0.id, $0) })
 
-        while true {
-            // SwiftData fetch must run on MainActor
-            let batch = try await MainActor.run {
-                var descriptor = FetchDescriptor<InventoryLabel>(
-                    sortBy: [SortDescriptor(\.name)]
-                )
-                descriptor.fetchLimit = Self.batchSize
-                descriptor.fetchOffset = offset
-
-                return try modelContext.fetch(descriptor)
-            }
-
-            if batch.isEmpty {
-                break
-            }
-
-            // Process batch data on MainActor since we're accessing model properties
-            let batchData = await MainActor.run {
-                batch.map { label in
-                    (
-                        name: label.name,
-                        desc: label.desc,
-                        color: label.color,
-                        emoji: label.emoji
-                    )
+            return policies.compactMap { policy in
+                let homeIDs = (policyLinksByPolicyID[policy.id] ?? []).map(\.homeID)
+                let includePolicy: Bool
+                if let includedHomeIDs {
+                    if homeIDs.isEmpty {
+                        includePolicy = true
+                    } else {
+                        includePolicy = homeIDs.contains { includedHomeIDs.contains($0) }
+                    }
+                } else {
+                    includePolicy = true
                 }
-            }
 
-            allLabelData.append(contentsOf: batchData)
+                guard includePolicy else { return nil }
 
-            offset += batch.count
-
-            if batch.count < Self.batchSize {
-                break
+                let homeNames = homeIDs.compactMap { homesByID[$0]?.displayName }.sorted()
+                return InsurancePolicyData(
+                    id: policy.id,
+                    providerName: policy.providerName,
+                    policyNumber: policy.policyNumber,
+                    deductibleAmount: policy.deductibleAmount,
+                    dwellingCoverageAmount: policy.dwellingCoverageAmount,
+                    personalPropertyCoverageAmount: policy.personalPropertyCoverageAmount,
+                    lossOfUseCoverageAmount: policy.lossOfUseCoverageAmount,
+                    liabilityCoverageAmount: policy.liabilityCoverageAmount,
+                    medicalPaymentsCoverageAmount: policy.medicalPaymentsCoverageAmount,
+                    startDate: policy.startDate,
+                    endDate: policy.endDate,
+                    homeIDs: homeIDs,
+                    homeNames: homeNames
+                )
             }
         }
+    }
 
-        return allLabelData
+    private func fetchSQLiteFilesForExport(
+        database: any DatabaseReader
+    ) async throws -> [URL] {
+        try await database.read { db in
+            let rows = try Row.fetchAll(db, sql: "PRAGMA database_list")
+
+            guard
+                let mainRow = rows.first(where: { row in
+                    let name: String = row["name"]
+                    return name == "main"
+                })
+            else {
+                throw DataError.containerNotConfigured
+            }
+
+            let mainDatabasePath: String? = mainRow["file"]
+            guard
+                let mainDatabasePath,
+                !mainDatabasePath.isEmpty,
+                mainDatabasePath != ":memory:",
+                FileManager.default.fileExists(atPath: mainDatabasePath)
+            else {
+                throw DataError.containerNotConfigured
+            }
+
+            var fileURLs: [URL] = [URL(fileURLWithPath: mainDatabasePath)]
+            for suffix in ["-wal", "-shm"] {
+                let sidecarPath = mainDatabasePath + suffix
+                if FileManager.default.fileExists(atPath: sidecarPath) {
+                    fileURLs.append(URL(fileURLWithPath: sidecarPath))
+                }
+            }
+            return fileURLs
+        }
     }
 
     // MARK: - Archive Creation Helpers
@@ -1571,37 +2169,34 @@ actor DataManager {
         }.value
     }
 
-    // MARK: - Photo Copy Helpers
+    // MARK: - Photo Export Helpers
 
-    private nonisolated func copyPhotosToDirectoryWithProgress(
-        photoURLs: [URL],
+    private nonisolated func writePhotosToDirectoryWithProgress(
+        photos: [ExportPhotoFile],
         destinationDir: URL,
         progressHandler: @escaping (Int, Int) -> Void
     ) async throws {
-        let maxConcurrentCopies = 5
-        var failedCopies: [(url: URL, error: Error)] = []
+        let maxConcurrentWrites = 5
+        var failedWrites: [(filename: String, error: Error)] = []
         var activeTasks = 0
         var completedCount = 0
-        let totalCount = photoURLs.count
+        let totalCount = photos.count
 
-        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
-            var pendingURLs = photoURLs[...]
+        try await withThrowingTaskGroup(of: (String, Error?).self) { group in
+            var pendingPhotos = photos[...]
 
-            while !pendingURLs.isEmpty || activeTasks > 0 {
-                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
+            while !pendingPhotos.isEmpty || activeTasks > 0 {
+                while activeTasks < maxConcurrentWrites, let photo = pendingPhotos.popFirst() {
                     activeTasks += 1
                     group.addTask {
                         do {
-                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
-                                return (photoURL, DataError.photoNotFound)
-                            }
-
-                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
+                            let fileName = self.sanitizeFilename(photo.filename)
+                            let dest = destinationDir.appendingPathComponent(fileName)
                             try? FileManager.default.removeItem(at: dest)
-                            try FileManager.default.copyItem(at: photoURL, to: dest)
-                            return (photoURL, nil)
+                            try photo.data.write(to: dest, options: .atomic)
+                            return (fileName, nil)
                         } catch {
-                            return (photoURL, error)
+                            return (photo.filename, error)
                         }
                     }
                 }
@@ -1611,7 +2206,7 @@ actor DataManager {
                     completedCount += 1
 
                     if let error = result.1 {
-                        failedCopies.append((url: result.0, error: error))
+                        failedWrites.append((filename: result.0, error: error))
                     }
 
                     // Report progress based on total photo count for optimal UX
@@ -1623,94 +2218,31 @@ actor DataManager {
             }
         }
 
-        if !failedCopies.isEmpty {
-            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
+        if !failedWrites.isEmpty {
+            let failureRate = Double(failedWrites.count) / Double(max(photos.count, 1))
             TelemetryManager.shared.trackPhotoCopyFailures(
-                failureCount: failedCopies.count,
-                totalPhotos: photoURLs.count,
+                failureCount: failedWrites.count,
+                totalPhotos: photos.count,
                 failureRate: failureRate
             )
 
-            // Log summary instead of individual failures to reduce console noise
-            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
-            let otherErrors = failedCopies.count - notFoundCount
-
-            print("⚠️ Photo copy completed with \(failedCopies.count) failures:")
-            if notFoundCount > 0 {
-                print("   • \(notFoundCount) photos not found (may have been deleted)")
-            }
-            if otherErrors > 0 {
-                print("   • \(otherErrors) photos failed due to other errors")
-                // Log first few other errors for debugging
-                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
-                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
-                }
+            print("Photo export completed with \(failedWrites.count) write failures:")
+            for failure in failedWrites.prefix(3) {
+                print("   - \(failure.filename): \(failure.error.localizedDescription)")
             }
             print("   Export will continue without missing photos.")
         }
     }
 
-    private nonisolated func copyPhotosToDirectory(photoURLs: [URL], destinationDir: URL) async throws {
-        let maxConcurrentCopies = 5
-        var failedCopies: [(url: URL, error: Error)] = []
-        var activeTasks = 0
-
-        try await withThrowingTaskGroup(of: (URL, Error?).self) { group in
-            var pendingURLs = photoURLs[...]
-
-            while !pendingURLs.isEmpty || activeTasks > 0 {
-                while activeTasks < maxConcurrentCopies, let photoURL = pendingURLs.popFirst() {
-                    activeTasks += 1
-                    group.addTask {
-                        do {
-                            guard FileManager.default.fileExists(atPath: photoURL.path) else {
-                                return (photoURL, DataError.photoNotFound)
-                            }
-
-                            let dest = destinationDir.appendingPathComponent(photoURL.lastPathComponent)
-                            try? FileManager.default.removeItem(at: dest)
-                            try FileManager.default.copyItem(at: photoURL, to: dest)
-                            return (photoURL, nil)
-                        } catch {
-                            return (photoURL, error)
-                        }
-                    }
-                }
-
-                if let result = try await group.next() {
-                    activeTasks -= 1
-                    if let error = result.1 {
-                        failedCopies.append((url: result.0, error: error))
-                    }
-                }
-            }
-        }
-
-        if !failedCopies.isEmpty {
-            let failureRate = Double(failedCopies.count) / Double(photoURLs.count)
-            TelemetryManager.shared.trackPhotoCopyFailures(
-                failureCount: failedCopies.count,
-                totalPhotos: photoURLs.count,
-                failureRate: failureRate
-            )
-
-            // Log summary instead of individual failures to reduce console noise
-            let notFoundCount = failedCopies.filter { ($0.error as? DataError) == .photoNotFound }.count
-            let otherErrors = failedCopies.count - notFoundCount
-
-            print("⚠️ Photo copy completed with \(failedCopies.count) failures:")
-            if notFoundCount > 0 {
-                print("   • \(notFoundCount) photos not found (may have been deleted)")
-            }
-            if otherErrors > 0 {
-                print("   • \(otherErrors) photos failed due to other errors")
-                // Log first few other errors for debugging
-                for failure in failedCopies.prefix(3) where (failure.error as? DataError) != .photoNotFound {
-                    print("     - \(failure.url.lastPathComponent): \(failure.error.localizedDescription)")
-                }
-            }
-            print("   Export will continue without missing photos.")
-        }
+    private nonisolated func writePhotosToDirectory(
+        photos: [ExportPhotoFile],
+        destinationDir: URL
+    ) async throws {
+        try await writePhotosToDirectoryWithProgress(
+            photos: photos,
+            destinationDir: destinationDir,
+            progressHandler: { _, _ in }
+        )
     }
 
     // MARK: - Security Helpers
@@ -1728,7 +2260,37 @@ actor DataManager {
         return sanitized.isEmpty ? "unknown" : sanitized
     }
 
-    // MARK: - Image Copy Helpers
+    private nonisolated func photoFileExtension(for data: Data) -> String {
+        let bytes = [UInt8](data.prefix(12))
+        guard !bytes.isEmpty else { return "jpg" }
+
+        // JPEG magic number.
+        if bytes.count >= 3, bytes[0] == 0xFF, bytes[1] == 0xD8, bytes[2] == 0xFF {
+            return "jpg"
+        }
+
+        // PNG magic number.
+        if bytes.count >= 8,
+            bytes[0] == 0x89, bytes[1] == 0x50, bytes[2] == 0x4E, bytes[3] == 0x47,
+            bytes[4] == 0x0D, bytes[5] == 0x0A, bytes[6] == 0x1A, bytes[7] == 0x0A
+        {
+            return "png"
+        }
+
+        // HEIF/HEIC signature lives in ISO BMFF ftyp box.
+        if bytes.count >= 12 {
+            let brandData = Data(bytes[8..<12])
+            if let brand = String(data: brandData, encoding: .ascii),
+                ["heic", "heix", "hevc", "heif", "mif1"].contains(brand)
+            {
+                return "heic"
+            }
+        }
+
+        return "jpg"
+    }
+
+    // MARK: - Image Import Helpers
     private nonisolated func validateImageFile(_ url: URL) throws {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         let fileSize = attributes[.size] as? Int64 ?? 0
@@ -1747,49 +2309,106 @@ actor DataManager {
         }
     }
 
-    private nonisolated func copyImageToDocuments(_ sourceURL: URL, filename: String) throws -> URL {
-        try validateImageFile(sourceURL)
-
-        let sanitizedFilename = sanitizeFilename(filename)
-        let destURL = try FileManager.default.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ).appendingPathComponent(sanitizedFilename)
-
-        try? FileManager.default.removeItem(at: destURL)
-        try FileManager.default.copyItem(at: sourceURL, to: destURL)
-        return destURL
-    }
-
     // MARK: - CSV Writing Helpers
     private func writeCSV(items: [ItemData], to url: URL) async throws {
+        let maxPhotoCount = max(1, items.map { $0.photoFilenames.count }.max() ?? 0)
+        let photoHeaders = (0..<maxPhotoCount).map { index in
+            index == 0 ? "PhotoFilename" : "PhotoFilename\(index + 1)"
+        }
+
         let csvLines: [String] = {
             var lines: [String] = []
-            let header = [
-                "Title", "Description", "Location", "Label", "Home", "Quantity", "Serial", "Model", "Make",
-                "Price", "Insured", "Notes", "PhotoFilename", "HasUsedAI",
-            ]
+            let header =
+                [
+                    "Title",
+                    "Description",
+                    "Location",
+                    "Label",
+                    "Home",
+                    "QuantityString",
+                    "QuantityInt",
+                    "Serial",
+                    "Model",
+                    "Make",
+                    "Price",
+                    "Insured",
+                    "AssetID",
+                    "Notes",
+                    "ReplacementCost",
+                    "DepreciationRate",
+                    "HasUsedAI",
+                    "CreatedAt",
+                    "PurchaseDate",
+                    "WarrantyExpirationDate",
+                    "PurchaseLocation",
+                    "Condition",
+                    "HasWarranty",
+                    "AttachmentsJSON",
+                    "DimensionLength",
+                    "DimensionWidth",
+                    "DimensionHeight",
+                    "DimensionUnit",
+                    "WeightValue",
+                    "WeightUnit",
+                    "Color",
+                    "StorageRequirements",
+                    "IsFragile",
+                    "MovingPriority",
+                    "RoomDestination",
+                    "ItemID",
+                    "LocationID",
+                    "HomeID",
+                ] + photoHeaders
             lines.append(header.joined(separator: ","))
 
             for item in items {
-                let row: [String] = [
+                var row: [String] = [
                     item.title,
                     item.desc,
                     item.locationName,
-                    item.labelName,
+                    item.labelNames.joined(separator: ","),
                     item.homeName,
-                    String(item.quantity),
+                    item.quantityString,
+                    String(item.quantityInt),
                     item.serial,
                     item.model,
                     item.make,
                     item.price.description,
                     item.insured ? "true" : "false",
+                    item.assetId,
                     item.notes,
-                    item.imageURL?.lastPathComponent ?? "",
+                    item.replacementCost?.description ?? "",
+                    item.depreciationRate.map { String($0) } ?? "",
                     item.hasUsedAI ? "true" : "false",
+                    Self.csvDateString(item.createdAt),
+                    Self.csvDateString(item.purchaseDate),
+                    Self.csvDateString(item.warrantyExpirationDate),
+                    item.purchaseLocation,
+                    item.condition,
+                    item.hasWarranty ? "true" : "false",
+                    item.attachmentsJSON,
+                    item.dimensionLength,
+                    item.dimensionWidth,
+                    item.dimensionHeight,
+                    item.dimensionUnit,
+                    item.weightValue,
+                    item.weightUnit,
+                    item.color,
+                    item.storageRequirements,
+                    item.isFragile ? "true" : "false",
+                    String(item.movingPriority),
+                    item.roomDestination,
+                    item.id.uuidString,
+                    item.locationID?.uuidString ?? "",
+                    item.homeID?.uuidString ?? "",
                 ]
+
+                row.append(
+                    contentsOf: (0..<maxPhotoCount).map { photoIndex in
+                        guard photoIndex < item.photoFilenames.count else { return "" }
+                        return item.photoFilenames[photoIndex]
+                    })
+
                 lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
             }
             return lines
@@ -1797,6 +2416,31 @@ actor DataManager {
 
         let csvString = csvLines.joined(separator: "\n")
         try csvString.data(using: .utf8)?.write(to: url)
+    }
+
+    private static func csvDateString(_ date: Date?) -> String {
+        guard let date else { return "" }
+        return csvISO8601DateFormatter.string(from: date)
+    }
+
+    private static let csvISO8601DateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let csvISO8601FallbackDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private nonisolated static func encodeAttachmentsAsJSONString(_ attachments: [AttachmentInfo]) -> String {
+        guard !attachments.isEmpty else { return "[]" }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(attachments) else { return "[]" }
+        return String(data: data, encoding: .utf8) ?? "[]"
     }
 
     private static func escapeForCSV(_ value: String) -> String {
@@ -1808,21 +2452,31 @@ actor DataManager {
         }
     }
 
-    private func parseCSVRow(_ row: String) async -> [String] {
+    private nonisolated func parseCSVRow(_ row: String) -> [String] {
         var values: [String] = []
         var currentValue = ""
         var insideQuotes = false
 
-        for char in row {
-            if char == "\"" {
+        var index = row.startIndex
+        while index < row.endIndex {
+            let character = row[index]
+            if character == "\"" {
+                let nextIndex = row.index(after: index)
+                if insideQuotes, nextIndex < row.endIndex, row[nextIndex] == "\"" {
+                    currentValue.append("\"")
+                    index = row.index(after: nextIndex)
+                    continue
+                }
                 insideQuotes.toggle()
-            } else if char == "," && !insideQuotes {
+            } else if character == "," && !insideQuotes {
                 values.append(currentValue)
                 currentValue = ""
             } else {
-                currentValue.append(char)
+                currentValue.append(character)
             }
+            index = row.index(after: index)
         }
+
         values.append(currentValue)
 
         return values.map { $0.trimmingCharacters(in: .whitespaces) }
@@ -1831,14 +2485,110 @@ actor DataManager {
     private func writeLocationsCSV(locations: [LocationData], to url: URL) async throws {
         let csvLines: [String] = {
             var lines: [String] = []
-            let header = ["Name", "Description", "PhotoFilename"]
+            let header = ["Name", "Description", "PhotoFilename", "Home", "HomeID", "LocationID"]
             lines.append(header.joined(separator: ","))
 
             for location in locations {
                 let row: [String] = [
                     location.name,
                     location.desc,
-                    location.imageURL?.lastPathComponent ?? "",
+                    location.photoFilename ?? "",
+                    location.homeName,
+                    location.homeID?.uuidString ?? "",
+                    location.id.uuidString,
+                ]
+                lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
+            }
+            return lines
+        }()
+
+        let csvString = csvLines.joined(separator: "\n")
+        try csvString.data(using: .utf8)?.write(to: url)
+    }
+
+    private func writeHomesCSV(homes: [HomeData], to url: URL) async throws {
+        let csvLines: [String] = {
+            var lines: [String] = []
+            let header = [
+                "HomeID",
+                "Name",
+                "Address1",
+                "Address2",
+                "City",
+                "State",
+                "Zip",
+                "Country",
+                "PurchaseDate",
+                "PurchasePrice",
+                "IsPrimary",
+                "ColorName",
+                "PhotoFilename",
+            ]
+            lines.append(header.joined(separator: ","))
+
+            for home in homes {
+                let row: [String] = [
+                    home.id.uuidString,
+                    home.name,
+                    home.address1,
+                    home.address2,
+                    home.city,
+                    home.state,
+                    home.zip,
+                    home.country,
+                    Self.csvDateString(home.purchaseDate),
+                    home.purchasePrice.description,
+                    home.isPrimary ? "true" : "false",
+                    home.colorName,
+                    home.photoFilename ?? "",
+                ]
+                lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
+            }
+            return lines
+        }()
+
+        let csvString = csvLines.joined(separator: "\n")
+        try csvString.data(using: .utf8)?.write(to: url)
+    }
+
+    private func writeInsurancePoliciesCSV(
+        policies: [InsurancePolicyData],
+        to url: URL
+    ) async throws {
+        let csvLines: [String] = {
+            var lines: [String] = []
+            let header = [
+                "PolicyID",
+                "ProviderName",
+                "PolicyNumber",
+                "DeductibleAmount",
+                "DwellingCoverageAmount",
+                "PersonalPropertyCoverageAmount",
+                "LossOfUseCoverageAmount",
+                "LiabilityCoverageAmount",
+                "MedicalPaymentsCoverageAmount",
+                "StartDate",
+                "EndDate",
+                "Homes",
+                "HomeIDs",
+            ]
+            lines.append(header.joined(separator: ","))
+
+            for policy in policies {
+                let row: [String] = [
+                    policy.id.uuidString,
+                    policy.providerName,
+                    policy.policyNumber,
+                    policy.deductibleAmount.description,
+                    policy.dwellingCoverageAmount.description,
+                    policy.personalPropertyCoverageAmount.description,
+                    policy.lossOfUseCoverageAmount.description,
+                    policy.liabilityCoverageAmount.description,
+                    policy.medicalPaymentsCoverageAmount.description,
+                    Self.csvDateString(policy.startDate),
+                    Self.csvDateString(policy.endDate),
+                    policy.homeNames.joined(separator: ","),
+                    policy.homeIDs.map(\.uuidString).joined(separator: ","),
                 ]
                 lines.append(row.map(Self.escapeForCSV).joined(separator: ","))
             }
@@ -1885,55 +2635,119 @@ actor DataManager {
         try csvString.data(using: .utf8)?.write(to: url)
     }
 
-    /// Exports specific InventoryItems (and their photos) along with all locations and labels into a zip file
-    func exportSpecificItems(items: [InventoryItem], modelContainer: ModelContainer, fileName: String? = nil)
+    /// Exports specific SQLiteInventoryItems (and their photos) along with all locations and labels into a zip file
+    func exportSpecificItems(items: [SQLiteInventoryItem], database: any DatabaseWriter, fileName: String? = nil)
         async throws -> URL
     {
-        // Create local ModelContext for optimal performance
-        let modelContext = await MainActor.run { ModelContext(modelContainer) }
         guard !items.isEmpty else { throw DataError.nothingToExport }
 
-        // Get all locations and labels using batched fetching for efficiency
-        // SwiftData operations run on MainActor
-        let locationResult = try await fetchLocationsInBatches(modelContext: modelContext)
-        let labelData = try await fetchLabelsInBatches(modelContext: modelContext)
+        // Get all locations and labels
+        let locationResult = try await fetchLocationsForExport(
+            database: database,
+            includedHomeIDs: nil,
+            includePhotos: true
+        )
+        let labelData = try await fetchLabelsForExport(database: database)
 
-        // Extract item data and collect photo URLs
-        // Item property access must be on MainActor
-        let (itemData, itemPhotoURLs) = await MainActor.run {
+        // Extract item data and collect photo blobs
+        // SQLiteInventoryItem is a value type — no MainActor needed
+        let (itemData, itemPhotos): ([ItemData], [ExportPhotoFile]) = try await database.read { db in
             var itemData: [ItemData] = []
-            var photoURLs: [URL] = []
+            var photoFiles: [ExportPhotoFile] = []
+            let itemIDSet = Set(items.map(\.id))
+            let allLocations = try SQLiteInventoryLocation.fetchAll(db)
+            let locationsByID = Dictionary(uniqueKeysWithValues: allLocations.map { ($0.id, $0) })
+
+            let allHomes = try SQLiteHome.fetchAll(db)
+            let homesByID = Dictionary(uniqueKeysWithValues: allHomes.map { ($0.id, $0) })
+
+            let allItemLabels = try SQLiteInventoryItemLabel.fetchAll(db)
+            let itemLabelsByItemID = Dictionary(grouping: allItemLabels, by: \.inventoryItemID)
+
+            let allLabels = try SQLiteInventoryLabel.fetchAll(db)
+            let labelsByID = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
+
+            let allItemPhotos =
+                try SQLiteInventoryItemPhoto
+                .order(by: \.sortOrder)
+                .fetchAll(db)
+                .filter { itemIDSet.contains($0.inventoryItemID) }
+            let itemPhotosByItemID = Dictionary(
+                grouping: allItemPhotos,
+                by: \.inventoryItemID
+            )
 
             for item in items {
-                let data: ItemData = (
-                    title: item.title,
-                    desc: item.desc,
-                    locationName: item.location?.name ?? "",
-                    labelName: item.labels.first?.name ?? "",
-                    homeName: item.location?.home?.name ?? "",
-                    quantity: item.quantityInt,
-                    serial: item.serial,
-                    model: item.model,
-                    make: item.make,
-                    price: item.price,
-                    insured: item.insured,
-                    notes: item.notes,
-                    imageURL: item.imageURL,
-                    hasUsedAI: item.hasUsedAI
-                )
-                itemData.append(data)
+                let location = item.locationID.flatMap { locationsByID[$0] }
+                let resolvedHomeID = item.homeID ?? location?.homeID
+                let locationName = location?.name ?? ""
+                let homeName = resolvedHomeID.flatMap { homesByID[$0]?.name } ?? ""
 
-                if let imageURL = item.imageURL {
-                    photoURLs.append(imageURL)
+                let labelNames: [String] = (itemLabelsByItemID[item.id] ?? [])
+                    .compactMap { labelsByID[$0.inventoryLabelID]?.name }
+                    .sorted()
+
+                var photoFilenames: [String] = []
+                if let photos = itemPhotosByItemID[item.id] {
+                    for photo in photos {
+                        let ext = self.photoFileExtension(for: photo.data)
+                        let filename =
+                            "item-\(item.id.uuidString.lowercased())-\(photo.id.uuidString.lowercased()).\(ext)"
+                        photoFilenames.append(filename)
+                        photoFiles.append(.init(filename: filename, data: photo.data))
+                    }
                 }
+
+                itemData.append(
+                    ItemData(
+                        id: item.id,
+                        title: item.title,
+                        quantityString: item.quantityString,
+                        quantityInt: item.quantityInt,
+                        desc: item.desc,
+                        serial: item.serial,
+                        model: item.model,
+                        make: item.make,
+                        price: item.price,
+                        insured: item.insured,
+                        assetId: item.assetId,
+                        notes: item.notes,
+                        replacementCost: item.replacementCost,
+                        depreciationRate: item.depreciationRate,
+                        hasUsedAI: item.hasUsedAI,
+                        createdAt: item.createdAt,
+                        purchaseDate: item.purchaseDate,
+                        warrantyExpirationDate: item.warrantyExpirationDate,
+                        purchaseLocation: item.purchaseLocation,
+                        condition: item.condition,
+                        hasWarranty: item.hasWarranty,
+                        attachmentsJSON: Self.encodeAttachmentsAsJSONString(item.attachments),
+                        dimensionLength: item.dimensionLength,
+                        dimensionWidth: item.dimensionWidth,
+                        dimensionHeight: item.dimensionHeight,
+                        dimensionUnit: item.dimensionUnit,
+                        weightValue: item.weightValue,
+                        weightUnit: item.weightUnit,
+                        color: item.color,
+                        storageRequirements: item.storageRequirements,
+                        isFragile: item.isFragile,
+                        movingPriority: item.movingPriority,
+                        roomDestination: item.roomDestination,
+                        locationID: item.locationID,
+                        locationName: locationName,
+                        homeID: resolvedHomeID,
+                        homeName: homeName,
+                        labelNames: labelNames,
+                        photoFilenames: photoFilenames
+                    ))
             }
 
-            return (itemData, photoURLs)
+            return (itemData, photoFiles)
         }
 
         let locationData = locationResult.locations
-        var allPhotoURLs = itemPhotoURLs
-        allPhotoURLs.append(contentsOf: locationResult.photoURLs)
+        var allPhotoFiles = itemPhotos
+        allPhotoFiles.append(contentsOf: locationResult.photos)
 
         let archiveName =
             fileName ?? "Selected-Items-export-\(DateFormatter.exportDateFormatter.string(from: .init()))"
@@ -1967,9 +2781,9 @@ actor DataManager {
             try await writeLabelsCSV(labels: labelData, to: labelsCSVURL)
         }
 
-        // Copy photos in background - deduplicate URLs
-        let uniquePhotoURLs = Array(Set(allPhotoURLs))
-        try await copyPhotosToDirectory(photoURLs: uniquePhotoURLs, destinationDir: photosDir)
+        // Write photos from BLOB payloads into the ZIP staging directory.
+        let uniquePhotoFiles = Array(Set(allPhotoFiles))
+        try await writePhotosToDirectory(photos: uniquePhotoFiles, destinationDir: photosDir)
 
         // Create ZIP archive using unified helper
         let archiveURL = try await createArchive(from: workingRoot, archiveName: archiveName)

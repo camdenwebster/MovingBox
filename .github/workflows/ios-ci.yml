@@ -1,0 +1,262 @@
+name: iOS CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: ios-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_PROJECT: MovingBox.xcodeproj
+  APP_SCHEME: MovingBox
+  UNIT_TEST_SCHEME: MovingBoxTests
+  UI_TEST_SCHEME: MovingBoxUITests
+  DERIVED_DATA_PATH: ./.build/DerivedData
+
+jobs:
+  build_and_unit_tests:
+    name: Build + Unit (${{ matrix.simulator.id }})
+    runs-on: [self-hosted, macOS]
+    strategy:
+      fail-fast: false
+      matrix:
+        simulator:
+          - id: iphone-pro
+            candidates: "iPhone 17 Pro|iPhone 16 Pro|iPhone 15 Pro"
+          - id: iphone-standard
+            candidates: "iPhone 17|iPhone 16|iPhone 15"
+          - id: ipad
+            candidates: "iPad (A16)|iPad (10th generation)|iPad Pro 11-inch (M4)|iPad Pro (11-inch) (4th generation)"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate xcconfig from secrets
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          WISHKIT_API_KEY: ${{ secrets.WISHKIT_API_KEY }}
+          AIPROXY_DEVICE_CHECK_BYPASS: ${{ secrets.AIPROXY_DEVICE_CHECK_BYPASS }}
+          CI_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          bash ci_scripts/ci_post_clone.sh
+
+      - name: Xcode and simulator info
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available
+
+      - name: Select simulator destination
+        id: simulator
+        run: |
+          set -euo pipefail
+          available="$(xcrun simctl list devices available)"
+          selected=""
+
+          IFS='|' read -r -a candidates <<< "${{ matrix.simulator.candidates }}"
+          for candidate in "${candidates[@]}"; do
+            candidate="$(echo "$candidate" | xargs)"
+            if echo "$available" | grep -Fq "$candidate ("; then
+              selected="$candidate"
+              break
+            fi
+          done
+
+          if [[ -z "$selected" ]]; then
+            echo "No matching simulator found for candidates: ${{ matrix.simulator.candidates }}"
+            exit 1
+          fi
+
+          echo "selected=$selected" >> "$GITHUB_OUTPUT"
+          echo "destination=platform=iOS Simulator,name=$selected,OS=latest" >> "$GITHUB_OUTPUT"
+          echo "Using destination: platform=iOS Simulator,name=$selected,OS=latest"
+
+      - name: Build app
+        run: |
+          xcodebuild build \
+            -project "$XCODE_PROJECT" \
+            -scheme "$APP_SCHEME" \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath "$DERIVED_DATA_PATH"
+
+      - name: Ensure xcpretty is installed
+        run: |
+          if ! command -v xcpretty >/dev/null 2>&1; then
+            gem install xcpretty --no-document
+          fi
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ./.build/junit
+          xcodebuild test \
+            -project "$XCODE_PROJECT" \
+            -scheme "$UNIT_TEST_SCHEME" \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -resultBundlePath "./.build/UnitTests-${{ matrix.simulator.id }}.xcresult" \
+            2>&1 | tee "./.build/UnitTests-${{ matrix.simulator.id }}.log" | xcpretty -r junit --output "./.build/junit/UnitTests-${{ matrix.simulator.id }}.xml"
+
+      - name: Publish unit test report (JUnit)
+        if: ${{ always() && hashFiles(format('./.build/junit/UnitTests-{0}.xml', matrix.simulator.id)) != '' }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Unit Tests (${{ matrix.simulator.id }})
+          path: ./.build/junit/UnitTests-${{ matrix.simulator.id }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Pack unit test results
+        if: always()
+        run: |
+          set -euo pipefail
+          bundle="./.build/UnitTests-${{ matrix.simulator.id }}.xcresult"
+          archive="./.build/UnitTests-${{ matrix.simulator.id }}.xcresult.tar.gz"
+          if [[ -d "$bundle" ]]; then
+            tar -czf "$archive" -C "./.build" "UnitTests-${{ matrix.simulator.id }}.xcresult"
+          else
+            echo "No xcresult bundle found at $bundle"
+          fi
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-tests-${{ matrix.simulator.id }}
+          path: ./.build/UnitTests-${{ matrix.simulator.id }}.xcresult.tar.gz
+          if-no-files-found: warn
+
+      - name: Upload unit JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-tests-junit-${{ matrix.simulator.id }}
+          path: ./.build/junit/UnitTests-${{ matrix.simulator.id }}.xml
+          if-no-files-found: warn
+
+  ui_smoke_tests:
+    name: UI Smoke (${{ matrix.simulator.id }})
+    runs-on: [self-hosted, macOS]
+    needs: build_and_unit_tests
+    strategy:
+      fail-fast: false
+      matrix:
+        simulator:
+          - id: iphone-pro
+            candidates: "iPhone 17 Pro|iPhone 16 Pro|iPhone 15 Pro"
+          - id: ipad
+            candidates: "iPad (A16)|iPad (10th generation)|iPad Pro 11-inch (M4)|iPad Pro (11-inch) (4th generation)"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate xcconfig from secrets
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          TELEMETRY_DECK_APP_ID: ${{ secrets.TELEMETRY_DECK_APP_ID }}
+          REVENUE_CAT_API_KEY: ${{ secrets.REVENUE_CAT_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          WISHKIT_API_KEY: ${{ secrets.WISHKIT_API_KEY }}
+          AIPROXY_DEVICE_CHECK_BYPASS: ${{ secrets.AIPROXY_DEVICE_CHECK_BYPASS }}
+          CI_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          bash ci_scripts/ci_post_clone.sh
+
+      - name: Xcode and simulator info
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available
+
+      - name: Select simulator destination
+        id: simulator
+        run: |
+          set -euo pipefail
+          available="$(xcrun simctl list devices available)"
+          selected=""
+
+          IFS='|' read -r -a candidates <<< "${{ matrix.simulator.candidates }}"
+          for candidate in "${candidates[@]}"; do
+            candidate="$(echo "$candidate" | xargs)"
+            if echo "$available" | grep -Fq "$candidate ("; then
+              selected="$candidate"
+              break
+            fi
+          done
+
+          if [[ -z "$selected" ]]; then
+            echo "No matching simulator found for candidates: ${{ matrix.simulator.candidates }}"
+            exit 1
+          fi
+
+          echo "selected=$selected" >> "$GITHUB_OUTPUT"
+          echo "destination=platform=iOS Simulator,name=$selected,OS=latest" >> "$GITHUB_OUTPUT"
+          echo "Using destination: platform=iOS Simulator,name=$selected,OS=latest"
+
+      - name: Ensure xcpretty is installed
+        run: |
+          if ! command -v xcpretty >/dev/null 2>&1; then
+            gem install xcpretty --no-document
+          fi
+
+      - name: Run UI smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ./.build/junit
+          xcodebuild test \
+            -project "$XCODE_PROJECT" \
+            -scheme "$UI_TEST_SCHEME" \
+            -testPlan SmokeTests \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -resultBundlePath "./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult" \
+            2>&1 | tee "./.build/SmokeTests-${{ matrix.simulator.id }}.log" | xcpretty -r junit --output "./.build/junit/SmokeTests-${{ matrix.simulator.id }}.xml"
+
+      - name: Publish UI smoke report (JUnit)
+        if: ${{ always() && hashFiles(format('./.build/junit/SmokeTests-{0}.xml', matrix.simulator.id)) != '' }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: UI Smoke Tests (${{ matrix.simulator.id }})
+          path: ./.build/junit/SmokeTests-${{ matrix.simulator.id }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Pack UI smoke test results
+        if: always()
+        run: |
+          set -euo pipefail
+          bundle="./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult"
+          archive="./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult.tar.gz"
+          if [[ -d "$bundle" ]]; then
+            tar -czf "$archive" -C "./.build" "SmokeTests-${{ matrix.simulator.id }}.xcresult"
+          else
+            echo "No xcresult bundle found at $bundle"
+          fi
+
+      - name: Upload UI smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-smoke-${{ matrix.simulator.id }}
+          path: ./.build/SmokeTests-${{ matrix.simulator.id }}.xcresult.tar.gz
+          if-no-files-found: warn
+
+      - name: Upload UI smoke JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-smoke-junit-${{ matrix.simulator.id }}
+          path: ./.build/junit/SmokeTests-${{ matrix.simulator.id }}.xml
+          if-no-files-found: warn

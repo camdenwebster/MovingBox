@@ -5,26 +5,29 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct HomeDetailSettingsView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
+    @Environment(\.featureFlags) private var featureFlags
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @Query private var allHomes: [Home]
 
-    private let home: Home?
+    @FetchAll(SQLiteHome.order(by: \.name), animation: .default)
+    private var allHomes: [SQLiteHome]
+
+    private let homeID: UUID?
     let presentedInSheet: Bool
 
     @State private var viewModel: HomeDetailSettingsViewModel?
 
-    // Photo state
     @State private var tempUIImage: UIImage?
     @State private var loadedImage: UIImage?
     @State private var photoIsLoading = false
-    @State private var cachedImageURL: URL?
+    @State private var homeAccessViewModel: HomeAccessOverridesViewModel?
 
     private let availableColors: [(name: String, color: Color)] = [
         ("green", .green),
@@ -41,8 +44,14 @@ struct HomeDetailSettingsView: View {
         ("brown", .brown),
     ]
 
-    init(home: Home?, presentedInSheet: Bool = false) {
-        self.home = home
+    private enum OverrideSelection: String, Hashable {
+        case inherit
+        case allow
+        case deny
+    }
+
+    init(homeID: UUID?, presentedInSheet: Bool = false) {
+        self.homeID = homeID
         self.presentedInSheet = presentedInSheet
     }
 
@@ -50,7 +59,7 @@ struct HomeDetailSettingsView: View {
         Group {
             if let viewModel = viewModel {
                 formContent(viewModel: viewModel)
-                    .navigationTitle(viewModel.isNewHome ? "Add Home" : viewModel.displayHome.displayName)
+                    .navigationTitle(viewModel.isNewHome ? "Add Home" : viewModel.displayName)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { toolbarContent(viewModel: viewModel) }
                     .disabled(viewModel.isCreating)
@@ -59,7 +68,7 @@ struct HomeDetailSettingsView: View {
                         deleteConfirmationButtons(viewModel: viewModel)
                     } message: {
                         Text(
-                            "Are you sure you want to delete \(viewModel.displayHome.displayName)? This will also delete all locations associated with this home. Items will remain but will be unassigned."
+                            "Are you sure you want to delete \(viewModel.displayName)? This will also delete all locations associated with this home. Items will remain but will be unassigned."
                         )
                     }
                     .alert("Cannot Delete", isPresented: deleteErrorBinding(viewModel: viewModel)) {
@@ -78,52 +87,65 @@ struct HomeDetailSettingsView: View {
                     }
             } else {
                 ProgressView()
-                    .navigationTitle(home?.displayName ?? "Add Home")
+                    .navigationTitle(homeID != nil ? "Home" : "Add Home")
                     .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .task(id: home?.imageURL) {
-            guard let home = home,
-                let imageURL = home.imageURL,
-                !photoIsLoading
-            else { return }
-
-            if cachedImageURL != imageURL {
-                loadedImage = nil
-                cachedImageURL = imageURL
-            }
-
-            guard loadedImage == nil else { return }
+        .task {
+            guard let vm = viewModel, let homeID = vm.originalHomeID else { return }
 
             photoIsLoading = true
             defer { photoIsLoading = false }
 
-            do {
-                // Load thumbnail instead of full-size image to reduce memory usage
-                let thumbnail = try await OptimizedImageManager.shared.loadThumbnail(for: imageURL)
-                loadedImage = thumbnail
-            } catch {
-                // Fall back to full-size image if thumbnail isn't available
-                do {
-                    let photo = try await home.photo
-                    loadedImage = photo
-                } catch {
-                    print("Failed to load home image: \(error)")
-                }
+            if let photo = try? await database.read({ db in
+                try SQLiteHomePhoto.primaryPhoto(for: homeID, in: db)
+            }) {
+                loadedImage = UIImage(data: photo.data)
             }
         }
         .onAppear {
             if viewModel == nil {
-                viewModel = HomeDetailSettingsViewModel(
-                    home: home,
-                    modelContext: modelContext,
+                let vm = HomeDetailSettingsViewModel(
+                    homeID: homeID,
                     settings: settings,
                     allHomesProvider: { self.allHomes }
                 )
+                vm.setDatabase(database)
+                viewModel = vm
+            }
+            if featureFlags.familySharingScopingEnabled, homeAccessViewModel == nil, let homeID {
+                homeAccessViewModel = HomeAccessOverridesViewModel(homeID: homeID)
             }
         }
+        .task(id: homeID) {
+            if let vm = viewModel {
+                await vm.loadHomeData()
+            }
+            if let homeAccessViewModel {
+                await homeAccessViewModel.load()
+            }
+        }
+        .onChange(of: allHomes) { _, newHomes in
+            viewModel?.updateAllHomesProvider { newHomes }
+        }
+        .alert(
+            "Sharing Error",
+            isPresented: Binding(
+                get: { homeAccessViewModel?.errorMessage != nil },
+                set: { newValue in
+                    if !newValue {
+                        homeAccessViewModel?.errorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK") {
+                homeAccessViewModel?.errorMessage = nil
+            }
+        } message: {
+            Text(homeAccessViewModel?.errorMessage ?? "")
+        }
         .onDisappear {
-            // Release full-size images from memory when leaving the view
             tempUIImage = nil
             loadedImage = nil
         }
@@ -161,6 +183,7 @@ struct HomeDetailSettingsView: View {
             homeDetailsSection(viewModel: viewModel)
             addressSection(viewModel: viewModel)
             organizationSection(viewModel: viewModel)
+            sharingSection(viewModel: viewModel)
             deleteSection(viewModel: viewModel)
         }
     }
@@ -182,7 +205,6 @@ struct HomeDetailSettingsView: View {
                         .overlay(alignment: .bottomTrailing) {
                             if viewModel.isEditing {
                                 PhotoPickerView(
-                                    model: tempHomeBinding(viewModel: viewModel),
                                     loadedImage: viewModel.isNewHome ? $tempUIImage : $loadedImage,
                                     isLoading: $photoIsLoading
                                 )
@@ -194,7 +216,6 @@ struct HomeDetailSettingsView: View {
                         .frame(height: 200)
                 } else if viewModel.isEditing {
                     PhotoPickerView(
-                        model: tempHomeBinding(viewModel: viewModel),
                         loadedImage: viewModel.isNewHome ? $tempUIImage : $loadedImage,
                         isLoading: $photoIsLoading
                     ) { showPhotoSourceAlert in
@@ -210,13 +231,6 @@ struct HomeDetailSettingsView: View {
         }
     }
 
-    private func tempHomeBinding(viewModel: HomeDetailSettingsViewModel) -> Binding<Home> {
-        Binding(
-            get: { viewModel.tempHome },
-            set: { _ in }
-        )
-    }
-
     // MARK: - Home Details Section
 
     @ViewBuilder
@@ -228,7 +242,7 @@ struct HomeDetailSettingsView: View {
         } header: {
             Text("Home Details")
         } footer: {
-            if viewModel.isEditing && viewModel.tempHome.name.isEmpty {
+            if viewModel.isEditing && viewModel.name.isEmpty {
                 Text("If no name is provided, the street address will be used.")
             }
         }
@@ -240,15 +254,15 @@ struct HomeDetailSettingsView: View {
             TextField(
                 "Home Name (Optional)",
                 text: Binding(
-                    get: { viewModel.tempHome.name },
-                    set: { viewModel.tempHome.name = $0 }
+                    get: { viewModel.name },
+                    set: { viewModel.name = $0 }
                 )
             )
         } else {
             HStack {
                 Text("Name")
                 Spacer()
-                Text(viewModel.displayHome.displayName)
+                Text(viewModel.displayName)
                     .foregroundStyle(.secondary)
             }
         }
@@ -260,7 +274,7 @@ struct HomeDetailSettingsView: View {
             Toggle(
                 "Set as Primary",
                 isOn: Binding(
-                    get: { viewModel.tempHome.isPrimary },
+                    get: { viewModel.isPrimary },
                     set: { viewModel.togglePrimary($0) }
                 )
             )
@@ -268,7 +282,7 @@ struct HomeDetailSettingsView: View {
             HStack {
                 Text("Primary Home")
                 Spacer()
-                if viewModel.displayHome.isPrimary {
+                if viewModel.isPrimary {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Color.accentColor)
                 }
@@ -296,7 +310,7 @@ struct HomeDetailSettingsView: View {
                 Text("Color")
                 Spacer()
                 Circle()
-                    .fill(viewModel.displayHome.color)
+                    .fill(viewModel.displayColor)
                     .frame(width: 24, height: 24)
             }
         }
@@ -311,13 +325,13 @@ struct HomeDetailSettingsView: View {
             .overlay(
                 Circle()
                     .strokeBorder(
-                        viewModel.tempHome.colorName == colorOption.name
+                        viewModel.colorName == colorOption.name
                             ? Color.primary : Color.clear,
                         lineWidth: 2
                     )
             )
             .onTapGesture {
-                viewModel.tempHome.colorName = colorOption.name
+                viewModel.colorName = colorOption.name
             }
     }
 
@@ -338,14 +352,132 @@ struct HomeDetailSettingsView: View {
 
     @ViewBuilder
     private func organizationSection(viewModel: HomeDetailSettingsViewModel) -> some View {
-        if !viewModel.isNewHome {
+        if !viewModel.isNewHome && !viewModel.isEditing {
             Section("Organization") {
                 NavigationLink {
-                    LocationSettingsView(home: viewModel.displayHome)
+                    LocationSettingsView(homeID: viewModel.originalHomeID)
                 } label: {
                     Label("Locations", systemImage: "map")
                 }
             }
+        }
+    }
+
+    // MARK: - Sharing Section
+
+    @ViewBuilder
+    private func sharingSection(viewModel: HomeDetailSettingsViewModel) -> some View {
+        if featureFlags.familySharingScopingEnabled,
+            !viewModel.isNewHome,
+            !viewModel.isEditing,
+            let accessVM = self.homeAccessViewModel
+        {
+            Section {
+                Toggle(
+                    isOn: Binding(
+                        get: { accessVM.isPrivate },
+                        set: { newValue in
+                            Task {
+                                await accessVM.setPrivate(newValue)
+                            }
+                        }
+                    )
+                ) {
+                    Label("Private Home", systemImage: "lock.house")
+                }
+                .accessibilityIdentifier("home-private-toggle")
+
+                HStack {
+                    Label("Default Policy", systemImage: "person.2.badge.gearshape")
+                    Spacer()
+                    Text(
+                        accessVM.defaultAccessPolicy == .allHomesShared
+                            ? "All Homes"
+                            : "Owner Scoped"
+                    )
+                    .foregroundStyle(.secondary)
+                }
+
+                if accessVM.isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else if accessVM.memberAccessStates.isEmpty {
+                    Text("No members to configure.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    memberAccessRows(
+                        accessStates: accessVM.memberAccessStates,
+                        homeAccessViewModel: accessVM
+                    )
+                }
+            } header: {
+                Text("Sharing Access")
+            } footer: {
+                Text(
+                    accessVM.isPrivate
+                        ? "This home is private and excluded from automatic member access."
+                        : "Use overrides to grant or deny access for individual members."
+                )
+            }
+        }
+    }
+
+    private func memberAccessRows(
+        accessStates: [MemberHomeAccessState],
+        homeAccessViewModel: HomeAccessOverridesViewModel
+    ) -> some View {
+        let indexedStates = Array(accessStates.enumerated())
+        return ForEach(indexedStates, id: \.element.id) { _, state in
+            VStack(alignment: .leading, spacing: 8) {
+                Text(displayName(for: state.member))
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Text(accessSourceText(state.source))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Picker(
+                    "Access",
+                    selection: Binding(
+                        get: {
+                            switch state.overrideDecision {
+                            case .allow:
+                                return OverrideSelection.allow
+                            case .deny:
+                                return OverrideSelection.deny
+                            case nil:
+                                return .inherit
+                            }
+                        },
+                        set: { (selection: OverrideSelection) in
+                            Task {
+                                let decision: HomeAccessOverrideDecision? =
+                                    switch selection {
+                                    case .inherit: nil
+                                    case .allow: HomeAccessOverrideDecision.allow
+                                    case .deny: HomeAccessOverrideDecision.deny
+                                    }
+                                await homeAccessViewModel.setOverride(
+                                    memberID: state.member.id,
+                                    decision: decision
+                                )
+                            }
+                        }
+                    )
+                ) {
+                    Text("Inherit").tag(OverrideSelection.inherit)
+                    Text("Allow").tag(OverrideSelection.allow)
+                    Text("Deny").tag(OverrideSelection.deny)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("home-override-picker-\(state.member.id.uuidString)")
+            }
+            .padding(.vertical, 4)
+            .accessibilityIdentifier("home-access-row-\(state.member.id.uuidString)")
         }
     }
 
@@ -398,21 +530,48 @@ struct HomeDetailSettingsView: View {
             if viewModel.isEditing {
                 Button("Save") {
                     Task {
-                        // Save photo if one was selected
-                        if let uiImage = tempUIImage {
-                            let id = UUID().uuidString
-                            if let imageURL = try? await OptimizedImageManager.shared.saveImage(uiImage, id: id) {
-                                viewModel.tempHome.imageURL = imageURL
-                            }
-                            // Release the full-size UIImage from memory now that it's saved to disk
-                            tempUIImage = nil
-                        }
-
                         if viewModel.isNewHome {
-                            if await viewModel.createHome() {
+                            if let homeID = await viewModel.createHome() {
+                                // Save photo BLOB for the new home
+                                if let uiImage = tempUIImage,
+                                    let imageData = await OptimizedImageManager.shared.processImage(uiImage)
+                                {
+                                    try? await database.write { db in
+                                        try SQLiteHomePhoto.insert {
+                                            SQLiteHomePhoto(
+                                                id: UUID(),
+                                                homeID: homeID,
+                                                data: imageData,
+                                                sortOrder: 0
+                                            )
+                                        }.execute(db)
+                                    }
+                                }
+                                tempUIImage = nil
                                 dismissView()
                             }
                         } else {
+                            // Save photo BLOB for existing home
+                            if let uiImage = tempUIImage ?? loadedImage,
+                                let homeID = viewModel.originalHomeID,
+                                let imageData = await OptimizedImageManager.shared.processImage(uiImage)
+                            {
+                                try? await database.write { db in
+                                    try SQLiteHomePhoto
+                                        .where { $0.homeID == homeID }
+                                        .delete()
+                                        .execute(db)
+                                    try SQLiteHomePhoto.insert {
+                                        SQLiteHomePhoto(
+                                            id: UUID(),
+                                            homeID: homeID,
+                                            data: imageData,
+                                            sortOrder: 0
+                                        )
+                                    }.execute(db)
+                                }
+                            }
+                            tempUIImage = nil
                             await viewModel.saveChanges()
                             viewModel.isEditing = false
                         }
@@ -424,6 +583,7 @@ struct HomeDetailSettingsView: View {
                 Button("Edit") {
                     viewModel.isEditing = true
                 }
+                .accessibilityIdentifier("editButton")
             }
         }
     }
@@ -480,51 +640,60 @@ struct HomeDetailSettingsView: View {
 
     @ViewBuilder
     private func addressDisplayFields(viewModel: HomeDetailSettingsViewModel) -> some View {
-        let address = formatDisplayAddress(viewModel.displayHome)
+        let address = formatDisplayAddress(viewModel)
         if !address.isEmpty {
             Text(address)
                 .foregroundStyle(.secondary)
         }
     }
 
-    private func formatDisplayAddress(_ home: Home) -> String {
+    private func formatDisplayAddress(_ viewModel: HomeDetailSettingsViewModel) -> String {
         var lines: [String] = []
-        if !home.address1.isEmpty { lines.append(home.address1) }
-        if !home.address2.isEmpty { lines.append(home.address2) }
+        if !viewModel.address1.isEmpty { lines.append(viewModel.address1) }
+        if !viewModel.address2.isEmpty { lines.append(viewModel.address2) }
         var cityStateParts: [String] = []
-        if !home.city.isEmpty { cityStateParts.append(home.city) }
-        if !home.state.isEmpty { cityStateParts.append(home.state) }
-        if !home.zip.isEmpty { cityStateParts.append(home.zip) }
+        if !viewModel.city.isEmpty { cityStateParts.append(viewModel.city) }
+        if !viewModel.state.isEmpty { cityStateParts.append(viewModel.state) }
+        if !viewModel.zip.isEmpty { cityStateParts.append(viewModel.zip) }
         if !cityStateParts.isEmpty {
             lines.append(cityStateParts.joined(separator: ", "))
         }
         return lines.joined(separator: "\n")
     }
+
+    private func displayName(for member: SQLiteHouseholdMember) -> String {
+        if !member.displayName.isEmpty {
+            return member.displayName
+        }
+        if !member.contactEmail.isEmpty {
+            return member.contactEmail
+        }
+        return "Member"
+    }
+
+    private func accessSourceText(_ source: HomeAccessSource) -> String {
+        switch source {
+        case .inherited:
+            return "Access inherited from household default."
+        case .overriddenAllow:
+            return "Explicitly allowed for this home."
+        case .overriddenDeny:
+            return "Explicitly denied for this home."
+        case .privateHome:
+            return "Blocked because this home is private."
+        case .noMembership:
+            return "No active household membership."
+        }
+    }
 }
 
 #Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Home.self, InventoryLocation.self, InventoryLabel.self, configurations: config)
-
-        let home1 = Home(name: "Main House", address1: "123 Main St", city: "San Francisco", state: "CA", zip: "94102")
-        home1.isPrimary = true
-
-        let home2 = Home(
-            name: "Beach House", address1: "456 Ocean Ave", city: "Santa Monica", state: "CA", zip: "90401")
-
-        container.mainContext.insert(home1)
-        container.mainContext.insert(home2)
-
-        return NavigationStack {
-            HomeDetailSettingsView(home: home1)
-                .modelContainer(container)
-                .environmentObject(Router())
-                .environmentObject(SettingsManager())
-        }
-    } catch {
-        return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundStyle(.red)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    NavigationStack {
+        HomeDetailSettingsView(homeID: nil, presentedInSheet: true)
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     }
 }

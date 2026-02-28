@@ -1,0 +1,45 @@
+{
+  "run": {
+    "id": "20260224-000000",
+    "mode": "release-regression",
+    "baselineRef": "v1.2.3",
+    "targetRef": "main",
+    "bundleId": "com.mothersound.movingbox",
+    "simulator": {
+      "udid": "4DA6503A-88E2-4019-B404-EBBB222F3038",
+      "name": "iPhone 17 Pro",
+      "runtime": "iOS 26.2"
+    },
+    "startedAt": "2026-02-24T09:00:00Z",
+    "endedAt": ""
+  },
+  "verdict": {
+    "status": "PENDING",
+    "summary": "",
+    "gates": [
+      {
+        "name": "Migration completed",
+        "status": "PENDING",
+        "details": "",
+        "evidence": []
+      },
+      {
+        "name": "No data loss",
+        "status": "PENDING",
+        "details": "",
+        "evidence": []
+      },
+      {
+        "name": "No FK violations",
+        "status": "PENDING",
+        "details": "",
+        "evidence": []
+      }
+    ]
+  },
+  "phases": [],
+  "findings": [],
+  "defects": [],
+  "artifacts": [],
+  "nextSteps": []
+}

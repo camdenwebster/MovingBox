@@ -5,22 +5,22 @@
 //  Created by Claude Code
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct MainSplitView: View {
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var router: Router
     @EnvironmentObject private var settingsManager: SettingsManager
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default) private var homes: [SQLiteHome]
     @Binding var navigationPath: NavigationPath
     @State private var currentTintColor: Color = .green
 
-    private var primaryHome: Home? {
+    private var primaryHome: SQLiteHome? {
         homes.first { $0.isPrimary }
     }
 
-    private var activeHome: Home? {
+    private var activeHome: SQLiteHome? {
         guard let activeIdString = settingsManager.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         else {
@@ -58,7 +58,7 @@ struct MainSplitView: View {
     }
 
     private func updateTintColor() {
-        let newColor = activeHome?.color ?? .green
+        let newColor = Color.homeColor(for: activeHome?.colorName ?? "green")
         print("🎨 MainSplitView - Updating tint color to: \(activeHome?.colorName ?? "green")")
         currentTintColor = newColor
     }
@@ -69,25 +69,13 @@ struct MainSplitView: View {
         case .dashboard:
             DashboardView()
         case .home(let homeId):
-            if let home = modelContext.model(for: homeId) as? Home {
-                DashboardView(home: home)
-            } else {
-                ContentUnavailableView("Home Not Found", systemImage: "house.slash")
-            }
+            DashboardView(homeID: homeId)
         case .allInventory:
-            InventoryListView(location: nil, showAllHomes: true)
+            InventoryListView(locationID: nil, showAllHomes: true)
         case .label(let labelId):
-            if let label = modelContext.model(for: labelId) as? InventoryLabel {
-                InventoryListView(location: nil, filterLabel: label)
-            } else {
-                ContentUnavailableView("Label Not Found", systemImage: "tag.slash")
-            }
+            InventoryListView(locationID: nil, filterLabelID: labelId)
         case .location(let locationId):
-            if let location = modelContext.model(for: locationId) as? InventoryLocation {
-                InventoryListView(location: location)
-            } else {
-                ContentUnavailableView("Location Not Found", systemImage: "mappin.slash")
-            }
+            InventoryListView(locationID: locationId)
         case .none:
             DashboardView()
         }
@@ -108,17 +96,17 @@ struct MainSplitView: View {
             SettingsView()
         case .aISettingsView:
             AISettingsView()
-        case .inventoryListView(let location, let showAllHomes):
-            InventoryListView(location: location, showAllHomes: showAllHomes)
-        case .inventoryListViewForLabel(let label):
-            InventoryListView(location: nil, filterLabel: label)
-        case .editLocationView(let location, let isEditing):
-            EditLocationView(location: location, isEditing: isEditing)
-        case .editLabelView(let label, let isEditing):
-            EditLabelView(label: label, isEditing: isEditing)
-        case .inventoryDetailView(let item, let showSparklesButton, let isEditing):
+        case .inventoryListView(let locationID, let showAllHomes):
+            InventoryListView(locationID: locationID, showAllHomes: showAllHomes)
+        case .inventoryListViewForLabel(let labelID):
+            InventoryListView(locationID: nil, filterLabelID: labelID)
+        case .editLocationView(let locationID, let isEditing):
+            EditLocationView(locationID: locationID, isEditing: isEditing)
+        case .editLabelView(let labelID, let isEditing):
+            EditLabelView(labelID: labelID, isEditing: isEditing)
+        case .inventoryDetailView(let itemID, let showSparklesButton, let isEditing):
             InventoryDetailView(
-                inventoryItemToDisplay: item, navigationPath: navigationPath, showSparklesButton: showSparklesButton,
+                itemID: itemID, navigationPath: navigationPath, showSparklesButton: showSparklesButton,
                 isEditing: isEditing)
         case .locationsSettingsView:
             LocationSettingsView()
@@ -144,8 +132,10 @@ struct MainSplitView: View {
             GlobalLabelSettingsView()
         case .insurancePolicyListView:
             InsurancePolicyListView()
-        case .insurancePolicyDetailView(let policy):
-            InsurancePolicyDetailView(policy: policy)
+        case .insurancePolicyDetailView(let policyID):
+            InsurancePolicyDetailView(policyID: policyID)
+        case .familySharingSettingsView:
+            FamilySharingSettingsView()
         }
     }
 
@@ -165,7 +155,7 @@ struct MainSplitView: View {
         case "home":
             EditHomeView()
         case "no-location":
-            InventoryListView(location: nil, showOnlyUnassigned: true)
+            InventoryListView(locationID: nil, showOnlyUnassigned: true)
         default:
             EmptyView()
         }
@@ -173,15 +163,12 @@ struct MainSplitView: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return PreviewWrapper()
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    PreviewWrapper()
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }
 
 private struct PreviewWrapper: View {

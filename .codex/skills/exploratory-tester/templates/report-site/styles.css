@@ -1,0 +1,217 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f4f2;
+  --surface: #ffffff;
+  --text: #1f2933;
+  --muted: #52606d;
+  --border: #d9e2ec;
+  --pass: #0f8a5f;
+  --fail: #c81e1e;
+  --pending: #7a5f00;
+  --info: #1458a5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top right, #fff4d6 0%, var(--bg) 45%);
+  color: var(--text);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  line-height: 1.45;
+}
+
+.page-header {
+  padding: 2rem 1.25rem 1rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+}
+
+.badge-row {
+  margin-top: 0.75rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.badge.pass {
+  background: var(--pass);
+}
+
+.badge.fail {
+  background: var(--fail);
+}
+
+.badge.pending {
+  background: var(--pending);
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.25rem 2.5rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.metadata-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0.4rem 0.75rem;
+  margin: 0;
+}
+
+.metadata-grid dt {
+  font-weight: 700;
+}
+
+.metadata-grid dd {
+  margin: 0;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.item h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  margin: 0.4rem 0;
+}
+
+.status {
+  font-weight: 700;
+}
+
+.status.pass {
+  color: var(--pass);
+}
+
+.status.fail {
+  color: var(--fail);
+}
+
+.status.pending {
+  color: var(--pending);
+}
+
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.shot {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.shot img {
+  display: block;
+  width: 100%;
+  height: 170px;
+  object-fit: cover;
+}
+
+.shot figcaption {
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.tag {
+  display: inline-block;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+  margin-right: 0.35rem;
+}
+
+.tag.p0,
+.tag.p1,
+.tag.high {
+  background: #ffe3e3;
+  color: #8d1515;
+}
+
+.tag.p2,
+.tag.medium {
+  background: #fff3d1;
+  color: #7a5f00;
+}
+
+.tag.p3,
+.tag.low,
+.tag.info {
+  background: #d9ecff;
+  color: var(--info);
+}
+
+.markdown-block pre {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+a {
+  color: #0b66c3;
+}
+
+@media (max-width: 700px) {
+  .metadata-grid {
+    grid-template-columns: 1fr;
+  }
+}

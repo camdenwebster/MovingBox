@@ -1,5 +1,5 @@
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 
@@ -15,14 +15,14 @@ struct VideoItemSelectionListView: View {
     let analysisResponse: MultiItemAnalysisResponse
     let isStreamingResults: Bool
     let streamingStatusText: String?
-    let onItemsSelected: ([InventoryItem]) -> Void
+    let onItemsSelected: ([SQLiteInventoryItem]) -> Void
     let onCancel: () -> Void
     let onReanalyze: (() -> Void)?
 
     // MARK: - State
 
-    @State private var selectedLocation: InventoryLocation?
-    @State private var selectedHome: Home?
+    @State private var selectedLocation: SQLiteInventoryLocation?
+    @State private var selectedHome: SQLiteHome?
     @State private var showingLocationPicker = false
     @State private var isPreparingRows = true
     @State private var itemDisplayOrder: [String] = []
@@ -40,12 +40,12 @@ struct VideoItemSelectionListView: View {
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
-        location: InventoryLocation?,
-        modelContext: ModelContext,
+        location: SQLiteInventoryLocation?,
+        database: any DatabaseWriter,
         aiAnalysisService: AIAnalysisServiceProtocol? = nil,
         isStreamingResults: Bool = false,
         streamingStatusText: String? = nil,
-        onItemsSelected: @escaping ([InventoryItem]) -> Void,
+        onItemsSelected: @escaping ([SQLiteInventoryItem]) -> Void,
         onCancel: @escaping () -> Void,
         onReanalyze: (() -> Void)? = nil
     ) {
@@ -53,7 +53,7 @@ struct VideoItemSelectionListView: View {
             analysisResponse: analysisResponse,
             images: images,
             location: location,
-            modelContext: modelContext,
+            database: database,
             aiAnalysisService: aiAnalysisService
         )
         self._viewModel = State(initialValue: viewModel)
@@ -73,7 +73,7 @@ struct VideoItemSelectionListView: View {
                 Color(.systemBackground)
                     .ignoresSafeArea()
 
-                if viewModel.hasNoItems {
+                if viewModel.hasNoItems && !isStreamingResults {
                     noItemsView
                 } else {
                     mainContentView
@@ -310,7 +310,7 @@ struct VideoItemSelectionListView: View {
 
                 Spacer()
 
-                if viewModel.selectedItemsCount == viewModel.detectedItems.count {
+                if viewModel.hasSatisfiedSelectAll(avoidingPotentialDuplicates: true) {
                     Button("Deselect All") {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.deselectAllItems()
@@ -321,7 +321,7 @@ struct VideoItemSelectionListView: View {
                 } else {
                     Button("Select All") {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.selectAllItems()
+                            viewModel.selectAllItems(avoidingPotentialDuplicates: true)
                         }
                     }
                     .backport.glassProminentButtonStyle()
@@ -368,8 +368,8 @@ struct VideoItemSelectionListView: View {
             )
         }
         .onAppear {
-            if selectedHome == nil {
-                selectedHome = selectedLocation?.home
+            if selectedHome == nil, let location = selectedLocation, let homeID = location.homeID {
+                selectedHome = SQLiteHome(id: homeID)
             }
         }
     }
@@ -587,7 +587,7 @@ struct VideoItemSelectionListView: View {
 private struct VideoDetectedItemListCard: View {
     let item: DetectedInventoryItem
     let isSelected: Bool
-    let matchedLabel: InventoryLabel?
+    let matchedLabel: SQLiteInventoryLabel?
     let thumbnail: UIImage?
     let duplicateGroupHint: String?
     let isSkeleton: Bool

@@ -1,11 +1,13 @@
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct OnboardingWelcomeView: View {
+    @Dependency(\.defaultDatabase) var database
     @EnvironmentObject private var manager: OnboardingManager
     @EnvironmentObject private var revenueCatManager: RevenueCatManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.disableAnimations) private var disableAnimations
-    @Environment(\.modelContext) private var modelContext
 
     @State private var imageOpacity = 0.0
     @State private var welcomeOpacity = 0.0
@@ -146,7 +148,7 @@ struct OnboardingWelcomeView: View {
             await updateStatusMessage("Checking for existing data...")
             do {
                 let shouldDismiss = try await OnboardingManager.checkAndUpdateOnboardingState(
-                    modelContext: modelContext)
+                    database: database)
                 if shouldDismiss {
                     await updateStatusMessage("Complete! Redirecting...")
                     manager.markOnboardingComplete()
@@ -156,9 +158,9 @@ struct OnboardingWelcomeView: View {
                 print("⚠️ Onboarding state check failed: \(error)")
             }
 
-            // Try setting up default data
+            // Create default labels in sqlite-data (home + locations are created in OnboardingHomeView)
             await updateStatusMessage("Setting up default data...")
-            await DefaultDataManager.populateDefaultData(modelContext: modelContext)
+            await DefaultDataManager.populateDefaultSQLiteLabels(database: database)
 
             // Continue with onboarding
             await MainActor.run {

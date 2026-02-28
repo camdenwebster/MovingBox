@@ -5,38 +5,42 @@
 //  Created by Camden Webster on 5/16/24.
 //
 
+import Dependencies
 import MovingBoxAIAnalysis
 import PDFKit
 import PhotosUI
 import QuickLook
 import RevenueCatUI
+import SQLiteData
 import SentrySwiftUI
-import SwiftData
 import SwiftUI
 import VisionKit
 
 @MainActor
 struct InventoryDetailView: View {
-    @Environment(\.modelContext) var modelContext
+    @Dependency(\.defaultDatabase) var database
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject private var onboardingManager: OnboardingManager
-    @Query private var allItems: [InventoryItem]
     @FocusState private var isPriceFieldFocused: Bool
 
     // Photo section frame height constants
     private static let photoSectionHeight: CGFloat = 300
     private static let photoSectionHeightWithPhotos: CGFloat = 350
 
+    // Core item state — loaded from SQLite
+    let itemID: UUID
+    @State private var item: SQLiteInventoryItem
+    @State private var aiAnalysisCount: Int = 0
+
     @State private var displayPriceString: String = ""
-    @State private var imageDetailsFromAI: ImageDetails = ImageDetails.empty()
+    @State private var imageDetailsFromOpenAI: ImageDetails = ImageDetails.empty()
     @FocusState private var inputIsFocused: Bool
-    @Bindable var inventoryItemToDisplay: InventoryItem
     @Binding var navigationPath: NavigationPath
     @State private var showingClearAllAlert = false
-    @State private var isLoadingAIResults = false
+    @State private var isLoadingOpenAiResults = false
     @State private var isEditing: Bool
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
@@ -50,31 +54,31 @@ struct InventoryDetailView: View {
     // Computed property to create a hash of key field values for change detection
     private var currentFieldsHash: String {
         let fields = [
-            inventoryItemToDisplay.title,
-            inventoryItemToDisplay.desc,
-            inventoryItemToDisplay.serial,
-            inventoryItemToDisplay.make,
-            inventoryItemToDisplay.model,
-            inventoryItemToDisplay.notes,
-            inventoryItemToDisplay.purchaseLocation,
-            inventoryItemToDisplay.condition,
-            inventoryItemToDisplay.color,
-            inventoryItemToDisplay.storageRequirements,
-            inventoryItemToDisplay.roomDestination,
-            inventoryItemToDisplay.dimensionLength,
-            inventoryItemToDisplay.dimensionWidth,
-            inventoryItemToDisplay.dimensionHeight,
-            inventoryItemToDisplay.dimensionUnit,
-            inventoryItemToDisplay.weightValue,
-            inventoryItemToDisplay.weightUnit,
-            String(inventoryItemToDisplay.quantityInt),
-            String(inventoryItemToDisplay.isFragile),
-            String(inventoryItemToDisplay.hasWarranty),
-            String(inventoryItemToDisplay.movingPriority),
-            String(describing: inventoryItemToDisplay.replacementCost),
-            String(describing: inventoryItemToDisplay.depreciationRate),
-            String(describing: inventoryItemToDisplay.purchaseDate),
-            String(describing: inventoryItemToDisplay.warrantyExpirationDate),
+            item.title,
+            item.desc,
+            item.serial,
+            item.make,
+            item.model,
+            item.notes,
+            item.purchaseLocation,
+            item.condition,
+            item.color,
+            item.storageRequirements,
+            item.roomDestination,
+            item.dimensionLength,
+            item.dimensionWidth,
+            item.dimensionHeight,
+            item.dimensionUnit,
+            item.weightValue,
+            item.weightUnit,
+            String(item.quantityInt),
+            String(item.isFragile),
+            String(item.hasWarranty),
+            String(item.movingPriority),
+            String(describing: item.replacementCost),
+            String(describing: item.depreciationRate),
+            String(describing: item.purchaseDate),
+            String(describing: item.warrantyExpirationDate),
         ]
         return fields.joined(separator: "|")
     }
@@ -88,6 +92,7 @@ struct InventoryDetailView: View {
     @State private var capturedImages: [UIImage] = []
     @State private var capturedSingleImage: UIImage?
     @State private var loadedImages: [UIImage] = []
+    @State private var loadedPhotos: [SQLiteInventoryItemPhoto] = []
     @State private var selectedImageIndex: Int = 0
     @State private var showingFullScreenPhoto = false
     @State private var showPhotoSourceAlert = false
@@ -95,8 +100,12 @@ struct InventoryDetailView: View {
     @State private var selectedPhotosPickerItems: [PhotosPickerItem] = []
     @State private var showDocumentScanner = false
     @State private var showingLocationSelection = false
-    @State private var itemHome: Home?
     @State private var showingLabelSelection = false
+
+    // SQLite-typed selection state for location/home/labels
+    @State private var sqliteSelectedLocation: SQLiteInventoryLocation?
+    @State private var sqliteSelectedHome: SQLiteHome?
+    @State private var sqliteSelectedLabels: [SQLiteInventoryLabel] = []
     @State private var showDocumentPicker = false
     @State private var showingFileViewer = false
     @State private var fileViewerURL: URL?
@@ -112,19 +121,20 @@ struct InventoryDetailView: View {
     var onSave: (() -> Void)?
     var onCancel: (() -> Void)?
 
+    // MARK: - Primary init (UUID-based)
     init(
-        inventoryItemToDisplay: InventoryItem,
+        itemID: UUID,
         navigationPath: Binding<NavigationPath>,
         showSparklesButton: Bool = false,
         isEditing: Bool = false,
         onSave: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil
     ) {
-        self.inventoryItemToDisplay = inventoryItemToDisplay
+        self.itemID = itemID
+        self._item = State(initialValue: SQLiteInventoryItem(id: itemID))
         self._navigationPath = navigationPath
         self.showSparklesButton = showSparklesButton
         self._isEditing = State(initialValue: isEditing)
-        self._displayPriceString = State(initialValue: formatInitialPrice(inventoryItemToDisplay.price))
         self.onSave = onSave
         self.onCancel = onCancel
     }
@@ -143,29 +153,29 @@ struct InventoryDetailView: View {
     // MARK: - Progressive Disclosure Helpers
 
     private var hasAnyPurchaseTrackingData: Bool {
-        inventoryItemToDisplay.purchaseDate != nil || !inventoryItemToDisplay.purchaseLocation.isEmpty
-            || !inventoryItemToDisplay.condition.isEmpty
+        item.purchaseDate != nil || !item.purchaseLocation.isEmpty
+            || !item.condition.isEmpty
     }
 
     private var hasAnyFinancialData: Bool {
-        inventoryItemToDisplay.replacementCost != nil || inventoryItemToDisplay.depreciationRate != nil
+        item.replacementCost != nil || item.depreciationRate != nil
     }
 
     private var hasAnyPhysicalPropertiesData: Bool {
-        !inventoryItemToDisplay.dimensionLength.isEmpty
-            || !inventoryItemToDisplay.dimensionWidth.isEmpty
-            || !inventoryItemToDisplay.dimensionHeight.isEmpty
-            || !inventoryItemToDisplay.weightValue.isEmpty || !inventoryItemToDisplay.color.isEmpty
-            || !inventoryItemToDisplay.storageRequirements.isEmpty
+        !item.dimensionLength.isEmpty
+            || !item.dimensionWidth.isEmpty
+            || !item.dimensionHeight.isEmpty
+            || !item.weightValue.isEmpty || !item.color.isEmpty
+            || !item.storageRequirements.isEmpty
     }
 
     private var hasAnyMovingOptimizationData: Bool {
-        inventoryItemToDisplay.isFragile || inventoryItemToDisplay.movingPriority != 3
-            || !inventoryItemToDisplay.roomDestination.isEmpty
+        item.isFragile || item.movingPriority != 3
+            || !item.roomDestination.isEmpty
     }
 
     private var hasAnyAttachments: Bool {
-        inventoryItemToDisplay.hasAttachments()
+        !item.attachments.isEmpty
     }
 
     // MARK: - Toolbar Components
@@ -198,29 +208,24 @@ struct InventoryDetailView: View {
     private var trailingToolbarButton: some View {
         if isEditing {
             Button("Save") {
-                if inventoryItemToDisplay.modelContext == nil {
-                    modelContext.insert(inventoryItemToDisplay)
-                }
-                try? modelContext.save()
-                hasUserMadeChanges = false  // Reset after successful save
-                originalValues = nil  // Clear original values after successful save
-                isEditing = false
-
-                // Regenerate thumbnails if missing
                 Task {
+                    let didSave = await saveItemToSQLite()
+                    guard didSave else { return }
+                    hasUserMadeChanges = false
+                    originalValues = nil
+                    isEditing = false
                     await regenerateMissingThumbnails()
+                    onSave?()
                 }
-
-                onSave?()
             }
             .backport.glassProminentButtonStyle()
             .fontWeight(.bold)
-            .disabled(inventoryItemToDisplay.title.isEmpty || isLoadingAIResults)
+            .disabled(item.title.isEmpty || isLoadingOpenAiResults)
             .accessibilityIdentifier("save")
         } else {
             Button("Edit") {
                 // Capture original state before entering edit mode
-                originalValues = InventoryItemSnapshot(from: inventoryItemToDisplay)
+                originalValues = InventoryItemSnapshot(from: item)
                 originalDisplayPriceString = displayPriceString
                 hasUserMadeChanges = false
                 isEditing = true
@@ -313,33 +318,15 @@ struct InventoryDetailView: View {
                         screenWidth: UIScreen.main.bounds.width,
                         isEditing: isEditing,
                         onAddPhoto: {
-                            let currentPhotoCount =
-                                (inventoryItemToDisplay.imageURL != nil ? 1 : 0)
-                                + inventoryItemToDisplay.secondaryPhotoURLs.count
-                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
+                            if loadedPhotos.count < (settings.isPro ? 5 : 1) {
                                 showPhotoSourceAlert = true
                             }
                         },
                         onDeletePhoto: { index in
                             Task {
-                                let urlString: String
-                                if index == 0 {
-                                    // Deleting primary image
-                                    if let imageURL = inventoryItemToDisplay.imageURL {
-                                        urlString = imageURL.absoluteString
-                                    } else {
-                                        return
-                                    }
-                                } else {
-                                    // Deleting secondary image
-                                    let secondaryIndex = index - 1
-                                    if secondaryIndex < inventoryItemToDisplay.secondaryPhotoURLs.count {
-                                        urlString = inventoryItemToDisplay.secondaryPhotoURLs[secondaryIndex]
-                                    } else {
-                                        return
-                                    }
-                                }
-                                await deletePhoto(urlString: urlString)
+                                guard index < loadedPhotos.count else { return }
+                                let photoID = loadedPhotos[index].id
+                                await deletePhoto(photoID: photoID)
                             }
                         },
                         onImageTap: { tappedIndex in
@@ -367,24 +354,9 @@ struct InventoryDetailView: View {
                             if !loadedImages.isEmpty {
                                 Button(action: {
                                     Task {
-                                        let urlString: String
-                                        if selectedImageIndex == 0 {
-                                            // Deleting primary image
-                                            if let imageURL = inventoryItemToDisplay.imageURL {
-                                                urlString = imageURL.absoluteString
-                                            } else {
-                                                return
-                                            }
-                                        } else {
-                                            // Deleting secondary image
-                                            let secondaryIndex = selectedImageIndex - 1
-                                            if secondaryIndex < inventoryItemToDisplay.secondaryPhotoURLs.count {
-                                                urlString = inventoryItemToDisplay.secondaryPhotoURLs[secondaryIndex]
-                                            } else {
-                                                return
-                                            }
-                                        }
-                                        await deletePhoto(urlString: urlString)
+                                        guard selectedImageIndex < loadedPhotos.count else { return }
+                                        let photoID = loadedPhotos[selectedImageIndex].id
+                                        await deletePhoto(photoID: photoID)
                                     }
                                 }) {
                                     Image(systemName: "trash")
@@ -399,10 +371,7 @@ struct InventoryDetailView: View {
                             Spacer()
 
                             // Add photo button
-                            let currentPhotoCount =
-                                (inventoryItemToDisplay.imageURL != nil ? 1 : 0)
-                                + inventoryItemToDisplay.secondaryPhotoURLs.count
-                            if currentPhotoCount < (settings.isPro ? 5 : 1) {
+                            if loadedPhotos.count < (settings.isPro ? 5 : 1) {
                                 Button(action: {
                                     showPhotoSourceAlert = true
                                 }) {
@@ -440,7 +409,7 @@ struct InventoryDetailView: View {
     private var formContent: some View {
         VStack(spacing: 0) {
             // AI Button and Receipt Button Section
-            if isEditing && inventoryItemToDisplay.imageURL != nil {
+            if isEditing && !loadedPhotos.isEmpty {
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         aiButtonView
@@ -455,11 +424,11 @@ struct InventoryDetailView: View {
             VStack(spacing: 24) {
                 detailsSection
 
-                if isEditing || inventoryItemToDisplay.quantityInt > 1 {
+                if isEditing || item.quantityInt > 1 {
                     quantitySection
                 }
 
-                if isEditing || !inventoryItemToDisplay.desc.isEmpty {
+                if isEditing || !item.desc.isEmpty {
                     descriptionSection
                 }
 
@@ -472,7 +441,7 @@ struct InventoryDetailView: View {
                 movingOptimizationSection
                 attachmentsSection
 
-                if isEditing || !inventoryItemToDisplay.notes.isEmpty {
+                if isEditing || !item.notes.isEmpty {
                     notesSection
                 }
 
@@ -489,15 +458,15 @@ struct InventoryDetailView: View {
     @ViewBuilder
     private var aiButtonView: some View {
         Button {
-            guard !isLoadingAIResults else { return }
-            if settings.shouldShowPaywallForAiScan(currentCount: allItems.filter({ $0.hasUsedAI }).count) {
+            guard !isLoadingOpenAiResults else { return }
+            if settings.shouldShowPaywallForAiScan(currentCount: aiAnalysisCount) {
                 showingPaywall = true
             } else {
                 performAIAnalysis()
             }
         } label: {
             HStack {
-                if isLoadingAIResults {
+                if isLoadingOpenAiResults {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(0.9)
@@ -512,7 +481,7 @@ struct InventoryDetailView: View {
             .cornerRadius(UIConstants.cornerRadius)
         }
         .backport.glassProminentButtonStyle()
-        .disabled(isLoadingAIResults)
+        .disabled(isLoadingOpenAiResults)
         .accessibilityIdentifier("analyzeWithAi")
     }
 
@@ -537,9 +506,9 @@ struct InventoryDetailView: View {
                 .padding(.horizontal, 16)
 
             VStack(spacing: 0) {
-                if isEditing || !inventoryItemToDisplay.title.isEmpty {
+                if isEditing || !item.title.isEmpty {
                     FormTextFieldRow(
-                        label: "Title", text: $inventoryItemToDisplay.title, isEditing: $isEditing,
+                        label: "Title", text: $item.title, isEditing: $isEditing,
                         placeholder: "Desktop Computer"
                     )
                     .focused($focusedField, equals: .title)
@@ -547,18 +516,18 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
 
-                    if (isEditing || !inventoryItemToDisplay.serial.isEmpty)
-                        || (isEditing || !inventoryItemToDisplay.make.isEmpty)
-                        || (isEditing || !inventoryItemToDisplay.model.isEmpty)
+                    if (isEditing || !item.serial.isEmpty)
+                        || (isEditing || !item.make.isEmpty)
+                        || (isEditing || !item.model.isEmpty)
                     {
                         Divider()
                             .padding(.leading, 16)
                     }
                 }
 
-                if isEditing || !inventoryItemToDisplay.serial.isEmpty {
+                if isEditing || !item.serial.isEmpty {
                     FormTextFieldRow(
-                        label: "Serial Number", text: $inventoryItemToDisplay.serial, isEditing: $isEditing,
+                        label: "Serial Number", text: $item.serial, isEditing: $isEditing,
                         placeholder: "SN-12345"
                     )
                     .focused($focusedField, equals: .serial)
@@ -566,17 +535,17 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
 
-                    if (isEditing || !inventoryItemToDisplay.make.isEmpty)
-                        || (isEditing || !inventoryItemToDisplay.model.isEmpty)
+                    if (isEditing || !item.make.isEmpty)
+                        || (isEditing || !item.model.isEmpty)
                     {
                         Divider()
                             .padding(.leading, 16)
                     }
                 }
 
-                if isEditing || !inventoryItemToDisplay.make.isEmpty {
+                if isEditing || !item.make.isEmpty {
                     FormTextFieldRow(
-                        label: "Make", text: $inventoryItemToDisplay.make, isEditing: $isEditing,
+                        label: "Make", text: $item.make, isEditing: $isEditing,
                         placeholder: "Apple"
                     )
                     .focused($focusedField, equals: .make)
@@ -584,15 +553,15 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
 
-                    if isEditing || !inventoryItemToDisplay.model.isEmpty {
+                    if isEditing || !item.model.isEmpty {
                         Divider()
                             .padding(.leading, 16)
                     }
                 }
 
-                if isEditing || !inventoryItemToDisplay.model.isEmpty {
+                if isEditing || !item.model.isEmpty {
                     FormTextFieldRow(
-                        label: "Model", text: $inventoryItemToDisplay.model, isEditing: $isEditing,
+                        label: "Model", text: $item.model, isEditing: $isEditing,
                         placeholder: "Mac Mini"
                     )
                     .focused($focusedField, equals: .model)
@@ -615,7 +584,7 @@ struct InventoryDetailView: View {
 
             VStack(spacing: 0) {
                 Stepper(
-                    "\(inventoryItemToDisplay.quantityInt)", value: $inventoryItemToDisplay.quantityInt,
+                    "\(item.quantityInt)", value: $item.quantityInt,
                     in: 1...1000, step: 1
                 )
                 .disabled(!isEditing)
@@ -635,7 +604,7 @@ struct InventoryDetailView: View {
                 .padding(.horizontal, 16)
 
             VStack(spacing: 0) {
-                TextEditor(text: $inventoryItemToDisplay.desc)
+                TextEditor(text: $item.desc)
                     .focused($focusedField, equals: .description)
                     .frame(height: 90)
                     .disabled(!isEditing)
@@ -661,7 +630,7 @@ struct InventoryDetailView: View {
             VStack(spacing: 0) {
                 PriceFieldRow(
                     priceString: $displayPriceString,
-                    priceDecimal: $inventoryItemToDisplay.price,
+                    priceDecimal: $item.price,
                     isEditing: $isEditing
                 )
                 .disabled(!isEditing)
@@ -674,7 +643,7 @@ struct InventoryDetailView: View {
                     .padding(.leading, 16)
 
                 Toggle(
-                    isOn: $inventoryItemToDisplay.hasWarranty,
+                    isOn: $item.hasWarranty,
                     label: {
                         Text("Warranty")
                     }
@@ -684,15 +653,15 @@ struct InventoryDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
 
-                if inventoryItemToDisplay.hasWarranty {
+                if item.hasWarranty {
                     Divider()
                         .padding(.leading, 16)
 
                     DatePicker(
                         "Warranty Expires",
                         selection: Binding(
-                            get: { inventoryItemToDisplay.warrantyExpirationDate ?? Date() },
-                            set: { inventoryItemToDisplay.warrantyExpirationDate = $0 }
+                            get: { item.warrantyExpirationDate ?? Date() },
+                            set: { item.warrantyExpirationDate = $0 }
                         ),
                         displayedComponents: .date
                     )
@@ -709,8 +678,8 @@ struct InventoryDetailView: View {
 
     @ViewBuilder
     private var locationsAndLabelsSection: some View {
-        if isEditing || inventoryItemToDisplay.location != nil || inventoryItemToDisplay.effectiveHome != nil
-            || !inventoryItemToDisplay.labels.isEmpty
+        if isEditing || sqliteSelectedLocation != nil || sqliteSelectedHome != nil
+            || !sqliteSelectedLabels.isEmpty
         {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Location & Labels")
@@ -718,8 +687,8 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
 
                 VStack(spacing: 0) {
-                    if isEditing || inventoryItemToDisplay.location != nil
-                        || inventoryItemToDisplay.effectiveHome != nil
+                    if isEditing || sqliteSelectedLocation != nil
+                        || sqliteSelectedHome != nil
                     {
                         Button(action: {
                             if isEditing {
@@ -731,9 +700,9 @@ struct InventoryDetailView: View {
                                     .foregroundColor(.primary)
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 2) {
-                                    Text(inventoryItemToDisplay.location?.name ?? "None")
-                                    if let home = inventoryItemToDisplay.effectiveHome {
-                                        Text(home.displayName)
+                                    Text(sqliteSelectedLocation?.name ?? "None")
+                                    if let home = sqliteSelectedHome {
+                                        Text(home.name)
                                             .font(.caption)
                                     }
                                 }
@@ -744,13 +713,13 @@ struct InventoryDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if isEditing || !inventoryItemToDisplay.labels.isEmpty {
+                        if isEditing || !sqliteSelectedLabels.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || !inventoryItemToDisplay.labels.isEmpty {
+                    if isEditing || !sqliteSelectedLabels.isEmpty {
                         Button(action: {
                             if isEditing {
                                 showingLabelSelection = true
@@ -758,19 +727,19 @@ struct InventoryDetailView: View {
                         }) {
                             HStack {
                                 VStack(alignment: .leading) {
-                                    Text(inventoryItemToDisplay.labels.count == 1 ? "Label" : "Labels")
+                                    Text(sqliteSelectedLabels.count == 1 ? "Label" : "Labels")
                                         .foregroundColor(.primary)
-                                    if !inventoryItemToDisplay.labels.isEmpty {
+                                    if !sqliteSelectedLabels.isEmpty {
                                         // Show labels as capsules in a flow layout
                                         FlowLayout(spacing: 6) {
-                                            ForEach(inventoryItemToDisplay.labels.prefix(5)) { label in
+                                            ForEach(sqliteSelectedLabels.prefix(5)) { label in
                                                 LabelCapsuleView(label: label)
                                             }
                                         }
                                     }
                                 }
                                 Spacer()
-                                if inventoryItemToDisplay.labels.isEmpty {
+                                if sqliteSelectedLabels.isEmpty {
                                     Text("None")
                                 }
                                 if isEditing {
@@ -798,7 +767,7 @@ struct InventoryDetailView: View {
                 .padding(.horizontal, 16)
 
             VStack(spacing: 0) {
-                TextEditor(text: $inventoryItemToDisplay.notes)
+                TextEditor(text: $item.notes)
                     .foregroundColor(isEditing ? .primary : .secondary)
                     .focused($focusedField, equals: .notes)
                     .frame(height: 100)
@@ -843,12 +812,12 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
 
                 VStack(spacing: 0) {
-                    if isEditing || inventoryItemToDisplay.purchaseDate != nil {
+                    if isEditing || item.purchaseDate != nil {
                         DatePicker(
                             "Purchase Date",
                             selection: Binding(
-                                get: { inventoryItemToDisplay.purchaseDate ?? Date() },
-                                set: { inventoryItemToDisplay.purchaseDate = $0 }
+                                get: { item.purchaseDate ?? Date() },
+                                set: { item.purchaseDate = $0 }
                             ),
                             displayedComponents: .date
                         )
@@ -856,28 +825,28 @@ struct InventoryDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if isEditing || !inventoryItemToDisplay.purchaseLocation.isEmpty {
+                        if isEditing || !item.purchaseLocation.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || !inventoryItemToDisplay.purchaseLocation.isEmpty {
+                    if isEditing || !item.purchaseLocation.isEmpty {
                         FormTextFieldRow(
-                            label: "Purchase Location", text: $inventoryItemToDisplay.purchaseLocation,
+                            label: "Purchase Location", text: $item.purchaseLocation,
                             isEditing: $isEditing, placeholder: "Apple Store"
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if isEditing || !inventoryItemToDisplay.condition.isEmpty {
+                        if isEditing || !item.condition.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || !inventoryItemToDisplay.condition.isEmpty {
-                        ConditionPickerRow(condition: $inventoryItemToDisplay.condition, isEditing: $isEditing)
+                    if isEditing || !item.condition.isEmpty {
+                        ConditionPickerRow(condition: $item.condition, isEditing: $isEditing)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                     }
@@ -897,23 +866,23 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
 
                 VStack(spacing: 0) {
-                    if isEditing || inventoryItemToDisplay.replacementCost != nil {
+                    if isEditing || item.replacementCost != nil {
                         CurrencyFieldRow(
-                            label: "Replacement Cost", value: $inventoryItemToDisplay.replacementCost,
+                            label: "Replacement Cost", value: $item.replacementCost,
                             isEditing: $isEditing
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if isEditing || inventoryItemToDisplay.depreciationRate != nil {
+                        if isEditing || item.depreciationRate != nil {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || inventoryItemToDisplay.depreciationRate != nil {
+                    if isEditing || item.depreciationRate != nil {
                         PercentageFieldRow(
-                            label: "Depreciation Rate", value: $inventoryItemToDisplay.depreciationRate,
+                            label: "Depreciation Rate", value: $item.depreciationRate,
                             isEditing: $isEditing
                         )
                         .padding(.horizontal, 16)
@@ -936,64 +905,64 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
 
                 VStack(spacing: 0) {
-                    if isEditing || !inventoryItemToDisplay.dimensionLength.isEmpty
-                        || !inventoryItemToDisplay.dimensionWidth.isEmpty
-                        || !inventoryItemToDisplay.dimensionHeight.isEmpty
+                    if isEditing || !item.dimensionLength.isEmpty
+                        || !item.dimensionWidth.isEmpty
+                        || !item.dimensionHeight.isEmpty
                     {
                         DimensionsFieldRow(
-                            length: $inventoryItemToDisplay.dimensionLength,
-                            width: $inventoryItemToDisplay.dimensionWidth,
-                            height: $inventoryItemToDisplay.dimensionHeight,
-                            unit: $inventoryItemToDisplay.dimensionUnit,
+                            length: $item.dimensionLength,
+                            width: $item.dimensionWidth,
+                            height: $item.dimensionHeight,
+                            unit: $item.dimensionUnit,
                             isEditing: $isEditing
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if (isEditing || !inventoryItemToDisplay.weightValue.isEmpty)
-                            || (isEditing || !inventoryItemToDisplay.condition.isEmpty)
-                            || (isEditing || !inventoryItemToDisplay.color.isEmpty)
-                            || (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty)
+                        if (isEditing || !item.weightValue.isEmpty)
+                            || (isEditing || !item.condition.isEmpty)
+                            || (isEditing || !item.color.isEmpty)
+                            || (isEditing || !item.storageRequirements.isEmpty)
                         {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || !inventoryItemToDisplay.weightValue.isEmpty {
+                    if isEditing || !item.weightValue.isEmpty {
                         WeightFieldRow(
-                            value: $inventoryItemToDisplay.weightValue,
-                            unit: $inventoryItemToDisplay.weightUnit,
+                            value: $item.weightValue,
+                            unit: $item.weightUnit,
                             isEditing: $isEditing
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if (isEditing || !inventoryItemToDisplay.color.isEmpty)
-                            || (isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty)
+                        if (isEditing || !item.color.isEmpty)
+                            || (isEditing || !item.storageRequirements.isEmpty)
                         {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || !inventoryItemToDisplay.color.isEmpty {
+                    if isEditing || !item.color.isEmpty {
                         FormTextFieldRow(
-                            label: "Color", text: $inventoryItemToDisplay.color, isEditing: $isEditing,
+                            label: "Color", text: $item.color, isEditing: $isEditing,
                             placeholder: "Space Gray"
                         )
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty {
+                        if isEditing || !item.storageRequirements.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || !inventoryItemToDisplay.storageRequirements.isEmpty {
+                    if isEditing || !item.storageRequirements.isEmpty {
                         FormTextFieldRow(
-                            label: "Storage Requirements", text: $inventoryItemToDisplay.storageRequirements,
+                            label: "Storage Requirements", text: $item.storageRequirements,
                             isEditing: $isEditing, placeholder: "Keep upright, dry environment"
                         )
                         .padding(.horizontal, 16)
@@ -1016,7 +985,7 @@ struct InventoryDetailView: View {
 
                 VStack(spacing: 0) {
                     Toggle(
-                        isOn: $inventoryItemToDisplay.isFragile,
+                        isOn: $item.isFragile,
                         label: {
                             Text("Fragile Item")
                         }
@@ -1025,19 +994,19 @@ struct InventoryDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
 
-                    if (isEditing || inventoryItemToDisplay.movingPriority != 3)
-                        || (isEditing || !inventoryItemToDisplay.roomDestination.isEmpty)
+                    if (isEditing || item.movingPriority != 3)
+                        || (isEditing || !item.roomDestination.isEmpty)
                     {
                         Divider()
                             .padding(.leading, 16)
                     }
 
-                    if isEditing || inventoryItemToDisplay.movingPriority != 3 {
+                    if isEditing || item.movingPriority != 3 {
                         HStack {
                             Text("Moving Priority")
                                 .foregroundColor(.primary)
                             Spacer()
-                            Picker("Priority", selection: $inventoryItemToDisplay.movingPriority) {
+                            Picker("Priority", selection: $item.movingPriority) {
                                 Text("Low (1)").tag(1)
                                 Text("Medium (2)").tag(2)
                                 Text("Normal (3)").tag(3)
@@ -1050,15 +1019,15 @@ struct InventoryDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if isEditing || !inventoryItemToDisplay.roomDestination.isEmpty {
+                        if isEditing || !item.roomDestination.isEmpty {
                             Divider()
                                 .padding(.leading, 16)
                         }
                     }
 
-                    if isEditing || !inventoryItemToDisplay.roomDestination.isEmpty {
+                    if isEditing || !item.roomDestination.isEmpty {
                         FormTextFieldRow(
-                            label: "Room Destination", text: $inventoryItemToDisplay.roomDestination,
+                            label: "Room Destination", text: $item.roomDestination,
                             isEditing: $isEditing, placeholder: "Living Room"
                         )
                         .padding(.horizontal, 16)
@@ -1081,7 +1050,7 @@ struct InventoryDetailView: View {
 
                 VStack(spacing: 0) {
                     // Attachments
-                    ForEach(Array(inventoryItemToDisplay.attachments.enumerated()), id: \.offset) {
+                    ForEach(Array(item.attachments.enumerated()), id: \.offset) {
                         index, attachment in
                         AttachmentRowView(
                             url: attachment.url,
@@ -1099,7 +1068,7 @@ struct InventoryDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if index < inventoryItemToDisplay.attachments.count - 1 {
+                        if index < item.attachments.count - 1 {
                             Divider()
                                 .padding(.leading, 16)
                         }
@@ -1175,21 +1144,79 @@ struct InventoryDetailView: View {
             .ignoresSafeArea(edges: .top)
             .background(Color(.systemGroupedBackground))
         }
-        .onAppear {
-            if itemHome == nil {
-                itemHome = inventoryItemToDisplay.effectiveHome
-            }
-        }
-        .onChange(of: itemHome) { _, newHome in
-            inventoryItemToDisplay.home = newHome
+        .task {
+            await loadItemFromSQLite()
         }
     }
 
     var body: some View {
-        mainContent
+        bodyContent
+    }
 
+    private var bodyContent: some View {
+        bodySheets
+            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
+                Button("Take Photo") { showingSimpleCamera = true }
+                    .accessibilityIdentifier("takePhoto")
+                Button("Scan Document") { showDocumentScanner = true }
+                    .accessibilityIdentifier("scanDocument")
+                Button("Choose from Photos") { showPhotoPicker = true }
+                    .accessibilityIdentifier("chooseFromLibrary")
+            }
+            .alert("Error", isPresented: $showingErrorAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
+            .alert("Delete Attachment", isPresented: $showingDeleteAttachmentAlert) {
+                Button("Delete", role: .destructive) {
+                    executeDeleteAttachment()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Are you sure you want to delete this attachment? This action cannot be undone.")
+            }
+            .alert("Discard Changes", isPresented: $showUnsavedChangesAlert) {
+                Button("Discard", role: .destructive) {
+                    // Restore original values
+                    if let original = originalValues {
+                        original.restore(to: &item)
+                        displayPriceString = originalDisplayPriceString
+                    }
+                    hasUserMadeChanges = false
+
+                    if onCancel != nil {
+                        // We're in a sheet context - discard changes and close sheet
+                        deleteItemAndCloseSheet()
+                    } else {
+                        // We're in regular navigation - exit edit mode
+                        isEditing = false
+                    }
+                }
+                Button("Keep Editing", role: .cancel) {}
+            } message: {
+                Text("You have unsaved changes. Are you sure you want to discard them?")
+            }
+            .alert("Delete Item", isPresented: $showingDeleteItemAlert) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await deleteItem()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Are you sure you want to delete this item? This action cannot be undone.")
+            }
+            .task {
+                await loadAllImages()
+            }
+            .sentryTrace("InventoryDetailView")
+    }
+
+    private var bodySheets: some View {
+        mainContent
             .applyNavigationSettings(
-                title: inventoryItemToDisplay.title,
+                title: item.title,
                 isEditing: isEditing,
                 colorScheme: colorScheme
             )
@@ -1220,12 +1247,18 @@ struct InventoryDetailView: View {
             }
             .sheet(isPresented: $showingLocationSelection) {
                 LocationSelectionView(
-                    selectedLocation: $inventoryItemToDisplay.location,
-                    selectedHome: $itemHome
+                    selectedLocation: $sqliteSelectedLocation,
+                    selectedHome: $sqliteSelectedHome
                 )
             }
+            .onChange(of: sqliteSelectedLocation) { _, newLocation in
+                handleLocationChange(newLocation)
+            }
+            .onChange(of: sqliteSelectedHome) { _, newHome in
+                handleHomeChange(newHome)
+            }
             .sheet(isPresented: $showingLabelSelection) {
-                LabelSelectionView(selectedLabels: $inventoryItemToDisplay.labels)
+                LabelSelectionView(selectedLabels: $sqliteSelectedLabels)
             }
             .fileImporter(
                 isPresented: $showDocumentPicker, allowedContentTypes: [.pdf, .image],
@@ -1281,126 +1314,48 @@ struct InventoryDetailView: View {
                     isPresented: $showingFullScreenPhoto
                 )
             }
-            .confirmationDialog("Add Photo", isPresented: $showPhotoSourceAlert) {
-                Button("Take Photo") { showingSimpleCamera = true }
-                    .accessibilityIdentifier("takePhoto")
-                Button("Scan Document") { showDocumentScanner = true }
-                    .accessibilityIdentifier("scanDocument")
-                Button("Choose from Photos") { showPhotoPicker = true }
-                    .accessibilityIdentifier("chooseFromLibrary")
-            }
-            .alert("AI Analysis Error", isPresented: $showingErrorAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage)
-            }
-            .alert("Delete Attachment", isPresented: $showingDeleteAttachmentAlert) {
-                Button("Delete", role: .destructive) {
-                    executeDeleteAttachment()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Are you sure you want to delete this attachment? This action cannot be undone.")
-            }
-            .alert("Discard Changes", isPresented: $showUnsavedChangesAlert) {
-                Button("Discard", role: .destructive) {
-                    // Restore original values
-                    if let original = originalValues {
-                        original.restore(to: inventoryItemToDisplay)
-                        displayPriceString = originalDisplayPriceString
-                    }
-                    hasUserMadeChanges = false
-
-                    if onCancel != nil {
-                        // We're in a sheet context - discard changes and close sheet
-                        deleteItemAndCloseSheet()
-                    } else {
-                        // We're in regular navigation - exit edit mode
-                        isEditing = false
-                    }
-                }
-                Button("Keep Editing", role: .cancel) {}
-            } message: {
-                Text("You have unsaved changes. Are you sure you want to discard them?")
-            }
-            .alert("Delete Item", isPresented: $showingDeleteItemAlert) {
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await deleteItem()
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Are you sure you want to delete this item? This action cannot be undone.")
-            }
-            .task(id: inventoryItemToDisplay.imageURL) {
-                await loadAllImages()
-            }
-            .sentryTrace("InventoryDetailView")
     }
 
     private func performAIAnalysis() {
         Task {
-            await MainActor.run {
-                isLoadingAIResults = true
-            }
+            isLoadingOpenAiResults = true
 
             do {
-                let imageDetails = try await callAIAnalysis()
-                await MainActor.run {
-                    // Ensure the item is in the model context
-                    if inventoryItemToDisplay.modelContext == nil {
-                        modelContext.insert(inventoryItemToDisplay)
-                    }
+                let imageDetails = try await callOpenAI()
 
-                    // Get all labels and locations for the unified update
-                    let labels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
-                    let locations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
+                // Load labels and locations from SQLite for matching
+                let labels =
+                    (try? await database.read { db in
+                        try SQLiteInventoryLabel.all.fetchAll(db)
+                    }) ?? []
+                let locations =
+                    (try? await database.read { db in
+                        try SQLiteInventoryLocation.all.fetchAll(db)
+                    }) ?? []
 
-                    inventoryItemToDisplay.updateFromImageDetails(
-                        imageDetails,
-                        labels: labels,
-                        locations: locations,
-                        modelContext: modelContext
-                    )
+                // Update item state from AI results
+                updateItemFromImageDetails(imageDetails, labels: labels, locations: locations)
 
-                    // Update display price string to reflect any price changes
-                    displayPriceString = formatInitialPrice(inventoryItemToDisplay.price)
+                // Update display price string to reflect any price changes
+                displayPriceString = formatInitialPrice(item.price)
 
-                    // Save the context
-                    try? modelContext.save()
+                // Save to SQLite
+                _ = await saveItemToSQLite()
 
-                    isLoadingAIResults = false
-                }
-            } catch AIAnalysisError.invalidURL {
-                await MainActor.run {
-                    errorMessage = "Invalid URL configuration"
-                    showingErrorAlert = true
-                    isLoadingAIResults = false
-                }
-            } catch AIAnalysisError.invalidResponse {
-                await MainActor.run {
-                    errorMessage = "Error communicating with AI service"
-                    showingErrorAlert = true
-                    isLoadingAIResults = false
-                }
-            } catch AIAnalysisError.invalidData {
-                await MainActor.run {
-                    errorMessage = "Unable to process AI response"
-                    showingErrorAlert = true
-                    isLoadingAIResults = false
-                }
+                isLoadingOpenAiResults = false
+            } catch let aiError as AIAnalysisError {
+                errorMessage = aiError.userFriendlyMessage
+                showingErrorAlert = true
+                isLoadingOpenAiResults = false
             } catch {
-                await MainActor.run {
-                    errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                    showingErrorAlert = true
-                    isLoadingAIResults = false
-                }
+                errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                showingErrorAlert = true
+                isLoadingOpenAiResults = false
             }
         }
     }
 
-    private func callAIAnalysis() async throws -> ImageDetails {
+    private func callOpenAI() async throws -> ImageDetails {
         // Use all loaded images for AI analysis
         guard !loadedImages.isEmpty else {
             throw AIAnalysisError.invalidData
@@ -1422,7 +1377,9 @@ struct InventoryDetailView: View {
 
         TelemetryManager.shared.trackCameraAnalysisUsed()
 
-        let context = AIAnalysisContext.from(modelContext: modelContext, settings: settings)
+        // Build AIAnalysisContext from database
+        let context = await AIAnalysisContext.from(database: database, settings: settings)
+
         return try await aiService.getImageDetails(
             from: loadedImages,
             settings: settings,
@@ -1452,79 +1409,102 @@ struct InventoryDetailView: View {
 
     //    private func clearFields() {
     //        print("Clear fields button tapped")
-    //        inventoryItemToDisplay.title = ""
-    //        inventoryItemToDisplay.label = nil
-    //        inventoryItemToDisplay.desc = ""
-    //        inventoryItemToDisplay.make = ""
-    //        inventoryItemToDisplay.model = ""
-    //        inventoryItemToDisplay.location = nil
-    //        inventoryItemToDisplay.price = 0
-    //        inventoryItemToDisplay.notes = ""
+    //        item.title = ""
+    //        item.label = nil
+    //        item.desc = ""
+    //        item.make = ""
+    //        item.model = ""
+    //        item.location = nil
+    //        item.price = 0
+    //        item.notes = ""
     //    }
 
     private func addLocation() {
-        let location = InventoryLocation()
-        modelContext.insert(location)
-        TelemetryManager.shared.trackLocationCreated(name: location.name)
-        inventoryItemToDisplay.location = location
-        router.navigate(to: .editLocationView(location: location, isEditing: true))
+        let locationID = UUID()
+        Task {
+            do {
+                try await database.write { db in
+                    try SQLiteInventoryLocation.insert {
+                        SQLiteInventoryLocation(id: locationID, name: "")
+                    }.execute(db)
+                }
+            } catch {
+                print("Error creating location: \(error)")
+            }
+            TelemetryManager.shared.trackLocationCreated(name: "")
+            item.locationID = locationID
+            router.navigate(to: .editLocationView(locationID: locationID, isEditing: true))
+        }
     }
 
     private func addLabel() {
-        let label = InventoryLabel()
-        modelContext.insert(label)
-        inventoryItemToDisplay.labels = [label]
-        router.navigate(to: .editLabelView(label: label, isEditing: true))
+        let labelID = UUID()
+        Task {
+            do {
+                try await database.write { db in
+                    let householdID = try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
+                    try SQLiteInventoryLabel.insert {
+                        SQLiteInventoryLabel(id: labelID, householdID: householdID, name: "")
+                    }.execute(db)
+                }
+            } catch {
+                print("Error creating label: \(error)")
+            }
+            let householdID = try? await database.read { db in
+                try SQLiteHousehold.order(by: \.createdAt).fetchOne(db)?.id
+            }
+            sqliteSelectedLabels = [SQLiteInventoryLabel(id: labelID, householdID: householdID, name: "")]
+            router.navigate(to: .editLabelView(labelID: labelID, isEditing: true))
+        }
+    }
+
+    // MARK: - Location/Home/Label Change Handlers
+
+    private func handleLocationChange(_ newLocation: SQLiteInventoryLocation?) {
+        item.locationID = newLocation?.id
+        // Update home from location's homeID
+        if let homeID = newLocation?.homeID {
+            Task {
+                if let home = try? await database.read({ db in
+                    try SQLiteHome.find(homeID).fetchOne(db)
+                }) {
+                    sqliteSelectedHome = home
+                    item.homeID = home.id
+                }
+            }
+        }
+    }
+
+    private func handleHomeChange(_ newHome: SQLiteHome?) {
+        item.homeID = newHome?.id
     }
 
     private func handleNewPhotos(_ images: [UIImage]) async {
         guard !images.isEmpty else { return }
 
         do {
-            // Ensure we have a consistent itemId for all operations
-            let itemId =
-                inventoryItemToDisplay.assetId.isEmpty ? UUID().uuidString : inventoryItemToDisplay.assetId
+            let currentMaxSortOrder = loadedPhotos.map(\.sortOrder).max() ?? -1
+            let itemID = item.id
 
-            if inventoryItemToDisplay.imageURL == nil {
-                // No primary image yet, save the first image as primary
-                guard let firstImage = images.first else {
-                    throw NSError(
-                        domain: "InventoryDetailView", code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "No images provided"])
+            for (index, image) in images.enumerated() {
+                guard let imageData = await OptimizedImageManager.shared.processImage(image) else {
+                    continue
                 }
-                let primaryImageURL = try await OptimizedImageManager.shared.saveImage(
-                    firstImage, id: itemId)
-
-                await MainActor.run {
-                    inventoryItemToDisplay.imageURL = primaryImageURL
-                    inventoryItemToDisplay.assetId = itemId
-                }
-
-                // Save remaining images as secondary photos
-                if images.count > 1 {
-                    let secondaryImages = Array(images.dropFirst())
-                    let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                        secondaryImages, itemId: itemId)
-
-                    await MainActor.run {
-                        inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
-                    }
-                }
-            } else {
-                // Primary image exists, add all new images as secondary photos
-                let secondaryURLs = try await OptimizedImageManager.shared.saveSecondaryImages(
-                    images, itemId: itemId)
-
-                await MainActor.run {
-                    inventoryItemToDisplay.assetId = itemId
-                    inventoryItemToDisplay.secondaryPhotoURLs.append(contentsOf: secondaryURLs)
+                let photoID = UUID()
+                let sortOrder = currentMaxSortOrder + 1 + index
+                try await database.write { db in
+                    try SQLiteInventoryItemPhoto.insert {
+                        SQLiteInventoryItemPhoto(
+                            id: photoID,
+                            inventoryItemID: itemID,
+                            data: imageData,
+                            sortOrder: sortOrder
+                        )
+                    }.execute(db)
                 }
             }
 
-            await MainActor.run {
-                try? modelContext.save()
-                TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItemToDisplay.title)
-            }
+            TelemetryManager.shared.trackInventoryItemAdded(name: item.title)
 
             // Reload images after adding new photos
             await loadAllImages()
@@ -1533,105 +1513,45 @@ struct InventoryDetailView: View {
         }
     }
 
-    private func deletePhoto(urlString: String) async {
-        guard URL(string: urlString) != nil else { return }
-
+    private func deletePhoto(photoID: UUID) async {
         do {
-            // Delete from storage
-            try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: urlString)
-
-            await MainActor.run {
-                if inventoryItemToDisplay.imageURL?.absoluteString == urlString {
-                    // Deleting primary image
-                    inventoryItemToDisplay.imageURL = nil
-
-                    // If there are secondary photos, promote the first one to primary
-                    if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
-                        if let firstSecondaryURLString = inventoryItemToDisplay.secondaryPhotoURLs.first,
-                            let firstSecondaryURL = URL(string: firstSecondaryURLString)
-                        {
-                            inventoryItemToDisplay.imageURL = firstSecondaryURL
-                            inventoryItemToDisplay.secondaryPhotoURLs.removeFirst()
-                        }
-                    }
-                } else {
-                    // Deleting secondary image
-                    inventoryItemToDisplay.secondaryPhotoURLs.removeAll { $0 == urlString }
-                }
-
-                try? modelContext.save()
-
-                // Reload images after deletion
-                Task {
-                    await loadAllImages()
-                }
+            try await database.write { db in
+                try SQLiteInventoryItemPhoto.find(photoID).delete().execute(db)
             }
+            await loadAllImages()
         } catch {
             print("Error deleting photo: \(error)")
         }
     }
 
     private func loadAllImages() async {
-        await MainActor.run {
-            isLoading = true
-            loadingError = nil
-        }
-        defer {
-            Task { @MainActor in
-                isLoading = false
-            }
-        }
-
-        var images: [UIImage] = []
-        var encounteredError: Error?
+        isLoading = true
+        loadingError = nil
+        defer { isLoading = false }
 
         do {
-            // Use PhotoManageable protocol which handles URL migration automatically
-            images = try await inventoryItemToDisplay.allPhotos
+            let itemID = item.id
+            let photos = try await database.read { db in
+                try SQLiteInventoryItemPhoto.photos(for: itemID, in: db)
+            }
+            loadedPhotos = photos
+            loadedImages = photos.compactMap { UIImage(data: $0.data) }
+            loadingError = nil
         } catch {
-            print("Failed to load images using PhotoManageable protocol: \(error)")
-            encounteredError = error
-
-            // Fallback to direct loading if PhotoManageable fails
-            // Load primary image
-            if let imageURL = inventoryItemToDisplay.imageURL {
-                do {
-                    let image = try await OptimizedImageManager.shared.loadImage(url: imageURL)
-                    images.append(image)
-                    encounteredError = nil  // Clear error if we successfully load at least one image
-                } catch {
-                    print("Failed to load primary image: \(error)")
-                }
-            }
-
-            // Load secondary images
-            if !inventoryItemToDisplay.secondaryPhotoURLs.isEmpty {
-                do {
-                    let secondaryImages = try await OptimizedImageManager.shared.loadSecondaryImages(
-                        from: inventoryItemToDisplay.secondaryPhotoURLs)
-                    images.append(contentsOf: secondaryImages)
-                    encounteredError = nil  // Clear error if we successfully load at least one image
-                } catch {
-                    print("Failed to load secondary images: \(error)")
-                }
-            }
+            print("Failed to load photos: \(error)")
+            loadedPhotos = []
+            loadedImages = []
+            loadingError = error
         }
 
-        await MainActor.run {
-            loadedImages = images
-            loadingError = images.isEmpty ? encounteredError : nil
-            if selectedImageIndex >= images.count {
-                selectedImageIndex = max(0, images.count - 1)
-            }
+        if selectedImageIndex >= loadedImages.count {
+            selectedImageIndex = max(0, loadedImages.count - 1)
         }
     }
 
     private func calculateRemainingPhotoCount() -> Int {
-        let currentPhotoCount =
-            (inventoryItemToDisplay.imageURL != nil ? 1 : 0)
-            + inventoryItemToDisplay.secondaryPhotoURLs.count
         let maxPhotos = settings.isPro ? 5 : 1
-        return max(0, maxPhotos - currentPhotoCount)
+        return max(0, maxPhotos - loadedPhotos.count)
     }
 
     private func formatInitialPrice(_ price: Decimal) -> String {
@@ -1666,81 +1586,353 @@ struct InventoryDetailView: View {
     }
 
     private func deleteItemAndCloseSheet() {
-        // Delete any saved images for this item
         Task {
+            // Delete from SQLite (photos, labels, and item)
+            let id = item.id
             do {
-                if let imageURL = inventoryItemToDisplay.imageURL {
-                    try await OptimizedImageManager.shared.deleteSecondaryImage(
-                        urlString: imageURL.absoluteString)
-                }
-
-                for photoURL in inventoryItemToDisplay.secondaryPhotoURLs {
-                    try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: photoURL)
+                try await database.write { db in
+                    try SQLiteInventoryItemPhoto.where { $0.inventoryItemID == id }.delete().execute(db)
+                    try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
+                    try SQLiteInventoryItem.find(id).delete().execute(db)
                 }
             } catch {
-                print("Error deleting images during cancellation: \(error)")
+                print("Error deleting item: \(error)")
             }
 
-            await MainActor.run {
-                // Remove the item from the model context
-                modelContext.delete(inventoryItemToDisplay)
-                try? modelContext.save()
-
-                // Call the onCancel callback to close the sheet
-                onCancel?()
-            }
+            onCancel?()
         }
     }
 
     private func deleteItem() async {
+        // Delete from SQLite (photos, labels, and item)
+        let id = item.id
         do {
-            // Delete all associated images
-            if let imageURL = inventoryItemToDisplay.imageURL {
-                try await OptimizedImageManager.shared.deleteSecondaryImage(
-                    urlString: imageURL.absoluteString)
-            }
-
-            for photoURL in inventoryItemToDisplay.secondaryPhotoURLs {
-                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: photoURL)
-            }
-
-            // Delete all attachments
-            for attachment in inventoryItemToDisplay.attachments {
-                try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: attachment.url)
+            try await database.write { db in
+                try SQLiteInventoryItemPhoto.where { $0.inventoryItemID == id }.delete().execute(db)
+                try SQLiteInventoryItemLabel.where { $0.inventoryItemID == id }.delete().execute(db)
+                try SQLiteInventoryItem.find(id).delete().execute(db)
             }
         } catch {
-            print("Error deleting images during item deletion: \(error)")
+            print("Error deleting item: \(error)")
         }
 
-        await MainActor.run {
-            // Remove the item from the model context
-            modelContext.delete(inventoryItemToDisplay)
-            try? modelContext.save()
+        dismiss()
+    }
 
-            // Navigate back
-            dismiss()
+    // MARK: - SQLite Data Operations
+
+    private func loadItemFromSQLite() async {
+        let id = itemID
+
+        do {
+            let result = try await database.read {
+                db -> (
+                    item: SQLiteInventoryItem?,
+                    location: SQLiteInventoryLocation?,
+                    home: SQLiteHome?,
+                    labels: [SQLiteInventoryLabel],
+                    aiCount: Int
+                ) in
+                let loadedItem = try SQLiteInventoryItem.find(id).fetchOne(db)
+
+                let location: SQLiteInventoryLocation? =
+                    if let locationID = loadedItem?.locationID {
+                        try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+                    } else {
+                        nil
+                    }
+
+                let home: SQLiteHome? =
+                    if let homeID = loadedItem?.homeID {
+                        try SQLiteHome.find(homeID).fetchOne(db)
+                    } else {
+                        nil
+                    }
+
+                let joinRows =
+                    try SQLiteInventoryItemLabel
+                    .where { $0.inventoryItemID == id }
+                    .fetchAll(db)
+                let labelIDsFromItem = loadedItem?.labelIDs ?? []
+                let labels: [SQLiteInventoryLabel] =
+                    if !joinRows.isEmpty {
+                        try joinRows.compactMap { join in
+                            try SQLiteInventoryLabel.find(join.inventoryLabelID).fetchOne(db)
+                        }
+                    } else {
+                        try labelIDsFromItem.compactMap { labelID in
+                            try SQLiteInventoryLabel.find(labelID).fetchOne(db)
+                        }
+                    }
+
+                let aiCount =
+                    try SQLiteInventoryItem
+                    .where { $0.hasUsedAI == true }
+                    .fetchCount(db)
+
+                return (loadedItem, location, home, labels, aiCount)
+            }
+
+            if let loadedItem = result.item {
+                item = loadedItem
+                displayPriceString = formatInitialPrice(loadedItem.price)
+            }
+            sqliteSelectedLocation = result.location
+            sqliteSelectedHome = result.home
+            sqliteSelectedLabels = result.labels
+            aiAnalysisCount = result.aiCount
+        } catch {
+            print("Error loading item data: \(error)")
+        }
+
+        // Load images
+        await loadAllImages()
+    }
+
+    private func saveItemToSQLite() async -> Bool {
+        let currentItem = item
+        let currentLabels = sqliteSelectedLabels
+        let id = currentItem.id
+
+        do {
+            let originalHomeID = try await database.read { db in
+                try SQLiteInventoryItem.find(id).fetchOne(db)?.homeID
+            }
+
+            if let sourceHomeID = originalHomeID,
+                let destinationHomeID = currentItem.homeID,
+                sourceHomeID != destinationHomeID
+            {
+                do {
+                    try await HouseholdSharingService().moveItemAsCurrentUser(
+                        itemID: id,
+                        destinationHomeID: destinationHomeID
+                    )
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showingErrorAlert = true
+                    return false
+                }
+            }
+
+            try await database.write { db in
+                // Check if item already exists
+                let exists = try SQLiteInventoryItem.find(id).fetchOne(db) != nil
+
+                if exists {
+                    let currentLabelIDs = currentLabels.map(\.id)
+                    try SQLiteInventoryItem.find(id).update {
+                        $0.title = currentItem.title
+                        $0.quantityString = currentItem.quantityString
+                        $0.quantityInt = currentItem.quantityInt
+                        $0.desc = currentItem.desc
+                        $0.serial = currentItem.serial
+                        $0.model = currentItem.model
+                        $0.make = currentItem.make
+                        $0.price = currentItem.price
+                        $0.insured = currentItem.insured
+                        $0.assetId = currentItem.assetId
+                        $0.notes = currentItem.notes
+                        $0.replacementCost = currentItem.replacementCost
+                        $0.depreciationRate = currentItem.depreciationRate
+                        $0.hasUsedAI = currentItem.hasUsedAI
+                        $0.purchaseDate = currentItem.purchaseDate
+                        $0.warrantyExpirationDate = currentItem.warrantyExpirationDate
+                        $0.purchaseLocation = currentItem.purchaseLocation
+                        $0.condition = currentItem.condition
+                        $0.hasWarranty = currentItem.hasWarranty
+                        $0.attachments = currentItem.attachments
+                        $0.dimensionLength = currentItem.dimensionLength
+                        $0.dimensionWidth = currentItem.dimensionWidth
+                        $0.dimensionHeight = currentItem.dimensionHeight
+                        $0.dimensionUnit = currentItem.dimensionUnit
+                        $0.weightValue = currentItem.weightValue
+                        $0.weightUnit = currentItem.weightUnit
+                        $0.color = currentItem.color
+                        $0.storageRequirements = currentItem.storageRequirements
+                        $0.isFragile = currentItem.isFragile
+                        $0.movingPriority = currentItem.movingPriority
+                        $0.roomDestination = currentItem.roomDestination
+                        $0.locationID = currentItem.locationID
+                        $0.homeID = currentItem.homeID
+                        $0.labelIDs = currentLabelIDs
+                    }.execute(db)
+                } else {
+                    let currentLabelIDs = currentLabels.map(\.id)
+                    var itemToInsert = currentItem
+                    itemToInsert.labelIDs = currentLabelIDs
+                    try SQLiteInventoryItem.insert {
+                        itemToInsert
+                    }.execute(db)
+                }
+
+                // Update label join table: delete all, re-insert current
+                try SQLiteInventoryItemLabel
+                    .where { $0.inventoryItemID == id }
+                    .delete()
+                    .execute(db)
+
+                for label in currentLabels {
+                    try SQLiteInventoryItemLabel.insert {
+                        SQLiteInventoryItemLabel(
+                            id: UUID(),
+                            inventoryItemID: id,
+                            inventoryLabelID: label.id
+                        )
+                    }.execute(db)
+                }
+            }
+            return true
+        } catch {
+            errorMessage = "Failed to save item: \(error.localizedDescription)"
+            showingErrorAlert = true
+            return false
+        }
+    }
+
+    private func updateItemFromImageDetails(
+        _ imageDetails: ImageDetails,
+        labels: [SQLiteInventoryLabel],
+        locations: [SQLiteInventoryLocation]
+    ) {
+        // Core properties (always update)
+        item.title = imageDetails.title
+        item.quantityString = imageDetails.quantity
+        if let quantity = Int(imageDetails.quantity) {
+            item.quantityInt = quantity
+        }
+        item.desc = imageDetails.description
+        item.make = imageDetails.make
+        item.model = imageDetails.model
+        item.serial = imageDetails.serialNumber
+
+        // Price handling
+        let priceString = imageDetails.price
+            .replacingOccurrences(of: "$", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if let price = Decimal(string: priceString) {
+            item.price = price
+        }
+
+        // Location handling - NEVER overwrite existing location
+        if item.locationID == nil {
+            if let matchedLocation = locations.first(where: { $0.name == imageDetails.location }) {
+                item.locationID = matchedLocation.id
+                sqliteSelectedLocation = matchedLocation
+            }
+        }
+
+        // Label handling - match categories to labels (case-insensitive)
+        let categoriesToMatch =
+            imageDetails.categories.isEmpty
+            ? [imageDetails.category]
+            : imageDetails.categories
+        let matchedLabels = categoriesToMatch.compactMap { categoryName in
+            labels.first { $0.name.lowercased() == categoryName.lowercased() }
+        }
+        sqliteSelectedLabels = Array(matchedLabels.prefix(5))
+
+        // Extended properties - only update if provided by AI
+        if let condition = imageDetails.condition, !condition.isEmpty {
+            item.condition = condition
+        }
+        if let color = imageDetails.color, !color.isEmpty {
+            item.color = color
+        }
+        if let purchaseLocation = imageDetails.purchaseLocation, !purchaseLocation.isEmpty {
+            item.purchaseLocation = purchaseLocation
+        }
+        if let replacementCostString = imageDetails.replacementCost, !replacementCostString.isEmpty {
+            let cleanedString =
+                replacementCostString
+                .replacingOccurrences(of: "$", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            if let replacementCost = Decimal(string: cleanedString) {
+                item.replacementCost = replacementCost
+            }
+        }
+        if let depreciationRateString = imageDetails.depreciationRate, !depreciationRateString.isEmpty {
+            let cleanedString =
+                depreciationRateString
+                .replacingOccurrences(of: "%", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            if let depreciationRate = Double(cleanedString) {
+                item.depreciationRate = depreciationRate / 100.0
+            }
+        }
+        if let storageRequirements = imageDetails.storageRequirements, !storageRequirements.isEmpty {
+            item.storageRequirements = storageRequirements
+        }
+        if let isFragileString = imageDetails.isFragile, !isFragileString.isEmpty {
+            item.isFragile = isFragileString.lowercased() == "true"
+        }
+
+        // Dimensions handling
+        if let dimensions = imageDetails.dimensions, !dimensions.isEmpty {
+            parseDimensionsForItem(dimensions)
+        } else {
+            if let dimensionLength = imageDetails.dimensionLength, !dimensionLength.isEmpty {
+                item.dimensionLength = dimensionLength
+            }
+            if let dimensionWidth = imageDetails.dimensionWidth, !dimensionWidth.isEmpty {
+                item.dimensionWidth = dimensionWidth
+            }
+            if let dimensionHeight = imageDetails.dimensionHeight, !dimensionHeight.isEmpty {
+                item.dimensionHeight = dimensionHeight
+            }
+            if let dimensionUnit = imageDetails.dimensionUnit, !dimensionUnit.isEmpty {
+                item.dimensionUnit = dimensionUnit
+            }
+        }
+
+        // Weight handling
+        if let weightValue = imageDetails.weightValue, !weightValue.isEmpty {
+            item.weightValue = weightValue
+            if let weightUnit = imageDetails.weightUnit, !weightUnit.isEmpty {
+                item.weightUnit = weightUnit
+            } else {
+                item.weightUnit = "lbs"
+            }
+        }
+
+        item.hasUsedAI = true
+    }
+
+    private func parseDimensionsForItem(_ dimensionsString: String) {
+        let cleanedString = dimensionsString.replacingOccurrences(of: "\"", with: " inches")
+        let components = cleanedString.components(separatedBy: " x ").compactMap {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+
+        if components.count >= 3 {
+            item.dimensionLength = components[0]
+                .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+            item.dimensionWidth = components[1]
+                .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+            item.dimensionHeight = components[2]
+                .replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+
+            if dimensionsString.contains("\"") || dimensionsString.lowercased().contains("inch") {
+                item.dimensionUnit = "inches"
+            } else if dimensionsString.lowercased().contains("cm") {
+                item.dimensionUnit = "cm"
+            } else if dimensionsString.lowercased().contains("feet")
+                || dimensionsString.lowercased().contains("ft")
+            {
+                item.dimensionUnit = "feet"
+            } else if dimensionsString.lowercased().contains("m")
+                && !dimensionsString.lowercased().contains("cm")
+            {
+                item.dimensionUnit = "m"
+            } else {
+                item.dimensionUnit = "inches"
+            }
         }
     }
 
     private func regenerateMissingThumbnails() async {
-        // Check and regenerate primary image thumbnail
-        if let imageURL = inventoryItemToDisplay.imageURL {
-            do {
-                try await OptimizedImageManager.shared.regenerateThumbnail(for: imageURL)
-            } catch {
-                print("📸 Failed to regenerate thumbnail for primary image: \(error)")
-            }
-        }
-
-        // Check and regenerate secondary image thumbnails
-        for urlString in inventoryItemToDisplay.secondaryPhotoURLs {
-            guard let url = URL(string: urlString) else { continue }
-            do {
-                try await OptimizedImageManager.shared.regenerateThumbnail(for: url)
-            } catch {
-                print("📸 Failed to regenerate thumbnail for secondary image: \(error)")
-            }
-        }
+        // Thumbnails are now generated on-demand from BLOB data via NSCache in OptimizedImageManager.
+        // No file-based regeneration needed.
     }
 }
 
@@ -1943,23 +2135,25 @@ struct AttachmentRowView: View {
     private func loadThumbnail() async {
         guard let fileURL = URL(string: url) else { return }
 
-        do {
-            // Try to load as image first
-            let image = try await OptimizedImageManager.shared.loadImage(url: fileURL)
+        // Try to load as image from file URL
+        if let data = try? Data(contentsOf: fileURL),
+            let image = UIImage(data: data)
+        {
             await MainActor.run {
                 thumbnail = image
             }
-        } catch {
-            // Generate PDF thumbnail if it's a PDF file
-            if fileURL.pathExtension.lowercased() == "pdf" {
-                if let pdfThumbnail = await generatePDFThumbnail(from: fileURL) {
-                    await MainActor.run {
-                        thumbnail = pdfThumbnail
-                    }
+            return
+        }
+
+        // Generate PDF thumbnail if it's a PDF file
+        if fileURL.pathExtension.lowercased() == "pdf" {
+            if let pdfThumbnail = await generatePDFThumbnail(from: fileURL) {
+                await MainActor.run {
+                    thumbnail = pdfThumbnail
                 }
             }
-            // For other document types, use the default document icon
         }
+        // For other document types, use the default document icon
     }
 
     private func generatePDFThumbnail(from url: URL) async -> UIImage? {
@@ -2003,80 +2197,33 @@ struct AttachmentRowView: View {
 }
 
 #Preview {
-    struct PreviewWrapper: View {
-        @State private var previewItem: InventoryItem
-
-        init() {
-            let location = InventoryLocation(name: "Office", desc: "My office")
-            let item = InventoryItem(
-                title: "MacBook Pro",
-                quantityString: "1",
-                quantityInt: 1,
-                desc: "16-inch 2023 Model",
-                serial: "SN12345ABC",
-                model: "MacBook Pro M2",
-                make: "Apple",
-                location: location,
-                labels: [],
-                price: Decimal(2499.99),
-                insured: false,
-                assetId: "macbook-preview",
-                notes:
-                    "Purchased for work and personal projects. Excellent condition with original box and charger.",
-                showInvalidQuantityAlert: false,
-                hasUsedAI: true
-            )
-            self._previewItem = State(initialValue: item)
-        }
-
-        var body: some View {
-            InventoryDetailView(
-                inventoryItemToDisplay: previewItem,
-                navigationPath: .constant(NavigationPath()),
-                isEditing: false
-            )
-            .environmentObject(Router())
-            .environmentObject(SettingsManager())
-            .environmentObject(OnboardingManager())
-            .task {
-                // Use the same approach as TestData.swift
-                guard let image = UIImage(named: "macbook") else {
-                    print("❌ Could not load image: macbook")
-                    return
-                }
-
-                do {
-                    let imageURL = try await OptimizedImageManager.shared.saveImage(
-                        image, id: "macbook-preview")
-                    previewItem.imageURL = imageURL
-                    print("✅ Successfully loaded preview image: macbook")
-                } catch {
-                    print("❌ Failed to setup preview image: \(error)")
-                }
-            }
-        }
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
-
-    return PreviewWrapper()
+    let previewID = UUID()
+    NavigationStack {
+        InventoryDetailView(
+            itemID: previewID,
+            navigationPath: .constant(NavigationPath()),
+            isEditing: true
+        )
+    }
+    .environmentObject(Router())
+    .environmentObject(SettingsManager())
+    .environmentObject(OnboardingManager())
 }
 
 // MARK: - Attachment Handling Methods
 
 extension InventoryDetailView {
     private func deleteAttachment(_ urlString: String) async {
-        guard URL(string: urlString) != nil else { return }
+        guard let fileURL = URL(string: urlString) else { return }
 
-        do {
-            // Delete from storage
-            try await OptimizedImageManager.shared.deleteSecondaryImage(urlString: urlString)
+        // Delete the file from disk
+        try? FileManager.default.removeItem(at: fileURL)
 
-            await MainActor.run {
-                inventoryItemToDisplay.removeAttachment(url: urlString)
-                try? modelContext.save()
-            }
-        } catch {
-            print("Error deleting attachment: \(error)")
-        }
+        item.attachments.removeAll { $0.url == urlString }
+        _ = await saveItemToSQLite()
     }
 
     private func handleAttachmentFileImport(_ result: Result<[URL], Error>) async {
@@ -2085,7 +2232,6 @@ extension InventoryDetailView {
             guard let url = urls.first else { return }
 
             do {
-                // Start accessing the security-scoped resource
                 let startedAccessing = url.startAccessingSecurityScopedResource()
                 defer {
                     if startedAccessing {
@@ -2093,41 +2239,28 @@ extension InventoryDetailView {
                     }
                 }
 
-                // Copy the file to our app's storage
                 let attachmentId = UUID().uuidString
                 let data = try Data(contentsOf: url)
                 let originalName = url.lastPathComponent
 
-                // For images, use OptimizedImageManager; for other files, copy to Documents directory
+                let documentsURL = URL.documentsDirectory
                 let destinationURL: URL
-                if let image = UIImage(data: data) {
-                    destinationURL = try await OptimizedImageManager.shared.saveImage(image, id: attachmentId)
+                if UIImage(data: data) != nil {
+                    // Save image attachment as file
+                    let imageExtension = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
+                    destinationURL = documentsURL.appendingPathComponent(
+                        attachmentId + "." + imageExtension)
+                    try data.write(to: destinationURL)
                 } else {
-                    // Copy to Documents directory for non-image files
-                    guard
-                        let documentsURL = FileManager.default.urls(
-                            for: .documentDirectory, in: .userDomainMask
-                        ).first
-                    else {
-                        throw NSError(
-                            domain: "InventoryDetailView", code: 2,
-                            userInfo: [NSLocalizedDescriptionKey: "Cannot access documents directory"])
-                    }
                     destinationURL = documentsURL.appendingPathComponent(
                         attachmentId + "." + url.pathExtension)
                     try data.write(to: destinationURL)
                 }
 
-                await MainActor.run {
-                    inventoryItemToDisplay.addAttachment(
-                        url: destinationURL.absoluteString, originalName: originalName)
-                    do {
-                        try modelContext.save()
-                        print("✅ Successfully saved attachment: \(originalName)")
-                    } catch {
-                        print("❌ Failed to save attachment: \(error)")
-                    }
-                }
+                let attachment = AttachmentInfo(url: destinationURL.absoluteString, originalName: originalName)
+                item.attachments.append(attachment)
+                _ = await saveItemToSQLite()
+                print("✅ Successfully saved attachment: \(originalName)")
             } catch {
                 print("Failed to save attachment file: \(error)")
             }
@@ -2171,7 +2304,7 @@ struct InventoryItemSnapshot {
     let movingPriority: Int
     let roomDestination: String
 
-    init(from item: InventoryItem) {
+    init(from item: SQLiteInventoryItem) {
         self.title = item.title
         self.quantityString = item.quantityString
         self.quantityInt = item.quantityInt
@@ -2202,7 +2335,7 @@ struct InventoryItemSnapshot {
         self.roomDestination = item.roomDestination
     }
 
-    func restore(to item: InventoryItem) {
+    func restore(to item: inout SQLiteInventoryItem) {
         item.title = title
         item.quantityString = quantityString
         item.quantityInt = quantityInt

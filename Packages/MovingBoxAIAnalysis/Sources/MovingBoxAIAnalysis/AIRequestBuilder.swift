@@ -439,9 +439,10 @@ public struct AIRequestBuilder {
         for image in images {
             let targetResolution = settings.effectiveImageResolution
             let resizedImage = await imageOptimizer.optimizeImage(image, maxDimension: targetResolution)
+            let imageDetail = openRouterImageDetail(from: settings.effectiveDetailLevel)
 
             if let imageURL = AIProxy.encodeImageAsURL(image: resizedImage, compressionQuality: 0.8) {
-                parts.append(.imageURL(imageURL, detail: .auto))
+                parts.append(.imageURL(imageURL, detail: imageDetail))
             }
         }
 
@@ -473,6 +474,19 @@ public struct AIRequestBuilder {
             return "string"
         default:
             return "string"
+        }
+    }
+
+    private func openRouterImageDetail(
+        from detailLevel: String
+    ) -> OpenRouterChatCompletionRequestBody.Message.UserContent.Part.ImageDetail {
+        switch detailLevel.lowercased() {
+        case "high":
+            return .high
+        case "low":
+            return .low
+        default:
+            return .auto
         }
     }
 

@@ -1,5 +1,6 @@
 import Foundation
-import SwiftData
+import GRDB
+import SQLiteData
 import Testing
 import UIKit
 import ZIPFoundation
@@ -8,32 +9,14 @@ import ZIPFoundation
 
 @MainActor
 struct DataManagerTests {
-    func createContainer() throws -> ModelContainer {
-        let schema = Schema([InventoryItem.self, InventoryLocation.self, InventoryLabel.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [config])
-    }
-
-    func createContext(with container: ModelContainer) -> ModelContext {
-        return ModelContext(container)
-    }
-
-    /// Creates a DataManager instance configured for testing with the given container.
-    /// This is necessary because DataManager.shared doesn't have a container configured,
-    /// which is correct for production but breaks tests that need to access SwiftData.
-    func createDataManager(with container: ModelContainer) -> DataManager {
-        return DataManager(modelContainer: container)
-    }
-
     let fileManager = FileManager.default
 
     @Test("Empty inventory throws error")
     func emptyInventoryThrowsError() async throws {
-        let container = try createContainer()
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
         do {
-            _ = try await dataManager.exportInventory(modelContainer: container)
+            _ = try await DataManager.shared.exportInventory(database: database)
             Issue.record("Expected error to be thrown")
         } catch let error as DataManager.DataError {
             #expect(error == .nothingToExport)
@@ -44,23 +27,19 @@ struct DataManagerTests {
 
     @Test("Export with items creates zip file")
     func exportWithItemsCreatesZip() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        item.desc = "Test Description"
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item", desc: "Test Description")
+            }.execute(db)
+        }
 
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         #expect(fileManager.fileExists(atPath: url.path))
         #expect(url.lastPathComponent.hasPrefix("MovingBox-export"))
         #expect(url.lastPathComponent.hasSuffix(".zip"))
@@ -75,36 +54,30 @@ struct DataManagerTests {
 
     @Test("Export with photos includes photos in zip")
     func exportWithPhotosIncludesPhotos() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let tempURL = try getTestFileURL(named: "test.png")
+        let itemID = UUID()
         let image = UIImage(systemName: "star.fill")!
         let imageData = image.pngData()!
-        try imageData.write(to: tempURL)
 
-        defer {
-            try? fileManager.removeItem(at: tempURL)
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: itemID, title: "Test Item")
+            }.execute(db)
+            try SQLiteInventoryItemPhoto.insert {
+                SQLiteInventoryItemPhoto(id: UUID(), inventoryItemID: itemID, data: imageData)
+            }.execute(db)
         }
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        item.imageURL = tempURL
-        context.insert(item)
-        try context.save()
-
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
-            let hasPhotosFolder = archive.contains { $0.path.hasPrefix("photos/") }
-            #expect(hasPhotosFolder)
+            #expect(archive.contains { $0.path == "inventory.csv" })
+            #expect(archive.contains { $0.path.hasPrefix("photos/item-") })
         } catch {
             Issue.record("Unable to open archive: \(error)")
         }
@@ -112,33 +85,37 @@ struct DataManagerTests {
 
     @Test("Export with locations includes locations.csv and photos")
     func exportWithLocationsIncludesLocationsData() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let location = InventoryLocation(name: "Test Location")
-        location.desc = "Test Notes"
-        location.imageURL = try createTestImage(named: "location.png")
-        context.insert(location)
-        try context.save()
+        let locationID = UUID()
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        item.location = location
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(
+                    id: locationID, name: "Test Location", desc: "Test Notes")
+            }.execute(db)
+            let locationPhoto = UIImage(systemName: "shippingbox.fill")!.pngData()!
+            try SQLiteInventoryLocationPhoto.insert {
+                SQLiteInventoryLocationPhoto(
+                    id: UUID(),
+                    inventoryLocationID: locationID,
+                    data: locationPhoto
+                )
+            }.execute(db)
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item", locationID: locationID)
+            }.execute(db)
+        }
 
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "locations.csv" })
-            #expect(archive.contains { $0.path.hasPrefix("photos/") })
+            #expect(archive.contains { $0.path.hasPrefix("photos/location-") })
         } catch {
             Issue.record("Unable to open archive: \(error)")
         }
@@ -146,18 +123,15 @@ struct DataManagerTests {
 
     @Test("Import with locations and items returns correct counts")
     func importWithLocationsAndItemsReturnsCounts() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
         let zipURL = try createTestImportFile()
 
-        // When
         var importedItemCount = 0
         var importedLocationCount = 0
 
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .completed(let result) = progress {
                 importedItemCount = result.itemCount
@@ -165,25 +139,35 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         #expect(importedItemCount == 2)
         #expect(importedLocationCount == 2)
 
-        let locations = try context.fetch(FetchDescriptor<InventoryLocation>())
+        let locations = try await database.read { db in
+            try SQLiteInventoryLocation.fetchAll(db)
+        }
         #expect(locations.count == 2)
 
-        let items = try context.fetch(FetchDescriptor<InventoryItem>())
+        let items = try await database.read { db in
+            try SQLiteInventoryItem.fetchAll(db)
+        }
         #expect(items.count == 2)
 
-        // Cleanup
+        let itemPhotos = try await database.read { db in
+            try SQLiteInventoryItemPhoto.fetchAll(db)
+        }
+        #expect(itemPhotos.count == 2)
+
+        let locationPhotos = try await database.read { db in
+            try SQLiteInventoryLocationPhoto.fetchAll(db)
+        }
+        #expect(locationPhotos.count == 2)
+
         try? FileManager.default.removeItem(at: zipURL)
     }
 
     @Test("Import with invalid zip throws error")
     func importWithInvalidZipThrowsError() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let documentsURL = try fileManager.url(
             for: .documentDirectory,
@@ -197,7 +181,6 @@ struct DataManagerTests {
             try fileManager.removeItem(at: invalidZipURL)
         }
 
-        // Write invalid zip data
         let invalidData = "This is not a valid zip file".data(using: .utf8)!
         try invalidData.write(to: invalidZipURL)
 
@@ -205,12 +188,11 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: invalidZipURL)
         }
 
-        // When
         var receivedError: Error?
 
         for try await progress in await DataManager.shared.importInventory(
             from: invalidZipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let sendableError) = progress {
                 receivedError = sendableError.toError()
@@ -218,7 +200,6 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         guard let error = receivedError else {
             Issue.record("Expected error to be received")
             return
@@ -235,23 +216,20 @@ struct DataManagerTests {
 
     @Test("Export respects configuration flags")
     func exportRespectsConfiguration() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        context.insert(item)
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item")
+            }.execute(db)
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(id: UUID(), name: "Test Location")
+            }.execute(db)
+            try SQLiteInventoryLabel.insert {
+                SQLiteInventoryLabel(id: UUID(), name: "Test Label")
+            }.execute(db)
+        }
 
-        let location = InventoryLocation(name: "Test Location")
-        context.insert(location)
-
-        let label = InventoryLabel(name: "Test Label")
-        context.insert(label)
-
-        try context.save()
-
-        // When exporting only items
         let itemsOnlyConfig = DataManager.ExportConfig(
             includeItems: true,
             includeLocations: false,
@@ -259,11 +237,10 @@ struct DataManagerTests {
         )
 
         let itemsOnlyURL = try await DataManager.shared.exportInventory(
-            modelContainer: container,
+            database: database,
             config: itemsOnlyConfig
         )
 
-        // Then
         do {
             let archive = try Archive(url: itemsOnlyURL, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "inventory.csv" })
@@ -276,15 +253,560 @@ struct DataManagerTests {
         try? FileManager.default.removeItem(at: itemsOnlyURL)
     }
 
+    @Test("Export includes home and insurance policy CSV files")
+    func exportIncludesHomeAndInsurancePolicyCSVs() async throws {
+        let database = try makeInMemoryDatabase()
+        let homeID = UUID()
+        let policyID = UUID()
+
+        try await database.write { db in
+            try SQLiteHome.insert {
+                SQLiteHome(
+                    id: homeID,
+                    name: "Primary Home",
+                    address1: "123 Main St",
+                    city: "Nashville",
+                    state: "TN",
+                    zip: "37201",
+                    country: "USA",
+                    purchasePrice: Decimal(string: "420000")!,
+                    isPrimary: true,
+                    colorName: "blue"
+                )
+            }.execute(db)
+
+            try SQLiteInsurancePolicy.insert {
+                SQLiteInsurancePolicy(
+                    id: policyID,
+                    providerName: "Acme Insurance",
+                    policyNumber: "HO-12345",
+                    deductibleAmount: Decimal(string: "1500")!,
+                    dwellingCoverageAmount: Decimal(string: "500000")!,
+                    personalPropertyCoverageAmount: Decimal(string: "200000")!,
+                    lossOfUseCoverageAmount: Decimal(string: "100000")!,
+                    liabilityCoverageAmount: Decimal(string: "300000")!,
+                    medicalPaymentsCoverageAmount: Decimal(string: "10000")!,
+                    startDate: Date(timeIntervalSince1970: 1_700_000_000),
+                    endDate: Date(timeIntervalSince1970: 1_731_536_000)
+                )
+            }.execute(db)
+
+            try SQLiteHomeInsurancePolicy.insert {
+                SQLiteHomeInsurancePolicy(
+                    id: UUID(),
+                    homeID: homeID,
+                    insurancePolicyID: policyID
+                )
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportInventory(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "homes-export")
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+        }
+
+        let archiveEntries = try archiveEntryPaths(in: archiveURL)
+        #expect(archiveEntries.contains("home-details.csv"))
+        #expect(archiveEntries.contains("insurance-policy-details.csv"))
+
+        let homesRows = try csvRows(fromArchiveEntry: "home-details.csv", archiveURL: archiveURL)
+        #expect(homesRows.count == 2)
+        #expect(homesRows[0].contains("HomeID"))
+        #expect(homesRows[1][0].lowercased() == homeID.uuidString.lowercased())
+        #expect(homesRows[1][1] == "Primary Home")
+
+        let policiesRows = try csvRows(
+            fromArchiveEntry: "insurance-policy-details.csv",
+            archiveURL: archiveURL
+        )
+        #expect(policiesRows.count == 2)
+        #expect(policiesRows[0].contains("ProviderName"))
+        #expect(policiesRows[1][1] == "Acme Insurance")
+        #expect(policiesRows[1][2] == "HO-12345")
+        #expect(policiesRows[1].joined(separator: ",").lowercased().contains(homeID.uuidString.lowercased()))
+    }
+
+    @Test("Export item CSV includes all inventory attributes and photo filename columns")
+    func exportItemCSVIncludesAllAttributesAndPhotoColumns() async throws {
+        let database = try makeInMemoryDatabase()
+
+        let homeID = UUID()
+        let locationID = UUID()
+        let labelID = UUID()
+        let itemID = UUID()
+        let firstPhotoID = UUID()
+        let secondPhotoID = UUID()
+        let pngData = UIImage(systemName: "star.fill")!.pngData()!
+
+        try await database.write { db in
+            try SQLiteHome.insert {
+                SQLiteHome(id: homeID, name: "North House")
+            }.execute(db)
+
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(
+                    id: locationID,
+                    name: "Garage",
+                    desc: "Storage",
+                    homeID: homeID
+                )
+            }.execute(db)
+
+            try SQLiteInventoryLabel.insert {
+                SQLiteInventoryLabel(id: labelID, name: "Electronics")
+            }.execute(db)
+
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(
+                    id: itemID,
+                    title: "Camera Kit",
+                    quantityString: "2 units",
+                    quantityInt: 2,
+                    desc: "Mirrorless camera and lenses",
+                    serial: "SER-001",
+                    model: "X-T5",
+                    make: "Fujifilm",
+                    price: Decimal(string: "1699.99")!,
+                    insured: true,
+                    assetId: "ASSET-42",
+                    notes: "Packed in hard case",
+                    replacementCost: Decimal(string: "1900.50")!,
+                    depreciationRate: 4.5,
+                    hasUsedAI: true,
+                    createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    purchaseDate: Date(timeIntervalSince1970: 1_680_000_000),
+                    warrantyExpirationDate: Date(timeIntervalSince1970: 1_760_000_000),
+                    purchaseLocation: "Downtown Camera",
+                    condition: "Excellent",
+                    hasWarranty: true,
+                    attachments: [AttachmentInfo(url: "file:///manual.pdf", originalName: "manual.pdf")],
+                    dimensionLength: "12",
+                    dimensionWidth: "8",
+                    dimensionHeight: "6",
+                    dimensionUnit: "in",
+                    weightValue: "4.5",
+                    weightUnit: "lb",
+                    color: "Black",
+                    storageRequirements: "Dry",
+                    isFragile: true,
+                    movingPriority: 1,
+                    roomDestination: "Office",
+                    locationID: locationID
+                )
+            }.execute(db)
+
+            try SQLiteInventoryItemLabel.insert {
+                SQLiteInventoryItemLabel(
+                    id: UUID(),
+                    inventoryItemID: itemID,
+                    inventoryLabelID: labelID
+                )
+            }.execute(db)
+
+            try SQLiteInventoryItemPhoto.insert {
+                SQLiteInventoryItemPhoto(
+                    id: firstPhotoID,
+                    inventoryItemID: itemID,
+                    data: pngData,
+                    sortOrder: 0
+                )
+            }.execute(db)
+
+            try SQLiteInventoryItemPhoto.insert {
+                SQLiteInventoryItemPhoto(
+                    id: secondPhotoID,
+                    inventoryItemID: itemID,
+                    data: pngData,
+                    sortOrder: 1
+                )
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportInventory(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "item-export")
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+        }
+
+        let rows = try csvRows(fromArchiveEntry: "inventory.csv", archiveURL: archiveURL)
+        #expect(rows.count == 2)
+
+        let header = rows[0]
+        let row = rows[1]
+        let headerIndex = Dictionary(uniqueKeysWithValues: header.enumerated().map { ($1, $0) })
+
+        let requiredHeaders = [
+            "Title", "Description", "Location", "Label", "Home",
+            "QuantityString", "QuantityInt", "Serial", "Model", "Make", "Price",
+            "Insured", "AssetID", "Notes", "ReplacementCost", "DepreciationRate",
+            "HasUsedAI", "CreatedAt", "PurchaseDate", "WarrantyExpirationDate",
+            "PurchaseLocation", "Condition", "HasWarranty", "AttachmentsJSON",
+            "DimensionLength", "DimensionWidth", "DimensionHeight", "DimensionUnit",
+            "WeightValue", "WeightUnit", "Color", "StorageRequirements",
+            "IsFragile", "MovingPriority", "RoomDestination",
+            "ItemID", "LocationID", "HomeID", "PhotoFilename", "PhotoFilename2",
+        ]
+        for requiredHeader in requiredHeaders {
+            #expect(header.contains(requiredHeader))
+        }
+
+        #expect(row[valueForHeader("Title", in: headerIndex)] == "Camera Kit")
+        #expect(row[valueForHeader("Home", in: headerIndex)] == "North House")
+        #expect(row[valueForHeader("Location", in: headerIndex)] == "Garage")
+        #expect(row[valueForHeader("Label", in: headerIndex)] == "Electronics")
+        #expect(row[valueForHeader("QuantityString", in: headerIndex)] == "2 units")
+        #expect(row[valueForHeader("QuantityInt", in: headerIndex)] == "2")
+        #expect(row[valueForHeader("Serial", in: headerIndex)] == "SER-001")
+        #expect(row[valueForHeader("AssetID", in: headerIndex)] == "ASSET-42")
+        #expect(row[valueForHeader("HasWarranty", in: headerIndex)] == "true")
+        #expect(row[valueForHeader("IsFragile", in: headerIndex)] == "true")
+        #expect(row[valueForHeader("MovingPriority", in: headerIndex)] == "1")
+        #expect(row[valueForHeader("ItemID", in: headerIndex)].lowercased() == itemID.uuidString.lowercased())
+        #expect(
+            row[valueForHeader("LocationID", in: headerIndex)].lowercased() == locationID.uuidString.lowercased())
+        #expect(row[valueForHeader("HomeID", in: headerIndex)].lowercased() == homeID.uuidString.lowercased())
+
+        let firstPhotoFilename = row[valueForHeader("PhotoFilename", in: headerIndex)]
+        let secondPhotoFilename = row[valueForHeader("PhotoFilename2", in: headerIndex)]
+        #expect(!firstPhotoFilename.isEmpty)
+        #expect(!secondPhotoFilename.isEmpty)
+        #expect(firstPhotoFilename != secondPhotoFilename)
+    }
+
+    @Test("Export filters CSV rows by selected home IDs")
+    func exportFiltersRowsBySelectedHomeIDs() async throws {
+        let database = try makeInMemoryDatabase()
+
+        let includedHomeID = UUID()
+        let excludedHomeID = UUID()
+        let includedLocationID = UUID()
+        let excludedLocationID = UUID()
+        let includedPolicyID = UUID()
+        let excludedPolicyID = UUID()
+        let globalPolicyID = UUID()
+
+        try await database.write { db in
+            try SQLiteHome.insert {
+                SQLiteHome(id: includedHomeID, name: "Included Home")
+            }.execute(db)
+            try SQLiteHome.insert {
+                SQLiteHome(id: excludedHomeID, name: "Excluded Home")
+            }.execute(db)
+
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(
+                    id: includedLocationID,
+                    name: "Included Location",
+                    homeID: includedHomeID
+                )
+            }.execute(db)
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(
+                    id: excludedLocationID,
+                    name: "Excluded Location",
+                    homeID: excludedHomeID
+                )
+            }.execute(db)
+
+            // Item with no direct homeID should still resolve via location home.
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(
+                    id: UUID(),
+                    title: "Included Item",
+                    locationID: includedLocationID
+                )
+            }.execute(db)
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(
+                    id: UUID(),
+                    title: "Excluded Item",
+                    locationID: excludedLocationID
+                )
+            }.execute(db)
+
+            try SQLiteInsurancePolicy.insert {
+                SQLiteInsurancePolicy(id: includedPolicyID, providerName: "Included Policy")
+            }.execute(db)
+            try SQLiteInsurancePolicy.insert {
+                SQLiteInsurancePolicy(id: excludedPolicyID, providerName: "Excluded Policy")
+            }.execute(db)
+            try SQLiteInsurancePolicy.insert {
+                SQLiteInsurancePolicy(id: globalPolicyID, providerName: "Global Policy")
+            }.execute(db)
+
+            try SQLiteHomeInsurancePolicy.insert {
+                SQLiteHomeInsurancePolicy(
+                    id: UUID(),
+                    homeID: includedHomeID,
+                    insurancePolicyID: includedPolicyID
+                )
+            }.execute(db)
+            try SQLiteHomeInsurancePolicy.insert {
+                SQLiteHomeInsurancePolicy(
+                    id: UUID(),
+                    homeID: excludedHomeID,
+                    insurancePolicyID: excludedPolicyID
+                )
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportInventory(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "filtered-export"),
+            config: .init(includedHomeIDs: Set([includedHomeID]))
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+        }
+
+        let inventoryRows = try csvRows(fromArchiveEntry: "inventory.csv", archiveURL: archiveURL)
+        #expect(inventoryRows.count == 2)
+        #expect(inventoryRows[1].joined(separator: ",").contains("Included Item"))
+        #expect(!inventoryRows[1].joined(separator: ",").contains("Excluded Item"))
+
+        let locationRows = try csvRows(fromArchiveEntry: "locations.csv", archiveURL: archiveURL)
+        #expect(locationRows.count == 2)
+        #expect(locationRows[1].joined(separator: ",").contains("Included Location"))
+        #expect(!locationRows[1].joined(separator: ",").contains("Excluded Location"))
+
+        let homeRows = try csvRows(fromArchiveEntry: "home-details.csv", archiveURL: archiveURL)
+        #expect(homeRows.count == 2)
+        #expect(homeRows[1].joined(separator: ",").contains("Included Home"))
+        #expect(!homeRows[1].joined(separator: ",").contains("Excluded Home"))
+
+        let policyRows = try csvRows(
+            fromArchiveEntry: "insurance-policy-details.csv",
+            archiveURL: archiveURL
+        )
+        #expect(policyRows.count == 3)
+        let policyText = policyRows.dropFirst().map { $0.joined(separator: ",") }.joined(separator: "\n")
+        #expect(policyText.contains("Included Policy"))
+        #expect(policyText.contains("Global Policy"))
+        #expect(!policyText.contains("Excluded Policy"))
+    }
+
+    @Test("Export excludes photo files when photos are disabled")
+    func exportExcludesPhotoFilesWhenPhotosDisabled() async throws {
+        let database = try makeInMemoryDatabase()
+        let itemID = UUID()
+        let pngData = UIImage(systemName: "star.fill")!.pngData()!
+
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: itemID, title: "Photo Item")
+            }.execute(db)
+            try SQLiteInventoryItemPhoto.insert {
+                SQLiteInventoryItemPhoto(id: UUID(), inventoryItemID: itemID, data: pngData)
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportInventory(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "no-photos-export"),
+            config: .init(includePhotos: false)
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+        }
+
+        let archiveEntries = try archiveEntryPaths(in: archiveURL)
+        #expect(!archiveEntries.contains { $0.hasPrefix("photos/") })
+
+        let inventoryRows = try csvRows(fromArchiveEntry: "inventory.csv", archiveURL: archiveURL)
+        let headerIndex = Dictionary(uniqueKeysWithValues: inventoryRows[0].enumerated().map { ($1, $0) })
+        let photoFilename = inventoryRows[1][valueForHeader("PhotoFilename", in: headerIndex)]
+        #expect(!photoFilename.isEmpty)
+    }
+
+    @Test("Import supports multiple photo filename columns")
+    func importSupportsMultiplePhotoFilenameColumns() async throws {
+        let database = try makeInMemoryDatabase()
+        let zipURL = try createMultiPhotoImportFile()
+        defer {
+            try? fileManager.removeItem(at: zipURL)
+        }
+
+        var importResult: DataManager.ImportResult?
+        for try await progress in await DataManager.shared.importInventory(
+            from: zipURL,
+            database: database
+        ) {
+            if case .completed(let result) = progress {
+                importResult = result
+            }
+        }
+
+        #expect(importResult?.itemCount == 1)
+
+        let itemPhotos = try await database.read { db in
+            try SQLiteInventoryItemPhoto.order(by: \.sortOrder).fetchAll(db)
+        }
+        #expect(itemPhotos.count == 2)
+        #expect(itemPhotos.map(\.sortOrder) == [0, 1])
+    }
+
+    @Test("Import CSV includes homes and insurance policies")
+    func importCSVIncludesHomesAndInsurancePolicies() async throws {
+        let database = try makeInMemoryDatabase()
+        let zipURL = try createFullParityImportFile()
+        defer {
+            try? fileManager.removeItem(at: zipURL)
+        }
+
+        var result: DataManager.ImportResult?
+        for try await progress in await DataManager.shared.importInventory(
+            from: zipURL,
+            database: database,
+            config: .init(
+                format: .csvArchive,
+                includeItems: true,
+                includeLocations: true,
+                includeLabels: true,
+                includeHomes: true,
+                includeInsurancePolicies: true
+            )
+        ) {
+            if case .completed(let importResult) = progress {
+                result = importResult
+            }
+        }
+
+        #expect(result?.homeCount == 1)
+        #expect(result?.insurancePolicyCount == 1)
+        #expect(result?.requiresRestart == false)
+
+        let homes = try await database.read { db in
+            try SQLiteHome.fetchAll(db)
+        }
+        #expect(homes.count == 1)
+
+        let policies = try await database.read { db in
+            try SQLiteInsurancePolicy.fetchAll(db)
+        }
+        #expect(policies.count == 1)
+
+        let homePolicyLinks = try await database.read { db in
+            try SQLiteHomeInsurancePolicy.fetchAll(db)
+        }
+        #expect(homePolicyLinks.count == 1)
+    }
+
+    @Test("Database import preview requires restart")
+    func databaseImportPreviewRequiresRestart() async throws {
+        let dbURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("movingbox-preview-db-\(UUID().uuidString).sqlite")
+        let database = try makePersistentDatabase(at: dbURL)
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Preview Restore Item")
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportDatabaseArchive(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "database-import-preview")
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+            try? removeSQLiteSidecars(at: dbURL)
+        }
+
+        let preview = try await DataManager.shared.previewImport(
+            from: archiveURL,
+            config: .init(format: .movingBoxDatabase)
+        )
+        #expect(preview.requiresRestart == true)
+        #expect(preview.itemCount == 0)
+        #expect(preview.homeCount == 0)
+        #expect(preview.insurancePolicyCount == 0)
+    }
+
+    @Test("Database import stages restore and requires restart")
+    func databaseImportStagesRestoreAndRequiresRestart() async throws {
+        let dbURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("movingbox-stage-db-\(UUID().uuidString).sqlite")
+        let database = try makePersistentDatabase(at: dbURL)
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Stage Restore Item")
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportDatabaseArchive(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "database-import-stage")
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+            try? removeSQLiteSidecars(at: dbURL)
+            try? removeStagedRestoreArtifacts()
+        }
+
+        var completedResult: DataManager.ImportResult?
+        for try await progress in await DataManager.shared.importInventory(
+            from: archiveURL,
+            database: database,
+            config: .init(format: .movingBoxDatabase)
+        ) {
+            if case .completed(let result) = progress {
+                completedResult = result
+            }
+        }
+
+        #expect(completedResult?.requiresRestart == true)
+        #expect(completedResult?.itemCount == 0)
+    }
+
+    @Test("Database archive export throws for in-memory database")
+    func databaseArchiveExportThrowsForInMemoryDatabase() async throws {
+        let database = try makeInMemoryDatabase()
+
+        do {
+            _ = try await DataManager.shared.exportDatabaseArchive(database: database)
+            Issue.record("Expected containerNotConfigured error")
+        } catch let error as DataManager.DataError {
+            #expect(error == .containerNotConfigured)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+
+    @Test("Database archive export includes sqlite file for persistent database")
+    func databaseArchiveExportIncludesSQLiteFileForPersistentDatabase() async throws {
+        let dbURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("movingbox-export-test-\(UUID().uuidString).sqlite")
+        let database = try makePersistentDatabase(at: dbURL)
+
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Persisted Item")
+            }.execute(db)
+        }
+
+        let archiveURL = try await DataManager.shared.exportDatabaseArchive(
+            database: database,
+            fileName: uniqueArchiveName(prefix: "database-export")
+        )
+        defer {
+            try? fileManager.removeItem(at: archiveURL)
+            try? removeSQLiteSidecars(at: dbURL)
+        }
+
+        let archiveEntries = try archiveEntryPaths(in: archiveURL)
+        #expect(archiveEntries.contains(dbURL.lastPathComponent))
+    }
+
     @Test("Import respects configuration flags")
     func importRespectsConfiguration() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let importURL = try createTestImportFile()
 
-        // When importing only items
         let itemsOnlyConfig = DataManager.ImportConfig(
             includeItems: true,
             includeLocations: false,
@@ -297,7 +819,7 @@ struct DataManagerTests {
 
         for try await progress in await DataManager.shared.importInventory(
             from: importURL,
-            modelContainer: container,
+            database: database,
             config: itemsOnlyConfig
         ) {
             if case .completed(let result) = progress {
@@ -307,7 +829,6 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         #expect(importedItemCount > 0)
         #expect(importedLocationCount == 0)
         #expect(importedLabelCount == 0)
@@ -317,29 +838,23 @@ struct DataManagerTests {
 
     @Test("Import handles file access errors gracefully")
     func importHandlesFileAccessErrors() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create a file that we can't read
         let deniedFileURL = try getTestFileURL(named: "denied.zip")
         try "test".data(using: .utf8)?.write(to: deniedFileURL)
 
-        // Make file unreadable by removing read permissions (on macOS this might not work as expected)
         try fileManager.setAttributes([.posixPermissions: 0o000], ofItemAtPath: deniedFileURL.path)
 
         defer {
-            // Restore permissions for cleanup
             try? fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: deniedFileURL.path)
             try? fileManager.removeItem(at: deniedFileURL)
         }
 
-        // When
         var receivedError: Error?
 
         for try await progress in await DataManager.shared.importInventory(
             from: deniedFileURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let sendableError) = progress {
                 receivedError = sendableError.toError()
@@ -347,17 +862,13 @@ struct DataManagerTests {
             }
         }
 
-        // Then
         #expect(receivedError != nil)
     }
 
     @Test("Import validates file size limits")
     func importValidatesFileSizeLimits() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create a zip with CSV that references a large file
         let workingDir = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -369,7 +880,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create inventory CSV referencing a large image
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item,Test Description,Test Location,,1,,,,,false,,large.png,false
@@ -377,11 +887,9 @@ struct DataManagerTests {
         try inventoryCSV.write(
             to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
-        // Create a dummy file that would simulate large file (we can't create actual 100MB file in tests)
         let largeFileURL = photosDir.appendingPathComponent("large.png")
         try "large_file_content".data(using: .utf8)?.write(to: largeFileURL)
 
-        // Create zip
         let zipURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -397,14 +905,11 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: zipURL)
         }
 
-        // When/Then - The test should pass since we can't create an actual large file in tests
-        // This tests the validation logic exists
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let error) = progress {
-                // If we get a file size error, that's expected
                 if let dataError = error as? DataManager.DataError,
                     dataError == .fileTooLarge
                 {
@@ -412,7 +917,6 @@ struct DataManagerTests {
                 }
             }
             if case .completed = progress {
-                // Normal completion is also acceptable since our test file is small
                 break
             }
         }
@@ -420,9 +924,7 @@ struct DataManagerTests {
 
     @Test("Import validates file types")
     func importValidatesFileTypes() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let workingDir = try fileManager.url(
             for: .documentDirectory,
@@ -435,7 +937,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create inventory CSV referencing an invalid file type
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item,Test Description,Test Location,,1,,,,,false,,invalid.txt,false
@@ -443,11 +944,9 @@ struct DataManagerTests {
         try inventoryCSV.write(
             to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
-        // Create invalid file type
         let invalidFileURL = photosDir.appendingPathComponent("invalid.txt")
         try "invalid file content".data(using: .utf8)?.write(to: invalidFileURL)
 
-        // Create zip
         let zipURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -463,11 +962,10 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: zipURL)
         }
 
-        // When - Import should handle invalid file types gracefully
         var hadError = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .error(let error) = progress {
                 if let dataError = error as? DataManager.DataError,
@@ -478,46 +976,36 @@ struct DataManagerTests {
                 break
             }
             if case .completed = progress {
-                // Completion is acceptable if the invalid file was skipped
                 break
             }
         }
 
-        // File type validation happens during copy, so we won't get an error if the file is just skipped
-        // This test ensures the validation logic exists
-        #expect(true)  // Test passes if no crash occurs
+        #expect(true)
     }
 
     @Test("Export with large dataset uses batched processing")
     func exportWithLargeDatasetUsesBatching() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create 150 items to test batching (batch size is 100)
-        for i in 1...150 {
-            let item = InventoryItem()
-            item.title = "Test Item \(i)"
-            item.desc = "Description \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...150 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Test Item \(i)", desc: "Description \(i)")
+                }.execute(db)
+            }
         }
-        try context.save()
 
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         #expect(fileManager.fileExists(atPath: url.path))
 
-        // Verify the archive contains all items
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "inventory.csv" })
 
-            // Extract and verify CSV content
             if let entry = archive["inventory.csv"] {
                 var csvData = Data()
                 _ = try archive.extract(entry) { data in
@@ -527,7 +1015,6 @@ struct DataManagerTests {
                 let csvString = String(data: csvData, encoding: .utf8)
                 let lines = csvString?.components(separatedBy: .newlines).filter { !$0.isEmpty }
 
-                // Should have header + 150 items = 151 lines
                 #expect(lines?.count == 151)
             }
         } catch {
@@ -537,39 +1024,35 @@ struct DataManagerTests {
 
     @Test("Batched export with locations and labels")
     func batchedExportWithMultipleTypes() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        // Create 150 items, 50 locations, 30 labels
-        for i in 1...150 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...150 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...50 {
+                try SQLiteInventoryLocation.insert {
+                    SQLiteInventoryLocation(id: UUID(), name: "Location \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...30 {
+                try SQLiteInventoryLabel.insert {
+                    SQLiteInventoryLabel(id: UUID(), name: "Label \(i)")
+                }.execute(db)
+            }
         }
 
-        for i in 1...50 {
-            let location = InventoryLocation(name: "Location \(i)")
-            context.insert(location)
-        }
-
-        for i in 1...30 {
-            let label = InventoryLabel(name: "Label \(i)")
-            context.insert(label)
-        }
-
-        try context.save()
-
-        // When
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
 
-        // Then
         #expect(fileManager.fileExists(atPath: url.path))
 
-        // Verify all CSV files are present
         do {
             let archive = try Archive(url: url, accessMode: .read, pathEncoding: .utf8)
             #expect(archive.contains { $0.path == "inventory.csv" })
@@ -582,9 +1065,7 @@ struct DataManagerTests {
 
     @Test("Import handles filename sanitization")
     func importHandlesFilenameSanitization() async throws {
-        // Given
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
         let workingDir = try fileManager.url(
             for: .documentDirectory,
@@ -597,7 +1078,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create inventory CSV with dangerous filenames
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item 1,Test Description,Test Location,,1,,,,,false,,../../../danger.png,false
@@ -606,11 +1086,9 @@ struct DataManagerTests {
         try inventoryCSV.write(
             to: workingDir.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
-        // Create safe file
         let safeFileURL = photosDir.appendingPathComponent("safe.png")
         try "safe content".data(using: .utf8)?.write(to: safeFileURL)
 
-        // Create zip
         let zipURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
@@ -626,11 +1104,10 @@ struct DataManagerTests {
             try? fileManager.removeItem(at: zipURL)
         }
 
-        // When
         var completedSuccessfully = false
         for try await progress in await DataManager.shared.importInventory(
             from: zipURL,
-            modelContainer: container
+            database: database
         ) {
             if case .completed = progress {
                 completedSuccessfully = true
@@ -638,11 +1115,11 @@ struct DataManagerTests {
             }
         }
 
-        // Then - Should complete without allowing path traversal
         #expect(completedSuccessfully)
 
-        // Verify items were imported (the dangerous filename should be sanitized)
-        let items = try context.fetch(FetchDescriptor<InventoryItem>())
+        let items = try await database.read { db in
+            try SQLiteInventoryItem.fetchAll(db)
+        }
         #expect(items.count == 2)
     }
 
@@ -654,15 +1131,15 @@ struct DataManagerTests {
         #expect(memoryBytes > 0)
         #expect(memoryGB > 0)
 
-        let container = try createContainer()
-        let context = createContext(with: container)
+        let database = try makeInMemoryDatabase()
 
-        let item = InventoryItem()
-        item.title = "Test Item"
-        context.insert(item)
-        try context.save()
+        try await database.write { db in
+            try SQLiteInventoryItem.insert {
+                SQLiteInventoryItem(id: UUID(), title: "Test Item")
+            }.execute(db)
+        }
 
-        let url = try await DataManager.shared.exportInventory(modelContainer: container)
+        let url = try await DataManager.shared.exportInventory(database: database)
         defer {
             try? fileManager.removeItem(at: url)
         }
@@ -672,21 +1149,20 @@ struct DataManagerTests {
 
     @Test("Export progress reports all phases")
     func exportProgressReportsAllPhases() async throws {
-        let container = try createContainer()
-        let context = createContext(with: container)
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
-        for i in 1...10 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...10 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
         }
-        try context.save()
 
         var receivedPhases: Set<String> = []
 
-        for await progress in dataManager.exportInventoryWithProgress(
-            modelContainer: container
+        for await progress in DataManager.shared.exportInventoryWithProgress(
+            database: database
         ) {
             switch progress {
             case .preparing:
@@ -717,21 +1193,20 @@ struct DataManagerTests {
 
     @Test("Export can be cancelled mid-operation")
     func exportCanBeCancelled() async throws {
-        let container = try createContainer()
-        let context = createContext(with: container)
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
-        for i in 1...200 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...200 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
         }
-        try context.save()
 
         let task = Task {
             var phaseCount = 0
-            for await progress in dataManager.exportInventoryWithProgress(
-                modelContainer: container
+            for await progress in DataManager.shared.exportInventoryWithProgress(
+                database: database
             ) {
                 phaseCount += 1
                 if case .fetchingData = progress, phaseCount > 1 {
@@ -749,32 +1224,32 @@ struct DataManagerTests {
 
     @Test("Export result contains correct counts")
     func exportResultContainsCorrectCounts() async throws {
-        let container = try createContainer()
-        let context = createContext(with: container)
-        let dataManager = createDataManager(with: container)
+        let database = try makeInMemoryDatabase()
 
-        for i in 1...15 {
-            let item = InventoryItem()
-            item.title = "Item \(i)"
-            context.insert(item)
+        try await database.write { db in
+            for i in 1...15 {
+                try SQLiteInventoryItem.insert {
+                    SQLiteInventoryItem(id: UUID(), title: "Item \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...5 {
+                try SQLiteInventoryLocation.insert {
+                    SQLiteInventoryLocation(id: UUID(), name: "Location \(i)")
+                }.execute(db)
+            }
+
+            for i in 1...3 {
+                try SQLiteInventoryLabel.insert {
+                    SQLiteInventoryLabel(id: UUID(), name: "Label \(i)")
+                }.execute(db)
+            }
         }
-
-        for i in 1...5 {
-            let location = InventoryLocation(name: "Location \(i)")
-            context.insert(location)
-        }
-
-        for i in 1...3 {
-            let label = InventoryLabel(name: "Label \(i)")
-            context.insert(label)
-        }
-
-        try context.save()
 
         var exportResult: DataManager.ExportResult?
 
-        for await progress in dataManager.exportInventoryWithProgress(
-            modelContainer: container
+        for await progress in DataManager.shared.exportInventoryWithProgress(
+            database: database
         ) {
             if case .completed(let result) = progress {
                 exportResult = result
@@ -829,7 +1304,6 @@ struct DataManagerTests {
         let photosDir = workingDir.appendingPathComponent("photos")
         try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
 
-        // Create test CSVs
         let inventoryCSV = """
             Title,Description,Location,Label,Quantity,Serial,Model,Make,Price,Insured,Notes,PhotoFilename,HasUsedAI
             Test Item 1,Test Description,Test Location 1,,1,,,,,false,,test1.png,false
@@ -853,19 +1327,250 @@ struct DataManagerTests {
         try labelsCSV.write(
             to: workingDir.appendingPathComponent("labels.csv"), atomically: true, encoding: .utf8)
 
-        // Create dummy photo files
         try createTestImage(named: "test1.png", in: photosDir)
         try createTestImage(named: "test2.png", in: photosDir)
         try createTestImage(named: "location1.png", in: photosDir)
         try createTestImage(named: "location2.png", in: photosDir)
 
-        // Create zip
-        let zipURL = documentsURL.appendingPathComponent("test-import.zip")
+        let zipURL = documentsURL.appendingPathComponent("test-import-\(UUID().uuidString).zip")
         try? fileManager.removeItem(at: zipURL)
         try fileManager.zipItem(at: workingDir, to: zipURL, shouldKeepParent: false)
 
         try? fileManager.removeItem(at: workingDir)
 
         return zipURL
+    }
+
+    private func createMultiPhotoImportFile() throws -> URL {
+        let documentsURL = try fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+
+        let workingDir = documentsURL.appendingPathComponent("test-multi-photo-import-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: workingDir, withIntermediateDirectories: true)
+        let photosDir = workingDir.appendingPathComponent("photos")
+        try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
+
+        let inventoryCSV = """
+            Title,Description,Location,Label,PhotoFilename,PhotoFilename2
+            Multi Photo Item,Has two photos,,,photo-1.png,photo-2.png
+            """
+        try inventoryCSV.write(
+            to: workingDir.appendingPathComponent("inventory.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try createTestImage(named: "photo-1.png", in: photosDir)
+        try createTestImage(named: "photo-2.png", in: photosDir)
+
+        let zipURL = documentsURL.appendingPathComponent("test-multi-photo-import-\(UUID().uuidString).zip")
+        try? fileManager.removeItem(at: zipURL)
+        try fileManager.zipItem(at: workingDir, to: zipURL, shouldKeepParent: false)
+        try? fileManager.removeItem(at: workingDir)
+
+        return zipURL
+    }
+
+    private func createFullParityImportFile() throws -> URL {
+        let documentsURL = try fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+
+        let workingDir = documentsURL.appendingPathComponent("test-full-parity-import-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: workingDir, withIntermediateDirectories: true)
+        let photosDir = workingDir.appendingPathComponent("photos")
+        try fileManager.createDirectory(at: photosDir, withIntermediateDirectories: true)
+
+        let homeID = UUID()
+        let locationID = UUID()
+        let itemID = UUID()
+        let policyID = UUID()
+
+        let homesCSV = """
+            HomeID,Name,Address1,Address2,City,State,Zip,Country,PurchaseDate,PurchasePrice,IsPrimary,ColorName,PhotoFilename
+            \(homeID.uuidString),Primary Home,123 Main St,,Nashville,TN,37201,US,2024-01-01T00:00:00Z,450000,true,green,home-photo.png
+            """
+        try homesCSV.write(
+            to: workingDir.appendingPathComponent("home-details.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let locationsCSV = """
+            Name,Description,PhotoFilename,Home,HomeID,LocationID
+            Garage,Storage area,location-photo.png,Primary Home,\(homeID.uuidString),\(locationID.uuidString)
+            """
+        try locationsCSV.write(
+            to: workingDir.appendingPathComponent("locations.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let labelsCSV = """
+            Name,Description,ColorHex,Emoji
+            Electronics,Devices,#00AAFF,📦
+            """
+        try labelsCSV.write(
+            to: workingDir.appendingPathComponent("labels.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let inventoryCSV = """
+            Title,Description,Location,Label,Home,QuantityString,QuantityInt,Serial,Model,Make,Price,Insured,AssetID,Notes,ReplacementCost,DepreciationRate,HasUsedAI,CreatedAt,PurchaseDate,WarrantyExpirationDate,PurchaseLocation,Condition,HasWarranty,AttachmentsJSON,DimensionLength,DimensionWidth,DimensionHeight,DimensionUnit,WeightValue,WeightUnit,Color,StorageRequirements,IsFragile,MovingPriority,RoomDestination,ItemID,LocationID,HomeID,PhotoFilename
+            Camera Kit,Mirrorless camera setup,Garage,Electronics,Primary Home,2 units,2,SER-123,X-T5,Fujifilm,1699.99,true,ASSET-42,Packed in hard case,1900.50,4.5,true,2024-01-01T00:00:00Z,2024-01-02T00:00:00Z,2026-01-02T00:00:00Z,Downtown Camera,Excellent,true,[],12,8,6,in,4.5,lb,Black,Dry,true,1,Office,\(itemID.uuidString),\(locationID.uuidString),\(homeID.uuidString),item-photo.png
+            """
+        try inventoryCSV.write(
+            to: workingDir.appendingPathComponent("inventory.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let insuranceCSV = """
+            PolicyID,ProviderName,PolicyNumber,DeductibleAmount,DwellingCoverageAmount,PersonalPropertyCoverageAmount,LossOfUseCoverageAmount,LiabilityCoverageAmount,MedicalPaymentsCoverageAmount,StartDate,EndDate,Homes,HomeIDs
+            \(policyID.uuidString),Acme Insurance,HO-12345,1000,300000,150000,30000,500000,5000,2024-01-01T00:00:00Z,2025-01-01T00:00:00Z,Primary Home,\(homeID.uuidString)
+            """
+        try insuranceCSV.write(
+            to: workingDir.appendingPathComponent("insurance-policy-details.csv"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try createTestImage(named: "home-photo.png", in: photosDir)
+        try createTestImage(named: "location-photo.png", in: photosDir)
+        try createTestImage(named: "item-photo.png", in: photosDir)
+
+        let zipURL = documentsURL.appendingPathComponent("test-full-parity-import-\(UUID().uuidString).zip")
+        try? fileManager.removeItem(at: zipURL)
+        try fileManager.zipItem(at: workingDir, to: zipURL, shouldKeepParent: false)
+        try? fileManager.removeItem(at: workingDir)
+        return zipURL
+    }
+
+    private func makePersistentDatabase(at url: URL) throws -> DatabaseQueue {
+        try? fileManager.removeItem(at: url)
+
+        var configuration = Configuration()
+        configuration.foreignKeysEnabled = true
+        configuration.prepareDatabase { db in
+            attachMetadatabaseIfPossible(to: db)
+        }
+
+        let database = try DatabaseQueue(path: url.path, configuration: configuration)
+        var migrator = DatabaseMigrator()
+        registerMigrations(&migrator)
+        try migrator.migrate(database)
+        return database
+    }
+
+    private func removeSQLiteSidecars(at baseURL: URL) throws {
+        let sqliteFiles = [
+            baseURL,
+            URL(fileURLWithPath: baseURL.path + "-wal"),
+            URL(fileURLWithPath: baseURL.path + "-shm"),
+        ]
+
+        for fileURL in sqliteFiles where fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+        }
+    }
+
+    private func archiveEntryPaths(in archiveURL: URL) throws -> [String] {
+        let archive = try Archive(url: archiveURL, accessMode: .read, pathEncoding: .utf8)
+        return archive.map(\.path)
+    }
+
+    private func csvRows(fromArchiveEntry entryPath: String, archiveURL: URL) throws -> [[String]] {
+        let csvText = try archiveEntryText(named: entryPath, archiveURL: archiveURL)
+        let lines = csvText.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        return lines.map(parseCSVRow)
+    }
+
+    private func archiveEntryText(named entryPath: String, archiveURL: URL) throws -> String {
+        let archive = try Archive(url: archiveURL, accessMode: .read, pathEncoding: .utf8)
+        guard let entry = archive[entryPath] else {
+            throw NSError(
+                domain: "DataManagerTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Archive entry missing: \(entryPath)"]
+            )
+        }
+
+        var entryData = Data()
+        _ = try archive.extract(entry) { data in
+            entryData.append(data)
+        }
+
+        guard let text = String(data: entryData, encoding: .utf8) else {
+            throw NSError(
+                domain: "DataManagerTests",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 for entry: \(entryPath)"]
+            )
+        }
+        return text
+    }
+
+    private func parseCSVRow(_ row: String) -> [String] {
+        var values: [String] = []
+        var currentValue = ""
+        var insideQuotes = false
+        var index = row.startIndex
+
+        while index < row.endIndex {
+            let character = row[index]
+
+            if character == "\"" {
+                let nextIndex = row.index(after: index)
+                if insideQuotes, nextIndex < row.endIndex, row[nextIndex] == "\"" {
+                    currentValue.append("\"")
+                    index = row.index(after: nextIndex)
+                    continue
+                }
+                insideQuotes.toggle()
+            } else if character == "," && !insideQuotes {
+                values.append(currentValue)
+                currentValue = ""
+            } else {
+                currentValue.append(character)
+            }
+
+            index = row.index(after: index)
+        }
+
+        values.append(currentValue)
+        return values
+    }
+
+    private func valueForHeader(_ header: String, in index: [String: Int]) -> Int {
+        guard let value = index[header] else {
+            Issue.record("Missing expected header: \(header)")
+            return 0
+        }
+        return value
+    }
+
+    private func uniqueArchiveName(prefix: String) -> String {
+        "\(prefix)-\(UUID().uuidString).zip"
+    }
+
+    private func removeStagedRestoreArtifacts() throws {
+        let appSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let stagedRestoreDirectory = appSupport.appendingPathComponent("PendingDatabaseRestore")
+        if fileManager.fileExists(atPath: stagedRestoreDirectory.path) {
+            try fileManager.removeItem(at: stagedRestoreDirectory)
+        }
     }
 }

@@ -5,22 +5,31 @@
 //  Created by Camden Webster on 6/5/24.
 //
 
+import Dependencies
 import PhotosUI
 import RevenueCatUI
-import SwiftData
+import SQLiteData
 import SwiftUI
 import SwiftUIBackports
 import WhatsNewKit
 
 @MainActor
 struct DashboardView: View {
-    let specificHome: Home?
+    @Dependency(\.defaultDatabase) var database
+    let specificHomeID: UUID?
 
-    @Environment(\.modelContext) var modelContext
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
-    @Query private var allItems: [InventoryItem]
-    @Query(sort: [SortDescriptor(\InventoryItem.createdAt, order: .reverse)]) private var allRecentItems:
-        [InventoryItem]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
+
+    @FetchAll(SQLiteInventoryItem.all, animation: .default)
+    private var allItems: [SQLiteInventoryItem]
+
+    @FetchAll(SQLiteInventoryItemLabel.all, animation: .default)
+    private var allItemLabels: [SQLiteInventoryItemLabel]
+
+    @FetchAll(SQLiteInventoryLabel.all, animation: .default)
+    private var allLabels: [SQLiteInventoryLabel]
+
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
@@ -30,48 +39,71 @@ struct DashboardView: View {
     @State private var loadedImage: UIImage?
     @State private var loadingError: Error?
     @State private var isLoading = false
-    @State private var homeInstance = Home()
     @State private var cachedImageURL: URL?
     @State private var loadingStartDate: Date? = nil
+    @State private var skipNextPhotoPersistence = false
     @State private var showingPaywall = false
     @State private var showItemCreationFlow = false
 
     // MARK: - Initializer
 
-    init(home: Home? = nil) {
-        self.specificHome = home
+    init(homeID: UUID? = nil) {
+        self.specificHomeID = homeID
     }
 
     // MARK: - Computed Properties
 
-    private var displayHome: Home? {
-        specificHome ?? homes.first { $0.isPrimary } ?? homes.last
+    private var displayHome: SQLiteHome? {
+        if let specificHomeID = specificHomeID {
+            return homes.first { $0.id == specificHomeID }
+        }
+        return homes.first { $0.isPrimary } ?? homes.last
     }
 
-    private var home: Home? {
+    private var home: SQLiteHome? {
         return displayHome
     }
 
-    private var items: [InventoryItem] {
+    private var items: [SQLiteInventoryItem] {
         guard let displayHome = displayHome else {
             return allItems
         }
-        return allItems.filter { $0.effectiveHome?.id == displayHome.id }
+        return allItems.filter { $0.homeID == displayHome.id }
     }
 
-    private var recentItems: [InventoryItem] {
-        guard let displayHome = displayHome else {
-            return allRecentItems
+    private var recentItems: [SQLiteInventoryItem] {
+        let homeFiltered: [SQLiteInventoryItem]
+        if let displayHome = displayHome {
+            homeFiltered = allItems.filter { $0.homeID == displayHome.id }
+        } else {
+            homeFiltered = allItems
         }
-        return allRecentItems.filter { $0.effectiveHome?.id == displayHome.id }
+        return homeFiltered.sorted { $0.createdAt > $1.createdAt }
     }
 
     private var totalReplacementCost: Decimal {
         items.reduce(0, { $0 + ($1.price * Decimal($1.quantityInt)) })
     }
 
-    private var topRecentItems: [InventoryItem] {
+    private var topRecentItems: [SQLiteInventoryItem] {
         Array(recentItems.prefix(3))
+    }
+
+    // Lookup for item labels
+    private var labelsByItemID: [UUID: [SQLiteInventoryLabel]] {
+        let labelsById = Dictionary(uniqueKeysWithValues: allLabels.map { ($0.id, $0) })
+        var result: [UUID: [SQLiteInventoryLabel]] = [:]
+        for itemLabel in allItemLabels {
+            if let label = labelsById[itemLabel.inventoryLabelID] {
+                result[itemLabel.inventoryItemID, default: []].append(label)
+            }
+        }
+        return result
+    }
+
+    // Lookup for home names
+    private var homeNameByID: [UUID: String] {
+        Dictionary(uniqueKeysWithValues: homes.map { ($0.id, $0.displayName) })
     }
 
     private let columns = [
@@ -82,34 +114,18 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                ZStack(alignment: .bottom) {
-                    Group {
-                        if isLoading {
-                            ProgressView("Loading photo...")
-                                .progressViewStyle(CircularProgressViewStyle())
-                        } else {
-                            Image(uiImage: loadedImage ?? .craftsmanHome)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        }
-                    }
-                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                    .clipped()
-                    .modifier(BackgroundExtensionModifier())
-                    .overlay(alignment: .bottom) {
-                        headerContentView
-                    }
-                }
-                .flexibleHeaderContent()
+                dashboardHeaderSection
 
                 // MARK: - Inventory Statistics
                 VStack(alignment: .leading, spacing: 16) {
                     Button {
-                        router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
+                        router.navigate(to: .inventoryListView(locationID: nil, showAllHomes: false))
                     } label: {
                         DashboardSectionLabel(text: "All Inventory")
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                     .accessibilityIdentifier("dashboard-all-inventory-button")
 
                     LazyVGrid(columns: columns, spacing: 16) {
@@ -144,12 +160,16 @@ struct DashboardView: View {
                         .padding(.horizontal)
                     } else {
                         VStack(spacing: 0) {
-                            ForEach(topRecentItems, id: \.persistentModelID) { item in
+                            ForEach(topRecentItems) { item in
                                 Button {
-                                    router.navigate(to: .inventoryDetailView(item: item, showSparklesButton: true))
+                                    router.navigate(to: .inventoryDetailView(itemID: item.id, showSparklesButton: true))
                                 } label: {
                                     HStack {
-                                        InventoryItemRow(item: item)
+                                        InventoryItemRow(
+                                            item: item,
+                                            homeName: item.homeID.flatMap { homeNameByID[$0] },
+                                            labels: labelsByItemID[item.id] ?? []
+                                        )
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .foregroundStyle(.tertiary)
@@ -173,7 +193,7 @@ struct DashboardView: View {
                                 .padding(.leading, 16)
 
                             Button {
-                                router.navigate(to: .inventoryListView(location: nil, showAllHomes: false))
+                                router.navigate(to: .inventoryListView(locationID: nil, showAllHomes: false))
                             } label: {
                                 HStack {
                                     Text("View All Items")
@@ -253,69 +273,44 @@ struct DashboardView: View {
             // User can switch modes via segmented control in camera
             EnhancedItemCreationFlowView(
                 captureMode: .singleItem,
-                location: nil
+                locationID: nil
             )
             .tint(.green)
         }
         .whatsNewSheet()
-        .onAppear {
-            // Only sync activeHomeId when a specific home was explicitly passed to this view.
-            // This prevents the default dashboard (showing primary home) from overwriting
-            // the active home selection, which caused issues on iPhone navigation.
-            if let specificHome = specificHome {
-                let homeIdString = specificHome.id.uuidString
-                if settings.activeHomeId != homeIdString {
-                    print("🏠 DashboardView - Syncing activeHomeId to: \(specificHome.displayName) (\(homeIdString))")
-                    settings.activeHomeId = homeIdString
-                }
-            }
+        .onChange(of: loadedImage) { oldImage, newImage in
+            homePhotoDidChange(oldImage: oldImage, newImage: newImage)
         }
-        .task(id: home?.imageURL) {
-            guard let home = home,
-                let imageURL = home.imageURL,
-                !isLoading
-            else { return }
+        .onAppear {
+            syncActiveHomeIfNeeded()
+        }
+        .task(id: home?.id) {
+            await loadHomePhoto()
+        }
+    }
 
-            // If the imageURL changed, clear the cached image
-            if cachedImageURL != imageURL {
-                await MainActor.run {
-                    loadedImage = nil
-                    cachedImageURL = imageURL
+    private var dashboardHeaderSection: some View {
+        ZStack(alignment: .bottom) {
+            dashboardHeaderImageView
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                .clipped()
+                .modifier(BackgroundExtensionModifier())
+                .overlay(alignment: .bottom) {
+                    headerContentView
                 }
-            }
+        }
+        .flexibleHeaderContent()
+    }
 
-            // Only load if we don't have a cached image for this URL
-            guard loadedImage == nil else { return }
-
-            await MainActor.run {
-                isLoading = true
-                loadingStartDate = Date()
-            }
-
-            defer {
-                Task { @MainActor in
-                    if let start = loadingStartDate {
-                        let elapsed = Date().timeIntervalSince(start)
-                        let minimumDuration: TimeInterval = 1.0
-                        if elapsed < minimumDuration {
-                            try? await Task.sleep(nanoseconds: UInt64((minimumDuration - elapsed) * 1_000_000_000))
-                        }
-                    }
-                    isLoading = false
-                }
-            }
-
-            do {
-                let photo = try await home.photo
-                await MainActor.run {
-                    loadedImage = photo
-                }
-            } catch {
-                await MainActor.run {
-                    loadingError = error
-                    print("Failed to load image: \(error)")
-                }
-            }
+    @ViewBuilder
+    private var dashboardHeaderImageView: some View {
+        if isLoading {
+            ProgressView("Loading photo...")
+                .progressViewStyle(.circular)
+        } else {
+            Image(uiImage: loadedImage ?? .craftsmanHome)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
         }
     }
 
@@ -326,34 +321,22 @@ struct DashboardView: View {
                 Text((home?.displayName.isEmpty == false ? home?.displayName : nil) ?? "Dashboard")
                     .font(.largeTitle)
                     .fontWeight(.bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .padding(.horizontal)
 
                 Spacer()
 
-                if !isLoading {
+                if home != nil {
                     PhotoPickerView(
-                        model: Binding(
-                            get: { home ?? homeInstance },
-                            set: { newValue in
-                                if let existingHome = home {
-                                    existingHome.imageURL = newValue.imageURL
-                                    try? modelContext.save()
-                                } else {
-                                    homeInstance = newValue
-                                    modelContext.insert(homeInstance)
-                                    try? modelContext.save()
-                                }
-                            }
-                        ),
                         loadedImage: $loadedImage,
                         isLoading: $isLoading
                     )
+                    .accessibilityIdentifier("dashboard-home-photo-picker")
                 }
             }
-            //            .padding(.bottom)
+            .padding(.bottom, 12)
         }
         .background(alignment: .bottom) {
             LinearGradient(
@@ -391,6 +374,125 @@ struct DashboardView: View {
             onDismiss: nil
         )
     }
+
+    private func syncActiveHomeIfNeeded() {
+        // Only sync activeHomeId when a specific home was explicitly passed to this view.
+        // This prevents the default dashboard (showing primary home) from overwriting
+        // the active home selection, which caused issues on iPhone navigation.
+        if let specificHomeID = specificHomeID {
+            let homeIdString = specificHomeID.uuidString
+            if settings.activeHomeId != homeIdString {
+                let homeName = homes.first(where: { $0.id == specificHomeID })?.displayName ?? "Unknown"
+                print("🏠 DashboardView - Syncing activeHomeId to: \(homeName) (\(homeIdString))")
+                settings.activeHomeId = homeIdString
+            }
+        }
+    }
+
+    private func loadHomePhoto() async {
+        guard let home = home, !isLoading else { return }
+
+        await MainActor.run {
+            isLoading = true
+            loadingStartDate = Date()
+        }
+
+        defer {
+            Task { @MainActor in
+                if let start = loadingStartDate {
+                    let elapsed = Date().timeIntervalSince(start)
+                    let minimumDuration: TimeInterval = 1.0
+                    if elapsed < minimumDuration {
+                        try? await Task.sleep(for: .seconds(minimumDuration - elapsed))
+                    }
+                }
+                isLoading = false
+            }
+        }
+
+        do {
+            let image: UIImage? = try await database.read { db in
+                guard let photo = try SQLiteHomePhoto.primaryPhoto(for: home.id, in: db) else {
+                    return nil
+                }
+                return UIImage(data: photo.data)
+            }
+            await MainActor.run {
+                switch (loadedImage, image) {
+                case (nil, nil):
+                    skipNextPhotoPersistence = false
+                case (let currentImage?, let newImage?) where currentImage === newImage:
+                    skipNextPhotoPersistence = false
+                default:
+                    skipNextPhotoPersistence = true
+                }
+                loadedImage = image
+                loadingError = nil
+            }
+        } catch {
+            await MainActor.run {
+                skipNextPhotoPersistence = loadedImage != nil
+                loadedImage = nil
+                loadingError = error
+            }
+        }
+    }
+
+    private func homePhotoDidChange(oldImage: UIImage?, newImage: UIImage?) {
+        if skipNextPhotoPersistence {
+            skipNextPhotoPersistence = false
+            return
+        }
+
+        guard let homeID = home?.id else { return }
+        if let oldImage, let newImage, oldImage === newImage { return }
+
+        Task {
+            await persistHomePhoto(newImage, for: homeID)
+        }
+    }
+
+    private func persistHomePhoto(_ image: UIImage?, for homeID: UUID) async {
+        do {
+            if let image {
+                guard let processedPhotoData = await OptimizedImageManager.shared.processImage(image) else {
+                    return
+                }
+
+                try await database.write { db in
+                    try SQLiteHomePhoto
+                        .where { $0.homeID == homeID }
+                        .delete()
+                        .execute(db)
+
+                    try SQLiteHomePhoto.insert {
+                        SQLiteHomePhoto(
+                            id: UUID(),
+                            homeID: homeID,
+                            data: processedPhotoData,
+                            sortOrder: 0
+                        )
+                    }.execute(db)
+                }
+            } else {
+                try await database.write { db in
+                    try SQLiteHomePhoto
+                        .where { $0.homeID == homeID }
+                        .delete()
+                        .execute(db)
+                }
+            }
+
+            await MainActor.run {
+                loadingError = nil
+            }
+        } catch {
+            await MainActor.run {
+                loadingError = error
+            }
+            print("📱 DashboardView.persistHomePhoto - Failed to persist home photo: \(error)")
+        }
+    }
 }
 
 struct StatCard: View {
@@ -423,12 +525,10 @@ struct StatCard: View {
 }
 
 #Preview {
-    do {
-        let previewer = try Previewer()
-        return DashboardView()
-            .modelContainer(previewer.container)
-            .environmentObject(Router())
-    } catch {
-        return Text("Failed to create preview: \(error.localizedDescription)")
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
     }
+    DashboardView()
+        .environmentObject(Router())
+        .environmentObject(SettingsManager())
 }

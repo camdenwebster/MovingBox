@@ -5,14 +5,16 @@
 //  Created by Claude on 12/20/25.
 //
 
-import SwiftData
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 struct HomeListView: View {
-    @Environment(\.modelContext) var modelContext
     @EnvironmentObject var router: Router
     @EnvironmentObject var settings: SettingsManager
-    @Query(sort: [SortDescriptor(\Home.name)]) private var homes: [Home]
+
+    @FetchAll(SQLiteHome.order(by: \.name), animation: .default)
+    private var homes: [SQLiteHome]
 
     @State private var showingCreateSheet = false
 
@@ -27,7 +29,7 @@ struct HomeListView: View {
             } else {
                 ForEach(homes) { home in
                     NavigationLink {
-                        HomeDetailSettingsView(home: home)
+                        HomeDetailSettingsView(homeID: home.id)
                     } label: {
                         homeRow(home: home)
                     }
@@ -47,13 +49,13 @@ struct HomeListView: View {
         }
         .sheet(isPresented: $showingCreateSheet) {
             NavigationStack {
-                HomeDetailSettingsView(home: nil, presentedInSheet: true)
+                HomeDetailSettingsView(homeID: nil, presentedInSheet: true)
             }
         }
     }
 
     @ViewBuilder
-    private func homeRow(home: Home) -> some View {
+    private func homeRow(home: SQLiteHome) -> some View {
         HStack(spacing: 12) {
             homeThumbnail(home: home)
 
@@ -86,26 +88,52 @@ struct HomeListView: View {
     }
 
     @ViewBuilder
-    private func homeThumbnail(home: Home) -> some View {
-        AsyncImage(url: home.thumbnailURL) { phase in
-            switch phase {
-            case .success(let image):
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 44, height: 44)
-                    .clipShape(.rect(cornerRadius: 8))
-            default:
-                Image(systemName: "house.fill")
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(home.color)
-                    .clipShape(.rect(cornerRadius: 8))
+    private func homeThumbnail(home: SQLiteHome) -> some View {
+        HomeThumbnailView(home: home)
+    }
+
+    private struct HomeThumbnailView: View {
+        @Dependency(\.defaultDatabase) var database
+        let home: SQLiteHome
+        @State private var thumbnail: UIImage?
+
+        var body: some View {
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 44, height: 44)
+                        .clipShape(.rect(cornerRadius: 8))
+                } else {
+                    Image(systemName: "house.fill")
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(home.color)
+                        .clipShape(.rect(cornerRadius: 8))
+                }
+            }
+            .task(id: home.id) {
+                if let photo = try? await database.read({ db in
+                    try SQLiteHomePhoto.primaryPhoto(for: home.id, in: db)
+                }) {
+                    thumbnail = await OptimizedImageManager.shared.thumbnailImage(
+                        from: photo.data, photoID: photo.id.uuidString)
+                }
             }
         }
     }
 
-    private func formatAddress(_ home: Home) -> String {
+    @ViewBuilder
+    private func homeIconPlaceholder(home: SQLiteHome) -> some View {
+        Image(systemName: "house.fill")
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            .background(home.color)
+            .clipShape(.rect(cornerRadius: 8))
+    }
+
+    private func formatAddress(_ home: SQLiteHome) -> String {
         var components: [String] = []
 
         if !home.address1.isEmpty {
@@ -132,27 +160,12 @@ struct HomeListView: View {
 }
 
 #Preview {
-    do {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Home.self, configurations: config)
-
-        let home1 = Home(name: "Main House", address1: "123 Main St", city: "San Francisco", state: "CA", zip: "94102")
-        home1.isPrimary = true
-
-        let home2 = Home(
-            name: "Beach House", address1: "456 Ocean Ave", city: "Santa Monica", state: "CA", zip: "90401")
-
-        container.mainContext.insert(home1)
-        container.mainContext.insert(home2)
-
-        return NavigationStack {
-            HomeListView()
-                .modelContainer(container)
-                .environmentObject(Router())
-                .environmentObject(SettingsManager())
-        }
-    } catch {
-        return Text("Failed to set up preview: \(error.localizedDescription)")
-            .foregroundStyle(.red)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    NavigationStack {
+        HomeListView()
+            .environmentObject(Router())
+            .environmentObject(SettingsManager())
     }
 }

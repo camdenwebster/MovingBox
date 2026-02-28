@@ -20,7 +20,8 @@ let package = Package(
         ),
         .testTarget(
             name: "MovingBoxAIAnalysisTests",
-            dependencies: ["MovingBoxAIAnalysis"]
+            dependencies: ["MovingBoxAIAnalysis"],
+            path: "Tests/MovingBoxAIAnalysisTests"
         ),
     ]
 )

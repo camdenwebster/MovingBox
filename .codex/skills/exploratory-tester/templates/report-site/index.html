@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Exploratory Test Report</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>Exploratory Test Report</h1>
+      <p id="run-summary">Loading run details...</p>
+      <div class="badge-row">
+        <span id="verdict-badge" class="badge pending">PENDING</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Run Metadata</h2>
+        <dl id="run-metadata" class="metadata-grid"></dl>
+      </section>
+
+      <section class="card">
+        <h2>Gate Checks</h2>
+        <div id="gate-checks"></div>
+      </section>
+
+      <section class="card">
+        <h2>Phases</h2>
+        <div id="phase-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Findings</h2>
+        <div id="findings-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Defects</h2>
+        <div id="defects-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Artifacts</h2>
+        <div id="artifact-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Markdown Inputs</h2>
+        <div id="markdown-fallbacks"></div>
+      </section>
+    </main>
+
+    <script src="report.js"></script>
+  </body>
+</html>

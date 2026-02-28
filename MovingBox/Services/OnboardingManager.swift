@@ -1,5 +1,5 @@
 import Foundation
-import SwiftData
+import SQLiteData
 import SwiftUI
 import UserNotifications
 
@@ -64,6 +64,11 @@ class OnboardingManager: ObservableObject {
         hasCompleted = true
     }
 
+    static func markOnboardingCompleteStatic() {
+        UserDefaults.standard.set(true, forKey: hasCompletedOnboardingKey)
+        UserDefaults.standard.set(true, forKey: hasLaunchedKey)
+    }
+
     static func shouldShowWelcome() -> Bool {
         let hasLaunched = UserDefaults.standard.bool(forKey: Self.hasLaunchedKey)
         print("⚡️ shouldShowWelcome check - hasLaunched: \(hasLaunched)")
@@ -92,7 +97,7 @@ class OnboardingManager: ObservableObject {
     }
 
     @MainActor
-    static func checkAndUpdateOnboardingState(modelContext: ModelContext) async throws -> Bool {
+    static func checkAndUpdateOnboardingState(database: any DatabaseReader) async throws -> Bool {
         guard
             !hasCompletedOnboarding() && !ProcessInfo.processInfo.arguments.contains("Show-Onboarding")
         else {
@@ -100,17 +105,18 @@ class OnboardingManager: ObservableObject {
         }
 
         do {
-            let descriptor = FetchDescriptor<InventoryItem>()
-            let items = try modelContext.fetch(descriptor)
-            print("⚡️ Checking for existing items: \(items.count) found")
+            let count = try await database.read { db in
+                try SQLiteInventoryItem.count().fetchOne(db) ?? 0
+            }
+            print("⚡️ Checking for existing items: \(count) found")
 
-            if !items.isEmpty {
+            if count > 0 {
                 UserDefaults.standard.set(true, forKey: Self.hasCompletedOnboardingKey)
                 return true
             }
             return false
-        } catch let error as NSError {
-            print("❌ Error checking for items: \(error), \(error.userInfo)")
+        } catch {
+            print("❌ Error checking for items: \(error)")
             throw OnboardingError.itemCheckFailed(error)
         }
     }

@@ -6,7 +6,7 @@
 //
 
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import SwiftUI
 import Testing
 import UIKit
@@ -18,16 +18,8 @@ import UIKit
 
     // MARK: - Test Setup
 
-    private func createTestContainer() throws -> ModelContainer {
-        let schema = Schema([
-            InventoryItem.self,
-            InventoryLocation.self,
-            InventoryLabel.self,
-            Home.self,
-            InsurancePolicy.self,
-        ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        return try ModelContainer(for: schema, configurations: [configuration])
+    private func createTestDatabase() throws -> DatabaseQueue {
+        try makeInMemoryDatabase()
     }
 
     private func createTestImages(count: Int = 1) -> [UIImage] {
@@ -67,21 +59,73 @@ import UIKit
         )
     }
 
+    private func createDuplicateGroupingResponse() -> MultiItemAnalysisResponse {
+        let items = [
+            DetectedInventoryItem(
+                id: "duplicate-1",
+                title: "Apple MacBook Pro 14",
+                description: "Laptop",
+                category: "Electronics",
+                make: "Apple",
+                model: "MacBook Pro",
+                estimatedPrice: "$1,800.00",
+                confidence: 0.92
+            ),
+            DetectedInventoryItem(
+                id: "duplicate-2",
+                title: "Apple MacBook Pro",
+                description: "Laptop duplicate",
+                category: "Electronics",
+                make: "Apple",
+                model: "MacBook Pro",
+                estimatedPrice: "$1,700.00",
+                confidence: 0.89
+            ),
+            DetectedInventoryItem(
+                id: "single-1",
+                title: "Dining Chair",
+                description: "Chair",
+                category: "Furniture",
+                make: "IKEA",
+                model: "ODGER",
+                estimatedPrice: "$80.00",
+                confidence: 0.9
+            ),
+        ]
+
+        return MultiItemAnalysisResponse(
+            items: items,
+            detectedCount: items.count,
+            analysisType: "multi_item",
+            confidence: 0.9
+        )
+    }
+
+    /// Creates a test location in the SQLite database and returns its UUID.
+    private func createTestLocation(named name: String = "Test Room", in db: DatabaseQueue) throws -> UUID {
+        let locationID = UUID()
+        try db.write { database in
+            try SQLiteInventoryLocation.insert {
+                SQLiteInventoryLocation(id: locationID, name: name, desc: "\(name) description")
+            }.execute(database)
+        }
+        return locationID
+    }
+
     // MARK: - MultiItemSelectionViewModel Tests
 
     @Test("MultiItemSelectionViewModel initializes correctly")
     func testViewModelInitialization() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse()
-        let location: InventoryLocation? = nil
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: location,
-            modelContext: context
+            locationID: nil
         )
 
         #expect(viewModel.detectedItems.count == 3)
@@ -93,8 +137,9 @@ import UIKit
 
     @Test("ViewModel handles empty analysis response")
     func testViewModelWithEmptyResponse() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let emptyResponse = MultiItemAnalysisResponse(
             items: [],
@@ -106,8 +151,7 @@ import UIKit
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: emptyResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         #expect(viewModel.detectedItems.isEmpty)
@@ -117,16 +161,16 @@ import UIKit
 
     @Test("ViewModel card navigation works correctly")
     func testCardNavigation() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse(itemCount: 3)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         // Test initial state
@@ -162,16 +206,16 @@ import UIKit
 
     @Test("ViewModel item selection and deselection")
     func testItemSelection() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse(itemCount: 3)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         let firstItem = viewModel.detectedItems[0]
@@ -204,16 +248,16 @@ import UIKit
 
     @Test("ViewModel select all and deselect all functionality")
     func testSelectAllDeselectAll() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse(itemCount: 3)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         // Test select all
@@ -238,138 +282,72 @@ import UIKit
         }
     }
 
-    @Test("ViewModel handles duplicate detected item IDs when selecting all")
-    func testSelectAllWithDuplicateItemIDs() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
-
-        let duplicateItems = [
-            DetectedInventoryItem(
-                id: "duplicate-id",
-                title: "Item A",
-                description: "A",
-                category: "Electronics",
-                make: "Brand A",
-                model: "Model A",
-                estimatedPrice: "$10.00",
-                confidence: 0.9
-            ),
-            DetectedInventoryItem(
-                id: "duplicate-id",
-                title: "Item B",
-                description: "B",
-                category: "Electronics",
-                make: "Brand B",
-                model: "Model B",
-                estimatedPrice: "$20.00",
-                confidence: 0.88
-            ),
-            DetectedInventoryItem(
-                id: "duplicate-id",
-                title: "Item C",
-                description: "C",
-                category: "Electronics",
-                make: "Brand C",
-                model: "Model C",
-                estimatedPrice: "$30.00",
-                confidence: 0.86
-            ),
-        ]
-        let analysisResponse = MultiItemAnalysisResponse(
-            items: duplicateItems,
-            detectedCount: duplicateItems.count,
-            analysisType: "multi_item",
-            confidence: 0.88
-        )
+    @Test("duplicateAwareSelectAll_selectsFirstInDuplicateGroupOnly")
+    func duplicateAwareSelectAll_selectsFirstInDuplicateGroupOnly() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
 
         let viewModel = MultiItemSelectionViewModel(
-            analysisResponse: analysisResponse,
+            analysisResponse: createDuplicateGroupingResponse(),
             images: createTestImages(),
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
-        #expect(viewModel.detectedItems.count == 3)
-        #expect(Set(viewModel.detectedItems.map(\.id)).count == 3)
+        viewModel.selectAllItems(avoidingPotentialDuplicates: true)
 
-        viewModel.selectAllItems()
-        #expect(viewModel.selectedItemsCount == 3)
+        #expect(viewModel.isItemSelected(viewModel.detectedItems[0]))
+        #expect(!viewModel.isItemSelected(viewModel.detectedItems[1]))
+        #expect(viewModel.hasSatisfiedSelectAll(avoidingPotentialDuplicates: true))
     }
 
-    @Test("ViewModel groups likely duplicates for display")
-    func testPotentialDuplicateGrouping() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
-
-        let groupedItems = [
-            DetectedInventoryItem(
-                id: "guitar-1",
-                title: "Fender Stratocaster Guitar",
-                description: "",
-                category: "Music",
-                make: "Fender",
-                model: "Stratocaster",
-                estimatedPrice: "$1200",
-                confidence: 0.9
-            ),
-            DetectedInventoryItem(
-                id: "guitar-2",
-                title: "Fender Stratocaster",
-                description: "",
-                category: "Music",
-                make: "Fender",
-                model: "Stratocaster",
-                estimatedPrice: "$1200",
-                confidence: 0.88
-            ),
-            DetectedInventoryItem(
-                id: "amp-1",
-                title: "Tube Amplifier",
-                description: "",
-                category: "Music",
-                make: "Marshall",
-                model: "JCM",
-                estimatedPrice: "$900",
-                confidence: 0.87
-            ),
-        ]
-
-        let response = MultiItemAnalysisResponse(
-            items: groupedItems,
-            detectedCount: groupedItems.count,
-            analysisType: "multi_item",
-            confidence: 0.9
-        )
+    @Test("duplicateAwareSelectAll_stillIncludesSingletonItems")
+    func duplicateAwareSelectAll_stillIncludesSingletonItems() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
 
         let viewModel = MultiItemSelectionViewModel(
-            analysisResponse: response,
+            analysisResponse: createDuplicateGroupingResponse(),
             images: createTestImages(),
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
-        let duplicateGroups = viewModel.detectedItemGroups.filter { $0.isPotentialDuplicateGroup }
-        #expect(duplicateGroups.count == 1)
-        #expect(duplicateGroups.first?.items.count == 2)
+        viewModel.selectAllItems(avoidingPotentialDuplicates: true)
+
+        #expect(viewModel.selectedItems == Set(["duplicate-1", "single-1"]))
+    }
+
+    @Test("defaultSelectAll_behaviorUnchanged")
+    func defaultSelectAll_behaviorUnchanged() throws {
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
+        let viewModel = MultiItemSelectionViewModel(
+            analysisResponse: createDuplicateGroupingResponse(),
+            images: createTestImages(),
+            locationID: nil
+        )
+
+        viewModel.selectAllItems()
+
+        #expect(viewModel.selectedItems == Set(["duplicate-1", "duplicate-2", "single-1"]))
+        #expect(viewModel.hasSatisfiedSelectAll())
     }
 
     @Test("ViewModel creates inventory items correctly")
     func testCreateInventoryItems() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse(itemCount: 2)
 
-        // Create a test location
-        let testLocation = InventoryLocation(name: "Test Room")
-        context.insert(testLocation)
-        try context.save()
+        // Create a test location in the SQLite database
+        let testLocationID = try createTestLocation(named: "Test Room", in: db)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: testLocation,
-            modelContext: context
+            locationID: testLocationID
         )
 
         // Select the first item
@@ -385,26 +363,27 @@ import UIKit
         #expect(createdItem.desc == "Description for test item 1")
         #expect(createdItem.make == "Test Make 1")
         #expect(createdItem.model == "Model 1")
-        #expect(createdItem.location?.name == "Test Room")
+        #expect(createdItem.locationID == testLocationID)
 
-        // Verify item was saved to context
-        let fetchDescriptor = FetchDescriptor<InventoryItem>()
-        let savedItems = try context.fetch(fetchDescriptor)
+        // Verify item was saved to database
+        let savedItems = try await db.read { database in
+            try SQLiteInventoryItem.all.fetchAll(database)
+        }
         #expect(savedItems.count == 1)
     }
 
     @Test("ViewModel handles creation errors gracefully")
     func testCreateInventoryItemsError() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse(itemCount: 1)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         // Select an item
@@ -424,16 +403,16 @@ import UIKit
 
     @Test("ViewModel progress tracking works correctly")
     func testProgressTracking() async throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse(itemCount: 3)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         // Select all items
@@ -472,16 +451,16 @@ import UIKit
 
     @Test("Card navigation buttons work correctly")
     func testCardNavigationButtons() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let analysisResponse = createMockAnalysisResponse(itemCount: 3)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: analysisResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         // Test navigation button states
@@ -502,16 +481,16 @@ import UIKit
 
     @Test("ViewModel handles single item correctly")
     func testSingleItemHandling() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
         let singleItemResponse = createMockAnalysisResponse(itemCount: 1)
 
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: singleItemResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         #expect(viewModel.detectedItems.count == 1)
@@ -522,8 +501,9 @@ import UIKit
 
     @Test("ViewModel handles maximum items correctly")
     func testMaximumItemsHandling() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
 
         // Create response with maximum items (10)
@@ -550,8 +530,7 @@ import UIKit
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: maxItemsResponse,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
         #expect(viewModel.detectedItems.count == 10)
@@ -566,8 +545,9 @@ import UIKit
 
     @Test("ViewModel validates item data quality")
     func testItemDataValidation() throws {
-        let container = try createTestContainer()
-        let context = ModelContext(container)
+        let db = try createTestDatabase()
+        try prepareDependencies { $0.defaultDatabase = db }
+
         let images = createTestImages()
 
         // Create items with varying confidence scores
@@ -604,19 +584,17 @@ import UIKit
         let viewModel = MultiItemSelectionViewModel(
             analysisResponse: response,
             images: images,
-            location: nil,
-            modelContext: context
+            locationID: nil
         )
 
+        // Low-confidence unknown items are now filtered out by quality gates.
         #expect(viewModel.detectedItems.count == 1)
+        #expect(viewModel.filteredOutCount == 1)
 
-        // High confidence item should have good data
-        let highConfidenceItem = viewModel.detectedItems[0]
+        let highConfidenceItem = try #require(viewModel.detectedItems.first)
+        #expect(highConfidenceItem.id == "high-confidence")
         #expect(highConfidenceItem.confidence > 0.9)
         #expect(!highConfidenceItem.title.isEmpty)
-
-        // Low confidence item should have lower quality data
-        #expect(viewModel.filteredOutCount == 1)
     }
 
     // MARK: - Helper Methods Tests

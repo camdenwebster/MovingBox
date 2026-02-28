@@ -5,10 +5,12 @@
 //  Created by Claude Code on 9/19/25.
 //
 
+import Dependencies
 import Foundation
 import MovingBoxAIAnalysis
-import SwiftData
+import SQLiteData
 import SwiftUI
+import UIKit
 
 // MARK: - Supporting Types
 
@@ -48,11 +50,15 @@ final class MultiItemSelectionViewModel {
     /// Images used for analysis
     var images: [UIImage]
 
-    /// Location to assign to created items
-    var location: InventoryLocation?
+    /// Location ID to assign to created items
+    var locationID: UUID?
 
-    /// SwiftData context for saving items
-    let modelContext: ModelContext
+    /// Home ID to assign to created items
+    var homeID: UUID?
+
+    /// Database writer for sqlite-data operations
+    @ObservationIgnored @Dependency(\.defaultDatabase) var database
+    private let injectedDatabase: (any DatabaseWriter)?
 
     /// Settings manager for accessing active home
     var settingsManager: SettingsManager?
@@ -65,11 +71,6 @@ final class MultiItemSelectionViewModel {
     /// All detected items from analysis (unfiltered)
     private var allDetectedItems: [DetectedInventoryItem] {
         normalizedDetectedItems
-    }
-
-    /// Count of items filtered out by quality gates
-    var filteredOutCount: Int {
-        max(0, allDetectedItems.count - filteredDetectedItems.count)
     }
 
     /// Currently selected items for creation
@@ -114,73 +115,20 @@ final class MultiItemSelectionViewModel {
     var enrichmentFinished: Bool = false
 
     /// Background enrichment task
-    private var enrichmentTask: Task<Void, Never>?
+    @ObservationIgnored private var enrichmentTask: Task<Void, Never>?
 
     /// Cached duplicate grouping and label matching to avoid repeated expensive recomputation per row render.
     private var duplicateLookupCache: [String: DuplicateGroup] = [:]
-    private var matchingLabelCache: [String: InventoryLabel?] = [:]
-    private var availableLabelsCache: [InventoryLabel] = []
+    private var matchingLabelCache: [String: SQLiteInventoryLabel?] = [:]
+    private var availableLabelsCache: [SQLiteInventoryLabel] = []
 
+    // MARK: - Supporting Types
+
+    /// Represents a group of detected items for display (e.g., potential duplicates)
     struct DetectedItemDisplayGroup: Identifiable {
         let id: String
         let items: [DetectedInventoryItem]
         let isPotentialDuplicateGroup: Bool
-    }
-
-    // MARK: - Quality Gates
-
-    private let minimumConfidenceThreshold: Double = 0.6
-    private let lowConfidenceCropThreshold: Double = 0.75
-    private let minimumDetectionAreaFraction: Double = 0.01
-    private let maxCroppedImagesPerItem = 4
-    private let rowThumbnailMaxDimension: CGFloat = 144
-    private let lowQualityTitlePhrases: [String] = [
-        "indistinguishable",
-        "indistinguisable",
-        "unidentifiable",
-        "unrecognizable",
-        "unknown item",
-        "unknown object",
-        "unclear",
-        "blurry",
-        "can't identify",
-        "cannot identify",
-        "not sure",
-        "unsure",
-    ]
-
-    private var filteredDetectedItems: [DetectedInventoryItem] {
-        allDetectedItems.filter { !shouldFilter($0) }
-    }
-
-    var detectedItemGroups: [DetectedItemDisplayGroup] {
-        let items = detectedItems
-        guard !items.isEmpty else { return [] }
-
-        var emittedGroupIDs = Set<String>()
-        var groups: [DetectedItemDisplayGroup] = []
-
-        for item in items {
-            if let duplicateGroup = duplicateLookupCache[item.id] {
-                guard !emittedGroupIDs.contains(duplicateGroup.id) else { continue }
-                emittedGroupIDs.insert(duplicateGroup.id)
-                groups.append(
-                    DetectedItemDisplayGroup(
-                        id: duplicateGroup.id,
-                        items: duplicateGroup.items,
-                        isPotentialDuplicateGroup: true
-                    ))
-            } else {
-                groups.append(
-                    DetectedItemDisplayGroup(
-                        id: "single-\(item.id)",
-                        items: [item],
-                        isPotentialDuplicateGroup: false
-                    ))
-            }
-        }
-
-        return groups
     }
 
     // MARK: - Computed Properties
@@ -211,38 +159,117 @@ final class MultiItemSelectionViewModel {
         return detectedItems[currentCardIndex]
     }
 
+    /// Groups of detected items for display
+    var detectedItemGroups: [DetectedItemDisplayGroup] {
+        let items = detectedItems
+        guard !items.isEmpty else { return [] }
+
+        var emittedGroupIDs = Set<String>()
+        var groups: [DetectedItemDisplayGroup] = []
+
+        for item in items {
+            if let duplicateGroup = duplicateLookupCache[item.id] {
+                guard !emittedGroupIDs.contains(duplicateGroup.id) else { continue }
+                emittedGroupIDs.insert(duplicateGroup.id)
+                groups.append(
+                    DetectedItemDisplayGroup(
+                        id: duplicateGroup.id,
+                        items: duplicateGroup.items,
+                        isPotentialDuplicateGroup: true
+                    ))
+            } else {
+                groups.append(
+                    DetectedItemDisplayGroup(
+                        id: "single-\(item.id)",
+                        items: [item],
+                        isPotentialDuplicateGroup: false
+                    ))
+            }
+        }
+
+        return groups
+    }
+
+    /// Count of items filtered out by quality gates
+    var filteredOutCount: Int {
+        max(0, allDetectedItems.count - filteredDetectedItems.count)
+    }
+
+    /// Get duplicate hint for an item
+    func duplicateHint(for item: DetectedInventoryItem) -> String? {
+        guard let group = duplicateLookupCache[item.id], group.items.count > 1 else { return nil }
+        return "Potential duplicate (\(group.items.count) similar)"
+    }
+
+    // MARK: - Quality Gates
+
+    private let minimumConfidenceThreshold: Double = 0.6
+    private let lowConfidenceCropThreshold: Double = 0.75
+    private let minimumDetectionAreaFraction: Double = 0.01
+    private let maxCroppedImagesPerItem = 4
+    private let rowThumbnailMaxDimension: CGFloat = 144
+    private let lowQualityTitlePhrases: [String] = [
+        "indistinguishable",
+        "indistinguisable",
+        "unidentifiable",
+        "unrecognizable",
+        "unknown item",
+        "unknown object",
+        "unclear",
+        "blurry",
+        "can't identify",
+        "cannot identify",
+        "not sure",
+        "unsure",
+    ]
+
+    private var filteredDetectedItems: [DetectedInventoryItem] {
+        allDetectedItems.filter { !shouldFilter($0) }
+    }
+
+    private var activeDatabase: any DatabaseWriter {
+        injectedDatabase ?? database
+    }
+
     // MARK: - Initialization
 
     init(
         analysisResponse: MultiItemAnalysisResponse,
         images: [UIImage],
-        location: InventoryLocation?,
-        modelContext: ModelContext,
-        aiAnalysisService: AIAnalysisServiceProtocol? = nil
+        location: SQLiteInventoryLocation? = nil,
+        homeID: UUID? = nil,
+        database: (any DatabaseWriter)? = nil,
+        aiAnalysisService: (any AIAnalysisServiceProtocol)? = nil
     ) {
         self.analysisResponse = analysisResponse
         self.normalizedDetectedItems = Self.normalizeDetectedItems(analysisResponse.safeItems)
         self.images = images
-        self.location = location
-        self.modelContext = modelContext
+        self.locationID = location?.id
+        self.homeID = homeID
+        self.injectedDatabase = database
         self.aiAnalysisService = aiAnalysisService
         refreshDisplayCaches()
     }
 
-    // MARK: - Bounding Box Cropping
-
-    /// Update the source images for cropping, resetting any cached crops.
-    func updateImages(_ newImages: [UIImage]) async {
-        images = newImages
-        croppedPrimaryImages.removeAll()
-        croppedSecondaryImages.removeAll()
-        rowThumbnails.removeAll()
-        duplicateLookupCache.removeAll()
-        matchingLabelCache.removeAll()
-        hasCroppedImages = false
+    init(
+        analysisResponse: MultiItemAnalysisResponse,
+        images: [UIImage],
+        locationID: UUID? = nil,
+        homeID: UUID? = nil,
+        database: (any DatabaseWriter)? = nil,
+        aiAnalysisService: (any AIAnalysisServiceProtocol)? = nil
+    ) {
+        self.analysisResponse = analysisResponse
+        self.normalizedDetectedItems = Self.normalizeDetectedItems(analysisResponse.safeItems)
+        self.images = images
+        self.locationID = locationID
+        self.homeID = homeID
+        self.injectedDatabase = database
+        self.aiAnalysisService = aiAnalysisService
         refreshDisplayCaches()
     }
 
+    /// Update the analysis response (for streaming scenarios)
     func updateAnalysisResponse(_ response: MultiItemAnalysisResponse) {
         let previousIDs = Set(normalizedDetectedItems.map(\.id))
         analysisResponse = response
@@ -271,8 +298,75 @@ final class MultiItemSelectionViewModel {
         }
     }
 
-    /// Compute cropped images for detected items from their bounding box detections.
-    /// If a limit is provided, only compute the first N items without marking as complete.
+    /// Start enrichment process
+    func startEnrichment(settings: SettingsManager) {
+        guard !isEnriching, !enrichmentFinished, let service = aiAnalysisService else { return }
+
+        enrichmentCompleted = 0
+        enrichmentTotal = detectedItems.count
+        isEnriching = true
+
+        let itemsToEnrich = detectedItems.map { item in
+            var itemImages: [UIImage] = []
+            if let primary = croppedPrimaryImages[item.id] {
+                itemImages.append(primary)
+            }
+            if let secondaries = croppedSecondaryImages[item.id] {
+                itemImages.append(contentsOf: secondaries)
+            }
+            let curated = ImageQualityCurator.curate(
+                itemImages,
+                keepAtMost: maxCroppedImagesPerItem,
+                ensureAtLeast: 1
+            )
+            return (id: item.id, title: item.title, images: curated)
+        }
+
+        enrichmentTask?.cancel()
+        enrichmentTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            let aiContext = await AIAnalysisContext.from(database: self.activeDatabase, settings: settings)
+            await withTaskGroup(of: (String, ImageDetails?).self) { group in
+                for item in itemsToEnrich {
+                    group.addTask { @MainActor in
+                        guard !item.images.isEmpty else { return (item.id, nil) }
+                        do {
+                            let details = try await service.analyzeItem(
+                                from: item.images, settings: settings, context: aiContext)
+                            return (item.id, details)
+                        } catch {
+                            print("Pass 2 failed for '\(item.title)': \(error.localizedDescription)")
+                            return (item.id, nil)
+                        }
+                    }
+                }
+
+                for await (itemId, details) in group {
+                    if Task.isCancelled {
+                        group.cancelAll()
+                        break
+                    }
+                    if let details {
+                        self.enrichedDetails[itemId] = details
+                    }
+                    self.enrichmentCompleted += 1
+                }
+            }
+
+            if Task.isCancelled {
+                isEnriching = false
+                enrichmentTask = nil
+                return
+            }
+
+            isEnriching = false
+            enrichmentFinished = true
+            enrichmentTask = nil
+        }
+    }
+
+    /// Compute cropped images for detected items
     func computeCroppedImages(limit: Int? = nil) async {
         if hasCroppedImages, limit == nil { return }
         if Task.isCancelled { return }
@@ -313,53 +407,7 @@ final class MultiItemSelectionViewModel {
         }
     }
 
-    private struct CuratedImagePayload {
-        let primary: UIImage?
-        let secondary: [UIImage]
-        let rowThumbnail: UIImage?
-    }
-
-    private func curateCandidatesForDisplay(_ candidates: [UIImage]) async -> CuratedImagePayload {
-        guard !candidates.isEmpty else {
-            return CuratedImagePayload(primary: nil, secondary: [], rowThumbnail: nil)
-        }
-
-        let keepAtMost = maxCroppedImagesPerItem
-        let thumbnailMaxDimension = rowThumbnailMaxDimension
-
-        return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let payload = autoreleasepool { () -> CuratedImagePayload in
-                    let curated = ImageQualityCurator.curate(
-                        candidates,
-                        keepAtMost: keepAtMost,
-                        ensureAtLeast: 1
-                    )
-                    let primary = curated.first
-                    let secondary = Array(curated.dropFirst())
-                    let thumbnail = primary.map {
-                        RowThumbnailFactory.make(from: $0, maxDimension: thumbnailMaxDimension)
-                    }
-                    return CuratedImagePayload(primary: primary, secondary: secondary, rowThumbnail: thumbnail)
-                }
-                continuation.resume(returning: payload)
-            }
-        }
-    }
-
-    /// Get the primary image for a detected item (cropped if available, falls back to first source image)
-    func primaryImage(for item: DetectedInventoryItem) -> UIImage? {
-        if let cropped = croppedPrimaryImages[item.id] {
-            return cropped
-        }
-
-        guard images.count <= 1 else { return nil }
-
-        return images.first
-    }
-
-    /// Get a memory-efficient thumbnail for list rows.
-    /// Never persists thumbnails to disk for transient/unsaved items.
+    /// Get thumbnail for a detected item row
     func rowThumbnail(for item: DetectedInventoryItem) -> UIImage? {
         if let thumbnail = rowThumbnails[item.id] {
             return thumbnail
@@ -378,84 +426,7 @@ final class MultiItemSelectionViewModel {
         return thumbnail
     }
 
-    // MARK: - Pass 2 Enrichment
-
-    func startEnrichment(settings: SettingsManager) {
-        guard !isEnriching, !enrichmentFinished, let service = aiAnalysisService else { return }
-
-        enrichmentCompleted = 0
-        enrichmentTotal = detectedItems.count
-        isEnriching = true
-
-        let itemsToEnrich = detectedItems.map { item in
-            var itemImages: [UIImage] = []
-            if let primary = croppedPrimaryImages[item.id] {
-                itemImages.append(primary)
-            }
-            if let secondaries = croppedSecondaryImages[item.id] {
-                itemImages.append(contentsOf: secondaries)
-            }
-            let curated = ImageQualityCurator.curate(
-                itemImages,
-                keepAtMost: maxCroppedImagesPerItem,
-                ensureAtLeast: 1
-            )
-            return (id: item.id, title: item.title, images: curated)
-        }
-
-        enrichmentTask?.cancel()
-        enrichmentTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-
-            let aiContext = AIAnalysisContext.from(modelContext: self.modelContext, settings: settings)
-            await withTaskGroup(of: (String, ImageDetails?).self) { group in
-                for item in itemsToEnrich {
-                    group.addTask { @MainActor in
-                        guard !item.images.isEmpty else { return (item.id, nil) }
-                        do {
-                            let details = try await service.analyzeItem(
-                                from: item.images, settings: settings, context: aiContext)
-                            return (item.id, details)
-                        } catch {
-                            print("Pass 2 failed for '\(item.title)': \(error.localizedDescription)")
-                            return (item.id, nil)
-                        }
-                    }
-                }
-
-                for await (itemId, details) in group {
-                    if Task.isCancelled {
-                        group.cancelAll()
-                        break
-                    }
-                    if let details {
-                        enrichedDetails[itemId] = details
-                    }
-                    enrichmentCompleted += 1
-                }
-            }
-
-            if Task.isCancelled {
-                isEnriching = false
-                enrichmentTask = nil
-                return
-            }
-
-            isEnriching = false
-            enrichmentFinished = true
-            enrichmentTask = nil
-        }
-    }
-
-    func cancelEnrichment() {
-        enrichmentTask?.cancel()
-        enrichmentTask = nil
-        isEnriching = false
-        enrichmentFinished = false
-    }
-
-    /// Release temporary in-memory image buffers used during selection.
-    /// This does not touch persisted item images/thumbnails on disk.
+    /// Release temporary image memory
     func releaseTemporaryImageMemory(clearSourceImages: Bool = false) {
         cancelEnrichment()
         croppedPrimaryImages.removeAll()
@@ -472,11 +443,28 @@ final class MultiItemSelectionViewModel {
         }
     }
 
+    /// Update images for the view model
+    func updateImages(_ newImages: [UIImage]) async {
+        images = newImages
+        croppedPrimaryImages.removeAll()
+        croppedSecondaryImages.removeAll()
+        rowThumbnails.removeAll()
+        duplicateLookupCache.removeAll()
+        matchingLabelCache.removeAll()
+        hasCroppedImages = false
+        refreshDisplayCaches()
+    }
+
+    /// Update selected location
+    func updateSelectedLocation(_ location: SQLiteInventoryLocation?) {
+        self.locationID = location?.id
+    }
+
     // MARK: - Location Management
 
     /// Update the selected location for items
-    func updateSelectedLocation(_ newLocation: InventoryLocation?) {
-        self.location = newLocation
+    func updateSelectedLocationID(_ locationID: UUID?) {
+        self.locationID = locationID
     }
 
     // MARK: - Card Navigation
@@ -516,8 +504,14 @@ final class MultiItemSelectionViewModel {
     }
 
     /// Select all detected items
-    func selectAllItems() {
-        selectedItems = Set(detectedItems.map { $0.id })
+    func selectAllItems(avoidingPotentialDuplicates: Bool = false) {
+        selectedItems = selectAllTargetItemIDs(avoidingPotentialDuplicates: avoidingPotentialDuplicates)
+    }
+
+    /// Whether current selection satisfies the "select all" target set.
+    func hasSatisfiedSelectAll(avoidingPotentialDuplicates: Bool = false) -> Bool {
+        let targetIDs = selectAllTargetItemIDs(avoidingPotentialDuplicates: avoidingPotentialDuplicates)
+        return selectedItems.isSuperset(of: targetIDs)
     }
 
     /// Deselect all items
@@ -527,8 +521,8 @@ final class MultiItemSelectionViewModel {
 
     // MARK: - Item Creation
 
-    /// Create InventoryItems from selected detected items
-    func createSelectedInventoryItems() async throws -> [InventoryItem] {
+    /// Create SQLiteInventoryItems from selected detected items
+    func createSelectedInventoryItems() async throws -> [SQLiteInventoryItem] {
         guard !images.isEmpty else {
             throw InventoryItemCreationError.noImagesProvided
         }
@@ -545,62 +539,50 @@ final class MultiItemSelectionViewModel {
         creationProgress = 0.0
         errorMessage = nil
 
-        // Fetch existing labels to match against categories
-        var existingLabels = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+        var existingLabels =
+            (try? await activeDatabase.read { db in
+                try SQLiteInventoryLabel.all.fetchAll(db)
+            }) ?? []
         availableLabelsCache = existingLabels
-        let existingLocations = (try? modelContext.fetch(FetchDescriptor<InventoryLocation>())) ?? []
-        let fallbackHome = resolveFallbackHome()
+        let existingLocations =
+            (try? await activeDatabase.read { db in
+                try SQLiteInventoryLocation.all.fetchAll(db)
+            }) ?? []
 
-        var createdItems: [InventoryItem] = []
+        let resolvedHomeID = await resolveHomeID()
+
+        var createdItems: [SQLiteInventoryItem] = []
         let selectedDetectedItems = detectedItems.filter { selectedItems.contains($0.id) }
         let totalItems = selectedDetectedItems.count
         let progressUpdateStride = max(1, totalItems / 20)
 
         do {
             for (index, detectedItem) in selectedDetectedItems.enumerated() {
-                // Update progress
                 if index == 0 || index == totalItems - 1 || index % progressUpdateStride == 0 {
                     creationProgress = Double(index) / Double(totalItems)
                 }
 
-                let matchedLabels = LabelAutoAssignment.labels(
-                    for: [detectedItem.category],
-                    existingLabels: existingLabels,
-                    modelContext: modelContext
-                )
-
-                // Create inventory item with matched labels
+                let matchedLabels = matchingLabels(for: detectedItem.category, in: existingLabels)
                 let inventoryItem = try await createInventoryItem(
                     from: detectedItem,
                     labels: matchedLabels,
                     availableLabels: existingLabels,
                     availableLocations: existingLocations,
-                    fallbackHome: fallbackHome
+                    resolvedHomeID: resolvedHomeID
                 )
+                createdItems.append(inventoryItem)
 
-                for label in inventoryItem.labels
-                where !existingLabels.contains(where: { $0.id == label.id }) {
+                for label in matchedLabels where !existingLabels.contains(where: { $0.id == label.id }) {
                     existingLabels.append(label)
                 }
-                createdItems.append(inventoryItem)
             }
 
-            // Final progress update
             creationProgress = 1.0
-
-            // Save all items to context
-            try modelContext.save()
-
-            // Clear temporary in-memory buffers once items are persisted.
             releaseTemporaryImageMemory(clearSourceImages: true)
-
-            // Reset processing flag on success
             isProcessingSelection = false
-
             return createdItems
 
         } catch {
-            // Provide user-friendly error message
             let userMessage: String
             if let imageError = error as? OptimizedImageManager.ImageError {
                 switch imageError {
@@ -608,28 +590,6 @@ final class MultiItemSelectionViewModel {
                     userMessage = "Failed to compress images. Please try again with different photos."
                 case .invalidImageData:
                     userMessage = "Invalid image data. Please use a different photo."
-                case .iCloudNotAvailable:
-                    userMessage =
-                        "iCloud is not available. Please check your iCloud settings or try again later."
-                case .invalidBaseURL:
-                    userMessage = "Storage configuration error. Please restart the app."
-                }
-            } else if let nsError = error as NSError? {
-                // File system errors
-                if nsError.domain == NSCocoaErrorDomain {
-                    switch nsError.code {
-                    case NSFileWriteOutOfSpaceError:
-                        userMessage =
-                            "Not enough storage space available. Please free up some space and try again."
-                    case NSFileWriteNoPermissionError:
-                        userMessage = "Permission denied. Please check app permissions in Settings."
-                    case NSFileWriteVolumeReadOnlyError:
-                        userMessage = "Storage is read-only. Please check your device settings."
-                    default:
-                        userMessage = "Failed to save images: \(nsError.localizedDescription)"
-                    }
-                } else {
-                    userMessage = error.localizedDescription
                 }
             } else {
                 userMessage = error.localizedDescription
@@ -644,91 +604,247 @@ final class MultiItemSelectionViewModel {
 
     // MARK: - Private Methods
 
-    /// Create a single InventoryItem from a DetectedInventoryItem with preloaded dependency data.
+    /// Create a single SQLiteInventoryItem from a DetectedInventoryItem
     private func createInventoryItem(
         from detectedItem: DetectedInventoryItem,
-        labels: [InventoryLabel],
-        availableLabels: [InventoryLabel],
-        availableLocations: [InventoryLocation],
-        fallbackHome: Home?
-    )
-        async throws -> InventoryItem
-    {
-        // Create new inventory item
-        let inventoryItem = InventoryItem(
+        labels: [SQLiteInventoryLabel],
+        availableLabels: [SQLiteInventoryLabel],
+        availableLocations: [SQLiteInventoryLocation],
+        resolvedHomeID: UUID?
+    ) async throws -> SQLiteInventoryItem {
+        let newID = UUID()
+        let itemId = newID.uuidString
+
+        var inventoryItem = SQLiteInventoryItem(
+            id: newID,
             title: detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title,
-            quantityString: "1",
-            quantityInt: 1,
             desc: detectedItem.description,
             serial: "",
             model: detectedItem.model,
             make: detectedItem.make,
-            location: location,
-            labels: labels,
             price: parsePrice(from: detectedItem.estimatedPrice),
-            insured: false,
-            assetId: "",
+            assetId: itemId,
             notes: "",
-            showInvalidQuantityAlert: false
+            locationID: locationID,
+            homeID: resolvedHomeID
         )
-
-        // Generate unique ID for this item
-        let itemId = UUID().uuidString
+        inventoryItem.labelIDs = labels.map(\.id)
 
         if let enriched = enrichedDetails[detectedItem.id] {
-            let originalTitle = inventoryItem.title
-            inventoryItem.updateFromImageDetails(
-                enriched,
-                labels: availableLabels,
-                locations: availableLocations,
-                modelContext: modelContext,
-                preserveExistingLabels: true
+            applyEnrichedDetails(
+                to: &inventoryItem,
+                enriched: enriched,
+                availableLocations: availableLocations
             )
-            if enriched.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || enriched.title == "Unknown Item"
-                || enriched.title == "Unknown"
-            {
-                inventoryItem.title = originalTitle
+            let enrichedTitle = enriched.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if enrichedTitle.isEmpty || enrichedTitle == "Unknown Item" || enrichedTitle == "Unknown" {
+                inventoryItem.title = detectedItem.title.isEmpty ? "Untitled Item" : detectedItem.title
             }
+            inventoryItem.hasUsedAI = true
+        } else {
+            inventoryItem.notes =
+                "AI-detected \(detectedItem.category) with \(Int(detectedItem.confidence * 100))% confidence"
             inventoryItem.hasUsedAI = true
         }
 
         do {
-            // Only save cropped images - discard original source photos
             let primaryImage = croppedPrimaryImages[detectedItem.id] ?? fallbackPrimaryImage(for: detectedItem)
             let secondaryImages = croppedSecondaryImages[detectedItem.id] ?? []
 
-            async let primaryImageURL: URL? = {
-                guard let primaryImage else { return nil }
-                return try await OptimizedImageManager.shared.saveImage(primaryImage, id: itemId)
-            }()
+            var photoDataList: [(Data, Int)] = []
+            if let primaryImage, let primaryImageData = await OptimizedImageManager.shared.processImage(primaryImage) {
+                photoDataList.append((primaryImageData, 0))
+            }
+            for (index, image) in secondaryImages.enumerated() {
+                if let imageData = await OptimizedImageManager.shared.processImage(image) {
+                    photoDataList.append((imageData, index + 1))
+                }
+            }
+            let photoEntries = photoDataList
 
-            async let secondaryImageURLs: [String]? = {
-                guard !secondaryImages.isEmpty else { return nil }
-                return try await OptimizedImageManager.shared.saveSecondaryImages(
-                    secondaryImages, itemId: itemId)
-            }()
+            // Insert item + photos in a single transaction
+            let itemToInsert = inventoryItem
+            try await activeDatabase.write { db in
+                try SQLiteInventoryItem.insert { itemToInsert }.execute(db)
 
-            inventoryItem.imageURL = try await primaryImageURL
-            inventoryItem.secondaryPhotoURLs = try await secondaryImageURLs ?? []
+                for (imageData, sortOrder) in photoEntries {
+                    try SQLiteInventoryItemPhoto.insert {
+                        SQLiteInventoryItemPhoto(
+                            id: UUID(),
+                            inventoryItemID: itemToInsert.id,
+                            data: imageData,
+                            sortOrder: sortOrder
+                        )
+                    }.execute(db)
+                }
 
-            // Assign active home if item has no location or location has no home
-            if inventoryItem.location == nil || inventoryItem.location?.home == nil, let fallbackHome {
-                inventoryItem.home = fallbackHome
+                // Insert label joins if matched
+                for label in labels {
+                    try SQLiteInventoryItemLabel.insert {
+                        SQLiteInventoryItemLabel(
+                            id: UUID(),
+                            inventoryItemID: itemToInsert.id,
+                            inventoryLabelID: label.id
+                        )
+                    }.execute(db)
+                }
             }
 
-            // Insert into context
-            modelContext.insert(inventoryItem)
-
-            // Track telemetry
             TelemetryManager.shared.trackInventoryItemAdded(name: inventoryItem.title)
-
             return inventoryItem
 
         } catch {
-            // Preserve the actual error message for better debugging
-            print("❌ Failed to save images for item: \(error.localizedDescription)")
+            print("❌ Failed to save item: \(error.localizedDescription)")
             throw error
+        }
+    }
+
+    /// Resolves the homeID for a new item
+    private func resolveHomeID() async -> UUID? {
+        if let homeID { return homeID }
+
+        if let locationID {
+            if let location = try? await activeDatabase.read({ db in
+                try SQLiteInventoryLocation.find(locationID).fetchOne(db)
+            }), let locationHomeID = location.homeID {
+                return locationHomeID
+            }
+        }
+
+        if let activeHomeIdString = settingsManager?.activeHomeId,
+            let activeHomeId = UUID(uuidString: activeHomeIdString)
+        {
+            if (try? await activeDatabase.read({ db in
+                try SQLiteHome.find(activeHomeId).fetchOne(db)
+            })) != nil {
+                return activeHomeId
+            }
+        }
+
+        return try? await activeDatabase.read { db in
+            try SQLiteHome.where { $0.isPrimary == true }.fetchOne(db)?.id
+        }
+    }
+
+    /// Parse price string to Decimal
+    private func parsePrice(from priceString: String) -> Decimal {
+        guard !priceString.isEmpty else { return Decimal.zero }
+
+        // Remove currency symbols and commas
+        let cleanedString =
+            priceString
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespaces)
+
+        return Decimal(string: cleanedString) ?? Decimal.zero
+    }
+
+    private func selectAllTargetItemIDs(avoidingPotentialDuplicates: Bool) -> Set<String> {
+        guard avoidingPotentialDuplicates else {
+            return Set(detectedItems.map(\.id))
+        }
+
+        var targetIDs = Set<String>()
+        for group in detectedItemGroups {
+            if let firstItem = group.items.first {
+                targetIDs.insert(firstItem.id)
+            }
+        }
+        return targetIDs
+    }
+
+    /// Format confidence as percentage string
+    private func formattedConfidence(_ confidence: Double) -> String {
+        let percentage = Int(confidence * 100)
+        return "\(percentage)%"
+    }
+
+    /// Find matching labels for a given category from existing labels
+    private func matchingLabels(for category: String, in labels: [SQLiteInventoryLabel])
+        -> [SQLiteInventoryLabel]
+    {
+        guard !category.isEmpty else { return [] }
+        if let exact = labels.first(where: { $0.name.lowercased() == category.lowercased() }) {
+            return [exact]
+        }
+        return []
+    }
+
+    /// Get the label that would be matched for a detected item (for preview in card)
+    func getMatchingLabel(for item: DetectedInventoryItem) -> SQLiteInventoryLabel? {
+        if let cached = matchingLabelCache[item.id] {
+            return cached
+        }
+        return nil
+    }
+
+    private func applyEnrichedDetails(
+        to item: inout SQLiteInventoryItem,
+        enriched: ImageDetails,
+        availableLocations: [SQLiteInventoryLocation]
+    ) {
+        item.title = enriched.title
+        item.quantityString = enriched.quantity
+        if let quantity = Int(enriched.quantity) {
+            item.quantityInt = quantity
+        }
+        item.desc = enriched.description
+        item.make = enriched.make
+        item.model = enriched.model
+        item.serial = enriched.serialNumber
+        item.price = parsePrice(from: enriched.price)
+
+        if item.locationID == nil {
+            if let matchedLocation = availableLocations.first(where: {
+                $0.name.lowercased() == enriched.location.lowercased()
+            }) {
+                item.locationID = matchedLocation.id
+            }
+        }
+
+        if let condition = enriched.condition, !condition.isEmpty {
+            item.condition = condition
+        }
+        if let color = enriched.color, !color.isEmpty {
+            item.color = color
+        }
+        if let purchaseLocation = enriched.purchaseLocation, !purchaseLocation.isEmpty {
+            item.purchaseLocation = purchaseLocation
+        }
+        if let replacementCost = enriched.replacementCost {
+            item.replacementCost = parsePrice(from: replacementCost)
+        }
+        if let depreciationRate = enriched.depreciationRate {
+            let cleaned =
+                depreciationRate
+                .replacingOccurrences(of: "%", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            if let val = Double(cleaned) {
+                item.depreciationRate = val / 100.0
+            }
+        }
+        if let storageRequirements = enriched.storageRequirements, !storageRequirements.isEmpty {
+            item.storageRequirements = storageRequirements
+        }
+        if let isFragile = enriched.isFragile, !isFragile.isEmpty {
+            item.isFragile = isFragile.lowercased() == "true"
+        }
+        if let dimensionLength = enriched.dimensionLength, !dimensionLength.isEmpty {
+            item.dimensionLength = dimensionLength
+        }
+        if let dimensionWidth = enriched.dimensionWidth, !dimensionWidth.isEmpty {
+            item.dimensionWidth = dimensionWidth
+        }
+        if let dimensionHeight = enriched.dimensionHeight, !dimensionHeight.isEmpty {
+            item.dimensionHeight = dimensionHeight
+        }
+        if let dimensionUnit = enriched.dimensionUnit, !dimensionUnit.isEmpty {
+            item.dimensionUnit = dimensionUnit
+        }
+        if let weightValue = enriched.weightValue, !weightValue.isEmpty {
+            item.weightValue = weightValue
+            item.weightUnit = enriched.weightUnit ?? "lbs"
         }
     }
 
@@ -747,53 +863,45 @@ final class MultiItemSelectionViewModel {
         return images[sourceImageIndex]
     }
 
-    private func resolveFallbackHome() -> Home? {
-        if let activeHomeIdString = settingsManager?.activeHomeId,
-            let activeHomeId = UUID(uuidString: activeHomeIdString)
-        {
-            let activeHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate<Home> { $0.id == activeHomeId })
-            if let activeHome = try? modelContext.fetch(activeHomeDescriptor).first {
-                return activeHome
-            }
+    private struct CuratedImagePayload {
+        let primary: UIImage?
+        let secondary: [UIImage]
+        let rowThumbnail: UIImage?
+    }
+
+    private func curateCandidatesForDisplay(_ candidates: [UIImage]) async -> CuratedImagePayload {
+        guard !candidates.isEmpty else {
+            return CuratedImagePayload(primary: nil, secondary: [], rowThumbnail: nil)
         }
 
-        let primaryHomeDescriptor = FetchDescriptor<Home>(predicate: #Predicate { $0.isPrimary })
-        return try? modelContext.fetch(primaryHomeDescriptor).first
+        let keepAtMost = maxCroppedImagesPerItem
+        let thumbnailMaxDimension = rowThumbnailMaxDimension
+
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let payload = autoreleasepool { () -> CuratedImagePayload in
+                    let curated = ImageQualityCurator.curate(
+                        candidates,
+                        keepAtMost: keepAtMost,
+                        ensureAtLeast: 1
+                    )
+                    let primary = curated.first
+                    let secondary = Array(curated.dropFirst())
+                    let thumbnail = primary.map {
+                        RowThumbnailFactory.make(from: $0, maxDimension: thumbnailMaxDimension)
+                    }
+                    return CuratedImagePayload(primary: primary, secondary: secondary, rowThumbnail: thumbnail)
+                }
+                continuation.resume(returning: payload)
+            }
+        }
     }
 
-    /// Parse price string to Decimal
-    private func parsePrice(from priceString: String) -> Decimal {
-        guard !priceString.isEmpty else { return Decimal.zero }
-
-        // Remove currency symbols and commas
-        let cleanedString =
-            priceString
-            .replacingOccurrences(of: "$", with: "")
-            .replacingOccurrences(of: ",", with: "")
-            .trimmingCharacters(in: .whitespaces)
-
-        return Decimal(string: cleanedString) ?? Decimal.zero
-    }
-
-    /// Format confidence as percentage string
-    private func formattedConfidence(_ confidence: Double) -> String {
-        let percentage = Int(confidence * 100)
-        return "\(percentage)%"
-    }
-
-    /// Find matching labels for a given category from existing labels
-    private func matchingLabels(for category: String, in labels: [InventoryLabel]) -> [InventoryLabel] {
-        LabelAutoAssignment.labels(for: [category], existingLabels: labels, modelContext: nil)
-    }
-
-    /// Get the label that would be matched for a detected item (for preview in card)
-    func getMatchingLabel(for item: DetectedInventoryItem) -> InventoryLabel? {
-        matchingLabelCache[item.id] ?? nil
-    }
-
-    func duplicateHint(for item: DetectedInventoryItem) -> String? {
-        guard let group = duplicateLookupCache[item.id], group.items.count > 1 else { return nil }
-        return "Potential duplicate (\(group.items.count) similar)"
+    func cancelEnrichment() {
+        enrichmentTask?.cancel()
+        enrichmentTask = nil
+        isEnriching = false
+        enrichmentFinished = false
     }
 
     // MARK: - Quality Helpers
@@ -915,10 +1023,13 @@ final class MultiItemSelectionViewModel {
         duplicateLookupCache = duplicateGroupLookup(for: items)
 
         if availableLabelsCache.isEmpty {
-            availableLabelsCache = (try? modelContext.fetch(FetchDescriptor<InventoryLabel>())) ?? []
+            availableLabelsCache =
+                (try? activeDatabase.read { db in
+                    try SQLiteInventoryLabel.fetchAll(db)
+                }) ?? []
         }
 
-        var updatedLabelCache: [String: InventoryLabel?] = [:]
+        var updatedLabelCache: [String: SQLiteInventoryLabel?] = [:]
         for item in items {
             updatedLabelCache[item.id] =
                 matchingLabels(
@@ -1173,7 +1284,10 @@ private enum ImageQualityCurator {
     private static func score(_ image: UIImage) -> ScoredImage? {
         guard let downsampled = downsampledGrayscalePixels(for: image, side: 64) else { return nil }
         let sharpness = gradientSharpness(
-            pixels: downsampled.pixels, width: downsampled.width, height: downsampled.height)
+            pixels: downsampled.pixels,
+            width: downsampled.width,
+            height: downsampled.height
+        )
         let contrast = luminanceStdDev(downsampled.pixels)
         let hash = perceptualHash(for: image)
         return ScoredImage(image: image, sharpness: sharpness, contrast: contrast, perceptualHash: hash)

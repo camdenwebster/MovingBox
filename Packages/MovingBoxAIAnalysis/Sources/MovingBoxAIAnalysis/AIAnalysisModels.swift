@@ -8,7 +8,7 @@ import Foundation
 // MARK: - Photo Limits
 
 public enum AnalysisPhotoLimits {
-    public static let maxPhotos = 60
+    public static let maxPhotos = 10
 }
 
 // MARK: - Token Limit Calculation

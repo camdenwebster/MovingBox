@@ -106,3 +106,8 @@ fastlane/screenshots/light/screenshots.html
 fastlane/screenshots/dark/screenshots.html
 .DS_Store
 .claude/settings.local.json
+.tmp-home/
+.tuist/
+# Nightshift plan artifacts (keep out of version control)
+.nightshift-plan
+/.artifacts

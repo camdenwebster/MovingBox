@@ -1,42 +1,114 @@
 {
-  "configurations" : [
+  "configurations": [
     {
-      "id" : "FB1A4F89-AF10-43AE-AC8E-E09660FE5DBF",
-      "name" : "Default",
-      "options" : {
-
+      "id": "FB1A4F89-AF10-43AE-AC8E-E09660FE5DBF",
+      "name": "Default",
+      "options": {
       }
     }
   ],
-  "defaultOptions" : {
-    "defaultTestExecutionTimeAllowance" : 240,
-    "environmentVariableEntries" : [
+  "defaultOptions": {
+    "defaultTestExecutionTimeAllowance": 240,
+    "environmentVariableEntries": [
       {
-        "key" : "AIPROXY_DEVICE_CHECK_BYPASS",
-        "value" : "f3543606-afa8-4394-99a9-74bd9a2421a2"
+        "key": "AIPROXY_DEVICE_CHECK_BYPASS",
+        "value": "f3543606-afa8-4394-99a9-74bd9a2421a2"
       }
     ],
-    "maximumTestExecutionTimeAllowance" : 300,
-    "maximumTestRepetitions" : 3,
-    "repeatInNewRunnerProcess" : true,
-    "testRepetitionMode" : "retryOnFailure",
-    "testTimeoutsEnabled" : true
+    "maximumTestExecutionTimeAllowance": 300,
+    "maximumTestRepetitions": 3,
+    "repeatInNewRunnerProcess": true,
+    "testRepetitionMode": "retryOnFailure",
+    "testTimeoutsEnabled": true
   },
-  "testTargets" : [
+  "testTargets": [
     {
-      "parallelizable" : true,
-      "skippedTests" : [
-        "FastlaneSnapshots",
-        "ImportExportUITests\/testImportExportFlow()",
-        "NavigationSystemUITests",
-        "PaywallUITests\/testFirstItemCreationShowsPaywall()"
-      ],
-      "target" : {
-        "containerPath" : "container:MovingBox.xcodeproj",
-        "identifier" : "19B7D96E2D9B112200690F64",
-        "name" : "MovingBoxUITests"
-      }
+      "parallelizable": true,
+      "target": {
+        "containerPath": "container:MovingBox.xcodeproj",
+        "identifier": "19B7D96E2D9B112200690F64",
+        "name": "MovingBoxUITests"
+      },
+      "selectedTests": [
+        "DashboardNavigationUITests/testDashboardDisplaysCorrectly()",
+        "DashboardNavigationUITests/testNavigationFromDashboardToAllItems()",
+        "DashboardNavigationUITests/testNavigationFromDashboardToSettings()",
+        "DashboardNavigationUITests/testBackNavigationFromListViewToDashboard()",
+        "DashboardNavigationUITests/testBackNavigationFromSettingsToDashboard()",
+        "DashboardNavigationUITests/testDashboardStatsDisplayCorrectly()",
+        "DashboardNavigationUITests/testDashboardRecentItemsSection()",
+        "DashboardNavigationUITests/testRecentItemNavigation()",
+        "DashboardNavigationUITests/testViewAllItemsButtonNavigation()",
+        "DashboardNavigationUITests/testDashboardToolbarButtons()",
+        "DashboardNavigationUITests/testDashboardLoadsQuickly()",
+        "DashboardNavigationUITests/testDashboardStatsLoadQuickly()",
+        "DashboardNavigationUITests/testDashboardAccessibilityIdentifiers()",
+        "DataDeletionUITests/testNavigationToDataDeletion()",
+        "DataDeletionUITests/testWarningSection()",
+        "DataDeletionUITests/testScopeSelectionSection()",
+        "DataDeletionUITests/testConfirmationSection()",
+        "DataDeletionUITests/testScopeSelection()",
+        "FamilySharingUITests/testFamilySharingUsesToggleAndNoCustomInviteSheet()",
+        "FamilySharingUITests/testScopingControlsAreHiddenByDefault()",
+        "FamilySharingUITests/testScopingControlsAppearWhenFlagEnabled()",
+        "DataDeletionUITests/testConfirmationValidation()",
+        "DataDeletionUITests/testFinalConfirmationAlert()",
+        "DataDeletionUITests/testConfirmationTextEdgeCases()",
+        "ImportExportUITests/testDashboardLoads()",
+        "ImportExportUITests/testCanNavigateToSettings()",
+        "ImportExportUITests/testCanNavigateToSyncData()",
+        "ImportExportUITests/testExportDataLinkExists()",
+        "ImportExportUITests/testImportDataLinkExists()",
+        "ImportExportUITests/testCanNavigateToExportScreen()",
+        "ImportExportUITests/testCanNavigateToImportScreen()",
+        "ImportExportUITests/testExportScreenHasButton()",
+        "ImportExportUITests/testImportScreenHasButton()",
+        "ImportExportUITests/testExportButtonIsEnabled()",
+        "ImportExportUITests/testImportButtonIsEnabled()",
+        "InventoryListDeletionUITests/testDeleteAllItemsInView()",
+        "InventoryListDeletionUITests/testDeleteWithNoItemsSelected()",
+        "LabelManagementUITests/testNavigateToLabelsFromSettings()",
+        "LabelManagementUITests/testCannotCreateLabelWithEmptyName()",
+        "LabelManagementUITests/testDeleteLabelWithSwipe()",
+        "LabelManagementUITests/testEditExistingLabel()",
+        "MultiHomeNavigationUITests/testAddNewHome_ShouldNavigateBackToDashboard()",
+        "MultiHomeNavigationUITests/testAddNewHome_ShouldMaintainNavigationStack()",
+        "MultiHomeNavigationUITests/testDashboardRecentlyAdded_ShouldShowItemsWithoutLocation()",
+        "MultiHomeNavigationUITests/testCreateItemWithoutLocation_ShouldAssignToActiveHome()",
+        "MultiHomeNavigationUITests/testAddHomeWithEmptyName_ShouldDisableSaveButton()",
+        "MultiHomeNavigationUITests/testCancelHomeCreation_ShouldNotCreateHome()",
+        "MultiHomeNavigationUITests/testLocationDeletion_ShouldNotAffectItemHomeAssignment()",
+        "MultiHomeNavigationUITests/testHomeChange_ItemsShouldMoveCorrectly()",
+        "MultiHomeNavigationUITests/testPrimaryHomeSwitch_ShouldUpdateDashboardDefault()",
+        "MultiItemCaptureFlowUITests/testNavigationToCamera()",
+        "MultiItemCaptureFlowUITests/testEmptyStateAddItemButtonNavigation()",
+        "MultiItemCaptureFlowUITests/testCameraModePicker()",
+        "MultiItemCaptureFlowUITests/testSwitchToMultiItemMode()",
+        "MultiItemCaptureFlowUITests/testMultiItemRetakeButton()",
+        "MultiItemCaptureFlowUITests/testMultiItemSelectAllButton()",
+        "MultiItemCaptureFlowUITests/testMultiItemDeselectAllButton()",
+        "MultiItemCaptureFlowUITests/testMultiItemSelectionCounter()",
+        "MultiItemCaptureFlowUITests/testMultiItemLocationPicker()",
+        "MultiItemCaptureFlowUITests/testMultiItemCancelButton()",
+        "MultiItemCaptureFlowUITests/testMultiItemReanalyzeButton()",
+        "MultiPhotoUITests/testMultiPhotoCameraAccess()",
+        "MultiPhotoUITests/testPhotoCountIndicator()",
+        "NavigationSystemUITests/testNavigationHelperAllItemsFromDashboard()",
+        "NavigationSystemUITests/testNavigationHelperAllItemsFromSettings()",
+        "NavigationSystemUITests/testNavigationHelperSettingsFromDashboard()",
+        "NavigationSystemUITests/testNavigationHelperSettingsFromList()",
+        "NavigationSystemUITests/testNavigationStackDepth()",
+        "NavigationSystemUITests/testNavigationStackConsistency()",
+        "NavigationSystemUITests/testDirectNavigationPaths()",
+        "NavigationSystemUITests/testNavigationSpeed()",
+        "NavigationSystemUITests/testLandscapeNavigation()",
+        "PaywallUITests/testSettingsViewPaywallButton()",
+        "PhotoButtonVisibilityUITests/testProUserCanAddFirstPhoto()",
+        "PhotoButtonVisibilityUITests/testFreeUserCanAddFirstPhoto()",
+        "PhotoButtonVisibilityUITests/testProUserCanAddAdditionalPhotosFromCameral()",
+        "PhotoButtonVisibilityUITests/testFreeUserCannotAddSecondPhoto()"
+      ]
     }
   ],
-  "version" : 1
+  "version": 1
 }

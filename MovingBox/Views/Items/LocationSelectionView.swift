@@ -5,30 +5,32 @@
 //  Created by AI Assistant on 1/10/25.
 //
 
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 struct LocationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var settingsManager: SettingsManager
-    @Query(sort: [SortDescriptor(\InventoryLocation.name)]) private var allLocations: [InventoryLocation]
-    @Query(sort: \Home.purchaseDate) private var homes: [Home]
+    @FetchAll(SQLiteInventoryLocation.order(by: \.name), animation: .default)
+    private var allLocations: [SQLiteInventoryLocation]
+    @FetchAll(SQLiteHome.order(by: \.purchaseDate), animation: .default)
+    private var homes: [SQLiteHome]
 
-    @Binding var selectedLocation: InventoryLocation?
-    @Binding var selectedHome: Home?
-    @State private var pickedHome: Home?
-    @State private var draftSelectedLocation: InventoryLocation?
-    @State private var draftSelectedHome: Home?
+    @Binding var selectedLocation: SQLiteInventoryLocation?
+    @Binding var selectedHome: SQLiteHome?
+    @State private var pickedHome: SQLiteHome?
+    @State private var draftSelectedLocation: SQLiteInventoryLocation?
+    @State private var draftSelectedHome: SQLiteHome?
     @State private var searchText = ""
     @State private var showingAddLocationSheet = false
     @State private var locationIDsBeforeAddSheet: Set<UUID> = []
 
-    init(selectedLocation: Binding<InventoryLocation?>, selectedHome: Binding<Home?>) {
+    init(selectedLocation: Binding<SQLiteInventoryLocation?>, selectedHome: Binding<SQLiteHome?>) {
         self._selectedLocation = selectedLocation
         self._selectedHome = selectedHome
     }
 
-    private var activeHome: Home? {
+    private var activeHome: SQLiteHome? {
         guard let activeIdString = settingsManager.activeHomeId,
             let activeId = UUID(uuidString: activeIdString)
         else {
@@ -37,14 +39,14 @@ struct LocationSelectionView: View {
         return homes.first { $0.id == activeId } ?? homes.first { $0.isPrimary }
     }
 
-    private var locationsForPickedHome: [InventoryLocation] {
+    private var locationsForPickedHome: [SQLiteInventoryLocation] {
         guard let pickedHome = pickedHome else {
             return allLocations
         }
-        return allLocations.filter { $0.home?.id == pickedHome.id }
+        return allLocations.filter { $0.homeID == pickedHome.id }
     }
 
-    private var filteredLocations: [InventoryLocation] {
+    private var filteredLocations: [SQLiteInventoryLocation] {
         if searchText.isEmpty {
             return locationsForPickedHome
         }
@@ -61,7 +63,7 @@ struct LocationSelectionView: View {
                         Picker("Home", selection: $pickedHome) {
                             ForEach(homes) { home in
                                 Text(home.displayName)
-                                    .tag(home as Home?)
+                                    .tag(home as SQLiteHome?)
                             }
                         }
                         .accessibilityIdentifier("locationSelection-homePicker")
@@ -159,9 +161,7 @@ struct LocationSelectionView: View {
                         dismiss()
                     }
                     .accessibilityIdentifier("locationSelection-done")
-
                 }
-
             }
             .onAppear {
                 if pickedHome == nil {
@@ -173,7 +173,7 @@ struct LocationSelectionView: View {
             .onChange(of: pickedHome) { _, newHome in
                 draftSelectedHome = newHome
                 guard let newHome else { return }
-                if draftSelectedLocation?.home?.id != newHome.id {
+                if draftSelectedLocation?.homeID != newHome.id {
                     draftSelectedLocation = nil
                 }
             }
@@ -186,10 +186,10 @@ struct LocationSelectionView: View {
             content: {
                 NavigationStack {
                     EditLocationView(
-                        location: nil,
+                        locationID: nil,
                         isEditing: true,
                         presentedInSheet: true,
-                        home: pickedHome
+                        homeID: pickedHome?.id
                     )
                 }
                 .presentationDetents([.medium])
@@ -204,17 +204,19 @@ struct LocationSelectionView: View {
         let addedLocations = allLocations.filter { !locationIDsBeforeAddSheet.contains($0.id) }
         guard !addedLocations.isEmpty else { return }
 
-        let newlyAddedLocation: InventoryLocation?
+        let newlyAddedLocation: SQLiteInventoryLocation?
         if let pickedHome {
             newlyAddedLocation =
-                addedLocations.first(where: { $0.home?.id == pickedHome.id }) ?? addedLocations.first
+                addedLocations.first(where: { $0.homeID == pickedHome.id }) ?? addedLocations.first
         } else {
             newlyAddedLocation = addedLocations.first
         }
 
         guard let newlyAddedLocation else { return }
 
-        if let locationHome = newlyAddedLocation.home {
+        if let locationHomeID = newlyAddedLocation.homeID,
+            let locationHome = homes.first(where: { $0.id == locationHomeID })
+        {
             pickedHome = locationHome
             draftSelectedHome = locationHome
         } else {
@@ -227,8 +229,12 @@ struct LocationSelectionView: View {
 }
 
 #Preview {
-    @Previewable @State var location: InventoryLocation? = nil
-    @Previewable @State var home: Home? = nil
+    @Previewable @State var location: SQLiteInventoryLocation? = nil
+    @Previewable @State var home: SQLiteHome? = nil
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
     return LocationSelectionView(selectedLocation: $location, selectedHome: $home)
+        .environmentObject(Router())
         .environmentObject(SettingsManager())
 }

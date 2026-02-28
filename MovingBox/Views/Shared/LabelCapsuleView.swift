@@ -5,10 +5,11 @@
 //  Created by Camden Webster on 1/19/26.
 //
 
+import SQLiteData
 import SwiftUI
 
 struct LabelCapsuleView: View {
-    let label: InventoryLabel
+    let label: SQLiteInventoryLabel
 
     var body: some View {
         let backgroundColor = Color(label.color ?? .blue)
@@ -29,6 +30,8 @@ struct LabelCapsuleView: View {
 }
 
 #Preview {
-    let label = InventoryLabel()
-    LabelCapsuleView(label: label)
+    let _ = try! prepareDependencies {
+        $0.defaultDatabase = try appDatabase()
+    }
+    LabelCapsuleView(label: SQLiteInventoryLabel(id: UUID(), name: "Test", color: .blue, emoji: "📦"))
 }

@@ -1,197 +1,75 @@
-import CloudKit
-import SwiftData
+import SQLiteData
 import SwiftUI
 
 @MainActor
 class DefaultDataManager {
-    static func getAllLabels(from context: ModelContext) -> [String] {
-        let descriptor = FetchDescriptor<InventoryLabel>()
+
+    static func populateDefaultSQLiteLabels(database: any DatabaseWriter) async {
         do {
-            let labels = try context.fetch(descriptor)
-            return ["None"] + labels.map { $0.name }
-        } catch {
-            print("Error fetching labels: \(error)")
-            return ["None"]
-        }
-    }
-
-    static func getAllLocations(from context: ModelContext) -> [String] {
-        let descriptor = FetchDescriptor<InventoryLocation>()
-        do {
-            let locations = try context.fetch(descriptor)
-            return ["None"] + locations.map { $0.name }
-        } catch {
-            print("Error fetching locations: \(error)")
-            return ["None"]
-        }
-    }
-
-    static func getOrCreateHome(modelContext: ModelContext) async throws -> Home {
-        let descriptor = FetchDescriptor<Home>()
-        let homes = try modelContext.fetch(descriptor)
-
-        if let existingHome = homes.last {
-            return existingHome
-        }
-
-        // If using iCloud, wait briefly for potential sync
-        let isUsingICloud = modelContext.container.configurations.first?.cloudKitDatabase != nil
-
-        if isUsingICloud {
-            print("🔍 Checking for Home in iCloud...")
-            // Wait for a short time to allow initial sync
-            try await Task.sleep(nanoseconds: 2 * 1_000_000_000)  // 2 seconds
-
-            // Check again after waiting
-            let secondCheck = try modelContext.fetch(descriptor)
-            if let syncedHome = secondCheck.first {
-                return syncedHome
+            let existingCount = try await database.read { db in
+                try SQLiteInventoryLabel.count().fetchOne(db) ?? 0
             }
-        }
-
-        // If we still don't have a home, create one
-        print("🏠 No existing home found, creating new home...")
-        let newHome = Home()
-        modelContext.insert(newHome)
-        try modelContext.save()
-        return newHome
-    }
-
-    static func checkForExistingObjects<T>(of type: T.Type, in context: ModelContext) async -> Bool
-    where T: PersistentModel {
-        // First check if we can fetch any objects
-        let descriptor = FetchDescriptor<T>()
-        if let objects = try? context.fetch(descriptor), !objects.isEmpty {
-            return true
-        }
-
-        // If using iCloud, wait briefly for potential sync
-        let isUsingICloud = context.container.configurations.first?.cloudKitDatabase != nil
-
-        if isUsingICloud {
-            print("🔍 Checking for \(String(describing: T.self)) in iCloud...")
-            // Wait for a short time to allow initial sync
-            try? await Task.sleep(nanoseconds: 2 * 1_000_000_000)  // 2 seconds
-
-            // Check again after waiting
-            let secondFetch = try? context.fetch(descriptor)
-            return (secondFetch?.isEmpty ?? true) == false
-        }
-
-        return false
-    }
-
-    // MARK: - Legacy Methods (backward compatibility)
-
-    static func populateDefaultLabels(modelContext: ModelContext) async {
-        let hasExistingLabels = await checkForExistingObjects(of: InventoryLabel.self, in: modelContext)
-
-        if !hasExistingLabels {
-            print("🏷️ No existing labels found, creating default labels...")
-            await TestData.loadDefaultData(context: modelContext)
-
-            do {
-                try modelContext.save()
-                print("✅ Default labels saved successfully")
-            } catch {
-                print("❌ Error saving default labels: \(error)")
+            guard existingCount == 0 else {
+                print("🏷️ sqlite-data: Existing labels found, skipping default creation")
+                return
             }
-        } else {
-            print("🏷️ Existing labels found, skipping default label creation")
-        }
-    }
-
-    static func populateDefaultLocations(modelContext: ModelContext) async {
-        let hasExistingLocations = await checkForExistingObjects(of: InventoryLocation.self, in: modelContext)
-
-        if !hasExistingLocations {
-            print("📍 No existing locations found, creating default rooms...")
-            await createDefaultRooms(context: modelContext, home: nil)
-
-            do {
-                try modelContext.save()
-                print("✅ Default rooms saved successfully")
-            } catch {
-                print("❌ Error saving default rooms: \(error)")
-            }
-        } else {
-            print("📍 Existing locations found, skipping default room creation")
-        }
-    }
-
-    // MARK: - Home-Scoped Data Creation
-
-    static func populateDefaultLocations(modelContext: ModelContext, home: Home) async {
-        print("📍 Creating default locations for home: \(home.displayName)")
-        await createDefaultRooms(context: modelContext, home: home)
-
-        do {
-            try modelContext.save()
-            print("✅ Default locations saved successfully for home: \(home.displayName)")
-        } catch {
-            print("❌ Error saving default locations: \(error)")
-        }
-    }
-
-    private static func createDefaultRooms(context: ModelContext, home: Home?) async {
-        for roomData in TestData.defaultRooms {
-            let location = InventoryLocation(
-                name: roomData.name,
-                desc: roomData.desc
-            )
-            location.sfSymbolName = roomData.sfSymbol
-            location.home = home
-            context.insert(location)
-        }
-    }
-
-    static func createNewHome(name: String, modelContext: ModelContext) async throws -> Home {
-        print("🏠 Creating new home: \(name)")
-        let home = Home(name: name)
-        modelContext.insert(home)
-
-        // Only create locations for new homes (labels are global, not per-home)
-        await populateDefaultLocations(modelContext: modelContext, home: home)
-
-        try modelContext.save()
-        print("✅ New home created successfully: \(name)")
-        return home
-    }
-
-    @MainActor
-    static func populateTestData(modelContext: ModelContext) async {
-        await TestData.loadTestData(modelContext: modelContext)
-
-        do {
-            try modelContext.save()
-            print("✅ Test data saved successfully")
-        } catch {
-            print("❌ Error saving test data: \(error)")
-        }
-    }
-
-    static func checkForExistingHome(modelContext: ModelContext) async -> Bool {
-        return await checkForExistingObjects(of: Home.self, in: modelContext)
-    }
-
-    @MainActor
-    static func populateDefaultData(modelContext: ModelContext) async {
-        if !ProcessInfo.processInfo.arguments.contains("Use-Test-Data") {
-            do {
-                let home = try await getOrCreateHome(modelContext: modelContext)
-
-                // Only populate defaults for first launch
-                if !OnboardingManager.hasCompletedOnboarding() {
-                    // Labels are global (not per-home), create once
-                    await populateDefaultLabels(modelContext: modelContext)
-                    // Locations are per-home
-                    await populateDefaultLocations(modelContext: modelContext, home: home)
+            // Deterministic IDs so CloudKit sync won't create duplicate default
+            // labels when a user reinstalls or sets up a new device.
+            let defaultLabels = TestData.labels
+            try await database.write { db in
+                let householdID: UUID
+                if let existingHousehold = try SQLiteHousehold.order(by: \.createdAt).fetchOne(db) {
+                    householdID = existingHousehold.id
+                } else {
+                    let newHousehold = SQLiteHousehold(
+                        id: UUID(),
+                        name: "My Household",
+                        sharingEnabled: false,
+                        defaultAccessPolicy: HouseholdDefaultAccessPolicy.allHomesShared.rawValue
+                    )
+                    try SQLiteHousehold.insert { newHousehold }.execute(db)
+                    householdID = newHousehold.id
                 }
 
-                try modelContext.save()
-            } catch {
-                print("❌ Error setting up default data: \(error)")
+                let ownerCount =
+                    try SQLiteHouseholdMember
+                    .where {
+                        $0.householdID == householdID
+                            && $0.isCurrentUser == true
+                            && $0.status == HouseholdMemberStatus.active.rawValue
+                    }
+                    .fetchCount(db)
+
+                if ownerCount == 0 {
+                    try SQLiteHouseholdMember.insert {
+                        SQLiteHouseholdMember(
+                            id: UUID(),
+                            householdID: householdID,
+                            displayName: "You",
+                            contactEmail: "",
+                            role: HouseholdMemberRole.owner.rawValue,
+                            status: HouseholdMemberStatus.active.rawValue,
+                            isCurrentUser: true
+                        )
+                    }.execute(db)
+                }
+
+                for (index, labelData) in defaultLabels.enumerated() {
+                    try SQLiteInventoryLabel.insert {
+                        SQLiteInventoryLabel(
+                            id: DefaultSeedID.labelIDs[index],
+                            householdID: householdID,
+                            name: labelData.name,
+                            desc: labelData.desc,
+                            color: labelData.color,
+                            emoji: labelData.emoji
+                        )
+                    }.execute(db)
+                }
             }
+            print("🏷️ sqlite-data: Default labels created")
+        } catch {
+            print("❌ sqlite-data: Error creating default labels: \(error)")
         }
     }
 }

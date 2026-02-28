@@ -1,0 +1,4 @@
+interface:
+  display_name: "Exploratory Tester"
+  short_description: "Simulator exploratory upgrade test runner"
+  default_prompt: "Plan and execute exploratory upgrade or release-regression testing in Simulator. Confirm baseline/target versions before running, set up a clean environment with seeded media, run baseline creation and in-place upgrade validation, and produce evidence-backed PASS/FAIL artifacts."
